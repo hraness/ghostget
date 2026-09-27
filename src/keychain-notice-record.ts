@@ -2,9 +2,10 @@
  * Which browsers' keychain notices Ghostget no longer needs to show.
  *
  * After a person chooses Always Allow, macOS stops asking, so repeating the
- * "macOS will ask" notice on every run would be noise. `auth bind` records a
- * browser here after a successful read; later runs read the record and skip
- * that browser's notice. Deleting the file only brings the notice back.
+ * "macOS will ask" notice on every run would be noise. A browser is added
+ * after a keychain read that returned without a dialog, and removed again
+ * after one that asked or failed. Deleting the file only brings the notice
+ * back.
  */
 import { join } from "node:path";
 
@@ -22,10 +23,10 @@ const KNOWN_BROWSERS = new Set(["Chrome", "Arc", "Brave", "Chromium", "Microsoft
 const MAX_RECORD_BYTES = 1_024;
 
 export type KeychainNoticeRecord = {
-  /** True when this browser's keychain read already succeeded after its notice. */
+  /** True when this browser's keychain access was granted when last read. */
   readonly has: (browser: string) => boolean;
-  /** Present only for commands allowed to write state (`auth bind`). */
-  readonly record?: (browsers: readonly string[]) => void;
+  /** Add browsers read without a dialog; remove browsers whose read asked or failed. */
+  readonly update?: (granted: readonly string[], lost: readonly string[]) => void;
 };
 
 export function keychainNoticeRecordPath(environment: Environment): string {
@@ -47,10 +48,7 @@ export function parseKeychainNoticeRecord(text: string | null): ReadonlySet<stri
  * The record for one state home. Reads are lazy and happen once; any storage
  * failure falls back to showing the notice, and a failed write is ignored.
  */
-export function stateKeychainNoticeRecord(
-  environment: Environment,
-  options: { readonly writable: boolean },
-): KeychainNoticeRecord {
+export function stateKeychainNoticeRecord(environment: Environment): KeychainNoticeRecord {
   let loaded: Set<string> | null = null;
   const load = (): Set<string> => {
     if (loaded !== null) return loaded;
@@ -68,22 +66,22 @@ export function stateKeychainNoticeRecord(
   };
   return {
     has: (browser) => load().has(browser),
-    ...(options.writable
-      ? {
-          record: (browsers: readonly string[]) => {
-            const current = load();
-            const added = browsers.filter((browser) => KNOWN_BROWSERS.has(browser) && !current.has(browser));
-            if (added.length === 0) return;
-            for (const browser of added) current.add(browser);
-            try {
-              const path = keychainNoticeRecordPath(environment);
-              ensurePrivateStateDirectory(join(ghostgetStateHome(environment), "control"), environment);
-              writePrivateJson(path, { version: 1, browsers: [...current].sort() });
-            } catch {
-              // The record only saves a repeated notice; never fail the command for it.
-            }
-          },
-        }
-      : {}),
+    update: (granted, lost) => {
+      const current = load();
+      let changed = false;
+      for (const browser of granted) {
+        if (KNOWN_BROWSERS.has(browser) && !current.has(browser)) { current.add(browser); changed = true; }
+      }
+      for (const browser of lost) {
+        if (current.delete(browser)) changed = true;
+      }
+      if (!changed) return;
+      try {
+        ensurePrivateStateDirectory(join(ghostgetStateHome(environment), "control"), environment);
+        writePrivateJson(keychainNoticeRecordPath(environment), { version: 1, browsers: [...current].sort() });
+      } catch {
+        // The record only saves a repeated notice; never fail the command for it.
+      }
+    },
   };
 }

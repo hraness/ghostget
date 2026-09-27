@@ -3893,8 +3893,7 @@ export async function main(
         write: (text) => output.stderr(text),
         readKey: (timeoutSeconds) => terminalReadKey(timeoutSeconds),
         confirm: parsed.value.command === "auth-bind",
-        // Only the setup command writes the record; reads just consult it.
-        record: stateKeychainNoticeRecord(environment, { writable: parsed.value.command === "auth-bind" }),
+        record: stateKeychainNoticeRecord(environment),
       });
     }
     const code = await runCommand(

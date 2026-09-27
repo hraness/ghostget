@@ -21,6 +21,7 @@ import {
   classifyTerminalKey,
   showKeychainNotice,
   terminalReadKey,
+  UNPROMPTED_KEYCHAIN_READ_MS,
   type CookieNoticeIO,
   type KeyInput,
 } from "./cookie-access";
@@ -435,20 +436,25 @@ describe("keychain notice follow-ups", () => {
     }
   });
 
-  test("records a browser only after a clean keychain read", async () => {
-    const recorded: string[][] = [];
-    const record = { has: () => false, record: (browsers: readonly string[]) => { recorded.push([...browsers]); } };
+  test("records only fast clean single-browser reads and forgets prompted or failed ones", async () => {
+    const updates: [string[], string[]][] = [];
+    const record = { has: () => false, update: (granted: readonly string[], lost: readonly string[]) => { updates.push([[...granted], [...lost]]); } };
     configureCookieAccessNotice(captureNotice({ record }).io);
+    let clock = 0;
+    const reader = (warnings: string[], elapsed: number, platform = "darwin", cookies: typeof cookie[] = [cookie]) =>
+      createClassifiedCookieRecordReader(async () => { clock += elapsed; return { cookies, warnings }; }, { platform, now: () => clock });
     try {
-      const ok = createClassifiedCookieRecordReader(async () => ({ cookies: [cookie], warnings: [] }), { platform: "darwin" });
-      await ok(selection(["chrome"]), target);
-      const denied = createClassifiedCookieRecordReader(async () => ({ cookies: [cookie], warnings: [deniedWarning] }), { platform: "darwin" });
-      await denied(selection(["chrome"]), target);
-      const noDatabase = createClassifiedCookieRecordReader(async () => ({ cookies: [cookie], warnings: ["Chrome cookies database not found."] }), { platform: "darwin" });
-      await noDatabase(selection(["chrome"]), target);
-      const linux = createClassifiedCookieRecordReader(async () => ({ cookies: [cookie], warnings: [] }), { platform: "linux" });
-      await linux(selection(["chrome"]), target);
-      expect(recorded).toEqual([["Chrome"]]);
+      await reader([], 5)(selection(["chrome"]), target);
+      await reader([], UNPROMPTED_KEYCHAIN_READ_MS + 4_000)(selection(["arc"]), target);
+      await reader([deniedWarning], 5)(selection(["chrome"]), target).catch(() => undefined);
+      await reader(["Chrome cookies database not found."], 5)(selection(["chrome"]), target).catch(() => undefined);
+      await reader([], 5, "linux")(selection(["chrome"]), target);
+      await reader([], 5)(selection(["chrome", "arc"]), target);
+      expect(updates).toEqual([
+        [["Chrome"], []],
+        [[], ["Arc"]],
+        [[], ["Chrome"]],
+      ]);
     } finally {
       configureCookieAccessNotice(null);
     }
@@ -458,13 +464,15 @@ describe("keychain notice follow-ups", () => {
     const home = mkdtempSync(join(tmpdir(), "ghostget-keychain-record-"));
     const environment = { GHOSTGET_STATE_HOME: join(home, "state") };
     try {
-      const readOnly = stateKeychainNoticeRecord(environment, { writable: false });
-      expect(readOnly.has("Chrome")).toBeFalse();
-      expect(readOnly.record).toBeUndefined();
-      stateKeychainNoticeRecord(environment, { writable: true }).record?.(["Chrome", "Not a browser"]);
-      const reread = stateKeychainNoticeRecord(environment, { writable: false });
+      expect(stateKeychainNoticeRecord(environment).has("Chrome")).toBeFalse();
+      stateKeychainNoticeRecord(environment).update?.(["Chrome", "Arc", "Not a browser"], []);
+      const reread = stateKeychainNoticeRecord(environment);
       expect(reread.has("Chrome")).toBeTrue();
+      expect(reread.has("Arc")).toBeTrue();
       expect(reread.has("Not a browser")).toBeFalse();
+      reread.update?.([], ["Arc"]);
+      expect(stateKeychainNoticeRecord(environment).has("Arc")).toBeFalse();
+      expect(stateKeychainNoticeRecord(environment).has("Chrome")).toBeTrue();
       expect([...parseKeychainNoticeRecord("{\"version\":1,\"browsers\":[\"Arc\",7,\"Nope\"]}")]).toEqual(["Arc"]);
       expect(parseKeychainNoticeRecord("{\"version\":2,\"browsers\":[\"Arc\"]}").size).toBe(0);
       expect(parseKeychainNoticeRecord("not json").size).toBe(0);

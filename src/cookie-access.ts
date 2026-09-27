@@ -326,15 +326,39 @@ async function announceKeychainReads(options: CookieSelection, platform: string)
 }
 
 /**
- * Remember browsers whose keychain read just worked, so later runs skip their
- * notice. A keychain or missing-database warning means the key was not read.
+ * A keychain read that finishes this fast returned without a macOS dialog:
+ * nobody can read, decide and click in under a second. Slower reads may have
+ * asked, and a one-time "Allow" also succeeds, so only fast reads count.
  */
-function recordKeychainAccess(options: CookieSelection, platform: string, warnings: readonly string[]): void {
-  const record = activeNotice?.record?.record;
-  if (record === undefined) return;
-  if (warnings.some((warning) => /keychain|cookies database not found/iu.test(warning))) return;
+export const UNPROMPTED_KEYCHAIN_READ_MS = 1_000;
+
+/**
+ * Keep the record in step with what macOS actually did. A fast, clean read of
+ * one browser means access is granted, so later runs skip its notice. A slow
+ * or failed read means macOS asked (or refused), for example after a one-time
+ * Allow, a revoked grant or an update that changed the code signature, so the
+ * notice comes back next time. Reads that name several browsers stop at the
+ * first that works, so they never add to the record.
+ */
+function updateKeychainRecord(
+  options: CookieSelection,
+  platform: string,
+  warnings: readonly string[],
+  elapsedMs: number,
+  succeeded: boolean,
+): void {
+  const record = activeNotice?.record;
+  if (record?.update === undefined) return;
   const browsers = keychainBrowsersFor(options, platform);
-  if (browsers.length > 0) record(browsers);
+  if (browsers.length === 0) return;
+  // No cookie database means the keychain was never asked.
+  if (warnings.some((warning) => /cookies database not found/iu.test(warning))) return;
+  const clean = succeeded && !warnings.some((warning) => /keychain/iu.test(warning));
+  if (clean && elapsedMs < UNPROMPTED_KEYCHAIN_READ_MS && browsers.length === 1) {
+    record.update(browsers, []);
+  } else if (!clean || elapsedMs >= UNPROMPTED_KEYCHAIN_READ_MS) {
+    record.update([], browsers);
+  }
 }
 
 /**
@@ -347,26 +371,36 @@ export function createClassifiedCookieRecordReader(
     readonly probeSafari?: SafariAccessProbe;
     readonly environment?: CliEnvironment;
     readonly platform?: string;
+    /** Milliseconds clock for timing keychain reads. */
+    readonly now?: () => number;
   } = {},
 ): CookieRecordReader {
   const probeSafari = context.probeSafari ?? probeSafariAccess;
   const platform = context.platform ?? process.platform;
+  const now = context.now ?? (() => performance.now());
   return async (options, url) => {
     const environment = context.environment ?? process.env;
     let observed: ObservedFailure | null = null;
     const warnings: string[] = [];
+    let elapsedMs = 0;
     const records = createCookieRecordReader(async (cookieOptions) => {
-      const provided = await store(cookieOptions);
-      observed ??= classifyCookieProviderResult(provided, options.cookieSources);
-      warnings.push(...providerWarnings(provided));
-      return provided;
+      const started = now();
+      try {
+        const provided = await store(cookieOptions);
+        observed ??= classifyCookieProviderResult(provided, options.cookieSources);
+        warnings.push(...providerWarnings(provided));
+        return provided;
+      } finally {
+        elapsedMs += now() - started;
+      }
     });
     await announceKeychainReads(options, platform);
     try {
       const result = await records(options, url);
-      recordKeychainAccess(options, platform, warnings);
+      updateKeychainRecord(options, platform, warnings, elapsedMs, true);
       return result;
     } catch (error) {
+      updateKeychainRecord(options, platform, warnings, elapsedMs, false);
       const failure = observed as ObservedFailure | null;
       if (failure !== null) {
         const requester = failure.code === "FDA_DENIED" ? responsibleApp(environment) : "security";

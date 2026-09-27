@@ -13,7 +13,7 @@
       "kind": "derived",
       "retention": "persistent",
       "owner": "src/keychain-notice-record.ts",
-      "source": "Browsers whose keychain read succeeded during auth bind; only hides a repeated notice",
+      "source": "Browsers whose last keychain read returned without a macOS dialog; only hides a repeated notice",
       "budget": { "maxEntries": 5, "maxBytes": 1024 },
       "expiry": "Rebuildable; deleting it only brings the keychain notice back"
     }
