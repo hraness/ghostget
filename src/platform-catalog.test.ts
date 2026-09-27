@@ -26,6 +26,7 @@ const r1Operations = new Set<SemanticOperationName>([
   "profiles.read",
   "organizations.read",
   "contacts.list",
+  "calendar.attendees.list",
   "contacts.search",
   "contacts.read",
   "feeds.read",
