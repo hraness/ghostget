@@ -206,8 +206,9 @@ scripts, endpoints it picked, or open browser access. Each signed-in call is
 tied to one provider, origin, transport, account, contract, and implementation,
 so Ghostget never borrows whatever session happens to be open.
 
-The Microsoft Graph plugin reserves contact and calendar-attendee reads as
-disabled candidates. Both stop before credentials or network access until an
+This source tree reserves Microsoft Graph contact and calendar-attendee reads
+as disabled (`capture-required`) candidates. The published 0.18.43 package
+predates this implementation. Both stop before credentials or network access until an
 authorized account test confirms their behavior. See the
 [Microsoft Graph reference](skills/ghostget/references/microsoft-graph.md) for
 the proposed fields, limits, and account requirements.

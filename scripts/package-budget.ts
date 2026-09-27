@@ -1968,19 +1968,19 @@
 // files over merged main 9ec57ea (0.18.43): adapter, plugin, contracts,
 // runtime, policy, and public reference. A clean npm 11.19.0 pack
 // --ignore-scripts with Node 24.18.1 on darwin arm64 measured 615 entries,
-// 12,098,313 packed bytes and 23,794,369 unpacked bytes; archive SHA-256
-// c875fcaa784dd41d3a6da069f7d5978a0c087af276b241e2ace8a13f0d03e139.
+// 12,098,358 packed bytes and 23,794,566 unpacked bytes; archive SHA-256
+// 0643dca53860896dba83d0be89409c2ad6ec3c2501408c88134945c52071f024.
 // Retain the same platform projections and portability allowances:
-// 12,098,313 + 12,387 + 4,096 = 12,114,796 packed;
-// 23,794,369 + 353 + 65 = 23,794,787 unpacked.
+// 12,098,358 + 12,387 + 4,096 = 12,114,841 packed;
+// 23,794,566 + 353 + 65 = 23,794,984 unpacked.
 export const repairPackageMeasurement = Object.freeze({
   scope: "Disabled Microsoft Graph contact/calendar candidates over Ghostget 0.18.43 main 9ec57ea",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "c875fcaa784dd41d3a6da069f7d5978a0c087af276b241e2ace8a13f0d03e139",
-  packedBytes: 12_098_313,
-  unpackedBytes: 23_794_369,
+  archiveSha256: "0643dca53860896dba83d0be89409c2ad6ec3c2501408c88134945c52071f024",
+  packedBytes: 12_098_358,
+  unpackedBytes: 23_794_566,
   entryCount: 615,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

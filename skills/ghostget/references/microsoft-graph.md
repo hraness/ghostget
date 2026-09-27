@@ -1,15 +1,16 @@
 # Microsoft Graph contacts and calendar
 
+This source candidate is absent from the published 0.18.43 package.
 The `microsoft-graph-official` plugin reserves two read operations. Both are
 `capture-required`: Ghostget rejects them before reading credentials or making
 a network request. The implementation has synthetic tests; an authorized
 account test and a reviewed code change are required before either operation
 can run.
 
-Inspect the installed definitions with:
+Inspect definitions from a source checkout containing this candidate:
 
 ```sh
-ghostget plugin show microsoft-graph-official --json
+bun run ./src/cli.ts plugin show microsoft-graph-official --json
 ```
 
 ## Proposed operations

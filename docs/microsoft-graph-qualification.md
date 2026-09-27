@@ -1,6 +1,7 @@
 # Microsoft Graph activation evidence
 
-The Microsoft Graph plugin is a disabled candidate. Source, parser, HTTP-fixture,
+The Microsoft Graph plugin is a disabled source candidate, absent from the
+published 0.18.43 package. Source, parser, HTTP-fixture,
 package, and registry tests can admit the artifact without activating it.
 Neither operation may be marked `observed` from those tests alone.
 
