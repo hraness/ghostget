@@ -225,6 +225,7 @@ describe("single-process bundled adapter generation sync", () => {
       "substack-web@1.4.0",
       "substack-web@1.5.0",
       "substack-web@1.6.0",
+      "substack-web@1.7.0",
       "threads-web@1.0.0",
       "threads-web@1.1.0",
       "threads-web@1.2.0",

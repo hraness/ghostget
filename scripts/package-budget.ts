@@ -1945,15 +1945,24 @@
 // dafd7278b23253fb61ea563156b6fb50a48c27e09466b05851fa3c6360c658ec.
 // Carry the same projections and allowances: 12,076,551 + 12,387 + 4,096 =
 // 12,093,034 packed; 23,688,277 + 353 + 65 = 23,688,695 unpacked.
+//
+// The capture-required Substack subscriber operations add the retained
+// substack-web 1.7.0 adapter snapshot and the substack-subscribers skill
+// reference over that integrated main tree: two additional packed files. A
+// clean npm 11.19.0 pack --ignore-scripts on darwin arm64 measured 609
+// entries, 12,089,062 packed bytes and 23,758,825 unpacked bytes; archive
+// SHA-256 de75b0b81bf098fa08171d8bdf9c3a0798db74027652b777f6d2883c8b143c97.
+// Carry the same projections and allowances: 12,089,062 + 12,387 + 4,096 =
+// 12,105,545 packed; 23,758,825 + 353 + 65 = 23,759,243 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget 0.18.42 release on integrated main: menu kit v2, the GG-8 signed-helper cookie path, the CLI spot checks, the aggregate CLI ping and site-footer v0.19.3",
+  scope: "Capture-required Substack subscriber operations over the Ghostget 0.18.42 integrated main tree",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "dafd7278b23253fb61ea563156b6fb50a48c27e09466b05851fa3c6360c658ec",
-  packedBytes: 12_076_551,
-  unpackedBytes: 23_688_277,
-  entryCount: 607,
+  archiveSha256: "de75b0b81bf098fa08171d8bdf9c3a0798db74027652b777f6d2883c8b143c97",
+  packedBytes: 12_089_062,
+  unpackedBytes: 23_758_825,
+  entryCount: 609,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,
