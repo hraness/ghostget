@@ -48,6 +48,7 @@ import {
   findCookieAccessError,
   terminalReadKey,
 } from "./cookie-access";
+import { stateKeychainNoticeRecord } from "./keychain-notice-record";
 import type * as BeeperMessageLikeMeCliRuntimeModule from "./beeper-message-like-me-cli";
 import type * as BeeperContactInteractionCliRuntimeModule from "./beeper-contact-interactions-cli";
 import type * as ApplePhotosCliRuntimeModule from "./apple-photos-cli";
@@ -395,8 +396,11 @@ export function renderGhostgetUsageError(
 }
 
 /** The command to run again after a permission denial. */
-function cookieAccessNext(arguments_: GhostgetArguments): string {
-  if (arguments_.command === "auth-bind") return `ghostget auth bind ${arguments_.id} --site ${arguments_.site}`;
+export function cookieAccessNext(arguments_: GhostgetArguments): string {
+  // Keep the flags that change what the retry does or prints.
+  if (arguments_.command === "auth-bind") {
+    return `ghostget auth bind ${arguments_.id} --site ${arguments_.site}${arguments_.force ? " --force" : ""}${arguments_.json ? " --json" : ""}`;
+  }
   return "ghostget doctor";
 }
 
@@ -3887,8 +3891,9 @@ export async function main(
         stdinIsTTY: process.stdin.isTTY === true,
         stderrIsTTY: process.stderr.isTTY === true,
         write: (text) => output.stderr(text),
-        readKey: terminalReadKey,
+        readKey: (timeoutSeconds) => terminalReadKey(timeoutSeconds),
         confirm: parsed.value.command === "auth-bind",
+        record: stateKeychainNoticeRecord(environment),
       });
     }
     const code = await runCommand(

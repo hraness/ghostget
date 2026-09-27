@@ -20,6 +20,7 @@ import {
 
 import type { StrictCookie } from "@hraness/kb/clip/cookies";
 import { assertAsyncProperty, fc } from "./test-support";
+import { CookieAccessError, findCookieAccessError } from "./cookie-access-error";
 import { loadAuth, saveAuth, type GhostgetAuth } from "./auth";
 import { main } from "./ghostget";
 import {
@@ -2842,6 +2843,42 @@ describe("portable provider runtime capability containment", () => {
     });
     expect(escapedFetches).toBe(0);
     expect(escapedCloses).toBe(1);
+  });
+
+  test("a macOS cookie denial reaches the caller instead of the plugin's fallback", async () => {
+    let fetches = 0;
+    const deniedCatalog = createPortableProviderPluginCatalog(
+      emptyRegistry(),
+      environment,
+      {
+        acquireCookies: () => Promise.reject(
+          new CookieAccessError("KEYCHAIN_DENIED", "Chrome", "security"),
+        ),
+        createFetchScope: () => Object.freeze({
+          fetch: () => {
+            fetches += 1;
+            return Promise.resolve(new Response("{}"));
+          },
+          close: () => undefined,
+        }),
+      },
+    );
+    const deniedManifest =
+      deniedCatalog.registry.resolveOwnedManifest("portable-web");
+    const deniedBinding =
+      deniedCatalog.registry.requireSessionRoute("portable-web");
+    if (deniedManifest === undefined) {
+      throw new Error("portable web projection is unavailable");
+    }
+    const error = await deniedBinding.execute(
+      deniedManifest,
+      webRecipe(deniedManifest, "feeds.read"),
+      {},
+      cookiesAuth(cookiePath),
+      { environment },
+    ).then(() => null, (caught: unknown) => caught);
+    expect(findCookieAccessError(error)?.code).toBe("KEYCHAIN_DENIED");
+    expect(fetches).toBe(0);
   });
 
   test("binds plan files by both size and SHA-256 before starting the host", async () => {

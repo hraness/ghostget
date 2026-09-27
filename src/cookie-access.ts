@@ -24,6 +24,7 @@ import { getCookies } from "@steipete/sweet-cookie";
 
 import { cliStyle, responsibleApp, type CliEnvironment } from "./cli-style";
 import { CookieAccessError, keychainAsk, type CookieAccessCode } from "./cookie-access-error";
+import type { KeychainNoticeRecord } from "./keychain-notice-record";
 
 export {
   CookieAccessError,
@@ -104,6 +105,14 @@ export function classifyCookieProviderResult(
       if (browser === null) continue;
       if (kind === "denied") return { code: "KEYCHAIN_DENIED", browser };
       if (kind === "unavailable") return { code: "KEYCHAIN_UNAVAILABLE", browser };
+      // The Edge reader tries "Microsoft Edge Safe Storage", then a legacy
+      // "Microsoft Edge" item, and reports only the last error. It asks the
+      // keychain only after finding Edge's cookie database, and Edge creates
+      // its key on first launch, so "not found" here means the first request
+      // was denied or never answered.
+      if (kind === "missing" && browser === "Microsoft Edge" && /Microsoft Edge Safe Storage/u.test(warning)) {
+        return { code: "KEYCHAIN_DENIED", browser };
+      }
     }
     if (/safari/iu.test(warning) && /\b(EPERM|EACCES)\b|operation not permitted/iu.test(warning)) {
       return { code: "FDA_DENIED", browser: "Safari" };
@@ -160,6 +169,8 @@ export type CookieNoticeIO = {
   readonly readKey?: (timeoutSeconds: number) => Promise<TerminalKey>;
   /** Ask for Enter before continuing (explicit setup commands only). */
   readonly confirm: boolean;
+  /** Browsers whose keychain access already worked; their notice is skipped. */
+  readonly record?: KeychainNoticeRecord;
 };
 
 export type CookieNoticeOutcome = "continue" | "skip";
@@ -200,35 +211,75 @@ export async function showKeychainNotice(browser: string, io: CookieNoticeIO): P
   }
 }
 
-/** Read one key from a terminal stdin, restoring its mode afterwards. */
-export function terminalReadKey(timeoutSeconds: number): Promise<TerminalKey> {
-  const stdin = process.stdin;
+/** The part of a terminal stdin that `terminalReadKey` uses. */
+export type KeyInput = {
+  readonly isRaw?: boolean;
+  setRawMode(mode: boolean): unknown;
+  on(event: "data", listener: (chunk: Buffer | string) => void): unknown;
+  on(event: "end" | "close", listener: () => void): unknown;
+  off(event: "data", listener: (chunk: Buffer | string) => void): unknown;
+  off(event: "end" | "close", listener: () => void): unknown;
+  resume(): unknown;
+  pause(): unknown;
+  unref?(): unknown;
+};
+
+/** Classify one chunk of raw terminal input by its first character. */
+export function classifyTerminalKey(text: string): TerminalKey | "interrupt" {
+  const first = text[0] ?? "";
+  if (first === "\u0003") return "interrupt";
+  // Ctrl-D is end of input in raw mode, which is not a yes.
+  if (first === "\u0004") return "s";
+  if (first === "\r" || first === "\n") return "enter";
+  if (first === "s" || first === "S") return "s";
+  return "other";
+}
+
+/**
+ * Read one key from a terminal stdin, restoring its mode afterwards. Closed
+ * input answers "skip" instead of waiting out the timeout, and stdin is
+ * released so a finished command exits.
+ */
+export function terminalReadKey(
+  timeoutSeconds: number,
+  stdin: KeyInput = process.stdin,
+  interrupt: () => void = () => { process.kill(process.pid, "SIGINT"); },
+): Promise<TerminalKey> {
   return new Promise((resolve) => {
     const wasRaw = stdin.isRaw === true;
     let settled = false;
+    let listening = false;
     const finish = (key: TerminalKey): void => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      stdin.off("data", onData);
-      try { stdin.setRawMode(wasRaw); } catch { /* The terminal went away. */ }
-      stdin.pause();
+      if (listening) {
+        stdin.off("data", onData);
+        stdin.off("end", onClosed);
+        stdin.off("close", onClosed);
+        try { stdin.setRawMode(wasRaw); } catch { /* The terminal went away. */ }
+        stdin.pause();
+        // A paused stdin can still hold the event loop open in Bun.
+        stdin.unref?.();
+      }
       resolve(key);
     };
+    const onClosed = (): void => finish("s");
     const onData = (chunk: Buffer | string): void => {
-      const text = typeof chunk === "string" ? chunk : chunk.toString("utf8");
-      if (text === "\u0003") {
+      const key = classifyTerminalKey(typeof chunk === "string" ? chunk : chunk.toString("utf8"));
+      if (key === "interrupt") {
         finish("s");
-        process.kill(process.pid, "SIGINT");
+        interrupt();
         return;
       }
-      if (text === "\r" || text === "\n") finish("enter");
-      else if (text.toLowerCase() === "s") finish("s");
-      else finish("other");
+      finish(key);
     };
     const timer = setTimeout(() => finish("timeout"), timeoutSeconds * 1_000);
     try { stdin.setRawMode(true); } catch { finish("unavailable"); return; }
+    listening = true;
     stdin.on("data", onData);
+    stdin.on("end", onClosed);
+    stdin.on("close", onClosed);
     stdin.resume();
   });
 }
@@ -253,13 +304,60 @@ export class CookieAccessSkippedError extends Error {
   }
 }
 
-async function announceKeychainReads(options: CookieSelection, platform: string): Promise<void> {
-  if (activeNotice === null || options.cookiesFile !== undefined || platform !== "darwin") return;
-  for (const source of options.cookieSources) {
+/** The keychain browsers one cookie read may ask macOS about. */
+function keychainBrowsersFor(options: CookieSelection, platform: string): readonly string[] {
+  if (options.cookiesFile !== undefined || platform !== "darwin") return [];
+  return [...new Set(options.cookieSources.flatMap((source) => {
     const browser = KEYCHAIN_BROWSERS[source];
-    if (browser === undefined || announced.has(browser)) continue;
+    return browser === undefined ? [] : [browser];
+  }))];
+}
+
+async function announceKeychainReads(options: CookieSelection, platform: string): Promise<void> {
+  const notice = activeNotice;
+  if (notice === null) return;
+  for (const browser of keychainBrowsersFor(options, platform)) {
+    if (announced.has(browser)) continue;
     announced.add(browser);
-    if (await showKeychainNotice(browser, activeNotice) === "skip") throw new CookieAccessSkippedError(browser);
+    // Access already granted: macOS won't ask, so say nothing.
+    if (notice.record?.has(browser) === true) continue;
+    if (await showKeychainNotice(browser, notice) === "skip") throw new CookieAccessSkippedError(browser);
+  }
+}
+
+/**
+ * A keychain read that finishes this fast returned without a macOS dialog:
+ * nobody can read, decide and click in under a second. Slower reads may have
+ * asked, and a one-time "Allow" also succeeds, so only fast reads count.
+ */
+export const UNPROMPTED_KEYCHAIN_READ_MS = 1_000;
+
+/**
+ * Keep the record in step with what macOS actually did. A fast, clean read of
+ * one browser means access is granted, so later runs skip its notice. A slow
+ * or failed read means macOS asked (or refused), for example after a one-time
+ * Allow, a revoked grant or an update that changed the code signature, so the
+ * notice comes back next time. Reads that name several browsers stop at the
+ * first that works, so they never add to the record.
+ */
+function updateKeychainRecord(
+  options: CookieSelection,
+  platform: string,
+  warnings: readonly string[],
+  elapsedMs: number,
+  succeeded: boolean,
+): void {
+  const record = activeNotice?.record;
+  if (record?.update === undefined) return;
+  const browsers = keychainBrowsersFor(options, platform);
+  if (browsers.length === 0) return;
+  // No cookie database means the keychain was never asked.
+  if (warnings.some((warning) => /cookies database not found/iu.test(warning))) return;
+  const clean = succeeded && !warnings.some((warning) => /keychain/iu.test(warning));
+  if (clean && elapsedMs < UNPROMPTED_KEYCHAIN_READ_MS && browsers.length === 1) {
+    record.update(browsers, []);
+  } else if (!clean || elapsedMs >= UNPROMPTED_KEYCHAIN_READ_MS) {
+    record.update([], browsers);
   }
 }
 
@@ -273,22 +371,36 @@ export function createClassifiedCookieRecordReader(
     readonly probeSafari?: SafariAccessProbe;
     readonly environment?: CliEnvironment;
     readonly platform?: string;
+    /** Milliseconds clock for timing keychain reads. */
+    readonly now?: () => number;
   } = {},
 ): CookieRecordReader {
   const probeSafari = context.probeSafari ?? probeSafariAccess;
   const platform = context.platform ?? process.platform;
+  const now = context.now ?? (() => performance.now());
   return async (options, url) => {
     const environment = context.environment ?? process.env;
     let observed: ObservedFailure | null = null;
+    const warnings: string[] = [];
+    let elapsedMs = 0;
     const records = createCookieRecordReader(async (cookieOptions) => {
-      const provided = await store(cookieOptions);
-      observed ??= classifyCookieProviderResult(provided, options.cookieSources);
-      return provided;
+      const started = now();
+      try {
+        const provided = await store(cookieOptions);
+        observed ??= classifyCookieProviderResult(provided, options.cookieSources);
+        warnings.push(...providerWarnings(provided));
+        return provided;
+      } finally {
+        elapsedMs += now() - started;
+      }
     });
     await announceKeychainReads(options, platform);
     try {
-      return await records(options, url);
+      const result = await records(options, url);
+      updateKeychainRecord(options, platform, warnings, elapsedMs, true);
+      return result;
     } catch (error) {
+      updateKeychainRecord(options, platform, warnings, elapsedMs, false);
       const failure = observed as ObservedFailure | null;
       if (failure !== null) {
         const requester = failure.code === "FDA_DENIED" ? responsibleApp(environment) : "security";

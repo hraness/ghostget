@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -18,9 +18,15 @@ import {
   detectCookieAudience,
   findCookieAccessError,
   keychainNoticeLines,
+  classifyTerminalKey,
   showKeychainNotice,
+  terminalReadKey,
+  UNPROMPTED_KEYCHAIN_READ_MS,
   type CookieNoticeIO,
+  type KeyInput,
 } from "./cookie-access";
+import { cookieAccessNext } from "./ghostget";
+import { parseKeychainNoticeRecord, stateKeychainNoticeRecord } from "./keychain-notice-record";
 import { renderCookieAccessFailure } from "./ghostget";
 import { readFailureProjection, permissionReadFailure } from "./web-session-execution";
 import { providerReadFailureProjection } from "./providers/read-failure";
@@ -346,7 +352,10 @@ describe("permission failures reach every caller", () => {
 
   test("--json and agents get a typed error", () => {
     const fda = new CookieAccessError("FDA_DENIED", "Safari", "Terminal");
-    for (const result of [render(fda, {}, true), render(fda, { CLAUDECODE: "1" })]) {
+    for (const [result, next] of [
+      [render(fda, {}, true), "ghostget auth bind work --site x --json"],
+      [render(fda, { CLAUDECODE: "1" }), "ghostget auth bind work --site x"],
+    ] as const) {
       expect(result.code).toBe(3);
       expect(result.stderr).toBe("");
       expect(JSON.parse(result.stdout)).toEqual({
@@ -356,7 +365,7 @@ describe("permission failures reach every caller", () => {
           kind: "full-disk-access",
           reason: "FDA_DENIED",
           message: "Ghostget can't read Safari's cookies: macOS access is off for Terminal.",
-          next: "ghostget auth bind work --site x",
+          next,
           settingsUrl: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles",
         },
       });
@@ -407,5 +416,140 @@ describe("browsers list", () => {
   test("an unreadable home reports Safari as missing, not blocked", async () => {
     const { safariCookieAccess } = await import("./browser-profiles");
     expect(safariCookieAccess(mkdtempSync(join(tmpdir(), "ghostget-safari-")))).toBe("missing");
+  });
+});
+
+describe("keychain notice follow-ups", () => {
+  const cookie = { name: "sid", value: "v", domain: "example.com", hostOnly: true, path: "/", secure: true, httpOnly: true } as const;
+
+  test("skips the notice for a browser whose access already worked", async () => {
+    const capture = captureNotice({ record: { has: (browser) => browser === "Chrome" } });
+    configureCookieAccessNotice(capture.io);
+    try {
+      const reader = createClassifiedCookieRecordReader(async () => ({ cookies: [cookie], warnings: [] }), { platform: "darwin" });
+      await reader(selection(["chrome"]), target);
+      expect(capture.text()).toBe("");
+      await reader(selection(["arc"]), target);
+      expect(capture.text()).toContain("\"Arc Safe Storage\"");
+    } finally {
+      configureCookieAccessNotice(null);
+    }
+  });
+
+  test("records only fast clean single-browser reads and forgets prompted or failed ones", async () => {
+    const updates: [string[], string[]][] = [];
+    const record = { has: () => false, update: (granted: readonly string[], lost: readonly string[]) => { updates.push([[...granted], [...lost]]); } };
+    configureCookieAccessNotice(captureNotice({ record }).io);
+    let clock = 0;
+    const reader = (warnings: string[], elapsed: number, platform = "darwin", cookies: typeof cookie[] = [cookie]) =>
+      createClassifiedCookieRecordReader(async () => { clock += elapsed; return { cookies, warnings }; }, { platform, now: () => clock });
+    try {
+      await reader([], 5)(selection(["chrome"]), target);
+      await reader([], UNPROMPTED_KEYCHAIN_READ_MS + 4_000)(selection(["arc"]), target);
+      await reader([deniedWarning], 5)(selection(["chrome"]), target).catch(() => undefined);
+      await reader(["Chrome cookies database not found."], 5)(selection(["chrome"]), target).catch(() => undefined);
+      await reader([], 5, "linux")(selection(["chrome"]), target);
+      await reader([], 5)(selection(["chrome", "arc"]), target);
+      expect(updates).toEqual([
+        [["Chrome"], []],
+        [[], ["Arc"]],
+        [[], ["Chrome"]],
+      ]);
+    } finally {
+      configureCookieAccessNotice(null);
+    }
+  });
+
+  test("the state record round-trips and ignores unknown content", () => {
+    const home = mkdtempSync(join(tmpdir(), "ghostget-keychain-record-"));
+    const environment = { GHOSTGET_STATE_HOME: join(home, "state") };
+    try {
+      expect(stateKeychainNoticeRecord(environment).has("Chrome")).toBeFalse();
+      stateKeychainNoticeRecord(environment).update?.(["Chrome", "Arc", "Not a browser"], []);
+      const reread = stateKeychainNoticeRecord(environment);
+      expect(reread.has("Chrome")).toBeTrue();
+      expect(reread.has("Arc")).toBeTrue();
+      expect(reread.has("Not a browser")).toBeFalse();
+      reread.update?.([], ["Arc"]);
+      expect(stateKeychainNoticeRecord(environment).has("Arc")).toBeFalse();
+      expect(stateKeychainNoticeRecord(environment).has("Chrome")).toBeTrue();
+      expect([...parseKeychainNoticeRecord("{\"version\":1,\"browsers\":[\"Arc\",7,\"Nope\"]}")]).toEqual(["Arc"]);
+      expect(parseKeychainNoticeRecord("{\"version\":2,\"browsers\":[\"Arc\"]}").size).toBe(0);
+      expect(parseKeychainNoticeRecord("not json").size).toBe(0);
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+
+  test("an Edge denial is typed even though the reader reports its fallback item", () => {
+    const edgeMissing = "Failed to read macOS Keychain (Microsoft Edge Safe Storage): security: SecKeychainSearchCopyNext: The specified item could not be found in the keychain.";
+    expect(classifyCookieProviderResult({ warnings: [edgeMissing] }, ["edge"])).toEqual({ code: "KEYCHAIN_DENIED", browser: "Microsoft Edge" });
+    expect(classifyCookieProviderResult({ warnings: [missingWarning] }, ["chrome"])).toBeNull();
+  });
+
+  test("VS Code-based editors are named by their own app", () => {
+    expect(responsibleApp({ TERM_PROGRAM: "vscode" })).toBe("Visual Studio Code");
+    expect(responsibleApp({ TERM_PROGRAM: "vscode", __CFBundleIdentifier: "com.microsoft.VSCode" })).toBe("Visual Studio Code");
+    expect(responsibleApp({ TERM_PROGRAM: "vscode", __CFBundleIdentifier: "com.todesktop.230313mzl4w4u92" })).toBe("Cursor");
+    expect(responsibleApp({ TERM_PROGRAM: "vscode", __CFBundleIdentifier: "com.exafunction.windsurf" })).toBe("Windsurf");
+    expect(responsibleApp({ TERM_PROGRAM: "vscode", __CFBundleIdentifier: "com.vscodium" })).toBe("VSCodium");
+    expect(responsibleApp({ TERM_PROGRAM: "vscode", __CFBundleIdentifier: "com.example.fork" })).toBe("your code editor");
+  });
+
+  test("retry hints keep --force and --json", () => {
+    const bind = { command: "auth-bind", id: "work", site: "x", force: false, json: false } as const;
+    expect(cookieAccessNext(bind as never)).toBe("ghostget auth bind work --site x");
+    expect(cookieAccessNext({ ...bind, force: true, json: true } as never)).toBe("ghostget auth bind work --site x --force --json");
+  });
+
+  test("raw key input is read by its first character", () => {
+    expect(classifyTerminalKey("\r")).toBe("enter");
+    expect(classifyTerminalKey("\r\n")).toBe("enter");
+    expect(classifyTerminalKey("S")).toBe("s");
+    expect(classifyTerminalKey("\u0004")).toBe("s");
+    expect(classifyTerminalKey("\u0003")).toBe("interrupt");
+    expect(classifyTerminalKey("\u001b[A")).toBe("other");
+  });
+
+  function fakeStdin() {
+    const listeners = new Map<string, Set<(value?: unknown) => void>>();
+    const calls: string[] = [];
+    const input = {
+      isRaw: false,
+      setRawMode: (mode: boolean) => { calls.push(`raw:${mode}`); },
+      on: (event: string, listener: (value?: unknown) => void) => {
+        (listeners.get(event) ?? listeners.set(event, new Set()).get(event)!).add(listener);
+      },
+      off: (event: string, listener: (value?: unknown) => void) => { listeners.get(event)?.delete(listener); },
+      resume: () => { calls.push("resume"); },
+      pause: () => { calls.push("pause"); },
+      unref: () => { calls.push("unref"); },
+    };
+    const emit = (event: string, value?: unknown) => { for (const listener of [...(listeners.get(event) ?? [])]) listener(value); };
+    const count = () => [...listeners.values()].reduce((sum, set) => sum + set.size, 0);
+    return { input: input as unknown as KeyInput, emit, calls, count };
+  }
+
+  test("closed input skips instead of hanging, and stdin is released", async () => {
+    const stdin = fakeStdin();
+    const pending = terminalReadKey(120, stdin.input);
+    stdin.emit("end");
+    expect(await pending).toBe("s");
+    expect(stdin.calls).toEqual(["raw:true", "resume", "raw:false", "pause", "unref"]);
+    expect(stdin.count()).toBe(0);
+  });
+
+  test("Enter continues and Ctrl-C interrupts after restoring the terminal", async () => {
+    const enter = fakeStdin();
+    const first = terminalReadKey(120, enter.input);
+    enter.emit("data", Buffer.from("\r"));
+    expect(await first).toBe("enter");
+    const interrupted = fakeStdin();
+    let signalled = 0;
+    const second = terminalReadKey(120, interrupted.input, () => { signalled += 1; });
+    interrupted.emit("data", "\u0003");
+    expect(await second).toBe("s");
+    expect(signalled).toBe(1);
+    expect(interrupted.calls.at(-1)).toBe("unref");
   });
 });

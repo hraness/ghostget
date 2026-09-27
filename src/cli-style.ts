@@ -126,17 +126,40 @@ export function closestCliName(input: string, names: readonly string[]): string 
   return best;
 }
 
+/**
+ * App names macOS shows in Privacy & Security, by bundle ID. Editors built on
+ * VS Code (Cursor, Windsurf, VSCodium) also set `TERM_PROGRAM=vscode`, so the
+ * bundle ID decides first and names the real app.
+ */
+const RESPONSIBLE_APPS: Readonly<Record<string, string>> = Object.freeze({
+  "com.apple.Terminal": "Terminal",
+  "com.googlecode.iterm2": "iTerm",
+  "com.mitchellh.ghostty": "Ghostty",
+  "com.microsoft.VSCode": "Visual Studio Code",
+  "com.microsoft.VSCodeInsiders": "Visual Studio Code - Insiders",
+  "com.todesktop.230313mzl4w4u92": "Cursor",
+  "com.exafunction.windsurf": "Windsurf",
+  "com.vscodium": "VSCodium",
+  "dev.zed.Zed": "Zed",
+  "dev.warp.Warp-Stable": "Warp",
+  "com.github.wez.wezterm": "WezTerm",
+});
+
 /** Map a terminal program to the app name macOS shows in Privacy & Security. */
 export function responsibleApp(environment: CliEnvironment): string {
   if (environment.HRANESS_APP_BUNDLE_ID !== undefined && environment.HRANESS_APP_BUNDLE_ID !== "") return "Ghostget";
   const bundle = environment.__CFBundleIdentifier ?? "";
   const program = environment.TERM_PROGRAM ?? "";
-  if (bundle === "com.apple.Terminal" || program === "Apple_Terminal") return "Terminal";
-  if (bundle === "com.googlecode.iterm2" || program === "iTerm.app") return "iTerm";
-  if (bundle === "com.mitchellh.ghostty" || program === "ghostty") return "Ghostty";
-  if (bundle === "com.microsoft.VSCode" || program === "vscode") return "Visual Studio Code";
-  if (bundle === "dev.zed.Zed" || (environment.ZED_TERM !== undefined && environment.ZED_TERM !== "")) return "Zed";
-  if (bundle === "dev.warp.Warp-Stable" || program === "WarpTerminal") return "Warp";
-  if (bundle === "com.github.wez.wezterm" || program === "WezTerm") return "WezTerm";
+  const named = Object.hasOwn(RESPONSIBLE_APPS, bundle) ? RESPONSIBLE_APPS[bundle] : undefined;
+  if (named !== undefined) return named;
+  if (program === "Apple_Terminal") return "Terminal";
+  if (program === "iTerm.app") return "iTerm";
+  if (program === "ghostty") return "Ghostty";
+  // An unknown bundle with TERM_PROGRAM=vscode is another VS Code-based
+  // editor; naming Visual Studio Code would send people to the wrong row.
+  if (program === "vscode") return bundle === "" ? "Visual Studio Code" : "your code editor";
+  if (environment.ZED_TERM !== undefined && environment.ZED_TERM !== "") return "Zed";
+  if (program === "WarpTerminal") return "Warp";
+  if (program === "WezTerm") return "WezTerm";
   return "your terminal app";
 }
