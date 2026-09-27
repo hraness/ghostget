@@ -1830,14 +1830,24 @@
 // 0c331bab3ab3df69a108e18f5f29845b0db90c281cbd6455c0d90fa0b24081e2.
 // Carry the same projections and allowances: 12,057,881 + 12,387 + 4,096 =
 // 12,074,364 packed; 23,616,655 + 353 + 65 = 23,617,073 unpacked.
+//
+// The 0.18.40 release bumps the version pins, rebuilds dist with the new
+// version string and adds the changelog section over the same 603-file
+// inventory.
+// A clean `npm pack --ignore-scripts` with npm 11.19.0 on darwin arm64
+// measured 12,057,961 packed bytes, 23,616,964 unpacked bytes and exactly
+// 603 entries; archive SHA-256
+// aa127b3193c9bb3b0cb5deece5927be60ccb7111a50169320d322ffdeaa13f39.
+// Carry the same projections and allowances: 12,057,961 + 12,387 + 4,096 =
+// 12,074,444 packed; 23,616,964 + 353 + 65 = 23,617,382 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Plain auth add, bind and list output",
+  scope: "Ghostget 0.18.40 release",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "0c331bab3ab3df69a108e18f5f29845b0db90c281cbd6455c0d90fa0b24081e2",
-  packedBytes: 12_057_881,
-  unpackedBytes: 23_616_655,
+  archiveSha256: "aa127b3193c9bb3b0cb5deece5927be60ccb7111a50169320d322ffdeaa13f39",
+  packedBytes: 12_057_961,
+  unpackedBytes: 23_616_964,
   entryCount: 603,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
