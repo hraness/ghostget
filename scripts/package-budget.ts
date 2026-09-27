@@ -1840,15 +1840,26 @@
 // aa127b3193c9bb3b0cb5deece5927be60ccb7111a50169320d322ffdeaa13f39.
 // Carry the same projections and allowances: 12,057,961 + 12,387 + 4,096 =
 // 12,074,444 packed; 23,616,964 + 353 + 65 = 23,617,382 unpacked.
+//
+// Quiet keychain notices add src/keychain-notice-record.ts (the per-browser
+// record of keychain reads macOS allowed without asking) plus typed Edge,
+// VS Code-fork and plugin permission denials: one additional packed source
+// file.
+// A clean `npm pack --ignore-scripts` with npm 11.19.0 on darwin arm64
+// measured 12,061,280 packed bytes, 23,627,901 unpacked bytes and exactly
+// 604 entries; archive SHA-256
+// 7e93bffa218491dbe4f78c0733fd4964df6437d734cf767e4ed0b3ebb11563fe.
+// Carry the same projections and allowances: 12,061,280 + 12,387 + 4,096 =
+// 12,077,763 packed; 23,627,901 + 353 + 65 = 23,628,319 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget 0.18.40 release",
+  scope: "Quiet keychain notices and typed permission denials",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "aa127b3193c9bb3b0cb5deece5927be60ccb7111a50169320d322ffdeaa13f39",
-  packedBytes: 12_057_961,
-  unpackedBytes: 23_616_964,
-  entryCount: 603,
+  archiveSha256: "7e93bffa218491dbe4f78c0733fd4964df6437d734cf767e4ed0b3ebb11563fe",
+  packedBytes: 12_061_280,
+  unpackedBytes: 23_627_901,
+  entryCount: 604,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,
