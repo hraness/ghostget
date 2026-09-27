@@ -2193,22 +2193,30 @@ function printPreview(output: Output, value: Record<string, unknown>, json: bool
   output.stdout(json ? exactTerminalJson(value) : exactTerminalJson(value));
 }
 
+/** Records a bounded repair lead and returns its inspect id, or null when no
+ * usable lead was stored. Human mode prints the hint on stderr; `--json` keeps
+ * stderr clean and the caller folds the id into the error envelope's `next`. */
 function reportContractRepairLead(
   createSignal: () => ContractRepairSignal,
   environment: Readonly<Record<string, string | undefined>>,
   output: Output,
-): void {
-  if (environment.GHOSTGET_REPAIR_SIGNALS === "off") return;
+  json = false,
+): string | null {
+  if (environment.GHOSTGET_REPAIR_SIGNALS === "off") return null;
   try {
     const signal = createSignal();
     const status = cacheContractRepairSignal(signal, environment);
-    if (status === "stored" || status === "duplicate") {
-      output.stderr(`ghostget: repair lead only; do not retry automatically. Inspect: ghostget contracts repair --id ${signal.id} --json\n`);
-    } else {
-      output.stderr(`ghostget: repair diagnostics ${status}; the original operation outcome is unchanged.\n`);
+    if (status !== "stored" && status !== "duplicate") {
+      if (!json) output.stderr(`ghostget: repair diagnostics ${status}; the original operation outcome is unchanged.\n`);
+      return null;
     }
+    if (!json) {
+      output.stderr(`ghostget: repair lead only; do not retry automatically. Inspect: ghostget contracts repair --id ${signal.id} --json\n`);
+    }
+    return signal.id;
   } catch {
-    output.stderr("ghostget: repair diagnostics unavailable; the original operation outcome is unchanged.\n");
+    if (!json) output.stderr("ghostget: repair diagnostics unavailable; the original operation outcome is unchanged.\n");
+    return null;
   }
 }
 
@@ -3629,7 +3637,7 @@ async function runCommand(
         && result.live.receipt.dispatch.started === 0 && result.live.receipt.dispatch.verified === 0
         && result.live.receipt.adapter.id === invocation.manifest.id && result.live.receipt.operation === invocation.operationId
         && !result.live.replayed && result.live.privateArtifactsPreserved !== true && signal?.aborted !== true) {
-        reportContractRepairLead(() => projectContractRepairSignal(invocation.manifest, invocation.operationId, "contract-drift", dependencies.providerPluginRegistry), environment, output);
+        reportContractRepairLead(() => projectContractRepairSignal(invocation.manifest, invocation.operationId, "contract-drift", dependencies.providerPluginRegistry), environment, output, arguments_.json);
       }
       if (result.live.receipt.status === "succeeded" || result.live.receipt.status === "submitted") onUsefulResult?.();
       return result.live.receipt.status === "succeeded" || result.live.receipt.status === "submitted" ? 0 : result.live.receipt.status === "indeterminate" ? 5 : 3;
@@ -3940,9 +3948,10 @@ export async function main(
   } catch (error) {
     const permissionFailure = renderCookieAccessFailure(error, parsed.value, environment, output);
     if (permissionFailure !== null) return permissionFailure;
+    let repairLeadId: string | null = null;
     if (error instanceof ContractCaptureRequiredError && parsed.value.command === "invoke"
       && !parsed.value.cacheOnly && !parsed.value.projectionIdentityOnly && signal?.aborted !== true) {
-      reportContractRepairLead(() => error.signal, environment, output);
+      repairLeadId = reportContractRepairLead(() => error.signal, environment, output, wantsJsonErrors(rawArguments, environment, stderrIsTTY));
     }
     if (error instanceof LinkedDeviceLifecycleIndeterminateError) {
       const failure = {
@@ -3982,7 +3991,8 @@ export async function main(
     }
     const message = safe(error instanceof Error ? error.message : String(error));
     if (wantsJsonErrors(rawArguments, environment, stderrIsTTY)) {
-      output.stdout(ghostgetErrorJson("failed", cliSentence(message), "ghostget doctor"));
+      output.stdout(ghostgetErrorJson("failed", cliSentence(message),
+        repairLeadId === null ? "ghostget doctor" : `ghostget contracts repair --id ${repairLeadId} --json`));
     } else {
       output.stderr(`ghostget: ${message}\n`);
     }

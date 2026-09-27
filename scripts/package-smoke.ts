@@ -400,6 +400,53 @@ async function runExpectingFailure(
   }
 }
 
+async function runExpectingJsonFailure(
+  command: string[],
+  cwd: string,
+  expectedExitCode: number,
+  expectedDiagnostic: string,
+  forbiddenDiagnostics: readonly string[] = [],
+  env?: Readonly<Record<string, string>>,
+): Promise<void> {
+  const child = Bun.spawn(command, env === undefined
+    ? { cwd, stdout: "pipe", stderr: "pipe" }
+    : {
+        cwd,
+        env: { ...globalThis.process.env, ...env },
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+  const [exitCode, stdout, stderr] = await Promise.all([
+    child.exited,
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+  ]);
+  // --json failures are one stdout envelope; stderr stays empty and neither
+  // stream may carry private paths or diagnostics.
+  let message = "";
+  try {
+    const parsed = JSON.parse(stdout) as { ok?: unknown; error?: { message?: unknown } };
+    if (parsed.ok !== false || typeof parsed.error?.message !== "string") {
+      throw new Error("shape");
+    }
+    message = parsed.error.message;
+  } catch {
+    throw new Error(
+      `Installed CLI --json failure did not produce an error envelope for: ${command.join(" ")}; exit=${String(exitCode)}; stdout=${JSON.stringify(stdout)}; stderr=${JSON.stringify(stderr)}`,
+    );
+  }
+  if (
+    exitCode !== expectedExitCode
+    || stderr.length !== 0
+    || !message.includes(expectedDiagnostic)
+    || forbiddenDiagnostics.some((diagnostic) => stdout.includes(diagnostic) || stderr.includes(diagnostic))
+  ) {
+    throw new Error(
+      `Installed CLI failure contract drifted for: ${command.join(" ")}; exit=${String(exitCode)}; stdout=${JSON.stringify(stdout)}; stderr=${JSON.stringify(stderr)}`,
+    );
+  }
+}
+
 async function collectMarkdownFiles(root: string): Promise<readonly string[]> {
   const entries = await readdir(root, { withFileTypes: true });
   const files: string[] = [];
@@ -745,7 +792,7 @@ try {
     "--eval",
     packedPrivateSourceClientRuntimeProgram,
   ], consumer);
-  await runExpectingFailure([
+  await runExpectingJsonFailure([
     join(consumer, "node_modules", ".bin", "ghostget"),
     "imessage",
     "transport",
@@ -760,7 +807,7 @@ try {
   );
   const imsgInstallerState = join(work, "ghostget-imsg-installer-state");
   await mkdir(imsgInstallerState, { mode: 0o700 });
-  await runExpectingFailure([
+  await runExpectingJsonFailure([
     join(consumer, "node_modules", ".bin", "ghostget"),
     "imessage",
     "transport",
