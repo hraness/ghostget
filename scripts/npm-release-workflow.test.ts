@@ -1220,7 +1220,7 @@ describe("npm publication contract", () => {
         (MAX_UNPACKED_BYTES + MAX_PACKED_ENTRIES * 1_023 + 1_024) / 512,
       ) * 512,
     );
-    expect(MAX_PACKAGE_TAR_BYTES).toBe(24_256_000);
+    expect(MAX_PACKAGE_TAR_BYTES).toBe(24_256_512);
     expect(MAX_PACKAGE_TAR_BYTES % 512).toBe(0);
     expect(artifact).toContain("maxOutputLength: MAX_PACKAGE_TAR_BYTES");
     expect(artifact).not.toContain("const maximumTarBytes");
@@ -1424,7 +1424,7 @@ describe("npm publication contract", () => {
       archiveSha256: "4162ed914d84e47454142a3f5bf5c4b9d430fda448b826ce551ef9d4ac2e620e",
       packedBytes: 12_063_593, unpackedBytes: 23_636_572, entryCount: 604,
       packedPlatformProjection: 12_387, packedPortabilityAllowance: 4_096,
-      payloadPlatformProjection: 353, payloadAllowance: 65,
+      payloadPlatformProjection: 512, payloadAllowance: 65,
     });
     expect(MAX_PACKED_BYTES).toBe(12_080_076);
     expect(MAX_PACKED_BYTES).toBe(12_063_593 + 12_387 + 4_096);
@@ -1547,8 +1547,8 @@ describe("npm publication contract", () => {
     expect(budget).toContain("23,193,728 + 65 = 23,193,793");
     expect(budget).toContain("47684b3e2eb5cf3ed07fbb520aade8c7251d993f75262fbf1af627d9081a1a5f");
     expect(budget).toContain("23,633,266 + 353 + 65 = 23,633,684");
-    expect(budget).toContain("23,636,572 + 353 + 65 = 23,636,990");
-    expect(MAX_UNPACKED_BYTES).toBe(23_636_990);
+    expect(budget).toContain("23,636,572 + 512 + 65 = 23,637,149");
+    expect(MAX_UNPACKED_BYTES).toBe(23_637_149);
     expect(budget).toContain("23,037,873 + 65 = 23,037,938");
     expect(budget).toContain("f9f3ab38a682690ceaa2699a7309997512030f0fa500a9dc29dcd108123dc41f");
     expect(budget).toContain("23,038,557 + 65 = 23,038,622");
@@ -1581,7 +1581,7 @@ describe("npm publication contract", () => {
     expect(budget).toContain("01875f12ab73a49d6c7d6bf520dc3d318db816addee2fa7981889f35c958cf7c");
     expect(budget).toContain("b12909f08f7c19460ced56e30619f4860a1183f4b0106170c07837dae577a937");
     expect(budget).toContain("0b212ac291218528dcf979370110a36f10850e046ca90a536057d9a44e807d1d");
-    expect(MAX_UNPACKED_BYTES).toBe(23_636_572 + 353 + 65);
+    expect(MAX_UNPACKED_BYTES).toBe(23_636_572 + 512 + 65);
     expect(budget).toContain("22,794,052 + 65 = 22,794,117");
     expect(budget).toContain("c482efe748f880e3717727d6d39fd92a68953e6eea766642b329ba47ae772d80");
     expect(budget).toContain("22,759,423 + 65 = 22,759,488");
@@ -1618,7 +1618,7 @@ describe("npm publication contract", () => {
       entryCount: { min: 604, max: 604 },
       fileCount: { min: 604, max: 604 },
       packedBytes: { min: 1_600_000, max: 12_080_076 },
-      unpackedBytes: { min: 9_000_000, max: 23_636_990 },
+      unpackedBytes: { min: 9_000_000, max: 23_637_149 },
     });
   });
 
