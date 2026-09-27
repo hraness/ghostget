@@ -1856,16 +1856,21 @@
 // pack --ignore-scripts on this branch measured 604 entries, 12,061,823
 // packed bytes and 23,629,960 unpacked bytes; archive SHA-256
 // e30b97c08fc757579c1fa5f35d3b1fa283680f04cc59b4ffc7d30aa9c848ec04.
-// Carry the same projections and allowances: 12,061,823 + 12,387 + 4,096 =
-// 12,078,306 packed; 23,629,960 + 353 + 65 = 23,630,378 unpacked.
+// The repair-lead inspect pointer and the JSON-envelope error fallback in
+// the SDK identity-preflight path added 582 payload bytes: a clean npm
+// 11.16.0 pack --ignore-scripts on this branch measured 604 entries,
+// 12,062,006 packed bytes and 23,630,542 unpacked bytes; archive SHA-256
+// 3f7ad946cb5ab4f5fcc85b9177ac271734da09ce7e16cf6e157910c4ce48e950.
+// Carry the same projections and allowances: 12,062,006 + 12,387 + 4,096 =
+// 12,078,489 packed; 23,630,542 + 353 + 65 = 23,630,960 unpacked.
 export const repairPackageMeasurement = Object.freeze({
   scope: "CLI spot checks: version name, --json errors, auth-list hint",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.16.0",
   platform: "darwin-arm64",
-  archiveSha256: "e30b97c08fc757579c1fa5f35d3b1fa283680f04cc59b4ffc7d30aa9c848ec04",
-  packedBytes: 12_061_823,
-  unpackedBytes: 23_629_960,
+  archiveSha256: "3f7ad946cb5ab4f5fcc85b9177ac271734da09ce7e16cf6e157910c4ce48e950",
+  packedBytes: 12_062_006,
+  unpackedBytes: 23_630_542,
   entryCount: 604,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
