@@ -2078,6 +2078,7 @@ describe("Ghostget media routing", () => {
           officialProviders: [
             { provider: "gmail", ready: false },
             { provider: "linkedin", ready: false },
+            { provider: "microsoft-graph", ready: false },
             {
               provider: "x",
               adapters: ["x-thread"],

@@ -91,6 +91,7 @@ function legacyHash(contract, implementationHash, web) {
 }
 function isCurrentOnlyRow(row) {
   return (row[0] === "provider-api" && row[1] === "gmail")
+    || (row[0] === "provider-api" && row[1] === "microsoft-graph")
     || (row[0] === "local-cli" && row[1] === "beeper")
     || (row[0] === "local-cli" && row[1] === "imessage")
     || (row[0] === "linked-device" && row[1] === "whatsapp" && row[3] === 1 && [
@@ -299,8 +300,8 @@ describe("durable provider contract inventory", () => {
       expect(inventory).toEqual({
         rows: 324,
         sha256: predecessorDefaultInventorySha256,
-        currentOnlyRows: 81,
-        currentOnlySha256: "e30f779848368193b9f572b1a698249889d4ddafbe9746b51adecd5ed2c66c58",
+        currentOnlyRows: 83,
+        currentOnlySha256: "675cdc7d0b722682db014a1d8488c50ae2842116ac2de686c022ee577a69bbe1",
         automationRows: [
           ["linked-device", "whatsapp", "messaging.automation.read", 1],
           ["linked-device", "whatsapp", "messaging.automation.send.attachment", 1],
