@@ -989,6 +989,19 @@ export async function probeXWebSubject(
     readonly signal?: AbortSignal;
   } = {},
 ): Promise<string> {
+  return (await probeXWebIdentity(auth, options)).subject;
+}
+
+/** The Viewer probe resolves the screen name beside the numeric subject, so
+ * menus and the TUI can show "@name" instead of the raw X account ID. */
+export async function probeXWebIdentity(
+  auth: GhostgetAuth,
+  options: {
+    readonly timeoutMs?: number;
+    readonly dependencies?: XWebRuntimeDependencies;
+    readonly signal?: AbortSignal;
+  } = {},
+): Promise<{ readonly subject: string; readonly displayName: string | null }> {
   const bootstrap = await bootstrapX(auth, {
     site: "x",
     action: "feeds.read",
@@ -998,7 +1011,8 @@ export async function probeXWebSubject(
   }, options.dependencies, {
     ...(options.signal === undefined ? {} : { signal: options.signal }),
   });
-  return (await viewer(bootstrap)).id;
+  const current = await viewer(bootstrap);
+  return { subject: current.id, displayName: current.screenName === null ? null : `@${current.screenName}` };
 }
 
 async function requireBoundViewer(bootstrap: XBootstrap, auth: GhostgetAuth): Promise<Viewer> {

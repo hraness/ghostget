@@ -17,6 +17,8 @@ export interface TuiAttempt {
   readonly provider: string;
   readonly browser: string;
   readonly subject: string | null;
+  /** The verified human handle, such as "@name"; null before it resolves. */
+  readonly displayName: string | null;
 }
 
 export interface TuiState {
@@ -98,7 +100,7 @@ export function tuiRows(state: TuiState): readonly TuiRow[] {
       { id: "vault", label: "Optional · import an X API token from 1Password", detail: ["The password vault is optional. It imports one verified X user token through the 1Password desktop app on a supported desktop.", "It is not a general password manager and is not needed for browser sign-in.", "This panel may stay open; run: ghostget vault --help", "Supply the secret reference to the CLI; never paste a password or token into this panel or agent chat."] },
       { id: "agent", label: "Use with your agent · CLI and one reusable skill", detail: ["Inspect installed tools: ghostget capabilities --json", "Diagnose setup: ghostget doctor --json", "The bundled skills/ghostget/SKILL.md explains the CLI workflows to your agent.", "Getting started: https://ghostget.com/getting-started", "macOS menu bar: quit this panel, then ghostget menubar start", "One local controller runs at a time. Stop the menu bar with ghostget menubar stop before starting this panel."] },
     ]; break;
-    case "Accounts": rows = snapshot.accounts.map((account) => ({ id: account.id, label: `${account.id === snapshot.accountId ? "* " : ""}${account.id} · ${account.status}`, detail: [`Provider: ${account.provider ?? "browser session"}`, `Subject: ${account.subject ?? "not verified"}`, `Kind: ${account.kind}`, `Source: ${account.source ?? "local account"}`, `Token storage: ${account.tokenStorage ?? "browser managed"}`, ...(account.kind === "oauth-token-file" ? [`Token expiry: ${account.tokenExpiresAt ?? "not declared"}${account.tokenRefreshable ? " (renews automatically)" : ""}`] : []), `Revision: ${account.revision}`, "Enter selects this account for capability permissions. c connects; d reviews disconnection."] })); break;
+    case "Accounts": rows = snapshot.accounts.map((account) => ({ id: account.id, label: `${account.id === snapshot.accountId ? "* " : ""}${account.displayName ?? account.id} · ${account.status}`, detail: [`Name: ${account.id}`, ...(account.displayName === null ? [] : [`Handle: ${account.displayName}`]), `Provider: ${account.provider ?? "browser session"}`, `Subject: ${account.subject ?? "not verified"}`, `Kind: ${account.kind}`, `Source: ${account.source ?? "local account"}`, `Token storage: ${account.tokenStorage ?? "browser managed"}`, ...(account.kind === "oauth-token-file" ? [`Token expiry: ${account.tokenExpiresAt ?? "not declared"}${account.tokenRefreshable ? " (renews automatically)" : ""}`] : []), `Revision: ${account.revision}`, "Enter selects this account for capability permissions. c connects; d reviews disconnection."] })); break;
     case "Capabilities": rows = snapshot.capabilities.map((capability) => ({ id: `${capability.adapterId}/${capability.operationId}`, label: `${capability.adapterId} / ${capability.operationId} · ${capability.permission}`, detail: [`State: ${capability.state} · transport: ${capability.transport}`, `Effect: ${capability.effect} · risk: ${capability.risk}`, `Executor: ${capability.executorSource} · interface: ${capability.interfaceSource}`, `Account: ${snapshot.accountId ?? "No account (public scope)"}`, `Digest: ${capability.digest}`, "Enter reviews Ask, Allow or Deny. a selects an account; / filters operations.", "Availability describes installed support; it does not verify the current provider login."] })); break;
     case "Approvals": rows = snapshot.approvals.map((approval) => ({ id: approval.id, label: `${approval.title} · ${approval.kind}`, detail: [`Account: ${approval.account ?? "none"}`, `Effect: ${approval.effect}`, `Request: ${approval.preview}`, `Expires: ${approval.expiresAt}`, `Digest: ${approval.digest}`, "Enter opens the exact request review. Approval is single use."] })); break;
     case "Activity": rows = (state.activity?.rows ?? []).map((row) => ({ id: row.id, label: `${row.outcome} · ${row.method} ${row.origin ?? "unavailable origin"}`, detail: [`Started: ${row.startedAt}`, `Endpoint: ${row.endpoint ?? "not recorded"}`, `Decision: ${row.decision} · status: ${row.httpStatus ?? "none"}`, `Response: ${row.responseBytes} bytes · duration: ${row.durationMs ?? "pending"} ms`, `Error: ${row.errorCode ?? "none"}`, "This is public gateway request metadata. Legacy provider dispatch history is separate.", "n older page · b newer page · r refresh. Failed or interrupted requests are never retried here."] })); break;
@@ -186,7 +188,7 @@ export function renderTui(state: TuiState, columns = 100, rows = 28): { readonly
     const entries = tuiRows(state);
     const selected = entries[state.selected];
     body.push(`${state.section} · ${entries.length}${entries.length === 2_000 ? "+" : ""} items${state.filter || state.filtering ? ` · filter: ${state.filter}${state.filtering ? "_" : ""}` : ""}`);
-    if (state.attempt !== null) body.push(`Sign-in: ${state.attempt.accountId} · ${state.attempt.subject === null ? "finish browser sign-in, then v verify" : `verified ${state.attempt.subject} · s save`} · x cancel`);
+    if (state.attempt !== null) body.push(`Sign-in: ${state.attempt.accountId} · ${state.attempt.subject === null ? "finish browser sign-in, then v verify" : `verified ${state.attempt.displayName ?? state.attempt.subject} · s save`} · x cancel`);
     const listHeight = Math.max(2, Math.min(8, Math.floor((bodyHeight - body.length) / 2)));
     const start = Math.max(0, state.selected - listHeight + 1);
     body.push(...entries.slice(start, start + listHeight).map((entry, index) => `${state.selected === start + index ? ">" : " "} ${entry.label}`));
@@ -208,7 +210,7 @@ export function renderTuiSnapshot(state: TuiState): string {
     `Accounts: ${snapshot.accounts.length} · capabilities: ${snapshot.capabilities.length} · approvals: ${snapshot.approvals.length} · interfaces: ${snapshot.interfaces.length}`,
     `Managed permissions: ${snapshot.policy.managed ? "on" : "off"}`,
     "", "First read: ghostget read https://example.com", "Interactive controls: ghostget tui", "1Password X-token import: ghostget vault --help", "",
-    ...snapshot.accounts.slice(0, 20).map((account) => `Account ${account.id}: ${account.status} · ${account.provider ?? account.kind}`),
+    ...snapshot.accounts.slice(0, 20).map((account) => `Account ${account.displayName ?? account.id}: ${account.status} · ${account.provider ?? account.kind}`),
     ...snapshot.approvals.slice(0, 20).map((approval) => `Approval pending: ${approval.title}`),
   ].map((line) => tuiText(line)).join("\n") + "\n";
 }

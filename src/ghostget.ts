@@ -27,6 +27,7 @@ import {
   listAuth,
   loadAuth,
   loadAuthSnapshot,
+  normalizeAuthDisplayName,
   removeAuth,
   replaceAuthIfUnchanged,
   saveAuth,
@@ -126,6 +127,7 @@ import {
   type LinkedDevicePluginBindingV1,
   type ProviderPluginBindingV1,
   type ProviderPluginLinkedDeviceAttemptBoundaryV1,
+  type ProviderPluginSubjectIdentityV1,
 } from "./provider-plugin";
 import {
   LEGACY_PORTABLE_PROVIDER_PLUGIN_MANIFEST_NAME,
@@ -323,7 +325,7 @@ function authSummary(auth: GhostgetAuth): AuthSummary {
   const subject = auth.subject === undefined ? {} : { subject: safe(auth.subject) };
   switch (auth.kind) {
     case "cookie-source":
-      return { kind: auth.kind, id: auth.id, source: auth.source, ...(auth.profile === undefined ? {} : { profile: safe(auth.profile) }), ...subject };
+      return { kind: auth.kind, id: auth.id, source: auth.source, ...(auth.profile === undefined ? {} : { profile: safe(auth.profile) }), ...(auth.displayName === undefined ? {} : { displayName: safe(auth.displayName) }), ...subject };
     case "browser-profile":
       return { kind: auth.kind, id: auth.id, ...(auth.cookieSource === undefined ? {} : { cookieSource: auth.cookieSource }), ...subject };
     case "oauth-token-file":
@@ -469,13 +471,14 @@ export type GhostgetDependencies = {
    * catalog that also extended `providerPluginRegistry`.
    */
   readonly portableProviderPluginReadback?: PortableProviderPluginReadbackPort;
+  /** A bare subject return means the runtime resolves no human handle. */
   readonly probePluginSubject: (
     binding: ProviderPluginBindingV1,
     auth: GhostgetAuth,
     signal?: AbortSignal,
     registry?: ProviderPluginRegistry,
     environment?: Readonly<Record<string, string | undefined>>,
-  ) => Promise<string>;
+  ) => Promise<string | ProviderPluginSubjectIdentityV1>;
   /** Test seam after subject validation and before the auth snapshot CAS. */
   readonly beforeAuthBindCommit: () => void | Promise<void>;
   readonly pairLinkedDeviceAuth: (
@@ -542,7 +545,7 @@ const defaultDependencies: GhostgetDependencies = {
         `provider plugin surface ${binding.surfaceId} has no current-account probe`,
       );
     }
-    const subject = binding.transport === "local-cli"
+    const probed = binding.transport === "local-cli"
       ? await withLocalCliProviderCleanupAdmission(
           {
             registry,
@@ -557,16 +560,22 @@ const defaultDependencies: GhostgetDependencies = {
             registerCleanupBarrier,
           }),
         )
-      : await probe(
-          auth,
-          signal === undefined ? undefined : { signal, environment },
-        );
+      : binding.subject.probeIdentity !== undefined
+        ? await binding.subject.probeIdentity(
+            auth,
+            signal === undefined ? undefined : { signal, environment },
+          )
+        : await probe(
+            auth,
+            signal === undefined ? undefined : { signal, environment },
+          );
+    const subject = typeof probed === "string" ? probed : probed.subject;
     if (!binding.subject.matches(subject)) {
       throw new Error(
         `provider plugin surface ${binding.surfaceId} returned a subject outside ${binding.subject.format}`,
       );
     }
-    return subject;
+    return probed;
   },
   beforeAuthBindCommit: () => undefined,
   pairLinkedDeviceAuth: async (binding, auth, options) => {
@@ -2623,7 +2632,7 @@ async function runCommand(
       kind: auth.kind,
       realmFingerprint: sha256(canonicalJson(auth)).slice(0, 16),
       subject: auth.subject ?? null,
-      ...(auth.kind === "cookie-source" ? { source: auth.source, profile: auth.profile ?? null } : {}),
+      ...(auth.kind === "cookie-source" ? { source: auth.source, profile: auth.profile ?? null, displayName: auth.displayName ?? null } : {}),
       ...(auth.kind === "browser-profile" ? {
         trustUnfilteredEgress: true,
         ...(auth.cookieSource === undefined ? {} : { cookieSource: auth.cookieSource }),
@@ -2678,13 +2687,17 @@ async function runCommand(
           environment,
         );
     try {
-      const subject = await dependencies.probePluginSubject(
+      const probed = await dependencies.probePluginSubject(
         binding,
         auth,
         signal,
         dependencies.providerPluginRegistry,
         environment,
       );
+      const identity = typeof probed === "string"
+        ? { subject: probed, displayName: null }
+        : probed;
+      const subject = identity.subject;
       if (!binding.subject.matches(subject)) {
         throw new Error(
           `provider plugin surface ${binding.surfaceId} returned a subject outside ${binding.subject.format}`,
@@ -2697,7 +2710,19 @@ async function runCommand(
       ) {
         throw new Error("auth locator is already bound to a different account; repeat with --force only after reviewing the active signed-in account");
       }
-      const bound = { ...auth, subject } satisfies GhostgetAuth;
+      // The handle is display-only: one the auth contract cannot carry is
+      // dropped rather than failing the bind.
+      let displayName: string | undefined;
+      if (identity.displayName !== null) {
+        try {
+          displayName = normalizeAuthDisplayName(identity.displayName);
+        } catch {
+          displayName = undefined;
+        }
+      }
+      const bound = auth.kind === "cookie-source" && displayName !== undefined
+        ? { ...auth, subject, displayName }
+        : { ...auth, subject };
       await dependencies.beforeAuthBindCommit();
       if (!replaceAuthIfUnchanged(
         authSnapshot,
@@ -2715,11 +2740,12 @@ async function runCommand(
           id: bound.id,
           site: arguments_.site,
           subject: bound.subject,
+          ...(displayName === undefined ? {} : { displayName }),
           realmFingerprint: sha256(canonicalJson(bound)).slice(0, 16),
         }, true);
       } else {
         writeAuthLines(
-          authBoundLines({ id: safe(bound.id), site: arguments_.site, subject: safe(subject) }, outputStyle(environment, output)),
+          authBoundLines({ id: safe(bound.id), site: arguments_.site, subject: safe(subject), ...(displayName === undefined ? {} : { displayName: safe(displayName) }) }, outputStyle(environment, output)),
           boundAudience,
           output,
         );

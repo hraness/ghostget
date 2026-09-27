@@ -602,13 +602,26 @@ export async function probeRedditWebSubject(
     readonly signal?: AbortSignal;
   } = {},
 ): Promise<string> {
+  return (await probeRedditWebIdentity(auth, options)).subject;
+}
+
+/** The viewer probe resolves the account username beside the t2_ subject, so
+ * menus and the TUI can name the account instead of printing the raw ID. */
+export async function probeRedditWebIdentity(
+  auth: GhostgetAuth,
+  options: {
+    readonly timeoutMs?: number;
+    readonly dependencies?: RedditWebRuntimeDependencies;
+    readonly signal?: AbortSignal;
+  } = {},
+): Promise<{ readonly subject: string; readonly displayName: string | null }> {
   const client = await createWebSessionClient(REDDIT_ORIGIN, auth, {
     timeoutMs: options.timeoutMs ?? 60_000,
     ...(options.signal === undefined ? {} : { signal: options.signal }),
     ...(options.dependencies === undefined ? {} : { dependencies: options.dependencies }),
   });
   const viewer = await currentViewer(client);
-  return `reddit:${viewer.id}`;
+  return { subject: `reddit:${viewer.id}`, displayName: `u/${viewer.username}` };
 }
 
 function boundedMaximum(recipe: WebSessionRecipe): number {

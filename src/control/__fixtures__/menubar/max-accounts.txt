@@ -1,0 +1,120 @@
+[mark.masks Gg, attention] Ghostget · 1 account needs reconnecting
+Ghostget
+⚠︎ 1 account needs reconnecting
+─────────
+↗ Open Ghostget ↗ (primary)  ⌘O
+─────────
+Accounts (12) ▸
+  X · Chrome · Work · Verified · x-0
+    ⌥ Copy account ID
+  Reddit · Chrome · Personal · Verified
+    ⌥ Copy account ID
+  X · Chrome · Personal · Verified · x-2
+    ⌥ Copy account ID
+  Reddit · Chrome · Work · Needs reconnecting
+    ⌥ Copy account ID
+  Reconnect in Chrome · Work
+  X · Chrome · Personal · Verified · x-4
+    ⌥ Copy account ID
+  Reddit · Chrome · Personal · Verified
+    ⌥ Copy account ID
+  X · Chrome · Work · Verified · x-6
+    ⌥ Copy account ID
+  Reddit · Chrome · Personal · Verified
+    ⌥ Copy account ID
+  4 more accounts (label)
+  ─────────
+  + Connect X in Safari
+  + Connect X in Chrome · Personal
+  + Connect X in Chrome · Work
+  + Connect LinkedIn in Safari
+  + Connect LinkedIn in Chrome · Personal
+  + Connect LinkedIn in Chrome · Work
+  + Connect Reddit in Safari
+  + Connect Reddit in Chrome · Personal
+  + Connect Reddit in Chrome · Work
+Outputs (2) ▸
+  x-timeline-2026-09-26.md · 18.0 KB · 5 min ago
+    ⌥ Show in Finder
+  example-com.pdf · 392.7 KB · 3 hr ago
+    ⌥ Show in Finder
+  ─────────
+  Open outputs folder
+    ⌥ Copy folder location
+Permissions ▸
+  For public operations (label)
+  ✓ Use public operations
+  Operation 0 · X · read · low risk (label)
+  Allow
+  ✓ Ask each time
+  Deny
+  Operation 1 · X · read · low risk (label)
+  Allow
+  ✓ Ask each time
+  Deny
+  Operation 2 · X · read · low risk (label)
+  Allow
+  ✓ Ask each time
+  Deny
+  Operation 3 · X · read · low risk (label)
+  Allow
+  ✓ Ask each time
+  Deny
+  Operation 4 · X · read · low risk (label)
+  Allow
+  ✓ Ask each time
+  Deny
+  Operation 5 · X · read · low risk (label)
+  Allow
+  ✓ Ask each time
+  Deny
+  Operation 6 · X · read · low risk (label)
+  Allow
+  ✓ Ask each time
+  Deny
+  Operation 7 · X · read · low risk (label)
+  Allow
+  ✓ Ask each time
+  Deny
+  Operation 8 · X · read · low risk (label)
+  Allow
+  ✓ Ask each time
+  Deny
+  Operation 9 · X · read · low risk (label)
+  Allow
+  ✓ Ask each time
+  Deny
+  Operation 10 · X · read · low risk (label)
+  Allow
+  ✓ Ask each time
+  Deny
+  Operation 11 · X · read · low risk (label)
+  Allow
+  ✓ Ask each time
+  Deny
+  4 more operations · Review them all in the Ghostget TUI (label)
+⚙︎ Advanced ▸
+  Web rules (0) ▸
+    Direct reads allowed (label)
+  Interfaces (0) ▸
+    No interfaces installed (label)
+  Recent reads ▸
+    No recent reads (label)
+  ─────────
+  ↻ Refresh  ⌘R
+  Copy CLI help command
+  ─────────
+  Disconnect X · Chrome · Work · x-0 (destructive)
+  Disconnect Reddit · Chrome · Personal (destructive)
+  Disconnect X · Chrome · Personal · x-2 (destructive)
+  Disconnect Reddit · Chrome · Work (destructive)
+  Disconnect X · Chrome · Personal · x-4 (destructive)
+  Disconnect Reddit · Chrome · Personal (destructive)
+  Disconnect X · Chrome · Work · x-6 (destructive)
+  Disconnect Reddit · Chrome · Personal (destructive)
+─────────
+Open at login · macOS shows a notice when you turn this on
+─────────
+♡ Help & support ↗
+  ⌥ Copy diagnostics
+Quit Ghostget

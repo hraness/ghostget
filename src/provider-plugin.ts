@@ -774,12 +774,26 @@ export type ProviderPluginReconciliationOptionsV1 = {
   readonly registerCleanupBarrier?: ProviderPluginCleanupBarrierRegistrar;
 };
 
+/** The verified subject plus its human handle, when the runtime can resolve
+ * both in one probe. `displayName` is a bounded label such as "@name"; it is
+ * display-only and never substitutes for the subject. */
+export type ProviderPluginSubjectIdentityV1 = {
+  readonly subject: string;
+  readonly displayName: string | null;
+};
+
 export type ProviderPluginSubjectV1 = ProviderPluginSubjectDefinitionV1 & {
   /** Lazy compatibility hook synthesized from the binding runtime. */
   readonly probe?: (
     auth: GhostgetAuth,
     options?: ProviderPluginSubjectProbeOptionsV1,
   ) => Promise<string>;
+  /** Lazy hook synthesized when the runtime resolves a handle beside the
+   * subject in one call; absent runtimes probe only the subject. */
+  readonly probeIdentity?: (
+    auth: GhostgetAuth,
+    options?: ProviderPluginSubjectProbeOptionsV1,
+  ) => Promise<ProviderPluginSubjectIdentityV1>;
 };
 
 export type ProviderPluginImplementationSourceDefinitionV1 = {
@@ -880,6 +894,12 @@ export type WebSessionPluginRuntimeV1 = {
     auth: GhostgetAuth,
     options?: ProviderPluginSubjectProbeOptionsV1,
   ) => Promise<string>;
+  /** When the provider's identity probe already resolves the viewer handle,
+   * return subject and handle in one call instead of probing twice. */
+  readonly probeIdentity?: (
+    auth: GhostgetAuth,
+    options?: ProviderPluginSubjectProbeOptionsV1,
+  ) => Promise<ProviderPluginSubjectIdentityV1>;
   readonly execute: WebSessionOperationExecutor;
   readonly executeMessagingPart?: ProviderPluginMessagingActionExecutorV1;
   readonly executePublic?: PublicWebSessionOperationExecutor;
@@ -3328,11 +3348,14 @@ function validateProviderRuntime(value: ProviderApiPluginRuntimeV1): ProviderApi
 function validateWebRuntime(value: WebSessionPluginRuntimeV1): WebSessionPluginRuntimeV1 {
   requireExactKeys(
     value,
-    ["probe", "execute", "executeMessagingPart", "executePublic", "reconcile", "linkedDeviceLifecycle"],
+    ["probe", "probeIdentity", "execute", "executeMessagingPart", "executePublic", "reconcile", "linkedDeviceLifecycle"],
     "web-session plugin runtime",
   );
   if (typeof value.probe !== "function" || typeof value.execute !== "function") {
     throw new Error("web-session plugin runtime must declare probe and execute");
+  }
+  if (value.probeIdentity !== undefined && typeof value.probeIdentity !== "function") {
+    throw new Error("web-session plugin runtime probeIdentity hook is invalid");
   }
   if (
     value.executePublic !== undefined
@@ -3371,6 +3394,9 @@ function validateWebRuntime(value: WebSessionPluginRuntimeV1): WebSessionPluginR
   }
   return Object.freeze({
     probe: value.probe,
+    ...(value.probeIdentity === undefined
+      ? {}
+      : { probeIdentity: value.probeIdentity }),
     execute: value.execute,
     ...(value.executeMessagingPart === undefined
       ? {}
@@ -4483,6 +4509,44 @@ function freezeBinding(
           );
         }
         return subject;
+      },
+      probeIdentity: async (
+        auth: GhostgetAuth,
+        options?: ProviderPluginSubjectProbeOptionsV1,
+      ) => {
+        const hook = (await loadRuntime()).probeIdentity;
+        if (hook === undefined) {
+          const subject = await (await loadRuntime()).probe(auth, options);
+          if (typeof subject !== "string" || !binding.subject.matches(subject)) {
+            throw new Error(
+              `provider plugin surface ${binding.surfaceId} returned a subject outside ${binding.subject.format}`,
+            );
+          }
+          return Object.freeze({ subject, displayName: null });
+        }
+        const identity = await hook(auth, options);
+        if (
+          identity === null
+          || typeof identity !== "object"
+          || typeof identity.subject !== "string"
+          || !binding.subject.matches(identity.subject)
+        ) {
+          throw new Error(
+            `provider plugin surface ${binding.surfaceId} returned a subject outside ${binding.subject.format}`,
+          );
+        }
+        if (
+          identity.displayName !== null
+          && (typeof identity.displayName !== "string" || identity.displayName.length > 128)
+        ) {
+          throw new Error(
+            `provider plugin surface ${binding.surfaceId} returned an unbounded displayName`,
+          );
+        }
+        return Object.freeze({
+          subject: identity.subject,
+          displayName: identity.displayName,
+        });
       },
     }),
     execute,

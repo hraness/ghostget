@@ -433,6 +433,7 @@ export const xWebPlugin = defineProviderPlugin({
       const runtime = await import("../../providers/x-web-runtime");
       return {
         probe: runtime.probeXWebSubject,
+        probeIdentity: runtime.probeXWebIdentity,
         execute: (_manifest, recipe, input, auth, options) =>
           runtime.executeXWebOperation(recipe, input, auth, options),
         reconcile: async (operation, input, auth, context) => {

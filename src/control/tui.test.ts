@@ -9,7 +9,7 @@ import type { ControlRequest, ControlResponse, ControlSnapshot } from "./protoco
 
 function snapshot(overrides: Partial<ControlSnapshot> = {}): ControlSnapshot {
   return {
-    version: "0.18.16", accountId: "personal", accounts: [{ id: "personal", provider: "x", kind: "cookie-source", subject: "123", revision: "a".repeat(64), status: "configured", source: "safari", tokenStorage: null, tokenExpiresAt: null, tokenRefreshable: false }],
+    version: "0.18.16", accountId: "personal", accounts: [{ id: "personal", provider: "x", kind: "cookie-source", subject: "123", displayName: "@personal", revision: "a".repeat(64), status: "configured", source: "safari", profile: null, tokenStorage: null, tokenExpiresAt: null, tokenRefreshable: false }],
     capabilities: [{ digest: "b".repeat(64), adapterId: "x-web", operationId: "post", pluginId: null, surface: "x", transport: "web-session", risk: "write", effect: "create-post", state: "available", executorSource: "built-in", interfaceSource: "bundled", permission: "ask" }],
     interfaces: [{ id: "draft", title: "Example draft", source: "user", digest: "c".repeat(64), activeDigest: null, state: "draft", operationCount: 1, adapterIds: ["x-web"], activationTargets: [{ adapterId: "x-web", installedDigest: "d".repeat(64) }], issues: [] }],
     policy: { managed: true, revision: 7 }, web: { revision: 0, gatewayOnly: false, rules: [] },
@@ -176,18 +176,21 @@ describe("reviewed control actions", () => {
     await controller.key({ text: "2" }); await controller.key({ text: "c" }); await controller.key("enter");
     expect(JSON.stringify(controller.state.dialog)).toContain("Your Chrome (Profile 9)");
     await controller.key("down"); await controller.key("enter"); await controller.key("enter");
-    fake.setMutation({ ok: true, data: { kind: "connection", attemptId: "attempt", status: "awaiting-sign-in", subject: null } });
+    fake.setMutation({ ok: true, data: { kind: "connection", attemptId: "attempt", status: "awaiting-sign-in", subject: null, displayName: null } });
     await confirm(controller);
     expect(fake.requests).toContainEqual({ action: "connection.begin", id: "x-main", provider: "x-web", browser: "chrome", profile: "Profile 9", expectedRevision: null });
   });
   test("sign-in saves only the independently verified subject", async () => {
     const fake = helper(snapshot({ accounts: [], accountId: null })); const controller = new TuiController(fake.client, null, () => {}, "darwin"); await controller.refresh();
     await controller.key({ text: "2" }); await controller.key({ text: "c" }); await controller.key("enter"); await controller.key("enter"); await controller.key("enter");
-    fake.setMutation({ ok: true, data: { kind: "connection", attemptId: "attempt", status: "awaiting-sign-in", subject: null } }); await confirm(controller);
+    fake.setMutation({ ok: true, data: { kind: "connection", attemptId: "attempt", status: "awaiting-sign-in", subject: null, displayName: null } }); await confirm(controller);
     expect(fake.requests).toContainEqual({ action: "connection.begin", id: "x-main", provider: "x-web", browser: "safari", profile: null, expectedRevision: null });
     await controller.key({ text: "s" }); expect(controller.state.dialog).toBeNull();
-    fake.setMutation({ ok: true, data: { kind: "connection", attemptId: "attempt", status: "verified", subject: "verified-owner" } });
+    fake.setMutation({ ok: true, data: { kind: "connection", attemptId: "attempt", status: "verified", subject: "verified-owner", displayName: "@verified-owner" } });
     await controller.key({ text: "v" }); await confirm(controller);
+    // The verified handle names the account for the person; the exact subject
+    // is still what commit proves.
+    expect(controller.state.notice).toContain("@verified-owner");
     fake.setMutation({ ok: true, data: { kind: "success", message: "Connected" } });
     await controller.key({ text: "s" }); await confirm(controller);
     expect(fake.requests).toContainEqual({ action: "connection.commit", attemptId: "attempt", expectedSubject: "verified-owner" });
