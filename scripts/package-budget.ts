@@ -1859,15 +1859,24 @@
 // a091637d0a6df2ce09e14d0f2c4ebc5ef3b8b7d138c07625950ddf050ce3b30c.
 // Carry the same projections and allowances: 12,062,831 + 12,387 + 4,096 =
 // 12,079,314 packed; 23,633,266 + 353 + 65 = 23,633,684 unpacked.
+//
+// The GG-8 signed-helper cookie path adds src/cookie-safe-storage.ts,
+// src/cookie-chromium-mac.ts and the spawned src/cookie-companion-resolve.ts
+// resolver beside the local-custody 0.9.0 pin: a clean npm 11.16.0 pack
+// --ignore-scripts on this branch measured 607 entries, 12,069,104 packed
+// bytes and 23,660,010 unpacked bytes; archive SHA-256
+// 9f8f589ce2465c95c5cbc566617730cd18a77aaeb446166bcaf4d27fdad6d295.
+// Carry the same projections and allowances: 12,069,104 + 12,387 + 4,096 =
+// 12,085,587 packed; 23,660,010 + 353 + 65 = 23,660,428 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Menu action errors over desktop-foundation 0.8.0 and help advanced",
+  scope: "GG-8 signed-helper cookie path over local-custody 0.9.0",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.16.0",
   platform: "darwin-arm64",
-  archiveSha256: "a091637d0a6df2ce09e14d0f2c4ebc5ef3b8b7d138c07625950ddf050ce3b30c",
-  packedBytes: 12_062_831,
-  unpackedBytes: 23_633_266,
-  entryCount: 604,
+  archiveSha256: "9f8f589ce2465c95c5cbc566617730cd18a77aaeb446166bcaf4d27fdad6d295",
+  packedBytes: 12_069_104,
+  unpackedBytes: 23_660_010,
+  entryCount: 607,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,

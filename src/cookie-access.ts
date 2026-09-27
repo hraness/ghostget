@@ -20,8 +20,8 @@ import {
   type CookieSelection,
   type CookieStoreReader,
 } from "@hraness/kb/clip/acquire";
-import { getCookies } from "@steipete/sweet-cookie";
 
+import { getCookies } from "@steipete/sweet-cookie";
 import { cliStyle, responsibleApp, type CliEnvironment } from "./cli-style";
 import { CookieAccessError, keychainAsk, type CookieAccessCode } from "./cookie-access-error";
 import type { KeychainNoticeRecord } from "./keychain-notice-record";
@@ -70,6 +70,9 @@ export function classifyKeychainFailure(text: string): "denied" | "unavailable" 
   if (
     lower.includes("interaction is not allowed")
     || lower.includes("timed out after")
+    // The signed helper reports a locked keychain, a dead sidecar or an
+    // unreadable item the same way: the read could not happen.
+    || lower.includes("the keychain could not be read")
     || /\bexit (36|124)\b/u.test(lower)
   ) return "unavailable";
   if (lower.includes("could not be found") || /\bexit 44\b/u.test(lower)) return "missing";
@@ -184,7 +187,7 @@ const NOTICE_WAIT_SECONDS = 120;
 /** Render and show the keychain notice for one browser. Never triggers the prompt itself. */
 export async function showKeychainNotice(browser: string, io: CookieNoticeIO): Promise<CookieNoticeOutcome> {
   const audience = detectCookieAudience(io.environment, io.stderrIsTTY);
-  const [first, second] = keychainNoticeLines(browser);
+  const [first, second] = keychainNoticeLines(browser, keychainRequester(io.environment));
   if (audience === "quiet") return "continue";
   if (audience === "agent") {
     io.write(`${JSON.stringify({
@@ -304,6 +307,21 @@ export class CookieAccessSkippedError extends Error {
   }
 }
 
+/**
+ * Who the macOS keychain prompt names. With the signed local app the helper
+ * inside `Ghostget.app` asks, so the dialog shows Ghostget instead of the
+ * system `security` tool.
+ */
+export function keychainRequester(
+  environment: CliEnvironment,
+  platform: NodeJS.Platform = process.platform,
+): string {
+  // Kept edge-free on purpose: this mirrors `localAppEnabled` in
+  // cookie-safe-storage.ts without importing that module into the ordinary
+  // graph. The signed-helper store still gates on the real function.
+  return platform === "darwin" && environment.HRANESS_LOCAL_APP === "1" ? "Ghostget" : "security";
+}
+
 /** The keychain browsers one cookie read may ask macOS about. */
 function keychainBrowsersFor(options: CookieSelection, platform: string): readonly string[] {
   if (options.cookiesFile !== undefined || platform !== "darwin") return [];
@@ -403,7 +421,9 @@ export function createClassifiedCookieRecordReader(
       updateKeychainRecord(options, platform, warnings, elapsedMs, false);
       const failure = observed as ObservedFailure | null;
       if (failure !== null) {
-        const requester = failure.code === "FDA_DENIED" ? responsibleApp(environment) : "security";
+        const requester = failure.code === "FDA_DENIED"
+          ? responsibleApp(environment)
+          : keychainRequester(environment, platform as NodeJS.Platform);
         throw new CookieAccessError(failure.code, failure.browser, requester, { cause: error });
       }
       // Only the default Safari store needs Full Disk Access; a named cookie
@@ -422,7 +442,18 @@ export function createClassifiedCookieRecordReader(
   };
 }
 
+/**
+ * The default store keeps its pre-GG-8 behavior unless `HRANESS_LOCAL_APP=1`
+ * opted in on macOS — then the signed-helper store is imported on first use,
+ * so the ordinary module graph and its startup cost stay unchanged.
+ */
 export const acquireCookieRecords: CookieRecordReader = createClassifiedCookieRecordReader(
-  (options) => getCookies(options),
+  async (options) => {
+    if (process.platform === "darwin" && process.env.HRANESS_LOCAL_APP === "1") {
+      const { createSignedCookieStore } = await import("./cookie-chromium-mac");
+      return createSignedCookieStore(process.env)(options);
+    }
+    return getCookies(options);
+  },
 );
 
