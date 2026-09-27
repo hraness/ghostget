@@ -122,7 +122,7 @@ describe("Ghostget blog discovery", () => {
       expect(feed).toContain(`<id>${site.origin}${blogPostPath(post.slug)}</id>`);
       expect(llms).toContain(`[${post.title}](${site.origin}${blogPostPath(post.slug)})`);
     }
-    expect(feed).toContain("<author><name>Hraness</name></author>");
+    expect(feed).toContain("<author><name>Hraness</name><uri>https://hraness.com/</uri></author>");
   });
 
   test("keeps shell examples with dollar signs literal", async () => {

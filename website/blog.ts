@@ -47,7 +47,12 @@ const EVIDENCE_COMMIT = "76a79fc" as const;
 const GHOSTGET_BLOB = `https://github.com/hraness/ghostget/blob/${EVIDENCE_COMMIT}` as const;
 
 export const BLOG_AUTHOR: ArticleAuthor = { kind: "organization", name: "Hraness" };
-const BLOG_PARTY: ArticleParty = { kind: "Organization", name: "Hraness" };
+const BLOG_PARTY: ArticleParty = {
+  kind: "Organization",
+  name: "Hraness",
+  sameAs: ["https://github.com/hraness"],
+  url: "https://hraness.com/",
+};
 const AI_REVIEWER = "Claude Opus 5.5 (claude-opus-5-5) editorial review" as const;
 const REVIEWED_ON: ArticleIsoDate = "2026-09-24";
 const REASSESS_ON: ArticleIsoDate = "2026-11-05";
