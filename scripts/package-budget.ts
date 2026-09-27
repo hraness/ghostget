@@ -1851,14 +1851,25 @@
 // 7e93bffa218491dbe4f78c0733fd4964df6437d734cf767e4ed0b3ebb11563fe.
 // Carry the same projections and allowances: 12,061,280 + 12,387 + 4,096 =
 // 12,077,763 packed; 23,627,901 + 353 + 65 = 23,628,319 unpacked.
+//
+// Moving the agent support verbs under `help advanced` grows src/usage.ts,
+// src/cli.ts, src/support.ts and the two cli-help fixtures, and re-pins
+// @hraness/support-foundation to the 0.6.0 release commit: the same
+// 604-entry inventory with no additional packed files.
+// A clean `npm pack --ignore-scripts` with npm 11.19.0 on darwin arm64
+// measured 12,061,514 packed bytes, 23,628,613 unpacked bytes and exactly
+// 604 entries; archive SHA-256
+// 028db47cc1f3656c31ed12fdefce498fcd9bf656fbfec791e96d35d89ec4d229.
+// Carry the same projections and allowances: 12,061,514 + 12,387 + 4,096 =
+// 12,077,997 packed; 23,628,613 + 353 + 65 = 23,629,031 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Quiet keychain notices and typed permission denials",
+  scope: "Agent support verbs under help advanced",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "7e93bffa218491dbe4f78c0733fd4964df6437d734cf767e4ed0b3ebb11563fe",
-  packedBytes: 12_061_280,
-  unpackedBytes: 23_627_901,
+  archiveSha256: "028db47cc1f3656c31ed12fdefce498fcd9bf656fbfec791e96d35d89ec4d229",
+  packedBytes: 12_061_514,
+  unpackedBytes: 23_628_613,
   entryCount: 604,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
