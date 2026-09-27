@@ -1964,14 +1964,24 @@
 // 0fa290c4dbb3963c0d1f63c16c2bac584273c1dece30f3a4052244a701985187.
 // Carry the same projections and allowances: 12,077,310 + 12,387 + 4,096 =
 // 12,093,793 packed; 23,759,283 + 353 + 65 = 23,759,701 unpacked.
+//
+// The messaging-automation permission snapshot describes a status report's
+// action kinds from one admitted snapshot, and a dispatch reuses its own
+// poll's provider inspection: a small amount of added source and one rebuilt
+// dist chunk in the same 609 packed files. After `bun run build`, a clean npm
+// 11.19.0 pack --ignore-scripts with Node 24.18.1 on darwin arm64 measured 609
+// entries, 12,090,401 packed bytes and 23,763,115 unpacked bytes; archive SHA-256
+// bf77d04ec6cd5ccffbb7390880f423849b6be84066a3ca66da00bf40d1c767c0.
+// Carry the same projections and allowances: 12,090,401 + 12,387 + 4,096 =
+// 12,106,884 packed; 23,763,115 + 353 + 65 = 23,763,533 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget 0.18.43 release over the Substack subscriber operations and the ghostget.com polish",
+  scope: "Messaging-automation permission snapshot and dispatch status reuse over the Ghostget 0.18.43 release tree",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "0fa290c4dbb3963c0d1f63c16c2bac584273c1dece30f3a4052244a701985187",
-  packedBytes: 12_077_310,
-  unpackedBytes: 23_759_283,
+  archiveSha256: "bf77d04ec6cd5ccffbb7390880f423849b6be84066a3ca66da00bf40d1c767c0",
+  packedBytes: 12_090_401,
+  unpackedBytes: 23_763_115,
   entryCount: 609,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

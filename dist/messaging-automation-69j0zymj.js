@@ -445,6 +445,9 @@ class MessagingAutomationHost {
     }
   }
   async pollEnrollments(enrollmentIds, signal) {
+    return await this.pollObserving(enrollmentIds, signal);
+  }
+  async pollObserving(enrollmentIds, signal, observed) {
     this.ready();
     const ids = [...new Set(enrollmentIds.map((id) => automationId(id)))].sort();
     const results = new Map;
@@ -475,6 +478,7 @@ class MessagingAutomationHost {
       let status;
       try {
         status = await this.status(group.provider, signal);
+        observed?.set(group.provider, status);
       } catch (error) {
         const message = error instanceof Error ? error.message : "Messaging provider status is unavailable.";
         for (const item of group.items)
@@ -654,9 +658,15 @@ class MessagingAutomationHost {
         throw new Error("Messaging intent already belongs to another plan.");
       return this.runProjection(existing);
     }
-    const enrollment = await this.poll(plan.enrollmentId, signal);
+    const observed = new Map;
+    const [polled] = await this.pollObserving([plan.enrollmentId], signal, observed);
+    if (polled === undefined || polled.error !== null)
+      throw new Error(polled?.error ?? "Messaging poll failed.");
+    if (polled.enrollment === null)
+      throw new Error("Messaging enrollment is unavailable.");
+    const enrollment = polled.enrollment;
     const provider = this.provider(enrollment.identity.provider);
-    const status = await this.status(provider, signal);
+    const status = observed.get(provider) ?? await this.status(provider, signal);
     const route = await provider.resolve(enrollment.conversation.coordinate, signal);
     stopped(signal);
     if (!same(parseAutomationIdentity(route.identity), enrollment.identity) || !sameConversation(conversation(route.conversation), enrollment.conversation) || !same(status.identity, enrollment.identity) || !status.connected)
@@ -694,9 +704,9 @@ class MessagingAutomationHost {
     for (const [index, action] of plan.actions.entries()) {
       try {
         this.checkFiles();
-        const observed = checkedPage(await provider.events({ coordinates: [enrollment.conversation.coordinate], cursor: this.row(enrollment.id).cursor, limit: 200 }, signal), enrollment.identity, enrollment.conversation.coordinate);
+        const observed2 = checkedPage(await provider.events({ coordinates: [enrollment.conversation.coordinate], cursor: this.row(enrollment.id).cursor, limit: 200 }, signal), enrollment.identity, enrollment.conversation.coordinate);
         const ownMessages = new Set(accepted.flatMap((receipt) => receipt.messageId === null ? [] : [receipt.messageId]));
-        if (observed.gap || !observed.caughtUp || observed.messages.some((message) => message.direction !== "outgoing" || message.kind !== "message" || !ownMessages.has(message.id))) {
+        if (observed2.gap || !observed2.caughtUp || observed2.messages.some((message) => message.direction !== "outgoing" || message.kind !== "message" || !ownMessages.has(message.id))) {
           state = accepted.length ? "partial" : "failed";
           reason = "Conversation changed before the next action.";
           break;

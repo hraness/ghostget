@@ -154,6 +154,22 @@ export function describeOperationPermission(adapterId: string, operationId: stri
 }
 
 /**
+ * Describes several operations of one adapter and account from a single
+ * admitted snapshot: the policy, installed manifest and admitted account pair
+ * are read once, so every entry reflects the same instant instead of one
+ * independent state read per operation. Each entry equals what
+ * describeOperationPermission would return at that instant, or null when that
+ * operation cannot be described. It reports availability only; dispatch
+ * still describes its own operation immediately before any effect.
+ */
+export function describeOperationPermissionSet(adapterId: string, operationIds: readonly string[], authId: string | null, options: Options): readonly (OperationPermissionDescription | null)[] {
+  const snapshot = inspection(options, id => accountIdentity(id, options));
+  return Object.freeze(operationIds.map(operationId => {
+    try { return describe(adapterId, operationId, authId, options, snapshot); } catch { return null; }
+  }));
+}
+
+/**
  * Snapshot-local reuse keeps control-panel inspection proportional to unique accounts and adapters. Never reuse this snapshot to authorize a later request.
  * This is the menu-bar read path, so it holds only the incarnation read capability; an account without an incarnation describes as unavailable.
  */

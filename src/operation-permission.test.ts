@@ -11,7 +11,7 @@ import { providerPluginRegistry as registry } from "./provider-plugins";
 import { confirmInvocation, createAndSaveInvocationPlan, createMessagingCompositeInvocationPlan, executeReadInvocation, loadInvocationPlan, prepareInvocation, listRunReceipts } from "./runtime";
 import { readCachedPreparedCapability, revalidatePreparedCapability } from "./read-client";
 import { authIncarnationReader } from "./read-projections";
-import { describeOperationPermission, describeOperationPermissions, setOperationPermission, checkProviderApproval, recheckProviderApproval, checkOperationPermission, withOperationPermission } from "./operation-permission";
+import { describeOperationPermission, describeOperationPermissionSet, describeOperationPermissions, setOperationPermission, checkProviderApproval, recheckProviderApproval, checkOperationPermission, withOperationPermission } from "./operation-permission";
 import { enableOperationPermissions, readOperationPolicy, parseOperationPolicy, setOperationPolicyEntry } from "./operation-permission-store";
 import type { ProviderExecution } from "./provider";
 import type { PermissionDecision } from "./control/protocol";
@@ -73,6 +73,24 @@ test("operation policy: unmanaged compatibility, opt-in default deny, and strict
   expect(s.prepare().operationId).toBe("posts.read");
   expect(() => setOperationPolicyEntry("a".repeat(64), "allow", 1, s.environment)).toThrow("refresh");
   expect(readOperationPolicy(s.environment).revision).toBe(2);
+});
+
+test("operation policy: a permission set describes each operation exactly as a single description would", () => {
+  const s = state(); s.prepare(); enableOperationPermissions(0, s.environment); s.grant("allow", "posts.read"); s.grant("ask", "posts.publish");
+  const operations = ["posts.read", "posts.publish", "comments.read", "not.installed"];
+  const set = describeOperationPermissionSet("x", operations, s.auth.id, s.options);
+  expect(set).toHaveLength(operations.length);
+  for (const [index, operation] of operations.slice(0, 3).entries()) {
+    const single = describeOperationPermission("x", operation, s.auth.id, s.options);
+    expect({ digest: set[index]!.digest, decision: set[index]!.decision, revision: set[index]!.revision, coordinate: set[index]!.coordinate })
+      .toEqual({ digest: single.digest, decision: single.decision, revision: single.revision, coordinate: single.coordinate });
+  }
+  expect(set.map(item => item?.decision ?? null)).toEqual(["allow", "ask", "deny", null]);
+  // A private operation still requires an explicit account, per entry.
+  expect(describeOperationPermissionSet("x", ["posts.read"], null, s.options)).toEqual([null]);
+  // One unreadable policy blocks the whole snapshot rather than reporting a stale or unmanaged view.
+  rmSync(join(s.directory, "operation-permissions/policy.json"));
+  expect(() => describeOperationPermissionSet("x", ["posts.read"], s.auth.id, s.options)).toThrow("blocked");
 });
 
 test("operation policy: deleted or corrupt managed policy never falls back to unmanaged", () => {

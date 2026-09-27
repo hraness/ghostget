@@ -300,6 +300,11 @@ export class MessagingAutomationHost {
    * the set. Ingest keeps the per-enrollment cursor claim so a stale scope can
    * never overwrite a concurrently advanced journal. */
   async pollEnrollments(enrollmentIds: readonly string[], signal?: AbortSignal): Promise<readonly AutomationPollResult[]> {
+    return await this.pollObserving(enrollmentIds, signal);
+  }
+  /** pollEnrollments that also records each provider status it inspected, so
+   * a dispatch can reuse the inspection its own poll already paid for. */
+  private async pollObserving(enrollmentIds: readonly string[], signal?: AbortSignal, observed?: Map<MessagingAutomationProvider, AutomationProviderStatus>): Promise<readonly AutomationPollResult[]> {
     this.ready();
     const ids = [...new Set(enrollmentIds.map(id => automationId(id)))].sort();
     const results = new Map<string, AutomationPollResult>();
@@ -319,7 +324,7 @@ export class MessagingAutomationHost {
     }
     for (const group of groups.values()) {
       let status: AutomationProviderStatus;
-      try { status = await this.status(group.provider, signal); }
+      try { status = await this.status(group.provider, signal); observed?.set(group.provider, status); }
       catch (error) {
         const message = error instanceof Error ? error.message : "Messaging provider status is unavailable.";
         for (const item of group.items) results.set(item.enrollment.id, { enrollmentId: item.enrollment.id, enrollment: null, error: message });
@@ -430,7 +435,16 @@ export class MessagingAutomationHost {
     if (plan.id !== planId) throw new Error("Messaging plan binding is invalid.");
     const existing = this.db.query<StoredRun, [string]>(`SELECT ${RUN_COLUMNS} FROM runs WHERE intent_id=?`).get(plan.intentId);
     if (existing !== null) { if (existing.plan_id !== plan.id) throw new Error("Messaging intent already belongs to another plan."); return this.runProjection(existing); }
-    const enrollment = await this.poll(plan.enrollmentId, signal); const provider = this.provider(enrollment.identity.provider); const status = await this.status(provider, signal);
+    // The dispatch poll already inspected this provider; each inspection costs
+    // a native session and several isolated permission reads, so reuse that
+    // status. A poll that skipped inspection (a lane with an active run)
+    // inspects fresh here, and the provider send still reauthorizes itself.
+    const observed = new Map<MessagingAutomationProvider, AutomationProviderStatus>();
+    const [polled] = await this.pollObserving([plan.enrollmentId], signal, observed);
+    if (polled === undefined || polled.error !== null) throw new Error(polled?.error ?? "Messaging poll failed.");
+    if (polled.enrollment === null) throw new Error("Messaging enrollment is unavailable.");
+    const enrollment = polled.enrollment; const provider = this.provider(enrollment.identity.provider);
+    const status = observed.get(provider) ?? await this.status(provider, signal);
     const route = await provider.resolve(enrollment.conversation.coordinate, signal); stopped(signal);
     if (!same(parseAutomationIdentity(route.identity), enrollment.identity) || !sameConversation(conversation(route.conversation), enrollment.conversation) || !same(status.identity, enrollment.identity) || !status.connected) throw new Error("Messaging route or identity changed before dispatch.");
     for (const action of plan.actions) if (!status.actions[parseAutomationAction(action).kind].available) throw new Error("Messaging action is unavailable for this provider.");
