@@ -15,3 +15,9 @@ Ghostget advanced commands
 
 Use one controller at a time: run ghostget menubar stop before opening the
 TUI. Setup guide: https://ghostget.com/getting-started
+
+Support for agents
+  ghostget support protocol --json   How an agent offers optional support
+  ghostget support offer --json      Reserve an invitation that is due
+  ghostget support shown <id>        Record that it was shown
+  ghostget support release <id>      Cancel one that wasn't shown

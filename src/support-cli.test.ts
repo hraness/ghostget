@@ -133,8 +133,8 @@ describe("optional Ghostget support", () => {
     for (const depth of ["", "-1", "9", "01", "1.0", "1e0", " 0", "0\n"]) expect(standaloneSupportDepth(depth)).toBeNull();
   });
 
-  test("discovers closeout in pipes without changing JSON or claiming an invitation", async () => {
-    const first = await runIsolatedCli(stateRoot, usefulArguments);
+  test("discovers closeout for marked agents without changing JSON or claiming an invitation", async () => {
+    const first = await runIsolatedCli(stateRoot, usefulArguments, { AI_AGENT: "1" });
     expect(first.exitCode).toBe(0);
     const artifact = JSON.parse(first.stdout);
     expect(artifact.kind).toBe("local-thread-split");
@@ -145,7 +145,7 @@ describe("optional Ghostget support", () => {
     expect(discovery).not.toHaveProperty("emailSuggestion");
     expect(first.stderr).toContain("protocol");
     expect(first.stderr).not.toContain(fixtureEmail);
-    const second = await runIsolatedCli(stateRoot, usefulArguments);
+    const second = await runIsolatedCli(stateRoot, usefulArguments, { AI_AGENT: "1" });
     expect(second).toEqual({ exitCode: 0, stdout: first.stdout, stderr: "" });
     const protocol = await runIsolatedCli(stateRoot, ["support", "protocol", "--json"]);
     const contract = JSON.parse(protocol.stdout);
@@ -156,17 +156,24 @@ describe("optional Ghostget support", () => {
     expect(JSON.parse(offer.stdout).kind).toBe("offer");
   });
 
-  test("treats an unknown PTY audience as an agent without reserving an offer", async () => {
+  test("treats an unknown PTY audience as a person and shows one bounded invitation", async () => {
     const result = await runIsolatedPty(stateRoot);
     expect(result.exitCode).toBe(0);
     const lines = result.output.trim().split("\n");
-    const discovery = JSON.parse(lines.pop() ?? "");
-    const artifact = JSON.parse(lines.join("\n"));
+    // The invitation opens with a 40-column rule: "─" under UTF-8, "-" under
+    // the ASCII fallback (the isolated PTY environment sets no locale).
+    const ruleIndex = lines.findIndex((line) => /^[─-]{20,}$/u.test(line));
+    expect(ruleIndex).toBeGreaterThan(0);
+    const artifact = JSON.parse(lines.slice(0, ruleIndex).join("\n"));
     expect(artifact.kind).toBe("local-thread-split");
-    expect(discovery.schemaVersion).toBe("hraness-support-discovery-v1");
+    const invitation = lines.slice(ruleIndex).join("\n");
+    expect(invitation).toContain("Optional:");
+    expect(invitation).toContain("Hide these: ghostget support dismiss");
     expect(result.output).not.toContain(fixtureEmail);
+    // A presented invitation starts the weekly cooldown on this device, so an
+    // explicit offer reservation reports quiet rather than a fresh offer.
     const offer = await runIsolatedCli(stateRoot, ["support", "offer", "--json"]);
-    expect(JSON.parse(offer.stdout).kind).toBe("offer");
+    expect(JSON.parse(offer.stdout).kind).toBe("quiet");
   });
 
   test("explicit human presentation requires a PTY and audience off suppresses due offers", async () => {
@@ -192,7 +199,9 @@ describe("optional Ghostget support", () => {
       const result = await runIsolatedCli(stateRoot, args);
       expect(result.stderr).not.toContain("hraness-support-discovery-v1");
     }
-    const suppressionEnvironments: readonly Record<string, string>[] = [{ GHOSTGET_CLI_DEPTH: "1" }, { GHOSTGET_CLI_DEPTH: "invalid" }, { CI: "1" }, { HRANESS_SUPPORT: "off" }, { HRANESS_SUPPORT_AUDIENCE: "off" }, { HRANESS_SUPPORT_AUDIENCE: "invalid" }];
+    // A plain pipe is quiet too: the shared audience rule emits the agent
+    // discovery record only when an agent marker is set.
+    const suppressionEnvironments: readonly Record<string, string>[] = [{}, { GHOSTGET_CLI_DEPTH: "1" }, { GHOSTGET_CLI_DEPTH: "invalid" }, { CI: "1" }, { HRANESS_SUPPORT: "off" }, { HRANESS_SUPPORT_AUDIENCE: "off" }, { HRANESS_SUPPORT_AUDIENCE: "invalid" }];
     for (const env of suppressionEnvironments) {
       const result = await runIsolatedCli(stateRoot, usefulArguments, env);
       expect(result.exitCode).toBe(0);
@@ -218,6 +227,7 @@ describe("optional Ghostget support", () => {
           return 0;
         },
         showGhostgetSupportInvitation: forbidden,
+        ghostgetSupportAdvancedHelp: forbidden,
       }),
     );
     expect(received).toEqual(["offer", "--json"]);
@@ -241,6 +251,7 @@ describe("optional Ghostget support", () => {
           return 2;
         },
         showGhostgetSupportInvitation: forbidden,
+        ghostgetSupportAdvancedHelp: forbidden,
       }),
     );
     expect(stderr).toBe("Invalid support command.\n");
@@ -293,6 +304,7 @@ describe("optional Ghostget support", () => {
         async () => ({
           runGhostgetSupportCommand: forbidden,
           showGhostgetSupportInvitation: async () => { invitations += 1; throw new Error("optional support unavailable"); },
+          ghostgetSupportAdvancedHelp: forbidden,
         }),
         standalone,
       );
