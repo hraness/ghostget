@@ -1820,15 +1820,25 @@
 // 873cad8139fda303e2d19c6afd61cf549cf9b4d1d76b2a1d6d632a6afe6bd0d1.
 // Carry the same projections and allowances: 12,053,623 + 12,387 + 4,096 =
 // 12,070,106 packed; 23,605,152 + 353 + 65 = 23,605,570 unpacked.
+//
+// Plain auth output adds src/auth-output.ts for the auth add, bind and list
+// result lines, aligned rows, OAuth token state and Next: hints, plus their
+// changelog entry: one additional packed source file.
+// A clean `npm pack --ignore-scripts` with npm 11.19.0 on darwin arm64
+// measured 12,057,881 packed bytes, 23,616,655 unpacked bytes and exactly
+// 603 entries; archive SHA-256
+// 0c331bab3ab3df69a108e18f5f29845b0db90c281cbd6455c0d90fa0b24081e2.
+// Carry the same projections and allowances: 12,057,881 + 12,387 + 4,096 =
+// 12,074,364 packed; 23,616,655 + 353 + 65 = 23,617,073 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Browser permission notices and permission-denied reads",
+  scope: "Plain auth add, bind and list output",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "873cad8139fda303e2d19c6afd61cf549cf9b4d1d76b2a1d6d632a6afe6bd0d1",
-  packedBytes: 12_053_623,
-  unpackedBytes: 23_605_152,
-  entryCount: 602,
+  archiveSha256: "0c331bab3ab3df69a108e18f5f29845b0db90c281cbd6455c0d90fa0b24081e2",
+  packedBytes: 12_057_881,
+  unpackedBytes: 23_616_655,
+  entryCount: 603,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,
