@@ -6,8 +6,8 @@
     <meta name="color-scheme" content="light dark">
     <meta name="theme-color" content="#fbf1c7" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">
-    <title>Ghostget vs Firecrawl: a local page read instead of a hosted scraping API</title>
-    <meta name="description" content="Firecrawl turns URLs into Markdown and crawls whole sites through a hosted, credit-billed API. Ghostget reads one URL on your machine, free, with no key.">
+    <title>Ghostget vs Firecrawl: a free, local Firecrawl alternative</title>
+    <meta name="description" content="A Firecrawl alternative for one-page reads: Ghostget turns a URL into Markdown on your machine with no key or credits. Firecrawl adds crawls and proxies.">
     <meta name="robots" content="max-image-preview:large">
     <link rel="canonical" href="https://ghostget.com/compare/firecrawl/">
     <link rel="icon" href="/icon.png" type="image/png" sizes="512x512">
@@ -17,16 +17,16 @@
     {{MARKDOWN_ALTERNATE}}
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Ghostget">
-    <meta property="og:title" content="Ghostget vs Firecrawl: a local page read instead of a hosted scraping API">
-    <meta property="og:description" content="Firecrawl turns URLs into Markdown and crawls whole sites through a hosted, credit-billed API. Ghostget reads one URL on your machine, free, with no key.">
+    <meta property="og:title" content="Ghostget vs Firecrawl: a free, local Firecrawl alternative">
+    <meta property="og:description" content="A Firecrawl alternative for one-page reads: Ghostget turns a URL into Markdown on your machine with no key or credits. Firecrawl adds crawls and proxies.">
     <meta property="og:url" content="https://ghostget.com/compare/firecrawl/">
     <meta property="og:image" content="https://ghostget.com/og.png">
     <meta property="og:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Ghostget vs Firecrawl: a local page read instead of a hosted scraping API">
-    <meta name="twitter:description" content="Firecrawl turns URLs into Markdown and crawls whole sites through a hosted, credit-billed API. Ghostget reads one URL on your machine, free, with no key.">
+    <meta name="twitter:title" content="Ghostget vs Firecrawl: a free, local Firecrawl alternative">
+    <meta name="twitter:description" content="A Firecrawl alternative for one-page reads: Ghostget turns a URL into Markdown on your machine with no key or credits. Firecrawl adds crawls and proxies.">
     <meta name="twitter:image" content="https://ghostget.com/og.png">
     <meta name="twitter:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
     <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
@@ -57,19 +57,19 @@
         </header>
 
         <section aria-labelledby="fc-scope">
-          <h2 id="fc-scope">A scraping pipeline versus one page read</h2>
+          <h2 id="fc-scope">Firecrawl covers whole sites; Ghostget reads one URL at a time</h2>
           <p>Firecrawl is built for collection at scale. Its <code>scrape</code> endpoint converts one URL into Markdown, cleaned or raw HTML, a screenshot, links, or LLM-extracted JSON. <code>crawl</code> follows links to take a whole site, <code>map</code> lists a site's URLs without scraping them, <code>search</code> combines web search with scraping, <code>interact</code> opens an interactive browser sandbox billed by the minute, and <code>agent</code> runs an autonomous research agent in preview. Its servers manage proxies, caching, rate limits, and pages that only render with JavaScript.</p>
-          <p>Ghostget does one of those jobs and nothing else: <code>ghostget read &lt;url&gt;</code> returns one page as bounded Markdown, and <code>ghostget &lt;url&gt; --output &lt;dir&gt;</code> saves it into a local Markdown vault that <code>ghostget search</code> can query without an embedding model. There is no crawl, no map, and no search endpoint. When a read needs JavaScript, a capped internal browser renders the page, at most two at a time, and the agent never steers it.</p>
+          <p>Ghostget does one of those jobs and nothing else: <code>ghostget read &lt;url&gt;</code> returns one page as Markdown, and <code>ghostget &lt;url&gt; --output &lt;dir&gt;</code> saves it into a local Markdown vault that <code>ghostget search</code> can query without an embedding model. There is no crawl, no map, and no search endpoint. When a read needs JavaScript, a capped internal browser renders the page, at most two at a time, and the agent never steers it.</p>
         </section>
 
         <section aria-labelledby="fc-billing">
-          <h2 id="fc-billing">The credit meter</h2>
+          <h2 id="fc-billing">Firecrawl bills credits per page; Ghostget has no meter</h2>
           <p>Every Firecrawl call spends from a monthly credit allotment. A scrape costs one credit per page; JSON extraction and the other enhanced formats add four credits per page each, and PDF parsing adds one per PDF page. The free plan carries 1,000 monthly credits. Paid plans run $16, $83, $333, and $599 per month billed yearly, for 5,000 to 1,000,000 monthly credits, with paid pay-as-you-go top-ups in $5 increments. A call bills whenever Firecrawl returns a document, including pages whose target answered 403 or 404.</p>
-          <p>Ghostget is free MIT-licensed software. A read costs one request from your own network, and a saved page stays on your disk as long as you keep it. There is no meter because there is no service to bill you: the trade is that Firecrawl's managed browsers and proxies do not exist here.</p>
+          <p>Ghostget is free MIT-licensed software. A read costs one request from your own network, and a saved page stays on your disk as long as you keep it. No service stands behind Ghostget to bill you, and so none of Firecrawl's managed browsers or proxies either.</p>
         </section>
 
         <section aria-labelledby="fc-table">
-          <h2 id="fc-table">Side by side</h2>
+          <h2 id="fc-table">Firecrawl and Ghostget side by side</h2>
           <div class="table-scroll" role="region" aria-labelledby="fc-table" tabindex="0">
             <table>
               <thead>
@@ -116,10 +116,10 @@
         </section>
 
         <section aria-labelledby="fc-choose">
-          <h2 id="fc-choose">When to pick which</h2>
-          <p>Pick Firecrawl when the job is a pipeline: crawling a whole documentation site, mapping a domain's URLs, scraping hundreds of pages an hour, pulling structured JSON from many pages, or reaching sites that only answer a real browser. Its managed browsers, proxies, and per-page pricing are built for exactly that.</p>
-          <p>Pick Ghostget when the job is a single read by an agent that already runs on your machine: free with no key, Markdown that lands on disk and stays searchable, plus the media archiving and connected-account actions a scraping API does not cover. The two answers differ because the jobs differ: one read per call versus a crawling pipeline.</p>
-          <p>They compose cleanly: let a Firecrawl crawl enumerate the long tail of URLs, then keep the recurring reads your agent repeats in Ghostget, where each one returns a saved local copy.</p>
+          <h2 id="fc-choose">When to pick Firecrawl, and when to pick Ghostget</h2>
+          <p>Pick Firecrawl when the job is a pipeline: crawling a whole documentation site, mapping a domain's URLs, scraping hundreds of pages an hour, pulling structured JSON from many pages, or reaching sites that only answer a real browser. Its managed browsers, proxies, and per-page pricing are built for that work, and Ghostget offers none of it.</p>
+          <p>Pick Ghostget when the job is a single read by an agent that already runs on your machine: free with no key, Markdown that lands on disk and stays searchable, plus the media archiving and connected-account actions a scraping API does not cover.</p>
+          <p>The two can also work together: let a Firecrawl crawl list the long tail of URLs, then run the reads your agent repeats through Ghostget, which can save each one as a local copy.</p>
         </section>
 
         <aside class="guide-callout" aria-labelledby="fc-next">

@@ -109,8 +109,8 @@ function renderCoverage(register: ClaimsRegister): string {
       `<tr><td>${code(rule.guide)}</td><td>${inlineText(rule.anchor)}…</td><td>${inlineText(rule.exempt ?? "")}</td></tr>`
     ).join("\n");
     parts.push(
-      `<h3 id="claims-exempt-guidelines">Exempt guidelines</h3>`,
-      `<p>These guidelines have no claim in the register, and no automated check covers them. Each reason says why.</p>`,
+      `<h3 id="claims-exempt-guidelines">Guidelines exempt from the register</h3>`,
+      `<p>These guidelines have no claim in the register, and no automated check covers them. The table gives the reason for each.</p>`,
       `<div class="table-scroll" role="region" tabindex="0">
 <table>
 <thead><tr><th scope="col">Guide</th><th scope="col">Guideline</th><th scope="col">Reason</th></tr></thead>
@@ -129,8 +129,8 @@ ${rows}
       `<tr><td>${code(guide)}</td><td>${code(block.name)}</td><td>${inlineText(block.reason)}</td></tr>`
     ).join("\n");
     parts.push(
-      `<h3 id="claims-managed-blocks">Managed blocks outside the register</h3>`,
-      `<p>These synced blocks sit inside a scanned guidelines section but have no rules or claims, and no automated check covers them. The register pins each block's text, so any change fails the register until someone reviews it.</p>`,
+      `<h3 id="claims-managed-blocks">Synced guideline blocks with no claims</h3>`,
+      `<p>These synced blocks sit inside a scanned guidelines section but have no rules or claims, and no automated check covers them. The register pins each block's text, so any change makes the register check fail until someone reviews it.</p>`,
       `<div class="table-scroll" role="region" tabindex="0">
 <table>
 <thead><tr><th scope="col">Guide</th><th scope="col">Block</th><th scope="col">Reason</th></tr></thead>
@@ -142,7 +142,7 @@ ${rows}
     );
   }
   parts.push(
-    `<h3 id="claims-excluded-guides">Guides outside the register</h3>`,
+    `<h3 id="claims-excluded-guides">Maintainer guides the register does not cover</h3>`,
     `<ul class="guide-list">
 ${register.excludedGuides.map((excluded) => `<li>${code(excluded.prefix)}: ${inlineText(excluded.reason)}</li>`).join("\n")}
 </ul>`,
@@ -171,7 +171,7 @@ function renderClaim(claim: Claim): string {
     );
   }
   lines.push(
-    `<li>Assumptions: ${claim.assumptions.length === 0 ? "none beyond the register-wide scope" : claim.assumptions.map(code).join(", ")}</li>`,
+    `<li>Assumptions: ${claim.assumptions.length === 0 ? "none beyond those that apply to the whole register" : claim.assumptions.map(code).join(", ")}</li>`,
   );
   if (claim.notVerified.length === 1) {
     lines.push(`<li>Not verified: ${inlineText(claim.notVerified[0]!)}</li>`);
@@ -224,7 +224,7 @@ export function claimsTemplateValues(
   const byStatus = (status: Status): number => claimsWithStatus(register, status).length;
   const exemptRules = register.rules.filter((rule) => rule.exempt !== null);
   const summary = `<p>The register holds ${count(claims.length, "claim", "claims")}: ${byStatus("evidenced").toLocaleString("en-US")} evidenced, ${byStatus("planned").toLocaleString("en-US")} planned, and ${byStatus("not-verified").toLocaleString("en-US")} not verified. It maps ${count(register.rules.length, "guideline", "guidelines")} from ${count(register.guides.length, "guide", "guides")}; ${(register.rules.length - exemptRules.length).toLocaleString("en-US")} list claims and ${exemptRules.length.toLocaleString("en-US")} are exempt.</p>
-<p>The source is <a href="${escapeHtml(releaseBlobUrl(CLAIMS_REGISTER))}">${code(CLAIMS_REGISTER)}</a>, planned work is scheduled by the <a href="${escapeHtml(releaseBlobUrl(register.plan))}">verification plan</a>, and the same file is served from this site as <a href="/claims.json"><code>/claims.json</code></a>.</p>`;
+<p>The register's source file is <a href="${escapeHtml(releaseBlobUrl(CLAIMS_REGISTER))}">${code(CLAIMS_REGISTER)}</a>, the <a href="${escapeHtml(releaseBlobUrl(register.plan))}">verification plan</a> schedules the planned work, and the same file is served from this site as <a href="/claims.json"><code>/claims.json</code></a>.</p>`;
   return Object.freeze({
     "{{CLAIMS_ASSUMPTIONS_TABLE}}": renderAssumptionsTable(register),
     "{{CLAIMS_BY_AREA}}": renderClaimsByArea(register),

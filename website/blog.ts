@@ -39,7 +39,7 @@ export const BLOG_PATH = "/blog/" as const;
 export const BLOG_FEED_PATH = "/blog/feed.xml" as const;
 export const BLOG_TITLE = "Ghostget blog" as const;
 export const BLOG_DESCRIPTION =
-  "Posts about how Ghostget works, how its releases and tests are checked, and which products use it." as const;
+  "Posts on how Ghostget's named web actions work for AI agents, how its releases and tests are checked, and which products use it." as const;
 /** The Portfolio product id Ghostget still carries in the registry. */
 export const GHOSTGET_PORTFOLIO_ID = "wrench" as const;
 
@@ -147,10 +147,11 @@ const propertyTestSources = [
 export const BLOG_POSTS: readonly BlogPost[] = [
   {
     slug: "introducing-ghostget",
-    title: "Introducing Ghostget",
+    title: "Introducing Ghostget: named web actions for AI agents",
     dek: "Ghostget lets your AI agent work in your own accounts through named, reviewed actions, without handing it your passwords, tokens, or a signed-in browser.",
     eyebrow: "Introducing",
     published: "2026-09-24",
+    updated: "2026-09-26",
     keywords: ["ghostget", "agents", "accounts", "previews", "verification", "claims register"],
     bodyFile: "introducing-ghostget.html",
     sources: introducingSources,
@@ -170,6 +171,7 @@ export const BLOG_POSTS: readonly BlogPost[] = [
       observations: [
         "The fact check corrected four overclaims before review: Gmail actions only read, the README runs adapter sync-bundled before capabilities, Ghostget never asks the agent to copy a token rather than making copying impossible, and the duplicate-risk re-send is limited to one web-session post named by its source run.",
         "On 2026-09-24 the claims register at 76a79fc held 244 claims: 180 evidenced, 45 planned, and 19 not verified, 15 of them resting on configuration readback.",
+        "On 2026-09-26 a Claude Opus 5.5 (claude-opus-5-5) AI editorial review rewrote headings and prose for clarity and re-read the diff against the source; it changed no facts, numbers, commands, links, or dates of record.",
       ],
       scores: { readerUtility: 2, originalEvidence: 2, factualConfidence: 2, hostFit: 2, voiceIntegrity: 2, maintenanceValue: 1 },
       owner: OWNER,
@@ -189,10 +191,11 @@ export const BLOG_POSTS: readonly BlogPost[] = [
   },
   {
     slug: "built-on-ghostget",
-    title: "Built on Ghostget",
+    title: "Products built on Ghostget",
     dek: "PeopleBlade reads contacts and messages through Ghostget, and Textbutler imports the Beeper history that Ghostget exports.",
     eyebrow: "Integration",
     published: "2026-09-24",
+    updated: "2026-09-26",
     keywords: ["ghostget", "integrations", "peopleblade", "textbutler", "local-first"],
     bodyFile: "built-on-ghostget.html",
     sources: builtOnSources,
@@ -211,6 +214,7 @@ export const BLOG_POSTS: readonly BlogPost[] = [
       observations: [
         "On 2026-09-24 relatedFor('wrench') in design-kit v0.17.0 returned exactly two relations with detail sentences: PeopleBlade provider transport and the Textbutler private bundle export.",
         "A Sponge relation exists in code but was not registered on the portfolio registry's main branch on 2026-09-24, so the hub leaves it out until it is.",
+        "On 2026-09-26 a Claude Opus 5.5 (claude-opus-5-5) AI editorial review rewrote headings and prose for clarity and re-read the diff against the source; it changed no facts, numbers, commands, links, or dates of record.",
       ],
       scores: { readerUtility: 1, originalEvidence: 1, factualConfidence: 2, hostFit: 2, voiceIntegrity: 1, maintenanceValue: 2 },
       owner: OWNER,
@@ -234,6 +238,7 @@ export const BLOG_POSTS: readonly BlogPost[] = [
     dek: "On 24 September 2026, 180 of the 244 claims in Ghostget's public register had a check that runs on every change, and 19 had no automated check.",
     eyebrow: "Technique",
     published: "2026-09-24",
+    updated: "2026-09-26",
     keywords: ["ghostget", "claims register", "verification", "quint", "lean", "property testing", "agents"],
     bodyFile: "ghostget-claims-register.html",
     sources: claimsRegisterSources,
@@ -252,6 +257,7 @@ export const BLOG_POSTS: readonly BlogPost[] = [
       observations: [
         "Every count in the post was re-derived from verification/claims.json at 76a79fc on 2026-09-24 and carries that date in the body.",
         "The allow-once approval rule is enforced by the client (defect D13 in the formal verification plan), which the post states rather than implying a server-side guarantee.",
+        "On 2026-09-26 a Claude Opus 5.5 (claude-opus-5-5) AI editorial review rewrote headings and prose for clarity and re-read the diff against the source; it changed no facts, numbers, commands, links, or dates of record.",
       ],
       scores: { readerUtility: 2, originalEvidence: 2, factualConfidence: 2, hostFit: 1, voiceIntegrity: 2, maintenanceValue: 1 },
       owner: OWNER,
@@ -275,6 +281,7 @@ export const BLOG_POSTS: readonly BlogPost[] = [
     dek: "One gh command checks that a downloaded Ghostget tarball was signed by the release workflow at its version tag.",
     eyebrow: "Technique",
     published: "2026-09-24",
+    updated: "2026-09-26",
     keywords: ["ghostget", "releases", "provenance", "supply chain", "github releases", "npm", "quint"],
     bodyFile: "releases-that-prove-their-origin.html",
     sources: releaseSources,
@@ -294,6 +301,7 @@ export const BLOG_POSTS: readonly BlogPost[] = [
         "2026-09-24: all five assets of the Latest GitHub Release were downloaded; shasum -a 256 -c SHA256SUMS passed and gh attestation verify with --bundle provenance.jsonl and the release.yml signer workflow exited 0.",
         "2026-09-24: gh attestation verify printed nothing when stdout was not a terminal; the exit status and --format json were the reliable signals.",
         "2026-09-24: the npm latest dist-tag integrity decoded to the archive SHA-512 recorded in that Release's release-manifest.json.",
+        "On 2026-09-26 a Claude Opus 5.5 (claude-opus-5-5) AI editorial review rewrote headings and prose for clarity and re-read the diff against the source; it changed no facts, numbers, commands, links, or dates of record, and replaced an unlinked reference to \"deploy proofs\" with a pointer to the website section of the same post.",
       ],
       scores: { readerUtility: 2, originalEvidence: 2, factualConfidence: 2, hostFit: 2, voiceIntegrity: 2, maintenanceValue: 1 },
       owner: OWNER,
@@ -317,6 +325,7 @@ export const BLOG_POSTS: readonly BlogPost[] = [
     dek: "When one of Ghostget's generated tests fails, the report gives a seed and a shrink path, and passing both back reruns that exact case on any machine.",
     eyebrow: "Technique",
     published: "2026-09-24",
+    updated: "2026-09-26",
     keywords: ["ghostget", "property testing", "fast-check", "model-based testing", "differential testing", "rfc 8785", "verification"],
     bodyFile: "replayable-property-tests.html",
     sources: propertyTestSources,
@@ -335,6 +344,7 @@ export const BLOG_POSTS: readonly BlogPost[] = [
       observations: [
         "The {\"__proto__\":0} counterexample was added as a named regression in #341 (aa8cce0) with a coordinate pin test in src/contracts-invoke-read.test.ts.",
         "On 2026-09-24 the seed corpus at 76a79fc held one entry, and property defaults were 200 runs with a 10 second interrupt and a x20 nightly soak multiplier.",
+        "On 2026-09-26 a Claude Opus 5.5 (claude-opus-5-5) AI editorial review rewrote headings and prose for clarity and re-read the diff against the source; it changed no facts, numbers, commands, links, or dates of record.",
       ],
       scores: { readerUtility: 2, originalEvidence: 2, factualConfidence: 2, hostFit: 2, voiceIntegrity: 2, maintenanceValue: 1 },
       owner: OWNER,
