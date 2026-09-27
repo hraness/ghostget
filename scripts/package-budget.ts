@@ -1851,25 +1851,22 @@
 // 7e93bffa218491dbe4f78c0733fd4964df6437d734cf767e4ed0b3ebb11563fe.
 // Carry the same projections and allowances: 12,061,280 + 12,387 + 4,096 =
 // 12,077,763 packed; 23,627,901 + 353 + 65 = 23,628,319 unpacked.
-//
-// Moving the agent support verbs under `help advanced` grows src/usage.ts,
-// src/cli.ts, src/support.ts and the two cli-help fixtures, and re-pins
-// @hraness/support-foundation to the 0.6.0 release commit: the same
-// 604-entry inventory with no additional packed files.
-// A clean `npm pack --ignore-scripts` with npm 11.19.0 on darwin arm64
-// measured 12,061,514 packed bytes, 23,628,613 unpacked bytes and exactly
-// 604 entries; archive SHA-256
-// 028db47cc1f3656c31ed12fdefce498fcd9bf656fbfec791e96d35d89ec4d229.
-// Carry the same projections and allowances: 12,061,514 + 12,387 + 4,096 =
-// 12,077,997 packed; 23,628,613 + 353 + 65 = 23,629,031 unpacked.
+// Menu action error rows over the desktop-foundation v0.8.0 bump (menu
+// protocol v2 surface, MenuActionError, actionErrorItem, lintMenu) merged
+// with the help-advanced agent-verb move: a clean npm 11.16.0 pack
+// --ignore-scripts on the merged tree measured 604 entries, 12,062,831
+// packed bytes and 23,633,266 unpacked bytes; archive SHA-256
+// a091637d0a6df2ce09e14d0f2c4ebc5ef3b8b7d138c07625950ddf050ce3b30c.
+// Carry the same projections and allowances: 12,062,831 + 12,387 + 4,096 =
+// 12,079,314 packed; 23,633,266 + 353 + 65 = 23,633,684 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Agent support verbs under help advanced",
+  scope: "Menu action errors over desktop-foundation 0.8.0 and help advanced",
   command: "npm pack --ignore-scripts",
-  npmVersion: "11.19.0",
+  npmVersion: "11.16.0",
   platform: "darwin-arm64",
-  archiveSha256: "028db47cc1f3656c31ed12fdefce498fcd9bf656fbfec791e96d35d89ec4d229",
-  packedBytes: 12_061_514,
-  unpackedBytes: 23_628_613,
+  archiveSha256: "a091637d0a6df2ce09e14d0f2c4ebc5ef3b8b7d138c07625950ddf050ce3b30c",
+  packedBytes: 12_062_831,
+  unpackedBytes: 23_633_266,
   entryCount: 604,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

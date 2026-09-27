@@ -7,7 +7,7 @@
       "dependencies": {
         "@1password/sdk": "0.5.0",
         "@hraness/accounts-cli": "github:hraness/accounts-cli#v0.1.3",
-        "@hraness/desktop-foundation": "https://github.com/hraness/desktop-foundation/releases/download/v0.7.0/hraness-desktop-foundation-0.7.0.tgz",
+        "@hraness/desktop-foundation": "https://github.com/hraness/desktop-foundation/releases/download/v0.8.0/hraness-desktop-foundation-0.8.0.tgz",
         "@hraness/kb": "https://github.com/hraness/kb/releases/download/v0.19.6/hraness-kb-0.19.6.tgz",
         "@hraness/local-custody": "https://github.com/hraness/local-custody/releases/download/v0.6.0/hraness-local-custody-0.6.0.tgz",
         "@hraness/message-like-me": "github:hraness/textbutler#83453cc7c17b49bb53fdfd89ccb69b8b44b30af1",
@@ -128,7 +128,7 @@
 
     "@hraness/design-kit": ["@hraness/design-kit@github:hraness/design-kit#4c3f7c9", { "dependencies": { "@hugeicons/core-free-icons": "4.2.3", "@stylexjs/stylex": "0.19.0", "motion": "12.42.0", "next-themes": "0.4.6", "react-aria-components": "1.19.0", "recharts": "3.8.0", "sugar-high": "^1.2.1", "web-haptics": "0.0.6" }, "peerDependencies": { "@hraness/ui": ">=0.5.16 <0.6.0", "react": ">=18 <20", "react-dom": ">=18 <20" }, "optionalPeers": ["@hraness/ui"] }, "hraness-design-kit-4c3f7c9", "sha512-7SfYsa39IMWkb67vXWBK5xJ5l7nrotVERD/KnhogvJObxLBfvxLLl6qBY9Q6QK0uxBE5LTzRT/huciboQf91nw=="],
 
-    "@hraness/desktop-foundation": ["@hraness/desktop-foundation@https://github.com/hraness/desktop-foundation/releases/download/v0.7.0/hraness-desktop-foundation-0.7.0.tgz", { "bin": { "companion": "./dist/src/cli.js" } }, "sha512-lmGe/kJJqtVcbEIPKNGz0iWqVIb3jM4se1v5wR8vY6dA+haZ5u2XNBPL6n1zbLlMupZ7/Ue5/3SDU65x/yJ7SA=="],
+    "@hraness/desktop-foundation": ["@hraness/desktop-foundation@https://github.com/hraness/desktop-foundation/releases/download/v0.8.0/hraness-desktop-foundation-0.8.0.tgz", { "bin": { "companion": "./dist/src/cli.js" } }, "sha512-VvuyeA+KwOj+SR7Opeivhy5p2uNHlGBhEBV8860105kAPOauUuttcSUSTV93dqkNQYBBUwhVZx9CchRj/dmhHw=="],
 
     "@hraness/direct": ["@hraness/direct@https://github.com/hraness/direct/releases/download/v0.7.21/hraness-direct-0.7.21.tgz", { "peerDependencies": { "@antithesishq/bombadil": "0.7.2", "agent-browser": "0.32.3", "effect": "3.22.1", "react": ">=18 <20" }, "optionalPeers": ["@antithesishq/bombadil", "agent-browser", "effect", "react"] }, "sha512-zxnxv7Uvloxk7yQjxKukC7gygfDuoYLR6UGayLpaJplq4MdxQ5kFNkRufYOp2QjyzuPmxNkRks91/FCchxBGww=="],
 

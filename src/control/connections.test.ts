@@ -15,8 +15,9 @@ function fixture(now?:()=>number) {
   const root=realpathSync(mkdtempSync(join(tmpdir(),"ghostget-connections-")));chmodSync(root,0o700);roots.push(root);
   const environment={GHOSTGET_STATE_HOME:root};
   let probe:()=>Promise<string>=async()=>"12345";
+  let lastSignal:AbortSignal|undefined;
   const testRegistry={...registry,requireSessionRoute:(site:Parameters<typeof registry.requireSessionRoute>[0])=>{
-    const binding=registry.requireSessionRoute(site);return {...binding,subject:{...binding.subject,probe:async()=>probe()}};
+    const binding=registry.requireSessionRoute(site);return {...binding,subject:{...binding.subject,probe:async(_auth:unknown,options?:{signal?:AbortSignal})=>{lastSignal=options?.signal;return probe();}}};
   }};
   const opened:string[]=[];
   const connections=new Connections(environment,()=>testRegistry,async(_browser,_profile,url)=>{opened.push(url);},now);
@@ -25,7 +26,8 @@ function fixture(now?:()=>number) {
     if(result.kind!=="connection")throw new Error("expected connection");return result.attemptId;
   };
   const existing=()=>{const auth=createAuth("x-account",{source:"chrome",profile:"Default",subject:"67890"});saveAuth(auth,environment);return loadAuthSnapshot(auth.id,environment);};
-  return {environment,connections,opened,begin,existing,setProbe:(next:()=>Promise<string>)=>{probe=next;}};
+  const signal=()=>lastSignal;
+  return {environment,connections,opened,begin,existing,setProbe:(next:()=>Promise<string>)=>{probe=next;},signal};
 }
 
 test("connection commits exact verified account and installs its absent bundled interface",async()=>{
@@ -42,10 +44,35 @@ test("connection commits exact verified account and installs its absent bundled 
 test("failed re-verification invalidates the prior proof and cannot be committed",async()=>{
   const f=fixture();const id=await f.begin();await f.connections.verify(id);
   f.setProbe(async()=>{throw new Error("synthetic verifier failure");});
-  await expect(f.connections.verify(id)).rejects.toThrow("start a fresh connection");
-  expect(()=>f.connections.commit(id,"12345")).toThrow("expired");
+  await expect(f.connections.verify(id)).rejects.toThrow("verify again");
+  // The attempt survives so the menu can offer Try again, but the cleared
+  // subject still makes any commit impossible until another verify succeeds.
+  expect(()=>f.connections.commit(id,"12345")).toThrow("Verify the exact account");
   expect(loadAuthSnapshotIfPresent("x-account",f.environment)).toBeNull();
   expect(loadInstalledManifestSnapshot("x-web",f.environment,registry).availability).toBe("absent");f.connections.close();
+});
+
+test("a failed verification can be retried, verified and committed in place",async()=>{
+  const f=fixture();const id=await f.begin();
+  f.setProbe(async()=>{throw new Error("synthetic verifier failure");});
+  await expect(f.connections.verify(id)).rejects.toThrow("verify again");
+  f.setProbe(async()=>"12345");
+  expect(await f.connections.verify(id)).toMatchObject({status:"verified",subject:"12345"});
+  f.connections.commit(id,"12345");
+  expect(loadAuthSnapshot("x-account",f.environment).auth.subject).toBe("12345");f.connections.close();
+});
+
+test("a verification retry gets a fresh controller signal",async()=>{
+  const f=fixture();const id=await f.begin();
+  f.setProbe(async()=>{throw new Error("synthetic verifier failure");});
+  await expect(f.connections.verify(id)).rejects.toThrow("verify again");
+  const first=f.signal();expect(first).not.toBeUndefined();
+  // The first probe's 60 s deadline may have aborted its controller; a retry
+  // must probe with a new, live signal or it would fail before any work ran.
+  f.setProbe(async()=>"67890");
+  expect(await f.connections.verify(id)).toMatchObject({status:"verified",subject:"67890"});
+  expect(f.signal()).not.toBe(first);expect(f.signal()!.aborted).toBe(false);
+  f.connections.commit(id,"67890");f.connections.close();
 });
 
 test("reconnect preserves a user-edited installed adapter and invalidates the old account revision",async()=>{
@@ -75,7 +102,7 @@ test("A-to-B-to-A account lifetimes reject stale reconnect and disconnect despit
 test("cancel during verification cannot resurrect a successful proof",async()=>{
   const f=fixture();let release:(subject:string)=>void=()=>undefined;const ready=new Promise<string>(resolve=>{release=resolve;});f.setProbe(()=>ready);
   const id=await f.begin();const pending=f.connections.verify(id);f.connections.cancel(id);release("12345");
-  await expect(pending).rejects.toThrow("start a fresh connection");
+  await expect(pending).rejects.toThrow("verify again");
   expect(()=>f.connections.commit(id,"12345")).toThrow("expired");expect(loadAuthSnapshotIfPresent("x-account",f.environment)).toBeNull();f.connections.close();
 });
 
@@ -86,7 +113,7 @@ test("connection proof expires at the monotonic deadline before or during verifi
       let release:(subject:string)=>void=()=>undefined;
       const ready=new Promise<string>(resolve=>{release=resolve;});f.setProbe(()=>ready);
       const verifying=f.connections.verify(id);now=600_000;release("12345");
-      await expect(verifying).rejects.toThrow("start a fresh connection");
+      await expect(verifying).rejects.toThrow("verify again");
     }else if(phase==="before-verify"){
       now=600_000;await expect(f.connections.verify(id)).rejects.toThrow("expired");
     }else{

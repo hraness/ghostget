@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { lstatSync, readdirSync, type BigIntStats } from "node:fs";
 import { dirname, isAbsolute, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
-import { handleCompanionCommand, openBrowser, type CompanionOptions, type MenuItem } from "@hraness/desktop-foundation";
+import { createCliOutput, handleCompanionCommand, MenuActionError, openBrowser, type CompanionOptions, type MenuItem } from "@hraness/desktop-foundation";
 import { createSupportOffer } from "@hraness/support-foundation";
 import { ghostgetSupportProfile } from "../support-profile";
 import { TRAY_ICON } from "./menubar-icon";
@@ -129,6 +129,40 @@ function outputItems(outputs: OutputsView): MenuItem[] {
 }
 
 const CLI_COMMANDS = ["ghostget --help", "ghostget menubar --help", "ghostget menubar status", "ghostget vault import-x --help"] as const;
+
+/** Short, plain action-failure copy per control code. `MenuActionError`
+ * renders `message` as the ⚠︎ row and `detail` as its second line, so both
+ * stay within the menu's 48/80-character lines and never carry internals. */
+const ACTION_FAILURE_COPY: Readonly<Record<string, { readonly message: string; readonly detail: string }>> = {
+  KEYCHAIN_DENIED: { message: "macOS Keychain access was denied", detail: "Choose Always Allow when macOS asks, then try again" },
+  KEYCHAIN_UNAVAILABLE: { message: "The login keychain didn't answer", detail: "Unlock it or answer the macOS dialog, then try again" },
+  FDA_DENIED: { message: "Safari cookies need Full Disk Access", detail: "Turn Ghostget on in System Settings, then try again" },
+  CONNECTION_EXPIRED: { message: "That sign-in expired", detail: "Start it again" },
+  CONNECTION_BUSY: { message: "That sign-in is already verifying", detail: "Wait for it to finish" },
+  CONNECTION_LIMIT: { message: "Too many sign-ins are open", detail: "Finish or cancel one first" },
+  CONNECTION_UNSUPPORTED: { message: "That provider can't connect from the menu", detail: "Use the provider's setup guide" },
+  SIGN_IN_UNVERIFIED: { message: "Sign-in couldn't be verified", detail: "Finish signing in, then try again" },
+  ACCOUNT_CHANGED: { message: "The account changed", detail: "Refresh, then try again" },
+  ACCOUNT_UNAVAILABLE: { message: "That account is no longer configured", detail: "Refresh the menu" },
+  BROWSER_UNAVAILABLE: { message: "The browser couldn't be opened", detail: "Check that it is installed" },
+  PROFILE_UNSUPPORTED: { message: "That Chrome profile can't be used", detail: "Choose Default or a numbered profile" },
+  ADAPTER_UNAVAILABLE: { message: "The provider adapter is unavailable", detail: "Repair it before connecting" },
+  CONTROL_TIMEOUT: { message: "Ghostget didn't answer in time", detail: "Its outcome may be uncertain; refresh before retrying" },
+  CONTROL_DISCONNECTED: { message: "Ghostget's control helper stopped", detail: "Reopen the menu" },
+  CONTROL_BUSY: { message: "Ghostget is busy", detail: "Try again in a moment" },
+  CONTROL_ALREADY_RUNNING: { message: "Another Ghostget control session is running", detail: "Close it, then try again" },
+  CONTROL_OPERATION_FAILED: { message: "Ghostget couldn't finish that", detail: "Try again" },
+  CONTROL_PATH_TOO_LONG: { message: "Ghostget's state path is too long", detail: "Use a shorter GHOSTGET_STATE_HOME" },
+  CONTROL_CLOSED: { message: "The menu controller is closed", detail: "Reopen it to retry" },
+  INVALID_REQUEST: { message: "Ghostget rejected that request", detail: "Update Ghostget if it repeats" },
+};
+function actionFailure(response: ControlResponse): MenuActionError {
+  if (response.ok) return new MenuActionError("Something went wrong");
+  const copy = ACTION_FAILURE_COPY[response.code];
+  if (copy !== undefined) return new MenuActionError(copy.message, copy.detail);
+  const message = menuLabel(response.message, 46);
+  return new MenuActionError(message === "" ? "That action didn't finish" : message);
+}
 function cliHelpItems(): MenuItem[] {
   return [
     { kind: "action", id: "clip:0", label: "CLI help" },
@@ -405,7 +439,7 @@ export function companionOptions(
   openPage: (url: string) => Promise<void> = openBrowser,
   createHelper: (environment: ControlEnvironment) => HelperClient = spawnHelper,
   platform: NodeJS.Platform = process.platform,
-): CompanionOptions & { readonly dispose: () => Promise<void> } {
+): Omit<CompanionOptions, "snapshot"> & { readonly snapshot: (signal: AbortSignal) => Promise<MenuItem[]>; readonly dispose: () => Promise<void> } {
   let helper: HelperClient | null = null;
   let disposed = false;
   let closing: Promise<void> | null = null;
@@ -506,26 +540,38 @@ export function companionOptions(
         openingAccountPage = true;
         notice = null;
         try { await openPage(action.url); }
-        catch { notice = "Could not open Accounts. Try again from the menu."; }
+        catch { throw new MenuActionError("Couldn't open Accounts", "Try again from the menu"); }
         finally { openingAccountPage = false; }
         return;
       }
       if (id === "output:folder") {
         const expected = lastOutputs.directory;
         const fresh = (() => { try { return lstatSync(outputsDirectory, { bigint: true }); } catch { return null; } })();
-        if (expected !== null && fresh !== null && fresh.isDirectory() && !fresh.isSymbolicLink() && fresh.dev === expected.dev && fresh.ino === expected.ino) openPath(outputsDirectory, true);
+        if (expected !== null && fresh !== null && fresh.isDirectory() && !fresh.isSymbolicLink() && fresh.dev === expected.dev && fresh.ino === expected.ino) {
+          try { openPath(outputsDirectory, true); }
+          catch { throw new MenuActionError("Couldn't open the folder", "Try again, or copy its path"); }
+        }
         return;
       }
       if (id.startsWith("output:open:") || id.startsWith("output:reveal:") || id.startsWith("output:copy:")) {
         const entry = lastOutputs.entries[Number(id.slice(id.indexOf(":", 7) + 1))];
         const path = entry === undefined ? null : validatedOutputPath(outputsDirectory, lastOutputs, entry.name);
-        if (path === null) { notice = "File changed or unavailable; refresh outputs"; return; }
+        if (path === null) throw new MenuActionError("That file changed or is unavailable", "Refresh the menu, then try again");
         notice = null;
-        if (id.startsWith("output:copy:")) copyText(path);
-        else openPath(path, id.startsWith("output:reveal:"));
+        try {
+          if (id.startsWith("output:copy:")) copyText(path);
+          else openPath(path, id.startsWith("output:reveal:"));
+        } catch { throw new MenuActionError("Couldn't open the file", "Try again, or reveal the outputs folder"); }
         return;
       }
-      if (id.startsWith("clip:")) { const command = CLI_COMMANDS[Number(id.slice(5))]; if (command !== undefined) copyText(command); return; }
+      if (id.startsWith("clip:")) {
+        const command = CLI_COMMANDS[Number(id.slice(5))];
+        if (command !== undefined) {
+          try { copyText(command); }
+          catch { throw new MenuActionError("Couldn't copy the command", "Copy it from Ghostget's CLI help instead"); }
+        }
+        return;
+      }
       const snapshot = lastSnapshot;
       if (snapshot === null) return;
       const parts = id.split(":");
@@ -537,8 +583,8 @@ export function companionOptions(
         return;
       }
       if (id === "interface:cancel") { pendingActivation = null; return; }
-      if (!administrativeConfirmed) throw new Error("ghostget-CONTROL_UNCONFIRMED");
-      const fail = (response: ControlResponse): void => { if (!response.ok) throw new Error(`ghostget-${response.code}`); };
+      if (!administrativeConfirmed) throw new MenuActionError("Ghostget hasn't confirmed this menu yet", "Wait a moment, then try again");
+      const fail = (response: ControlResponse): void => { if (!response.ok) throw actionFailure(response); };
       if (parts[0] === "interface" && parts[1] === "review" && parts.length === 4) {
         const entry = snapshot.interfaces.find((item) => item.id === parts[2]);
         const target = entry?.activationTargets.find((item) => item.adapterId === parts[3]);
@@ -560,8 +606,7 @@ export function companionOptions(
         const approval = snapshot.approvals.find((item) => item.id === parts[2]);
         if (approval === undefined) return;
         if (parts[1] === "allow" && !approvalReview(approval).complete) {
-          notice = "Full review requires TUI. Switching controllers cancels this request.";
-          throw new Error("ghostget-APPROVAL_REQUIRES_FULL_REVIEW");
+          throw new MenuActionError("This approval needs the full review", "Review it in the Ghostget terminal view and ask again");
         }
         fail(await request({ action: "approval.decide", id: approval.id, digest: approval.digest, decision: parts[1] === "allow" ? "allow-once" : "deny" }));
         return;
@@ -573,7 +618,7 @@ export function companionOptions(
         return;
       }
       if (parts[0] === "connect" && parts.length === 3) {
-        if (platform !== "darwin") throw new Error("ghostget-CONNECTION_PLATFORM_UNSUPPORTED");
+        if (platform !== "darwin") throw new MenuActionError("Browser sign-in needs macOS", "Use the provider's setup guide for CLI sign-in");
         const provider = snapshot.connectionProviders.find((item) => item.id === parts[1]);
         const choice = browsers.find((item) => item.key === parts[2]);
         if (provider === undefined || choice === undefined) return;
@@ -583,7 +628,7 @@ export function companionOptions(
         return;
       }
       if (parts[0] === "reconnect" && parts.length === 4) {
-        if (platform !== "darwin") throw new Error("ghostget-CONNECTION_PLATFORM_UNSUPPORTED");
+        if (platform !== "darwin") throw new MenuActionError("Browser sign-in needs macOS", "Use the provider's setup guide for CLI sign-in");
         const account = snapshot.accounts.find((item) => item.id === parts[1]);
         const provider = snapshot.connectionProviders.find((item) => item.id === parts[2]);
         const choice = browsers.find((item) => item.key === parts[3]);
@@ -599,14 +644,20 @@ export function companionOptions(
         if (parts[1] === "cancel") { await request({ action: "connection.cancel", attemptId: attempt.attemptId }); attempts.delete(attempt.attemptId); return; }
         if (parts[1] === "verify") {
           const response = await request({ action: "connection.verify", attemptId: attempt.attemptId }, 75_000);
-          if (!response.ok) { attempts.delete(attempt.attemptId); throw new Error(`ghostget-${response.code}`); }
+          // Keep the row on failure: the helper keeps the attempt too, so the
+          // "Verify sign-in" action is the Try again path. Only an expired
+          // attempt can never verify again.
+          if (!response.ok) {
+            if (response.code === "CONNECTION_EXPIRED") attempts.delete(attempt.attemptId);
+            throw actionFailure(response);
+          }
           if (response.data.kind === "connection" && response.data.status === "verified") attempts.set(attempt.attemptId, { ...attempt, status: "verified", subject: response.data.subject });
           return;
         }
         if (parts[1] === "commit") {
           if (attempt.status !== "verified" || attempt.subject === null) return;
           const response = await request({ action: "connection.commit", attemptId: attempt.attemptId, expectedSubject: attempt.subject });
-          attempts.delete(attempt.attemptId);
+          if (response.ok) attempts.delete(attempt.attemptId);
           fail(response);
           return;
         }
@@ -628,14 +679,15 @@ export async function runMenubarCommand(
 ): Promise<number> {
   const rest = args.slice(1);
   if (rest[0] === "--help" || rest[0] === "help" || rest[0] === "-h") {
-    output.stdout("Usage: ghostget menubar [start|stop|status|doctor|install|uninstall]\nRuns the shared menu-bar companion; install registers login startup.\n");
+    output.stdout("Usage: ghostget menubar [start|stop|status|doctor|install|uninstall] [--json]\nRuns the shared menu-bar companion; install registers login startup.\n");
     return 0;
   }
-  if (rest.length > 1 || (rest[0] !== undefined && !["start", "stop", "status", "doctor", "install", "uninstall", "--foreground", "--background"].includes(rest[0]))) {
-    output.stderr("Usage: ghostget menubar [start|stop|status|doctor|install|uninstall]\n");
+  const verbs = rest.filter((value) => value !== "--json");
+  if (verbs.length > 1 || (verbs[0] !== undefined && !["start", "stop", "status", "doctor", "install", "uninstall", "--foreground", "--background"].includes(verbs[0]))) {
+    output.stderr("Usage: ghostget menubar [start|stop|status|doctor|install|uninstall] [--json]\n");
     return 1;
   }
-  const mapped = rest[0] === "--background" ? [] : rest;
+  const mapped = rest.filter((value) => value !== "--background");
   const cli = fileURLToPath(new URL("../cli.ts", import.meta.url));
   const binary = environment.GHOSTGET_MENUBAR;
   if (binary !== undefined && binary !== "" && (!isAbsolute(binary) || normalize(binary) !== binary || /[\u0000-\u001f\u007f]/u.test(binary))) {
@@ -654,8 +706,11 @@ export async function runMenubarCommand(
     if (mapped[0] === undefined || mapped[0] === "start" || mapped[0] === "--foreground") ensurePrivateStateDirectory(adapter.stateDir, environment);
     return await (dependencies.handle ?? handleCompanionCommand)(options, {
       args: mapped,
+      command: "ghostget menubar",
+      env: environment,
       foreground: { executable: process.execPath, args: [cli, "menubar", "--foreground"] },
       write: (result) => output.stdout(`${JSON.stringify(result)}\n`),
+      output: createCliOutput({ env: environment, stdout: { write: (text) => output.stdout(text) }, stderr: { write: (text) => output.stderr(text) } }),
     });
   } finally { await adapter.dispose(); }
 }
