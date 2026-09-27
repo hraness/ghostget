@@ -1876,14 +1876,28 @@
 // db66d32223767fbb8fb716b360d571d2e09b72800d043fdb7e06a3e894156956.
 // Carry the same projections and allowances: 12,074,301 + 12,387 + 4,096 =
 // 12,090,784 packed; 23,682,116 + 353 + 65 = 23,682,534 unpacked.
+//
+// The 0.18.41 release then bumped the version pins and rebuilt dist: a
+// clean npm 11.19.0 pack --ignore-scripts on main measured 607 entries,
+// 12,069,502 packed bytes and 23,661,362 unpacked bytes; archive SHA-256
+// ef2baf9604502635dc466ce3ca77e902588e3db0fa35c4ddfdec2c0f53393913.
+// Carry the same projections and allowances: 12,069,502 + 12,387 + 4,096 =
+// 12,085,985 packed; 23,661,362 + 353 + 65 = 23,661,780 unpacked.
+//
+// Menu kit v2 remeasured over the released 0.18.41 tree: a clean
+// npm 11.19.0 pack --ignore-scripts on the merged tree measured 607
+// entries, 12,074,874 packed bytes and 23,683,488 unpacked bytes; archive
+// SHA-256 acd85cbe3e5f7579e0c9ae61bcd81d5894ffb62f2df306bd69dd367ba0028cef.
+// Carry the same projections and allowances: 12,074,874 + 12,387 + 4,096 =
+// 12,091,357 packed; 23,683,488 + 353 + 65 = 23,683,906 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Menu kit v2 merged with the GG-8 signed-helper cookie path",
+  scope: "Menu kit v2 over the released 0.18.41 tree with the GG-8 signed-helper cookie path",
   command: "npm pack --ignore-scripts",
-  npmVersion: "11.16.0",
+  npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "db66d32223767fbb8fb716b360d571d2e09b72800d043fdb7e06a3e894156956",
-  packedBytes: 12_074_301,
-  unpackedBytes: 23_682_116,
+  archiveSha256: "acd85cbe3e5f7579e0c9ae61bcd81d5894ffb62f2df306bd69dd367ba0028cef",
+  packedBytes: 12_074_874,
+  unpackedBytes: 23_683_488,
   entryCount: 607,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

@@ -20,6 +20,29 @@ Historical entries retain their original delivery coordinates.
 - The control protocol's account view adds `profile`, the Chrome profile a
   browser sign-in reads.
 
+## 0.18.41
+
+This release adds an opt-in signed local app for browser cookie reads, so the
+macOS keychain prompt names Ghostget instead of `security`. It also makes the
+menu bar recover cleanly: action failures appear as short plain notices, and a
+failed sign-in stays retryable.
+
+- With `HRANESS_LOCAL_APP=1` on macOS, `ghostget menubar install` builds
+  `~/Applications/Hraness/Ghostget.app` once with a signed cookie-reader
+  helper inside, and Chrome, Arc, Brave, Chromium, Dia, or Edge Safe Storage
+  reads go through it — the prompt and the item's access list name Ghostget.
+  A read that cannot touch the keychain, a build failure, or a missing opt-in
+  keeps the existing behavior or fails closed as a keychain warning; nothing
+  falls back to `/usr/bin/security` after opting in.
+- Menu failures — a denied keychain request, missing Full Disk Access, an
+  expired connection, a timed-out helper — now render as plain notices with
+  a detail line instead of internal `ghostget-` codes. A failed sign-in
+  verification keeps its Try again row instead of dropping the account.
+- `menubar` verbs accept `--json` again for machine-readable output.
+- A keychain grant that already worked stops printing its pre-prompt notice.
+- `ghostget help advanced` hosts the agent- and maintenance-oriented verbs,
+  keeping the main help surface focused.
+
 ## 0.18.40
 
 This release explains the macOS prompts behind browser sign-ins and reports
