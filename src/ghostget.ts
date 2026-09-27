@@ -375,24 +375,47 @@ export function renderGhostgetUsage(): string {
  * One-line usage error plus the per-command help to read next. The full help
  * never follows a usage error.
  */
+/** The one sentence and one next command for a usage error, before styling. */
+export function ghostgetUsageErrorParts(
+  message: string,
+  rawArguments: readonly string[],
+): { readonly message: string; readonly next: string } {
+  const first = rawArguments[0] ?? "";
+  if (message === `unknown command: ${first}`) {
+    const shown = safe(first).slice(0, 64);
+    const suggestion = closestCliName(first, GHOSTGET_COMMAND_NAMES);
+    return {
+      message: `Unknown command "${shown}".${suggestion === null ? "" : ` Did you mean "${suggestion}"?`}`,
+      next: "ghostget --help",
+    };
+  }
+  return { message: cliSentence(safe(message)), next: ghostgetHelpCommandFor(rawArguments) };
+}
+
 export function renderGhostgetUsageError(
   message: string,
   rawArguments: readonly string[],
   environment: Readonly<Record<string, string | undefined>>,
   isTTY: boolean = process.stderr.isTTY === true,
 ): string {
-  const style = cliStyle(environment, isTTY);
-  const first = rawArguments[0] ?? "";
-  if (message === `unknown command: ${first}`) {
-    const shown = safe(first).slice(0, 64);
-    const suggestion = closestCliName(first, GHOSTGET_COMMAND_NAMES);
-    return renderCliError(
-      style,
-      `Unknown command "${shown}".${suggestion === null ? "" : ` Did you mean "${suggestion}"?`}`,
-      "ghostget --help",
-    );
-  }
-  return renderCliError(style, cliSentence(safe(message)), ghostgetHelpCommandFor(rawArguments));
+  const parts = ghostgetUsageErrorParts(message, rawArguments);
+  return renderCliError(cliStyle(environment, isTTY), parts.message, parts.next);
+}
+
+/**
+ * `--json` and agents read errors as one JSON document on stdout, with the
+ * same exit code: `{"ok":false,"error":{"code","message","next"}}`.
+ */
+export function wantsJsonErrors(
+  rawArguments: readonly string[],
+  environment: Readonly<Record<string, string | undefined>>,
+  stderrIsTTY: boolean,
+): boolean {
+  return rawArguments.includes("--json") || detectCookieAudience(environment, stderrIsTTY) === "agent";
+}
+
+export function ghostgetErrorJson(code: string, message: string, next: string): string {
+  return `${JSON.stringify({ ok: false, error: { code, message, next } })}\n`;
 }
 
 /** The command to run again after a permission denial. */
@@ -3862,8 +3885,14 @@ export async function main(
   onUsefulResult?: () => void,
 ): Promise<number> {
   const parsed = parseGhostgetArguments(rawArguments);
+  const stderrIsTTY = output === defaultOutput && process.stderr.isTTY === true;
   if (!parsed.ok) {
-    output.stderr(renderGhostgetUsageError(parsed.message, rawArguments, environment));
+    if (wantsJsonErrors(rawArguments, environment, stderrIsTTY)) {
+      const parts = ghostgetUsageErrorParts(parsed.message, rawArguments);
+      output.stdout(ghostgetErrorJson("usage", parts.message, parts.next));
+    } else {
+      output.stderr(renderGhostgetUsageError(parsed.message, rawArguments, environment));
+    }
     return 2;
   }
   try {
@@ -3951,9 +3980,12 @@ export async function main(
       }
       return 5;
     }
-    output.stderr(
-      `ghostget: ${safe(error instanceof Error ? error.message : String(error))}\n`,
-    );
+    const message = safe(error instanceof Error ? error.message : String(error));
+    if (wantsJsonErrors(rawArguments, environment, stderrIsTTY)) {
+      output.stdout(ghostgetErrorJson("failed", cliSentence(message), "ghostget doctor"));
+    } else {
+      output.stderr(`ghostget: ${message}\n`);
+    }
     return 3;
   }
 }

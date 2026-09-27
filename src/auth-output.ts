@@ -128,9 +128,11 @@ function tokenNext(auth: Extract<AuthSummary, { readonly kind: "oauth-token-file
  */
 export function authListText(auths: readonly AuthSummary[], style: CliStyle): AuthLines {
   if (auths.length === 0) {
+    // An empty list is only useful with its next step, so it is part of the
+    // result for every text audience rather than a stderr hint.
     return {
-      result: "No saved sign-ins.",
-      next: "ghostget auth add <id> --cookie-source chrome",
+      result: `No saved sign-ins.\n${style.symbol("next")} ghostget auth add <id> --cookie-source chrome`,
+      next: null,
       note: null,
     };
   }

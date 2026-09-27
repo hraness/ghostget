@@ -738,7 +738,7 @@ try {
   await runExpectingExactSuccess(
     [join(consumer, "node_modules", ".bin", "ghostget"), "--version"],
     consumer,
-    `${packageVersion}\n`,
+    `ghostget ${packageVersion}\n`,
   );
   await run([
     process.execPath,
