@@ -1808,15 +1808,27 @@
 // 12,060,885 packed; 23,580,088 + 353 + 65 = 23,580,506 unpacked. Required
 // Linux CI and canonical Release must independently measure and admit their
 // exact archives.
+//
+// Browser permission notices add the cookie access modules
+// (src/cookie-access.ts, src/cookie-access-error.ts), the permission-denied
+// read failure and its rebuilt dist dispositions, Safari Full Disk Access
+// detection, skill guidance and their changelog entry over the 0.18.39
+// release tree: two additional packed source files.
+// A clean `npm pack --ignore-scripts` with npm 11.19.0 on darwin arm64
+// measured 12,053,623 packed bytes, 23,605,152 unpacked bytes and exactly
+// 602 entries; archive SHA-256
+// 873cad8139fda303e2d19c6afd61cf549cf9b4d1d76b2a1d6d632a6afe6bd0d1.
+// Carry the same projections and allowances: 12,053,623 + 12,387 + 4,096 =
+// 12,070,106 packed; 23,605,152 + 353 + 65 = 23,605,570 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Release Ghostget 0.18.39 over the merged 600-file inventory",
+  scope: "Browser permission notices and permission-denied reads",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "7b7e8e9feda9e61ca4e6f426b5b68e674102a37143ebbe39da8a24d0138a68af",
-  packedBytes: 12_044_402,
-  unpackedBytes: 23_580_088,
-  entryCount: 600,
+  archiveSha256: "873cad8139fda303e2d19c6afd61cf549cf9b4d1d76b2a1d6d632a6afe6bd0d1",
+  packedBytes: 12_053_623,
+  unpackedBytes: 23_605_152,
+  entryCount: 602,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,

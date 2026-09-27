@@ -251,6 +251,7 @@ function assertExactKeys(
 const clientReadFailureRetryDisposition = Object.freeze({
   "target-unavailable": "do-not-retry",
   "auth-repair-required": "repair-auth",
+  "permission-denied": "grant-permission",
   "account-mismatch": "do-not-retry",
   "provider-throttled": "retry-once-after-60s",
   "provider-temporary": "retry-once-after-60s",

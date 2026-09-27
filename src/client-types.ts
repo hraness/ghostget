@@ -212,6 +212,10 @@ export type GhostgetClientReadFailure =
       readonly retryDisposition: "repair-auth";
     }
   | {
+      readonly category: "permission-denied";
+      readonly retryDisposition: "grant-permission";
+    }
+  | {
       readonly category:
         | "account-mismatch"
         | "contract-drift"

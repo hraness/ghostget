@@ -32,6 +32,9 @@ const expectedClosureRuntimeDependencies = Object.freeze({
   "@hraness/local-custody": "https://github.com/hraness/local-custody/releases/download/v0.6.0/hraness-local-custody-0.6.0.tgz",
   "@hraness/message-like-me": "github:hraness/textbutler#83453cc7c17b49bb53fdfd89ccb69b8b44b30af1",
   "@hraness/support-foundation": "github:hraness/support-foundation#2d034b357680353574411217d68b02b6755b07ed",
+  // The browser cookie reader, also pinned by @hraness/kb. Ghostget wraps it
+  // directly to report keychain and Full Disk Access denials.
+  "@steipete/sweet-cookie": "0.4.3",
   "buffer-from": "1.1.2",
   "source-map": "0.6.1",
   "source-map-support": "0.5.21",
@@ -821,6 +824,10 @@ try {
       "typescript",
       installedPackageRoot,
     );
+    const installedSweetCookieRoot = resolveInstalledDependencyRoot(
+      "@steipete/sweet-cookie",
+      installedPackageRoot,
+    );
     // The published credential helper resolves this package only after explicit
     // vault import. Installation must carry its pinned JS and relative WASM.
     const installedCredentialSdkRoot = realpathSync(resolveInstalledDependencyRoot("@1password/sdk", installedPackageRoot));
@@ -921,6 +928,14 @@ try {
         sha256:
           "aeab7249da34df33c4620b27b105fafdd19e9bfe74c92317ae61bf4d0291da21",
         version: "0.7.0",
+      }),
+      assertInstalledClosurePackage({
+        keyFile: "dist/index.js",
+        name: "@steipete/sweet-cookie",
+        root: installedSweetCookieRoot,
+        sha256:
+          "3c94bf842f46b3a0a958dd472e5ab309239e9d2b770544ce3001a9b4cbba2b27",
+        version: "0.4.3",
       }),
       assertInstalledClosurePackage({
         keyFile: "index.js",

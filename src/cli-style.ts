@@ -125,3 +125,18 @@ export function closestCliName(input: string, names: readonly string[]): string 
   }
   return best;
 }
+
+/** Map a terminal program to the app name macOS shows in Privacy & Security. */
+export function responsibleApp(environment: CliEnvironment): string {
+  if (environment.HRANESS_APP_BUNDLE_ID !== undefined && environment.HRANESS_APP_BUNDLE_ID !== "") return "Ghostget";
+  const bundle = environment.__CFBundleIdentifier ?? "";
+  const program = environment.TERM_PROGRAM ?? "";
+  if (bundle === "com.apple.Terminal" || program === "Apple_Terminal") return "Terminal";
+  if (bundle === "com.googlecode.iterm2" || program === "iTerm.app") return "iTerm";
+  if (bundle === "com.mitchellh.ghostty" || program === "ghostty") return "Ghostty";
+  if (bundle === "com.microsoft.VSCode" || program === "vscode") return "Visual Studio Code";
+  if (bundle === "dev.zed.Zed" || (environment.ZED_TERM !== undefined && environment.ZED_TERM !== "")) return "Zed";
+  if (bundle === "dev.warp.Warp-Stable" || program === "WarpTerminal") return "Warp";
+  if (bundle === "com.github.wez.wezterm" || program === "WezTerm") return "WezTerm";
+  return "your terminal app";
+}

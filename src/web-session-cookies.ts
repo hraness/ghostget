@@ -17,10 +17,10 @@ import { tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 
 import {
-  acquireCookieRecords,
   type CookieRecordReader,
   type CookieSelection,
 } from "@hraness/kb/clip/acquire";
+import { acquireCookieRecords } from "./cookie-access";
 import {
   filterCookies,
   MAX_COOKIE_RECORDS,
