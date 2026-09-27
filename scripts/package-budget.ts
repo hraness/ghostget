@@ -1851,21 +1851,21 @@
 // 7e93bffa218491dbe4f78c0733fd4964df6437d734cf767e4ed0b3ebb11563fe.
 // Carry the same projections and allowances: 12,061,280 + 12,387 + 4,096 =
 // 12,077,763 packed; 23,627,901 + 353 + 65 = 23,628,319 unpacked.
-// Menu action error rows over the desktop-foundation v0.8.0 bump (menu
-// protocol v2 surface, MenuActionError, actionErrorItem, lintMenu): a clean
-// npm 11.16.0 pack --ignore-scripts on this branch measured 604 entries,
-// 12,062,612 packed bytes and 23,632,554 unpacked bytes; archive SHA-256
-// 4996e020a557c8dc7f108a98fe75a6a0b7ac5a84f167e9d68e463e4edcf84249.
-// Carry the same projections and allowances: 12,062,612 + 12,387 + 4,096 =
-// 12,079,095 packed; 23,632,554 + 353 + 65 = 23,632,972 unpacked.
+// Menu kit v2 with account handles and Safari Full Disk Access rows over
+// the merged menu-errors and help-advanced main: a clean npm 11.16.0 pack
+// --ignore-scripts on this branch measured 604 entries, 12,067,621 packed
+// bytes and 23,655,606 unpacked bytes; archive SHA-256
+// 708e188426adb3e79bb1918c1adc477d70ba4f3f19688eecbf53ce2483c1b21e.
+// Carry the same projections and allowances: 12,067,621 + 12,387 + 4,096 =
+// 12,084,104 packed; 23,655,606 + 353 + 65 = 23,656,024 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Menu action errors over desktop-foundation 0.8.0",
+  scope: "Menu kit v2 with account handles and Safari Full Disk Access rows",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.16.0",
   platform: "darwin-arm64",
-  archiveSha256: "4996e020a557c8dc7f108a98fe75a6a0b7ac5a84f167e9d68e463e4edcf84249",
-  packedBytes: 12_062_612,
-  unpackedBytes: 23_632_554,
+  archiveSha256: "708e188426adb3e79bb1918c1adc477d70ba4f3f19688eecbf53ce2483c1b21e",
+  packedBytes: 12_067_621,
+  unpackedBytes: 23_655_606,
   entryCount: 604,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
