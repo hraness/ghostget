@@ -71,7 +71,6 @@ import {
   createBeeperPresentationFacts,
   createProviderDirectory,
   createWhatsAppPresentationFacts,
-  renderGhostgetField,
   renderProviderAttestationGroups,
   renderProviderOverviewCards,
   type BeeperPresentationFacts,
@@ -500,9 +499,7 @@ type RenderOptions = Readonly<{
   beeperFacts: BeeperPresentationFacts;
   claimsValues: Readonly<Record<string, string>>;
   cssAsset: string;
-  fieldAsset: string;
   foilAsset: string;
-  ghostgetField: string;
   ghostgetContentFooter: string;
   hranessSiteFooter: string;
   packageIdentity: PackageIdentity;
@@ -872,14 +869,13 @@ function renderTemplate(
     }
     if (page.canonicalPath === "/") {
       rendered = replaceRequired(rendered, "{{EDITORIAL_CARDS}}", renderEditorialCards());
-      rendered = replaceRequired(rendered, "{{GHOSTGET_FIELD}}", options.ghostgetField);
       for (const [placeholder, ids] of Object.entries(RELATED_CARD_GROUPS)) {
         if (!rendered.includes(placeholder)) throw new Error(`Template is missing ${placeholder}.`);
         const cards = renderRelatedCards(ids);
         rendered = rendered.replaceAll(placeholder, () => cards);
       }
-    } else if (/\{\{(?:EDITORIAL_CARDS|GHOSTGET_FIELD|RELATED_[A-Z]+_CARDS)\}\}/u.test(rendered)) {
-      throw new Error("Editorial cards, related cards, and the hero field belong only on the homepage.");
+    } else if (/\{\{(?:EDITORIAL_CARDS|RELATED_[A-Z]+_CARDS)\}\}/u.test(rendered)) {
+      throw new Error("Editorial and related cards belong only on the homepage.");
     }
   } else if (rendered.includes("{{JSON_LD}}")) {
     throw new Error("A non-indexable page must not include structured data.");
@@ -943,7 +939,6 @@ function renderTemplate(
     ["{{GHOSTGET_REPOSITORY}}", REPOSITORY_URL],
     ["{{GHOSTGET_SKILLS}}", SKILLS_URL],
     ["{{GHOSTGET_SKILL_INSTALL_ASSET}}", options.skillInstallAsset],
-    ["{{GHOSTGET_FIELD_ASSET}}", options.fieldAsset],
     ["{{GHOSTGET_SKILL_INSTALL_COMMAND}}", skillInstallCommands.npx],
     ["{{GHOSTGET_SKILL_INSTALL_COMMAND_BUNX}}", skillInstallCommands.bunx],
     ["{{GHOSTGET_VERSION}}", identity.version],
@@ -1281,7 +1276,6 @@ export async function buildWebsite(
         join(sourceRoot, "analytics.ts"),
         join(sourceRoot, "skill-install-command.ts"),
         join(sourceRoot, "foil.ts"),
-        join(sourceRoot, "ghostget-field.ts"),
         join(sourceRoot, "appearance.ts"),
         join(sourceRoot, "status-page.ts"),
       ],
@@ -1302,7 +1296,7 @@ export async function buildWebsite(
   );
   const webmcpIndexValues = webmcpIndexTemplateValues(webmcpSnapshot);
   const allPages: readonly PublicPage[] = [...PUBLIC_PAGES, ...webmcpPages];
-  if (!browserBuild.success || browserBuild.outputs.length !== 6) {
+  if (!browserBuild.success || browserBuild.outputs.length !== 5) {
     const messages = browserBuild.logs.map((log) => log.message).join("\n");
     throw new Error(`Browser script build failed: ${messages || "no browser output"}`);
   }
@@ -1315,7 +1309,6 @@ export async function buildWebsite(
   const analytics = new Uint8Array(await scriptAsset("analytics"));
   const skillInstall = new Uint8Array(await scriptAsset("skill-install-command"));
   const foil = new Uint8Array(await scriptAsset("foil"));
-  const field = new Uint8Array(await scriptAsset("ghostget-field"));
   const statusPage = new Uint8Array(await scriptAsset("status-page"));
   // The blocking head script is a classic script: wrap the shared ESM output in
   // one strict-mode IIFE so it never leaks a top-level binding.
@@ -1338,7 +1331,6 @@ export async function buildWebsite(
   const appearanceAsset = `/assets/appearance-${contentHash(appearance)}.js`;
   const skillInstallAsset = `/assets/skill-install-${contentHash(skillInstall)}.js`;
   const foilAsset = `/assets/foil-${contentHash(foil)}.js`;
-  const fieldAsset = `/assets/field-${contentHash(field)}.js`;
   const statusPageAsset = `/assets/status-page-${contentHash(statusPage)}.js`;
   const providerDirectory = createProviderDirectory(attestation);
   const beeperFacts = createBeeperPresentationFacts(providerDirectory);
@@ -1365,8 +1357,6 @@ export async function buildWebsite(
     providerAttestationGroups: renderProviderAttestationGroups(providerDirectory, attestation),
     providerDirectory,
     providerOverviewCards: renderProviderOverviewCards(providerDirectory),
-    fieldAsset,
-    ghostgetField: renderGhostgetField(),
     skillInstallAsset,
     webmcpValues: (canonicalPath: string) => {
       const shared = webmcpSharedTemplateValues(webmcpSnapshot);
@@ -1450,7 +1440,6 @@ export async function buildWebsite(
     writeFile(join(outputRoot, appearanceAsset.slice(1)), appearance),
     writeFile(join(outputRoot, skillInstallAsset.slice(1)), skillInstall),
     writeFile(join(outputRoot, foilAsset.slice(1)), foil),
-    writeFile(join(outputRoot, fieldAsset.slice(1)), field),
     writeFile(join(outputRoot, statusPageAsset.slice(1)), statusPage),
     writeFile(
       join(outputRoot, "robots.txt"),
