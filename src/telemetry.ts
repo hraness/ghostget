@@ -85,16 +85,23 @@ function sendTelemetryPost(body: string): void {
   } catch {}
 }
 
+const COMMAND_PATTERN = /^[a-z0-9-]{2,32}$/u;
+
 export async function reportGhostgetCliRun(
   version: string,
   environment: Readonly<Record<string, string | undefined>> = process.env,
+  rawArguments: readonly string[] = [],
 ): Promise<void> {
   if (ghostgetTelemetryDisabled(environment)) return;
   try {
     const install = await installToken(environment);
+    const command = rawArguments[0];
     sendTelemetryPost(JSON.stringify({
       cli: "ghostget",
       ...(install === null ? {} : { install }),
+      ...(typeof command === "string" && COMMAND_PATTERN.test(command)
+        ? { command }
+        : {}),
       v: 1,
       version,
     }));
