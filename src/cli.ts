@@ -108,8 +108,17 @@ export function isImmediateGhostgetHelpRequest(
 export function isImmediateGhostgetVersionRequest(
   rawArguments: readonly string[],
 ): boolean {
-  return rawArguments.length === 1
-    && (rawArguments[0] === "--version" || rawArguments[0] === "-V");
+  const [first, second, ...rest] = rawArguments;
+  return (first === "--version" || first === "-V")
+    && rest.length === 0
+    && (second === undefined || second === "--json");
+}
+
+/** `ghostget 0.18.41`, or `{"name":"ghostget","version":"0.18.41"}` with `--json`. */
+export function ghostgetVersionText(rawArguments: readonly string[]): string {
+  return rawArguments.includes("--json")
+    ? `${JSON.stringify({ name: "ghostget", version: GHOSTGET_VERSION })}\n`
+    : `ghostget ${GHOSTGET_VERSION}\n`;
 }
 
 function hasOnlyOptionalJson(
@@ -225,7 +234,7 @@ export async function runGhostgetCliProcess(
   }
   if (help !== null) rawArguments = help.arguments;
   if (isImmediateGhostgetVersionRequest(rawArguments)) {
-    output.stdout(`${GHOSTGET_VERSION}\n`);
+    output.stdout(ghostgetVersionText(rawArguments));
     process.exitCode = 0;
     return;
   }
@@ -329,6 +338,7 @@ if (import.meta.main) {
   const args = process.argv.slice(2);
   const staticOnly = args.length === 0
     || ghostgetHelpRequest(args) !== null
+    || isImmediateGhostgetVersionRequest(args)
     || args.every((arg) => arg === "--help" || arg === "-h" || arg === "--version" || arg === "-V");
   if (depth === 0 && !staticOnly) {
     void import("./telemetry")

@@ -474,6 +474,21 @@ function boundedMessage(value: string): string {
   return `${bytes.subarray(0, MAX_ERROR_BYTES).toString("utf8").trim()}…`;
 }
 
+/** A failed `--json` child writes its diagnostic to the stdout error envelope,
+ * not stderr; surface that message instead of a bare exit code. */
+function envelopeMessage(stdout: string): string {
+  try {
+    const parsed = JSON.parse(stdout) as unknown;
+    if (typeof parsed !== "object" || parsed === null || (parsed as JsonRecord).ok !== false) return "";
+    const error = (parsed as JsonRecord).error;
+    if (typeof error !== "object" || error === null) return "";
+    const message = (error as JsonRecord).message;
+    return typeof message === "string" ? boundedMessage(message) : "";
+  } catch {
+    return "";
+  }
+}
+
 function cliSourcePath(): string {
   const besideSource = fileURLToPath(new URL("./cli.ts", import.meta.url));
   if (existsSync(besideSource)) return besideSource;
@@ -807,6 +822,7 @@ function runIdentityCommand(
   if (stdout.trim().length === 0 || code !== 0) {
     throw new Error(
       boundedMessage(stderr)
+        || envelopeMessage(stdout)
         || `${label} exited ${code}`,
     );
   }

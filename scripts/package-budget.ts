@@ -1851,6 +1851,20 @@
 // 7e93bffa218491dbe4f78c0733fd4964df6437d734cf767e4ed0b3ebb11563fe.
 // Carry the same projections and allowances: 12,061,280 + 12,387 + 4,096 =
 // 12,077,763 packed; 23,627,901 + 353 + 65 = 23,628,319 unpacked.
+// The CLI spot checks add the version product name, the --json error
+// envelope and the empty auth list's inline next step: a clean npm 11.16.0
+// pack --ignore-scripts on this branch measured 604 entries, 12,061,823
+// packed bytes and 23,629,960 unpacked bytes; archive SHA-256
+// e30b97c08fc757579c1fa5f35d3b1fa283680f04cc59b4ffc7d30aa9c848ec04.
+// The repair-lead inspect pointer and the JSON-envelope error fallback in
+// the SDK identity-preflight path added 582 payload bytes: a clean npm
+// 11.16.0 pack --ignore-scripts on this branch measured 604 entries,
+// 12,062,006 packed bytes and 23,630,542 unpacked bytes; archive SHA-256
+// 3f7ad946cb5ab4f5fcc85b9177ac271734da09ce7e16cf6e157910c4ce48e950.
+// Merged with the help-advanced agent-verb move: a clean npm 11.16.0 pack
+// --ignore-scripts on the merged tree measured 604 entries, 12,062,352
+// packed bytes and 23,631,919 unpacked bytes; archive SHA-256
+// d1cf2859e7c9c9f479c75473cbba27390f7fc23f72106f54549e08917cbac1a8.
 // Menu action error rows over the desktop-foundation v0.8.0 bump (menu
 // protocol v2 surface, MenuActionError, actionErrorItem, lintMenu) merged
 // with the help-advanced agent-verb move: a clean npm 11.16.0 pack
@@ -1859,6 +1873,16 @@
 // a091637d0a6df2ce09e14d0f2c4ebc5ef3b8b7d138c07625950ddf050ce3b30c.
 // Carry the same projections and allowances: 12,062,831 + 12,387 + 4,096 =
 // 12,079,314 packed; 23,633,266 + 353 + 65 = 23,633,684 unpacked.
+//
+// CLI spot checks over the merged menu-errors and help-advanced tree:
+// a clean npm 11.16.0 pack --ignore-scripts on the merged tree measured
+// 604 entries, 12,063,675 packed bytes and 23,637,017
+// unpacked bytes; archive SHA-256 d92454b503fcab94cd6519cf63350ca043071657f40a0887e1ad0ffd8a80495c.
+// The rebuilt dist/client.js carries the merged client error-envelope
+// handling; darwin and Linux measure identical payload bytes for it.
+// Carry the same projections and allowances: 12,063,675 + 12,387 + 4,096 =
+// 12,080,158 packed; 23,637,017 + 353 + 65 = 23,637,435
+// unpacked.
 //
 // The GG-8 signed-helper cookie path adds src/cookie-safe-storage.ts,
 // src/cookie-chromium-mac.ts and the spawned src/cookie-companion-resolve.ts
@@ -1890,14 +1914,28 @@
 // SHA-256 acd85cbe3e5f7579e0c9ae61bcd81d5894ffb62f2df306bd69dd367ba0028cef.
 // Carry the same projections and allowances: 12,074,874 + 12,387 + 4,096 =
 // 12,091,357 packed; 23,683,488 + 353 + 65 = 23,683,906 unpacked.
+//
+// CLI spot checks remeasured over the released 0.18.41 tree: a clean
+// npm 11.19.0 pack --ignore-scripts on the merged tree measured 607
+// entries, 12,070,406 packed bytes and 23,665,113 unpacked bytes; archive
+// SHA-256 e6609563d5b9825a38a503be4e2e99060685e041e62731acc56783cee6b678a2.
+// Carry the same projections and allowances: 12,070,406 + 12,387 + 4,096 =
+// 12,086,889 packed; 23,665,113 + 353 + 65 = 23,665,531 unpacked.
+//
+// Menu kit v2 remeasured over 0.18.41 plus the merged CLI spot checks: a
+// clean npm 11.19.0 pack --ignore-scripts on the merged tree measured 607
+// entries, 12,076,120 packed bytes and 23,687,219 unpacked bytes; archive
+// SHA-256 bb19515b7f9c733821bbc065bd27d140e7f93eaf20ec0de51b34dc595fa4a4bf.
+// Carry the same projections and allowances: 12,076,120 + 12,387 + 4,096 =
+// 12,092,603 packed; 23,687,219 + 353 + 65 = 23,687,637 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Menu kit v2 over the released 0.18.41 tree with the GG-8 signed-helper cookie path",
+  scope: "Menu kit v2 over 0.18.41, the GG-8 signed-helper cookie path and the CLI spot checks",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "acd85cbe3e5f7579e0c9ae61bcd81d5894ffb62f2df306bd69dd367ba0028cef",
-  packedBytes: 12_074_874,
-  unpackedBytes: 23_683_488,
+  archiveSha256: "bb19515b7f9c733821bbc065bd27d140e7f93eaf20ec0de51b34dc595fa4a4bf",
+  packedBytes: 12_076_120,
+  unpackedBytes: 23_687_219,
   entryCount: 607,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
