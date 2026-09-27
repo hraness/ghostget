@@ -1862,20 +1862,21 @@
 //
 // The GG-8 signed-helper cookie path adds src/cookie-safe-storage.ts,
 // src/cookie-chromium-mac.ts and the spawned src/cookie-companion-resolve.ts
-// resolver beside the local-custody 0.9.0 pin: a clean npm 11.16.0 pack
-// --ignore-scripts on this branch measured 607 entries, 12,069,104 packed
-// bytes and 23,660,010 unpacked bytes; archive SHA-256
-// 9f8f589ce2465c95c5cbc566617730cd18a77aaeb446166bcaf4d27fdad6d295.
-// Carry the same projections and allowances: 12,069,104 + 12,387 + 4,096 =
-// 12,085,587 packed; 23,660,010 + 353 + 65 = 23,660,428 unpacked.
+// resolver beside the local-custody 0.9.0 pin, and the 0.18.41 release bumps
+// the version pins and rebuilds dist: a clean npm 11.19.0 pack
+// --ignore-scripts on this branch measured 607 entries, 12,069,502 packed
+// bytes and 23,661,362 unpacked bytes; archive SHA-256
+// ef2baf9604502635dc466ce3ca77e902588e3db0fa35c4ddfdec2c0f53393913.
+// Carry the same projections and allowances: 12,069,502 + 12,387 + 4,096 =
+// 12,085,985 packed; 23,661,362 + 353 + 65 = 23,661,780 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "GG-8 signed-helper cookie path over local-custody 0.9.0",
+  scope: "Ghostget 0.18.41 release over the GG-8 signed-helper cookie path and local-custody 0.9.0",
   command: "npm pack --ignore-scripts",
-  npmVersion: "11.16.0",
+  npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "9f8f589ce2465c95c5cbc566617730cd18a77aaeb446166bcaf4d27fdad6d295",
-  packedBytes: 12_069_104,
-  unpackedBytes: 23_660_010,
+  archiveSha256: "ef2baf9604502635dc466ce3ca77e902588e3db0fa35c4ddfdec2c0f53393913",
+  packedBytes: 12_069_502,
+  unpackedBytes: 23_661_362,
   entryCount: 607,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
