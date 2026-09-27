@@ -1875,27 +1875,25 @@
 // 12,079,314 packed; 23,633,266 + 353 + 65 = 23,633,684 unpacked.
 // CLI spot checks over the merged menu-errors and help-advanced tree:
 // a clean npm 11.16.0 pack --ignore-scripts on the merged tree measured
-// 604 entries, 12,063,593 packed bytes and 23,636,572
-// unpacked bytes; archive SHA-256 4162ed914d84e47454142a3f5bf5c4b9d430fda448b826ce551ef9d4ac2e620e.
-// Carry the same packed projections and allowances:
-// 12,063,593 + 12,387 + 4,096 = 12,080,076 packed. The Linux package job
-// measured 23,637,017 unpacked bytes for the same source — the generated
-// dist chunks differ across platforms — so this measurement carries the
-// observed 445-byte delta rounded up to a 512-byte payload projection plus
-// the reviewed 65-byte allowance: 23,636,572 + 512 + 65 = 23,637,149
+// 604 entries, 12,063,675 packed bytes and 23,637,017
+// unpacked bytes; archive SHA-256 d92454b503fcab94cd6519cf63350ca043071657f40a0887e1ad0ffd8a80495c.
+// The rebuilt dist/client.js carries the merged client error-envelope
+// handling; darwin and Linux measure identical payload bytes for it.
+// Carry the same projections and allowances: 12,063,675 + 12,387 + 4,096 =
+// 12,080,158 packed; 23,637,017 + 353 + 65 = 23,637,435
 // unpacked.
 export const repairPackageMeasurement = Object.freeze({
   scope: "CLI spot checks over menu errors and help advanced: version name, --json errors, auth-list hint",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.16.0",
   platform: "darwin-arm64",
-  archiveSha256: "4162ed914d84e47454142a3f5bf5c4b9d430fda448b826ce551ef9d4ac2e620e",
-  packedBytes: 12_063_593,
-  unpackedBytes: 23_636_572,
+  archiveSha256: "d92454b503fcab94cd6519cf63350ca043071657f40a0887e1ad0ffd8a80495c",
+  packedBytes: 12_063_675,
+  unpackedBytes: 23_637_017,
   entryCount: 604,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
-  payloadPlatformProjection: 512,
+  payloadPlatformProjection: 353,
   payloadAllowance: 65,
 });
 export const MAX_PACKED_BYTES = repairPackageMeasurement.packedBytes
