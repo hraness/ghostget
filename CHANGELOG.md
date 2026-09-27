@@ -7,12 +7,22 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.43
+
+This release reserves three Substack subscriber actions and ships a quieter
+ghostget.com.
+
 - Substack reserves `subscribers.export`, `subscribers.import`, and
   `subscribers.import.status` for the signed-in owner's single publication.
   They refuse to run until a live capture qualifies them. Import input is
   checked before any cookie or network access: 1 to 25 unique lowercase
   addresses and `send_welcome_email: false`. See
   `skills/ghostget/references/substack-subscribers.md`.
+- ghostget.com drops the moving hero backdrop, background textures, and serif
+  headings. The homepage leads with a real `ghostget read` transcript, lists
+  providers, limits, guides, and essays as rows, and trims the FAQ to ten
+  questions. Every page, footer included, shares one column, and the site
+  fits 360-pixel phones without sideways scrolling.
 
 ## 0.18.42
 

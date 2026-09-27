@@ -1954,14 +1954,24 @@
 // SHA-256 de75b0b81bf098fa08171d8bdf9c3a0798db74027652b777f6d2883c8b143c97.
 // Carry the same projections and allowances: 12,089,062 + 12,387 + 4,096 =
 // 12,105,545 packed; 23,758,825 + 353 + 65 = 23,759,243 unpacked.
+//
+// The 0.18.43 release bumps the version pins, adds its changelog section and
+// rebuilds dist over the integrated main tree that carries the Substack
+// operations and the ghostget.com polish (website only, not packed). A clean
+// npm 11.19.0 pack --ignore-scripts with Node 24.20.0 on darwin arm64
+// measured 609 entries, 12,077,310 packed bytes and 23,759,283 unpacked
+// bytes; archive SHA-256
+// 0fa290c4dbb3963c0d1f63c16c2bac584273c1dece30f3a4052244a701985187.
+// Carry the same projections and allowances: 12,077,310 + 12,387 + 4,096 =
+// 12,093,793 packed; 23,759,283 + 353 + 65 = 23,759,701 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Capture-required Substack subscriber operations over the Ghostget 0.18.42 integrated main tree",
+  scope: "Ghostget 0.18.43 release over the Substack subscriber operations and the ghostget.com polish",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "de75b0b81bf098fa08171d8bdf9c3a0798db74027652b777f6d2883c8b143c97",
-  packedBytes: 12_089_062,
-  unpackedBytes: 23_758_825,
+  archiveSha256: "0fa290c4dbb3963c0d1f63c16c2bac584273c1dece30f3a4052244a701985187",
+  packedBytes: 12_077_310,
+  unpackedBytes: 23_759_283,
   entryCount: 609,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
