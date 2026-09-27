@@ -1,6 +1,7 @@
 import {
   maybeShowSupportInvitation,
   runSupportCommand,
+  supportAdvancedHelp,
 } from "@hraness/support-foundation/node";
 import { ghostgetSupportProfile as profile } from "./support-profile";
 
@@ -21,4 +22,9 @@ export async function runGhostgetSupportCommand(
 
 export async function showGhostgetSupportInvitation(): Promise<void> {
   await maybeShowSupportInvitation(profile, { usefulResult: true, command: ["ghostget"] });
+}
+
+/** The shared "Support for agents" block appended to `ghostget help advanced`. */
+export function ghostgetSupportAdvancedHelp(): string {
+  return supportAdvancedHelp({ command: ["ghostget"], env: process.env });
 }

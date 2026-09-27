@@ -39,7 +39,10 @@ function golden(name: string, actual: string): void {
   expect(actual).toBe(readFileSync(path, "utf8"));
 }
 
-async function render(rawArguments: readonly string[]): Promise<{
+async function render(
+  rawArguments: readonly string[],
+  loadSupport: () => Promise<typeof import("./support")> = () => { throw new Error("help must not load support"); },
+): Promise<{
   readonly stdout: string;
   readonly stderr: string;
   readonly exitCode: number;
@@ -58,7 +61,7 @@ async function render(rawArguments: readonly string[]): Promise<{
       () => { throw new Error("help must not load the command graph"); },
       () => { throw new Error("help must not load the catalog"); },
       () => { throw new Error("help must not load the notes CLI"); },
-      () => { throw new Error("help must not load support"); },
+      loadSupport,
     );
     return { stdout, stderr, exitCode: Number(process.exitCode ?? 0) };
   } finally {
@@ -121,7 +124,8 @@ describe("ghostget help", () => {
 
   test("every command family has help on stdout that exits 0 in all three spellings", async () => {
     for (const topic of TEXT_TOPICS) {
-      const viaHelp = await render(["help", topic]);
+      // Only `help advanced` may load the shared support module.
+      const viaHelp = await render(["help", topic], topic === "advanced" ? () => import("./support") : undefined);
       expect(viaHelp.exitCode, topic).toBe(0);
       expect(viaHelp.stderr, topic).toBe("");
       golden(`topic-${topic}`, viaHelp.stdout);
@@ -130,6 +134,14 @@ describe("ghostget help", () => {
       expect(await render([topic, "--help"]), topic).toEqual(viaHelp);
       expect(await render([topic, "-h"]), topic).toEqual(viaHelp);
     }
+  });
+
+  test("help advanced ends with the shared agent support block", async () => {
+    const { supportAdvancedHelp } = await import("@hraness/support-foundation/node");
+    const result = await render(["help", "advanced"], () => import("./support"));
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toEndWith(`\n${supportAdvancedHelp({ command: ["ghostget"], env: {} })}\n`);
   });
 
   test("help for a subcommand that needs arguments exits 0 instead of a parse error", async () => {

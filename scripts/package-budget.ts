@@ -1861,16 +1861,20 @@
 // 11.16.0 pack --ignore-scripts on this branch measured 604 entries,
 // 12,062,006 packed bytes and 23,630,542 unpacked bytes; archive SHA-256
 // 3f7ad946cb5ab4f5fcc85b9177ac271734da09ce7e16cf6e157910c4ce48e950.
-// Carry the same projections and allowances: 12,062,006 + 12,387 + 4,096 =
-// 12,078,489 packed; 23,630,542 + 353 + 65 = 23,630,960 unpacked.
+// Merged with the help-advanced agent-verb move: a clean npm 11.16.0 pack
+// --ignore-scripts on the merged tree measured 604 entries, 12,062,352
+// packed bytes and 23,631,919 unpacked bytes; archive SHA-256
+// d1cf2859e7c9c9f479c75473cbba27390f7fc23f72106f54549e08917cbac1a8.
+// Carry the same projections and allowances: 12,062,352 + 12,387 + 4,096 =
+// 12,078,835 packed; 23,631,919 + 353 + 65 = 23,632,337 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "CLI spot checks: version name, --json errors, auth-list hint",
+  scope: "CLI spot checks over help advanced: version name, --json errors, auth-list hint",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.16.0",
   platform: "darwin-arm64",
-  archiveSha256: "3f7ad946cb5ab4f5fcc85b9177ac271734da09ce7e16cf6e157910c4ce48e950",
-  packedBytes: 12_062_006,
-  unpackedBytes: 23_630_542,
+  archiveSha256: "d1cf2859e7c9c9f479c75473cbba27390f7fc23f72106f54549e08917cbac1a8",
+  packedBytes: 12_062_352,
+  unpackedBytes: 23_631_919,
   entryCount: 604,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

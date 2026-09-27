@@ -43,6 +43,7 @@ type GhostgetSupportModule = {
     output: Required<CliOutput>,
   ) => Promise<number>;
   readonly showGhostgetSupportInvitation: () => Promise<void>;
+  readonly ghostgetSupportAdvancedHelp: () => string;
 };
 
 const defaultOutput: GhostgetCatalogOutput = {
@@ -214,6 +215,17 @@ export async function runGhostgetCliProcess(
     if (help.kind === "bare") {
       if (output === defaultOutput) output.stdout(terminalIntro({ isTTY: process.stdout.isTTY, columns: process.stdout.columns, term: process.env.TERM }));
       output.stdout(ghostgetBareUsage(GHOSTGET_VERSION));
+    } else if (help.kind === "advanced") {
+      output.stdout(help.text);
+      // The agent support verbs are shared wording from support-foundation.
+      // Only this topic loads it; every other help path stays static.
+      try {
+        const support = await loadSupport();
+        const block = support.ghostgetSupportAdvancedHelp();
+        if (block !== "") output.stdout(block.endsWith("\n") ? `\n${block}` : `\n${block}\n`);
+      } catch {
+        // Advanced help stays useful when the shared module cannot load.
+      }
     } else {
       output.stdout(help.text);
     }
