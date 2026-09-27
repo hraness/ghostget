@@ -1873,6 +1873,7 @@
 // a091637d0a6df2ce09e14d0f2c4ebc5ef3b8b7d138c07625950ddf050ce3b30c.
 // Carry the same projections and allowances: 12,062,831 + 12,387 + 4,096 =
 // 12,079,314 packed; 23,633,266 + 353 + 65 = 23,633,684 unpacked.
+//
 // CLI spot checks over the merged menu-errors and help-advanced tree:
 // a clean npm 11.16.0 pack --ignore-scripts on the merged tree measured
 // 604 entries, 12,063,675 packed bytes and 23,637,017
@@ -1882,15 +1883,32 @@
 // Carry the same projections and allowances: 12,063,675 + 12,387 + 4,096 =
 // 12,080,158 packed; 23,637,017 + 353 + 65 = 23,637,435
 // unpacked.
+//
+// The GG-8 signed-helper cookie path adds src/cookie-safe-storage.ts,
+// src/cookie-chromium-mac.ts and the spawned src/cookie-companion-resolve.ts
+// resolver beside the local-custody 0.9.0 pin, and the 0.18.41 release bumps
+// the version pins and rebuilds dist: a clean npm 11.19.0 pack
+// --ignore-scripts on this branch measured 607 entries, 12,069,502 packed
+// bytes and 23,661,362 unpacked bytes; archive SHA-256
+// ef2baf9604502635dc466ce3ca77e902588e3db0fa35c4ddfdec2c0f53393913.
+// Carry the same projections and allowances: 12,069,502 + 12,387 + 4,096 =
+// 12,085,985 packed; 23,661,362 + 353 + 65 = 23,661,780 unpacked.
+//
+// CLI spot checks remeasured over the released 0.18.41 tree: a clean
+// npm 11.19.0 pack --ignore-scripts on the merged tree measured 607
+// entries, 12,070,406 packed bytes and 23,665,113 unpacked bytes; archive
+// SHA-256 e6609563d5b9825a38a503be4e2e99060685e041e62731acc56783cee6b678a2.
+// Carry the same projections and allowances: 12,070,406 + 12,387 + 4,096 =
+// 12,086,889 packed; 23,665,113 + 353 + 65 = 23,665,531 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "CLI spot checks over menu errors and help advanced: version name, --json errors, auth-list hint",
+  scope: "CLI spot checks over the released 0.18.41 tree: version name, --json errors, auth-list hint",
   command: "npm pack --ignore-scripts",
-  npmVersion: "11.16.0",
+  npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "d92454b503fcab94cd6519cf63350ca043071657f40a0887e1ad0ffd8a80495c",
-  packedBytes: 12_063_675,
-  unpackedBytes: 23_637_017,
-  entryCount: 604,
+  archiveSha256: "e6609563d5b9825a38a503be4e2e99060685e041e62731acc56783cee6b678a2",
+  packedBytes: 12_070_406,
+  unpackedBytes: 23_665_113,
+  entryCount: 607,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,
