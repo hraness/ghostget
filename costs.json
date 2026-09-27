@@ -8,6 +8,14 @@
       "source": "Validated invocation failures and explicit collection-plan demand; advisory only",
       "budget": { "maxEntries": 128, "maxBytes": 262144, "maxBytesPerSignal": 2048 },
       "expiry": "Hidden after 30 days; expired entries are compacted on the next admitted write"
+    },
+    "local:keychain-notice-record": {
+      "kind": "derived",
+      "retention": "persistent",
+      "owner": "src/keychain-notice-record.ts",
+      "source": "Browsers whose keychain read succeeded during auth bind; only hides a repeated notice",
+      "budget": { "maxEntries": 5, "maxBytes": 1024 },
+      "expiry": "Rebuildable; deleting it only brings the keychain notice back"
     }
   },
   "exempt": []

@@ -1,5 +1,6 @@
 import { type CookieSelection } from "@hraness/kb/clip/acquire";
 import { acquireCookieRecords } from "./cookie-access";
+import { findCookieAccessError, type CookieAccessError } from "./cookie-access-error";
 import { filterCookies, renderCookieHeader } from "@hraness/kb/clip/cookies";
 import { createHash, randomUUID } from "node:crypto";
 import {
@@ -941,6 +942,8 @@ function capabilityHost(options: {
   readonly activity: PortableCapabilityActivity;
   readonly cleanupBarrier: PortableProviderPluginCleanupBarrier;
   readonly operationDeadline?: WebSessionOperationDeadline;
+  /** Told when macOS stopped a cookie read, before the plugin sees a generic capability failure. */
+  readonly onPermissionDenied?: (error: CookieAccessError) => void;
 }): PortableProviderPluginCapabilityHost {
   const materials = new Map<string, CapabilityMaterial>();
   const dispatches = new Map<string, DispatchBoundary>();
@@ -1021,15 +1024,21 @@ function capabilityHost(options: {
         });
         let response: Response | undefined;
         try {
-          await injectCookieMaterials(
-            request,
-            materials,
-            headers,
-            options.dependencies,
-            requestDeadline.signal,
-            options.cleanupBarrier,
-            requestDeadline,
-          );
+          try {
+            await injectCookieMaterials(
+              request,
+              materials,
+              headers,
+              options.dependencies,
+              requestDeadline.signal,
+              options.cleanupBarrier,
+              requestDeadline,
+            );
+          } catch (error) {
+            const denied = findCookieAccessError(error);
+            if (denied !== null) options.onPermissionDenied?.(denied);
+            throw error;
+          }
           const fetchOperation = Promise.resolve().then(() =>
             options.fetch(
               new URL(request.url),
@@ -1596,6 +1605,7 @@ async function runWebPortableHost(options: {
   let files: readonly BoundInvocationFile[] = Object.freeze([]);
   let fetchScope: PinnedHttpsFetchScope | undefined;
   let hostCompletion: Promise<void> | undefined;
+  let permissionDenied: CookieAccessError | null = null;
   const capabilityActivity = createPortableCapabilityActivity();
   try {
     const resolveFiles = () =>
@@ -1706,6 +1716,7 @@ async function runWebPortableHost(options: {
           fetch: scope.fetch,
           activity: capabilityActivity,
           cleanupBarrier,
+          onPermissionDenied: (error) => { permissionDenied ??= error; },
           ...(deadline === undefined
             ? {}
             : { operationDeadline: deadline }),
@@ -1760,9 +1771,20 @@ async function runWebPortableHost(options: {
       );
       return host;
     };
-    return deadline === undefined
+    const result = deadline === undefined
       ? await invokeHost()
       : await deadline.run(invokeHost, WEB_SESSION_OPERATION_LABEL);
+    // A plugin may catch the generic capability failure and answer as if the
+    // account were signed out. Before any dispatch started, the macOS denial
+    // is the true answer.
+    if (permissionDenied !== null && started === 0) throw permissionDenied;
+    return result;
+  } catch (error) {
+    // The plugin only saw a generic capability failure. Before any dispatch
+    // started, report the macOS denial itself so it is never read as a
+    // missing sign-in.
+    if (permissionDenied !== null && started === 0) throw permissionDenied;
+    throw error;
   } finally {
     // An operation deadline may win its race while the host is still using
     // file descriptors or the pinned fetch scope. Keep those resources alive
@@ -1819,6 +1841,8 @@ function webExecutor(
         dispatch: result.dispatch,
       };
     } catch (error) {
+      // Thrown only before any dispatch started (see runWebPortableHost).
+      if (findCookieAccessError(error) !== null) throw error;
       const dispatch = typeof error === "object"
         && error !== null
         && "dispatch" in error
@@ -1893,6 +1917,8 @@ async function runProviderPortableHost(
   ]));
   const plannedIds = operation.dispatch === "single" ? [operation.name] : [];
   let fetchScope: PinnedHttpsFetchScope | undefined;
+  let permissionDenied: CookieAccessError | null = null;
+  let dispatchStarted = false;
   const capabilityActivity = createPortableCapabilityActivity();
   try {
     fetchScope = dependencies.createFetchScope(binding.origin);
@@ -1934,18 +1960,24 @@ async function runProviderPortableHost(
           fetch: fetchScope.fetch,
           activity: capabilityActivity,
           cleanupBarrier,
+          onPermissionDenied: (error) => { permissionDenied ??= error; },
           beginDispatch: async (dispatchId) => {
             if (dispatchId !== operation.name) {
               throw new Error("portable plugin changed its confirmed dispatch");
             }
+            dispatchStarted = true;
             return context.beginDispatch();
           },
         }),
         signal: context.signal,
       }),
     );
+    if (permissionDenied !== null && !dispatchStarted) throw permissionDenied;
     context.setOutput(result.output);
     if (result.finalUrl !== null) context.setFinalUrl(result.finalUrl);
+  } catch (error) {
+    if (permissionDenied !== null && !dispatchStarted) throw permissionDenied;
+    throw error;
   } finally {
     await capabilityActivity.whenIdle();
     disposePortableRuntimeResources(cleanupBarrier, fetchScope, files);
