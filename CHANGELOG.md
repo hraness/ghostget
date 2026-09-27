@@ -7,6 +7,13 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.40
+
+This release explains the macOS prompts behind browser sign-ins and reports
+their denials as permission problems, and replaces the JSON printed by the
+sign-in commands with plain lines and one next step. Upgrading from 0.18.38
+also brings the 0.18.39 changes: CLI run telemetry and grouped help.
+
 - Before the first Chrome, Arc, Brave, Chromium or Edge sign-in read, Ghostget
   says that macOS will ask to let `security` use the browser's Safe Storage
   key and what Always Allow means. `auth bind` waits for Enter first.
