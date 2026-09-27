@@ -390,7 +390,7 @@ describe("action failure notices", () => {
         return { ok: true, data: { kind: "success", message: "Saved" } };
       },
       close() {},
-    }));
+    }), "darwin");
     return { options, requests, signal: new AbortController().signal };
   }
   test("a typed keychain denial renders its plain copy instead of the code", async () => {
