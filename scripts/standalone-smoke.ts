@@ -31,7 +31,7 @@ const expectedClosureRuntimeDependencies = Object.freeze({
   "@hraness/kb": "https://github.com/hraness/kb/releases/download/v0.19.6/hraness-kb-0.19.6.tgz",
   "@hraness/local-custody": "https://github.com/hraness/local-custody/releases/download/v0.6.0/hraness-local-custody-0.6.0.tgz",
   "@hraness/message-like-me": "github:hraness/textbutler#83453cc7c17b49bb53fdfd89ccb69b8b44b30af1",
-  "@hraness/support-foundation": "github:hraness/support-foundation#2d034b357680353574411217d68b02b6755b07ed",
+  "@hraness/support-foundation": "github:hraness/support-foundation#8bb514d24b79dc3f305390700ae312cab88e7ad2",
   // The browser cookie reader, also pinned by @hraness/kb. Ghostget wraps it
   // directly to report keychain and Full Disk Access denials.
   "@steipete/sweet-cookie": "0.4.3",
@@ -838,8 +838,8 @@ try {
       installedKbRoot,
     );
     await Promise.all([
-      assertInstalledClosurePackage({ name: "@hraness/support-foundation", version: "0.3.0", root: installedSupportRoot, keyFile: "dist/index.js", sha256: "8c80132d2eaa0fcbf91fe9db2a4ece735ced307e629bd411030c8e2d6f9fa3c5" }),
-      assertInstalledClosurePackage({ name: "@hraness/support-foundation", version: "0.3.0", root: installedSupportRoot, keyFile: "dist/node.js", sha256: "e5867b56351d8ebdf3d6a8de3dd8a992dd59aedfde930d1cc96adc806962de95" }),
+      assertInstalledClosurePackage({ name: "@hraness/support-foundation", version: "0.6.0", root: installedSupportRoot, keyFile: "dist/index.js", sha256: "2ccf18fdc6f1ddbe8c957dd3060447b5f61a498928dd3d18e0e74c3dd2868981" }),
+      assertInstalledClosurePackage({ name: "@hraness/support-foundation", version: "0.6.0", root: installedSupportRoot, keyFile: "dist/node.js", sha256: "af3ecd5fd24c5634c75b5285254ac2ffead0388c3c91eba48da089340885b9c3" }),
       assertInstalledClosurePackage({ name: "@1password/sdk", version: "0.5.0", root: installedCredentialSdkRoot, keyFile: "dist/sdk.js", sha256: "55526607e6d252bd3f934a93888b6a023795b66bda76039230980e7bf0dcaedd" }),
       assertInstalledClosurePackage({ name: "@1password/sdk-core", version: "0.5.0", root: installedCredentialCoreRoot, keyFile: "nodejs/core.js", sha256: "fc6e7745837afd4cf42a325284040083bbd09679eeceb4fa9a21ddba34151470" }),
       assertInstalledClosurePackage({ name: "@1password/sdk-core", version: "0.5.0", root: installedCredentialCoreRoot, keyFile: "nodejs/core_bg.wasm", sha256: "97aa9140c5c923b39b41c059d5ab98e214b5fc78a80203d0026708cfbce8d6ab" }),
