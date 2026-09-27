@@ -1928,14 +1928,21 @@
 // SHA-256 bb19515b7f9c733821bbc065bd27d140e7f93eaf20ec0de51b34dc595fa4a4bf.
 // Carry the same projections and allowances: 12,076,120 + 12,387 + 4,096 =
 // 12,092,603 packed; 23,687,219 + 353 + 65 = 23,687,637 unpacked.
+//
+// The 0.18.42 release bumps the version pins and rebuilds dist over that
+// merged tree: a clean npm 11.19.0 pack --ignore-scripts measured 607
+// entries, 12,076,471 packed bytes and 23,688,039 unpacked bytes; archive
+// SHA-256 7d802459a02adad63157c416bcc35158de2ccb1f3d003814006c351ebd46aa00.
+// Carry the same projections and allowances: 12,076,471 + 12,387 + 4,096 =
+// 12,092,954 packed; 23,688,039 + 353 + 65 = 23,688,457 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Menu kit v2 over 0.18.41, the GG-8 signed-helper cookie path and the CLI spot checks",
+  scope: "Ghostget 0.18.42 release over menu kit v2, the GG-8 signed-helper cookie path and the CLI spot checks",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "bb19515b7f9c733821bbc065bd27d140e7f93eaf20ec0de51b34dc595fa4a4bf",
-  packedBytes: 12_076_120,
-  unpackedBytes: 23_687_219,
+  archiveSha256: "7d802459a02adad63157c416bcc35158de2ccb1f3d003814006c351ebd46aa00",
+  packedBytes: 12_076_471,
+  unpackedBytes: 23_688_039,
   entryCount: 607,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
