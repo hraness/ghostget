@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
 import { describe, expect, test } from "bun:test";
 
 const predecessorDefaultInventorySha256 =
-  "800ee91150aab9ac2211748f1f2c92fb57449e158324a38aac69c0fede48c896";
+  "3aef102dfcf019a2c258a782527f6a652df0127224cd7714339878c8e730eb26";
 const predecessorLegacyInventorySha256 = [
   "4abf50326edbc8c8294a2056a08fc7ab2fd038d2d798708b77e29df98c2a86d0",
   "112cb715f1466ed5eb29cf97116151ae8b6a56aeb8aa9c08ed26ebadd47b86be",
@@ -13,11 +13,11 @@ const predecessorLegacyInventorySha256 = [
   "303ca3ae1b44693bbbdbdcf48665c388eaaa8b677f982a2ebdc0ae9ccb82a8b4",
   "0b7b037e045497f96920c8e751711f767b6358589c39ba0ea9d9db880ddef2ca",
   "ce149cd1d2d695a693b2dac2c16c3b7f18b5ab1adb108a3dee07ae8031414255",
-  "76aa514052cc903f730512b21a924725428b3839caf6a08e41200d0a8c588377",
-  "6b9e768de339261abdd78d5bc0c4ebdf3257ad2c6674c4bf5a5e8c476432469a",
-  "7ec13840c850e582dcd7dfed12266057a9930204baff6139a8c0b60ea4298d2c",
-  "1588b2433a627f1a237bd0c1d314b104558847a3b339c9bffec06bb6c6ab14ad",
-  "7ff280032dd0b2d2023b348dfccc44edf4ca15e9dfb049e4d11e787964b7bc69",
+  "0496b19acf9cb7d84c8cf335a54081a670e9d20ca7a07fabfb3f2bde69993857",
+  "a8afb05b1e43932893020c4421dad911945e29dd7f7c6deb3b8e4412e5b19038",
+  "adce058620ce1d6b4fe6596da3ca9e58e1e73dc83b699d883eda1e6795cb0f89",
+  "7c3c14073f83c6a18daff16381430e2cce010209c4efe8c966b4a4a197c48b34",
+  "2303c37a7595b44cbb997056d7b7d31e3ef706db9573166427768e738066ad12",
   "bfafe93552d576c1a52da29ab5a56dfe7cf828b1e7b44bfd546937966c186f95",
   "bf0e56da9f3b3529e59d2aa2c9d4b8c7e3c117be1b666c31288bcc8f90818ce3",
   "58e5e5b27881f30114891f7c266f901e7dda800d3f12309e420c602348816a58",
@@ -106,6 +106,7 @@ function isCurrentOnlyRow(row) {
     || (row[0] === "web-session-api" && row[1] === "clasificados")
     || (row[0] === "web-session-api" && row[1] === "github")
     || (row[0] === "web-session-api" && row[1] === "reddit" && row[2].startsWith("flair."))
+    || (row[0] === "web-session-api" && row[1] === "substack" && row[2].startsWith("subscribers."))
     || (row[0] === "web-session-api" && row[1] === "twitch")
     || (row[0] === "web-session-api" && row[1] === "webmcp");
 }
@@ -298,8 +299,8 @@ describe("durable provider contract inventory", () => {
       expect(inventory).toEqual({
         rows: 324,
         sha256: predecessorDefaultInventorySha256,
-        currentOnlyRows: 78,
-        currentOnlySha256: "acea5c3d480833a9611d60be7d4326209052830226e8aebea16a7d366a4f01d1",
+        currentOnlyRows: 81,
+        currentOnlySha256: "e30f779848368193b9f572b1a698249889d4ddafbe9746b51adecd5ed2c66c58",
         automationRows: [
           ["linked-device", "whatsapp", "messaging.automation.read", 1],
           ["linked-device", "whatsapp", "messaging.automation.send.attachment", 1],
@@ -331,7 +332,7 @@ describe("durable provider contract inventory", () => {
           292,
           254,
           228,
-          187,
+          212,
           166,
           146,
           146,

@@ -392,6 +392,9 @@ export const genericSemanticRisks = {
   "commerce.purchase": "R4",
   "account.delete": "R4",
   "moderation.bulk": "R4",
+  "subscribers.export": "R1",
+  "subscribers.import": "R3",
+  "subscribers.import.status": "R1",
 } as const satisfies Readonly<Record<SemanticOperationName, OperationRisk>>;
 
 export function isReviewedTemplateProtectedHostname(

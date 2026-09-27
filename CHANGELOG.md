@@ -7,6 +7,13 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+- Substack reserves `subscribers.export`, `subscribers.import`, and
+  `subscribers.import.status` for the signed-in owner's single publication.
+  They refuse to run until a live capture qualifies them. Import input is
+  checked before any cookie or network access: 1 to 25 unique lowercase
+  addresses and `send_welcome_email: false`. See
+  `skills/ghostget/references/substack-subscribers.md`.
+
 ## 0.18.41
 
 This release adds an opt-in signed local app for browser cookie reads, so the

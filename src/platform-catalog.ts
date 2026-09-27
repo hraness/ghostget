@@ -51,6 +51,9 @@ export const semanticOperationNames = [
   "commerce.purchase",
   "account.delete",
   "moderation.bulk",
+  "subscribers.export",
+  "subscribers.import",
+  "subscribers.import.status",
 ] as const;
 
 export type SemanticOperationName = (typeof semanticOperationNames)[number];
@@ -175,6 +178,9 @@ const operationMeanings = {
   "commerce.purchase": "Commit a purchase or financial obligation",
   "account.delete": "Delete an account or platform identity",
   "moderation.bulk": "Apply moderation to multiple targets",
+  "subscribers.export": "Export one bounded page of an owned publication's subscriber list",
+  "subscribers.import": "Import one bounded batch of explicit email addresses into an owned publication without a welcome email",
+  "subscribers.import.status": "Read the latest subscriber-import status of an owned publication",
 } as const satisfies Readonly<Record<SemanticOperationName, string>>;
 
 function buildOperationMatrix(groups: OperationGroups): OperationPolicyMatrix {
@@ -261,7 +267,9 @@ function buildOperationMatrix(groups: OperationGroups): OperationPolicyMatrix {
   // Identity and discovery reads are intentionally opt-in. Unlike feed and
   // inbox collection aliases, these operations do not inherit support from a
   // nearby target read because doing so would overclaim a provider-specific
-  // people, organization, or recommendation surface.
+  // people, organization, or recommendation surface. Owned-publication
+  // subscriber operations are opt-in for the same reason: only a surface with a
+  // reviewed audience list has them.
   for (const name of [
     "profiles.read",
     "organizations.read",
@@ -270,6 +278,9 @@ function buildOperationMatrix(groups: OperationGroups): OperationPolicyMatrix {
     "contacts.read",
     "messaging.search",
     "relationships.recommendations.read",
+    "subscribers.export",
+    "subscribers.import",
+    "subscribers.import.status",
   ] as const) {
     if (policies[name] === undefined) {
       add(name, {
@@ -921,9 +932,10 @@ export const socialPlatformCatalog = {
     displayName: "Substack",
     originPolicy: publicationOrigins("https://substack.com", "https://www.substack.com"),
     operations: buildOperationMatrix({
-      R1: ["content.read", "content.clip", "profiles.read", "organizations.read", "messaging.read", "comments.read", "posts.read", "media.read", "articles.read"],
+      R1: ["content.read", "content.clip", "profiles.read", "organizations.read", "messaging.read", "comments.read", "posts.read", "media.read", "articles.read", "subscribers.export", "subscribers.import.status"],
       R2: ["likes.set", "relationships.follow.set", "content.save"],
       R3: [
+        "subscribers.import",
         "messaging.send",
         "comments.create",
         "replies.create",

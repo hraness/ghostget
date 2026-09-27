@@ -1,5 +1,5 @@
 import { Blob } from "node:buffer";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import { open } from "node:fs/promises";
 import { types as nodeTypes } from "node:util";
@@ -33,7 +33,18 @@ import { hasExactKeys, hasSameKeys } from "../contracts-shape.js";
 import {
   SUBSTACK_WEB_OPERATION_NAMES,
   SUBSTACK_WEB_OPERATIONS,
+  authorizeSubstackSubscriberRequest,
   authorizeSubstackWebReadRequest,
+  normalizeSubstackSubscriberImportStatus,
+  normalizeSubstackSubscriberPage,
+  prepareSubstackSubscriberExportInput,
+  prepareSubstackSubscriberImportInput,
+  prepareSubstackSubscriberImportStatusInput,
+  soleSubstackSubscriberPublication,
+  substackSubscriberImportRequestBody,
+  substackSubscriberStatsRequestBody,
+  type SubstackSubscriberExportPlan,
+  type SubstackSubscriberImportPlan,
   normalizeSubstackArticleResponse,
   normalizeSubstackCommentsResponse,
   normalizeSubstackFeedResponse,
@@ -94,6 +105,8 @@ type SubstackWebSleep = (
 export type SubstackWebRuntimeDependencies = Partial<WebSessionNetworkDependencies> & {
   readonly now?: () => number;
   readonly sleep?: SubstackWebSleep;
+  /** Injected per-invocation nonce for a frozen subscriber-import identity. */
+  readonly operationNonce?: () => string;
 };
 
 function sleepForSubstackReadback(
@@ -2655,6 +2668,329 @@ export async function readSubstackWebContentDeleteDesiredState(
   return Object.freeze({ present: presence.present, noteId: plan.noteId });
 }
 
+type SubstackSubscriberOperationName =
+  | "subscribers.export"
+  | "subscribers.import"
+  | "subscribers.import.status";
+
+const SUBSTACK_SUBSCRIBER_READ_LABEL = "Substack subscribers";
+const MAX_SUBSTACK_IMPORT_RESPONSE_BYTES = 256 * 1024;
+const MAX_SUBSTACK_OPERATION_NONCE_LENGTH = 128;
+
+function isSubstackSubscriberOperation(
+  value: string,
+): value is SubstackSubscriberOperationName {
+  return value === "subscribers.export"
+    || value === "subscribers.import"
+    || value === "subscribers.import.status";
+}
+
+type SubstackSubscriberPlan =
+  | Readonly<{ kind: "subscribers.export"; plan: SubstackSubscriberExportPlan }>
+  | Readonly<{ kind: "subscribers.import"; plan: SubstackSubscriberImportPlan }>
+  | Readonly<{ kind: "subscribers.import.status" }>;
+
+/** Parse the complete subscriber input before any cookie, keychain, or network access. */
+function prepareSubstackSubscriberPlan(
+  operation: SubstackSubscriberOperationName,
+  input: OperationInput,
+): SubstackSubscriberPlan {
+  switch (operation) {
+    case "subscribers.export":
+      return Object.freeze({ kind: operation, plan: prepareSubstackSubscriberExportInput(input) });
+    case "subscribers.import":
+      return Object.freeze({ kind: operation, plan: prepareSubstackSubscriberImportInput(input) });
+    case "subscribers.import.status":
+      prepareSubstackSubscriberImportStatusInput(input);
+      return Object.freeze({ kind: operation });
+  }
+}
+
+function subscriberAccountMismatch(error: Error): boolean {
+  return error.message.includes("no longer matches")
+    || error.message.includes("viewer-owned publication")
+    || error.message.includes("belongs to another publication");
+}
+
+function subscriberAuthRepairRequired(error: Error): boolean {
+  return error.message.includes("auth locator bound")
+    || error instanceof SubstackAuthRepairRequiredError;
+}
+
+function substackSubscriberDispatchEvent(
+  started: number,
+  verified: number,
+): WebSessionDispatchEvent {
+  return {
+    id: "subscribers.import",
+    index: 1,
+    progress: { planned: 1, started, verified },
+  };
+}
+
+/** Freeze one per-invocation import identity from the exact batch before dispatch. */
+export function substackSubscriberImportOperationId(input: Readonly<{
+  publicationId: number;
+  viewerId: number;
+  plan: SubstackSubscriberImportPlan;
+  nonce: string;
+}>): string {
+  if (
+    typeof input.nonce !== "string"
+    || input.nonce.length < 1
+    || input.nonce.length > MAX_SUBSTACK_OPERATION_NONCE_LENGTH
+    || /[\0\r\n]/u.test(input.nonce)
+  ) throw new Error("Substack subscriber import nonce must be bounded text");
+  const plan = prepareSubstackSubscriberImportInput({
+    emails: [...input.plan.emails],
+    send_welcome_email: input.plan.sendWelcomeEmail,
+  });
+  return createHash("sha256").update(canonicalJson({
+    schemaVersion: 1,
+    operation: "subscribers.import",
+    publicationId: positiveInteger(input.publicationId, "Substack subscriber import publication"),
+    viewerId: positiveInteger(input.viewerId, "Substack subscriber import viewer"),
+    emails: [...plan.emails],
+    sendWelcomeEmail: false,
+    nonce: input.nonce,
+  })).digest("hex");
+}
+
+type SubstackSubscriberImportFailureStage =
+  | "dispatch-admission"
+  | "import-transport"
+  | "import-response"
+  | "accepted-target-recording"
+  | "verification-recording";
+
+/**
+ * Execute one subscriber contract after complete input validation. The public
+ * dispatcher reaches this only once the contract is observed; tests call it
+ * directly to prove the implementation without live provider evidence.
+ */
+export async function executeSubstackSubscriberOperation(
+  recipe: WebSessionRecipe,
+  input: OperationInput,
+  auth: GhostgetAuth,
+  options: {
+    readonly signal?: AbortSignal;
+    readonly operationDeadline?: WebSessionOperationDeadline;
+    readonly beforeDispatch?: (event: WebSessionDispatchEvent) => Promise<void>;
+    readonly afterProviderAcceptedMutationTarget?: (
+      event: WebSessionProviderAcceptedMutationTargetEvent,
+    ) => Promise<void>;
+    readonly afterDispatchVerified?: (event: WebSessionDispatchEvent) => Promise<void>;
+    readonly dependencies?: SubstackWebRuntimeDependencies;
+  } = {},
+): Promise<WebSessionExecution> {
+  if (
+    recipe.site !== "substack"
+    || !isSubstackSubscriberOperation(recipe.action)
+    || recipe.contractVersion !== 1
+  ) throw new Error("Substack subscriber recipe is not installed");
+  const selected = prepareSubstackSubscriberPlan(recipe.action, input);
+  const clientOptions = {
+    timeoutMs: recipe.timeoutMs,
+    ...(options.signal === undefined ? {} : { signal: options.signal }),
+    ...(options.operationDeadline === undefined
+      ? {}
+      : { operationDeadline: options.operationDeadline }),
+    ...(options.dependencies === undefined ? {} : { dependencies: options.dependencies }),
+  };
+  const read = selected.kind !== "subscribers.import";
+
+  let client: WebSessionClient;
+  try {
+    client = await createWebSessionClient(SUBSTACK_ORIGIN, auth, clientOptions);
+  } catch (error) {
+    if (!read) throw error;
+    return failedProviderRead(SUBSTACK_SUBSCRIBER_READ_LABEL, error, null, {
+      stage: "bootstrap",
+      authenticated: true,
+    });
+  }
+  let viewer: SubstackWebViewer;
+  let publication: ReturnType<typeof soleSubstackSubscriberPublication>;
+  try {
+    viewer = await requireBoundViewer(client, auth, recipe.maxOutputBytes);
+    publication = soleSubstackSubscriberPublication(viewer);
+  } catch (error) {
+    if (!read) throw error;
+    return failedProviderRead(SUBSTACK_SUBSCRIBER_READ_LABEL, error, null, {
+      stage: "identity",
+      authenticated: true,
+      accountMismatch: subscriberAccountMismatch,
+      authRepairRequired: subscriberAuthRepairRequired,
+    });
+  }
+  const finalUrl = `${publication.origin}/publish/subscribers`;
+  const referer = Object.freeze({
+    accept: "application/json",
+    referer: finalUrl,
+  });
+  const postHeaders = Object.freeze({
+    ...referer,
+    "content-type": "application/json",
+  });
+
+  if (selected.kind === "subscribers.export" || selected.kind === "subscribers.import.status") {
+    try {
+      const publicationClient = await createWebSessionClient(
+        publication.origin,
+        auth,
+        clientOptions,
+      );
+      let output: unknown;
+      if (selected.kind === "subscribers.export") {
+        const cursor = selected.plan.cursor;
+        if (cursor !== null && cursor.publicationId !== publication.id) {
+          throw new Error("Substack subscriber cursor belongs to another publication");
+        }
+        const offset = cursor?.offset ?? 0;
+        const body = substackSubscriberStatsRequestBody(offset, selected.plan.limit);
+        const url = new URL("/api/v1/subscriber-stats", publication.origin);
+        authorizeSubstackSubscriberRequest({
+          operation: "subscribers.export",
+          url,
+          method: "POST",
+          body,
+          organization: publication.organization,
+          publicationOrigin: publication.origin,
+        });
+        output = normalizeSubstackSubscriberPage(await publicationClient.requestJson({
+          url,
+          method: "POST",
+          headers: postHeaders,
+          body: JSON.stringify(body),
+          expectedStatuses: [200],
+          expectedContentTypes: ["application/json"],
+          maxBytes: boundedMaximum(recipe),
+        }), {
+          publicationId: publication.id,
+          offset,
+          limit: selected.plan.limit,
+          total: cursor?.total ?? null,
+        });
+      } else {
+        const url = new URL("/api/v1/import", publication.origin);
+        authorizeSubstackSubscriberRequest({
+          operation: "subscribers.import.status",
+          url,
+          method: "GET",
+          organization: publication.organization,
+          publicationOrigin: publication.origin,
+        });
+        output = normalizeSubstackSubscriberImportStatus(await publicationClient.requestJson({
+          url,
+          method: "GET",
+          headers: referer,
+          expectedStatuses: [200],
+          expectedContentTypes: ["application/json"],
+          maxBytes: boundedMaximum(recipe),
+        }));
+      }
+      return {
+        status: "succeeded",
+        output,
+        finalUrl,
+        dispatchStarted: false,
+        dispatch: { planned: 0, started: 0, verified: 0 },
+      };
+    } catch (error) {
+      return failedProviderRead(SUBSTACK_SUBSCRIBER_READ_LABEL, error, finalUrl, {
+        stage: "target",
+        authenticated: true,
+        accountMismatch: subscriberAccountMismatch,
+      });
+    }
+  }
+
+  const plan = selected.plan;
+  const operationId = substackSubscriberImportOperationId({
+    publicationId: publication.id,
+    viewerId: viewer.id,
+    plan,
+    nonce: (options.dependencies?.operationNonce ?? randomUUID)(),
+  });
+  const body = substackSubscriberImportRequestBody(plan);
+  const url = new URL("/api/v1/import", publication.origin);
+  authorizeSubstackSubscriberRequest({
+    operation: "subscribers.import",
+    url,
+    method: "POST",
+    body,
+    organization: publication.organization,
+    publicationOrigin: publication.origin,
+  });
+  const publicationClient = await createWebSessionClient(
+    publication.origin,
+    auth,
+    clientOptions,
+  );
+  const reboundViewer = await currentViewer(client, boundedMaximum(recipe));
+  if (
+    viewerSubject(reboundViewer) !== viewerSubject(viewer)
+    || soleSubstackSubscriberPublication(reboundViewer).id !== publication.id
+  ) {
+    throw new Error("Substack current viewer or publication changed before the subscriber import");
+  }
+  let started = 0;
+  let verified = 0;
+  let failureStage: SubstackSubscriberImportFailureStage = "dispatch-admission";
+  try {
+    await options.beforeDispatch?.(substackSubscriberDispatchEvent(started, verified));
+    started = 1;
+    failureStage = "import-transport";
+    const response = await publicationClient.requestJson({
+      url,
+      method: "POST",
+      headers: postHeaders,
+      body: JSON.stringify(body),
+      expectedStatuses: [200],
+      expectedContentTypes: ["application/json"],
+      maxBytes: Math.min(boundedMaximum(recipe), MAX_SUBSTACK_IMPORT_RESPONSE_BYTES),
+    });
+    failureStage = "import-response";
+    if (!isRecord(response)) {
+      throw new Error("Substack subscriber import response was not one JSON object");
+    }
+    failureStage = "accepted-target-recording";
+    await options.afterProviderAcceptedMutationTarget?.({
+      id: "subscribers.import",
+      index: 1,
+      target: {
+        schemaVersion: 1,
+        identifier: canonicalJson({
+          emailCount: plan.emails.length,
+          operationId,
+          publicationId: publication.id,
+        }),
+      },
+    });
+    verified = 1;
+    failureStage = "verification-recording";
+    await options.afterDispatchVerified?.(substackSubscriberDispatchEvent(started, verified));
+    return {
+      status: "succeeded",
+      output: Object.freeze({ accepted: true, operationId }),
+      finalUrl,
+      dispatchStarted: true,
+      dispatch: { planned: 1, started, verified },
+    };
+  } catch {
+    return {
+      status: started > 0 ? "indeterminate" : "failed",
+      output: null,
+      finalUrl,
+      dispatchStarted: started > 0,
+      dispatch: { planned: 1, started, verified },
+      error: started > 0
+        ? `reconcile-required: Substack may have accepted subscriber import ${operationId}, but acceptance was not verified; read subscribers.import.status and never retry this import (stage: ${failureStage})`
+        : `Substack subscriber import failed before submission (stage: ${failureStage})`,
+    };
+  }
+}
+
 export async function executeSubstackWebOperation(
   recipe: WebSessionRecipe,
   input: OperationInput,
@@ -2698,7 +3034,11 @@ export async function executeSubstackWebOperation(
     && recipe.action !== "organizations.read"
     && recipe.action !== "posts.publish"
     && recipe.action !== "content.delete"
+    && !isSubstackSubscriberOperation(recipe.action)
   ) throw new Error(`Substack authenticated web operation ${recipe.action} has no executable reviewed contract`);
+  if (isSubstackSubscriberOperation(recipe.action)) {
+    return executeSubstackSubscriberOperation(recipe, input, auth, options);
+  }
 
   const statisticsRead = recipe.action === "profiles.read"
     || recipe.action === "organizations.read";

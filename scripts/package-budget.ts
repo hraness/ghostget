@@ -1900,15 +1900,24 @@
 // SHA-256 e6609563d5b9825a38a503be4e2e99060685e041e62731acc56783cee6b678a2.
 // Carry the same projections and allowances: 12,070,406 + 12,387 + 4,096 =
 // 12,086,889 packed; 23,665,113 + 353 + 65 = 23,665,531 unpacked.
+//
+// The capture-required Substack subscriber operations add the retained
+// substack-web 1.7.0 adapter snapshot and the substack-subscribers skill
+// reference over that tree: two additional packed files. A clean npm 11.16.0
+// pack --ignore-scripts on darwin arm64 measured 609 entries, 12,082,307
+// packed bytes and 23,735,661 unpacked bytes; archive SHA-256
+// d08729f483513f5788e0819b1be1341b51c73030c7c4e1e978897dfbd1a5b054.
+// Carry the same projections and allowances: 12,082,307 + 12,387 + 4,096 =
+// 12,098,790 packed; 23,735,661 + 353 + 65 = 23,736,079 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "CLI spot checks over the released 0.18.41 tree: version name, --json errors, auth-list hint",
+  scope: "Capture-required Substack subscriber operations over the 0.18.41 tree",
   command: "npm pack --ignore-scripts",
-  npmVersion: "11.19.0",
+  npmVersion: "11.16.0",
   platform: "darwin-arm64",
-  archiveSha256: "e6609563d5b9825a38a503be4e2e99060685e041e62731acc56783cee6b678a2",
-  packedBytes: 12_070_406,
-  unpackedBytes: 23_665_113,
-  entryCount: 607,
+  archiveSha256: "d08729f483513f5788e0819b1be1341b51c73030c7c4e1e978897dfbd1a5b054",
+  packedBytes: 12_082_307,
+  unpackedBytes: 23_735_661,
+  entryCount: 609,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,

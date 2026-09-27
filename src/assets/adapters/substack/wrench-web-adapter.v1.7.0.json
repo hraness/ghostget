@@ -1,7 +1,7 @@
 {
   "schemaVersion": 4,
   "id": "substack-web",
-  "version": "1.8.0",
+  "version": "1.7.0",
   "displayName": "Substack (Authenticated Web API)",
   "surfaceId": "substack",
   "origins": [
@@ -930,98 +930,6 @@
         "contractVersion": 1,
         "timeoutMs": 600000,
         "maxOutputBytes": 4194304
-      }
-    },
-    "subscribers.export": {
-      "description": "Capture-required contract reservation: read one bounded page of the bootstrap-bound sole viewer-owned Substack publication's subscribers, projected to email, subscription type, subscribed time, and sections with a publication- and total-bound cursor.",
-      "risk": "R1",
-      "sideEffect": "none",
-      "idempotency": "none",
-      "dedupeWindowMs": 0,
-      "input": {
-        "properties": {
-          "cursor": {
-            "type": "string",
-            "description": "Opaque cursor returned by the previous subscribers.export page; omit for the first page",
-            "minLength": 1,
-            "maxLength": 64
-          },
-          "limit": {
-            "type": "number",
-            "description": "Maximum subscribers on this page",
-            "minimum": 1,
-            "maximum": 500
-          }
-        },
-        "required": [
-          "limit"
-        ]
-      },
-      "webSession": {
-        "site": "substack",
-        "action": "subscribers.export",
-        "contractVersion": 1,
-        "timeoutMs": 60000,
-        "maxOutputBytes": 8388608
-      }
-    },
-    "subscribers.import": {
-      "description": "Capture-required contract reservation: import 1 to 25 unique normalized email addresses into the bootstrap-bound sole viewer-owned Substack publication with the welcome email disabled, freezing one operation identity before a single at-most-once dispatch.",
-      "risk": "R3",
-      "sideEffect": "Adds up to 25 explicitly listed email addresses as subscribers of the exact bound viewer-owned Substack publication without sending a welcome email.",
-      "idempotency": "local-at-most-once",
-      "dedupeWindowMs": 86400000,
-      "input": {
-        "properties": {
-          "emails": {
-            "type": "array",
-            "description": "Unique normalized lowercase email addresses to import",
-            "items": {
-              "type": "string",
-              "description": "One normalized lowercase email address",
-              "minLength": 3,
-              "maxLength": 254
-            },
-            "minItems": 1,
-            "maxItems": 25
-          },
-          "send_welcome_email": {
-            "type": "boolean",
-            "description": "Must be false; the welcome email is never sent",
-            "enum": [
-              false
-            ]
-          }
-        },
-        "required": [
-          "emails",
-          "send_welcome_email"
-        ]
-      },
-      "webSession": {
-        "site": "substack",
-        "action": "subscribers.import",
-        "contractVersion": 1,
-        "timeoutMs": 60000,
-        "maxOutputBytes": 8388608
-      }
-    },
-    "subscribers.import.status": {
-      "description": "Capture-required contract reservation: read the exact latest subscriber-import status counts of the bootstrap-bound sole viewer-owned Substack publication.",
-      "risk": "R1",
-      "sideEffect": "none",
-      "idempotency": "none",
-      "dedupeWindowMs": 0,
-      "input": {
-        "properties": {},
-        "required": []
-      },
-      "webSession": {
-        "site": "substack",
-        "action": "subscribers.import.status",
-        "contractVersion": 1,
-        "timeoutMs": 60000,
-        "maxOutputBytes": 8388608
       }
     }
   }

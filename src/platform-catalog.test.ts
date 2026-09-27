@@ -38,6 +38,8 @@ const r1Operations = new Set<SemanticOperationName>([
   "articles.read",
   "listings.read",
   "relationships.recommendations.read",
+  "subscribers.export",
+  "subscribers.import.status",
 ]);
 
 const r2Operations = new Set<SemanticOperationName>([
@@ -50,6 +52,7 @@ const r2Operations = new Set<SemanticOperationName>([
 ]);
 
 const r3Operations = new Set<SemanticOperationName>([
+  "subscribers.import",
   "messaging.send",
   "comments.create",
   "replies.create",

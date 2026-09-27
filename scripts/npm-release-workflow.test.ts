@@ -1220,7 +1220,7 @@ describe("npm publication contract", () => {
         (MAX_UNPACKED_BYTES + MAX_PACKED_ENTRIES * 1_023 + 1_024) / 512,
       ) * 512,
     );
-    expect(MAX_PACKAGE_TAR_BYTES).toBe(24_287_744);
+    expect(MAX_PACKAGE_TAR_BYTES).toBe(24_360_448);
     expect(MAX_PACKAGE_TAR_BYTES % 512).toBe(0);
     expect(artifact).toContain("maxOutputLength: MAX_PACKAGE_TAR_BYTES");
     expect(artifact).not.toContain("const maximumTarBytes");
@@ -1421,13 +1421,13 @@ describe("npm publication contract", () => {
     expect(budget).toContain("47c0114ba631b314fa5bea489eb79e29a77bb7e06321c4088725b6b238dfe81a");
     expect(Object.isFrozen(repairPackageMeasurement)).toBeTrue();
     expect(repairPackageMeasurement).toMatchObject({
-      archiveSha256: "e6609563d5b9825a38a503be4e2e99060685e041e62731acc56783cee6b678a2",
-      packedBytes: 12_070_406, unpackedBytes: 23_665_113, entryCount: 607,
+      archiveSha256: "d08729f483513f5788e0819b1be1341b51c73030c7c4e1e978897dfbd1a5b054",
+      packedBytes: 12_082_307, unpackedBytes: 23_735_661, entryCount: 609,
       packedPlatformProjection: 12_387, packedPortabilityAllowance: 4_096,
       payloadPlatformProjection: 353, payloadAllowance: 65,
     });
-    expect(MAX_PACKED_BYTES).toBe(12_086_889);
-    expect(MAX_PACKED_BYTES).toBe(12_070_406 + 12_387 + 4_096);
+    expect(MAX_PACKED_BYTES).toBe(12_098_790);
+    expect(MAX_PACKED_BYTES).toBe(12_082_307 + 12_387 + 4_096);
     expect(budget).toContain("aa127b3193c9bb3b0cb5deece5927be60ccb7111a50169320d322ffdeaa13f39");
     expect(budget).toContain("0c331bab3ab3df69a108e18f5f29845b0db90c281cbd6455c0d90fa0b24081e2");
     expect(budget).toContain("873cad8139fda303e2d19c6afd61cf549cf9b4d1d76b2a1d6d632a6afe6bd0d1");
@@ -1522,8 +1522,8 @@ describe("npm publication contract", () => {
     expect(budget).toContain("11,696,091 + 4,096 = 11,700,187");
     expect(budget).toContain("35449445752 attempt 1, package job 105913938839");
     expect(budget).toContain("exactly 596 files");
-    expect(MAX_PACKED_ENTRIES).toBe(607);
-    expect(MAX_PACKED_FILES).toBe(607);
+    expect(MAX_PACKED_ENTRIES).toBe(609);
+    expect(MAX_PACKED_FILES).toBe(609);
     expect(budget).toContain("Ghostget 0.18.6 same-boot setup-cleanup candidate over main edbe567");
     expect(budget).toContain("11,656,173");
     expect(budget).toContain("22,513,450 payload bytes across exactly 557 files");
@@ -1547,7 +1547,7 @@ describe("npm publication contract", () => {
     expect(budget).toContain("23,193,728 + 65 = 23,193,793");
     expect(budget).toContain("47684b3e2eb5cf3ed07fbb520aade8c7251d993f75262fbf1af627d9081a1a5f");
     expect(budget).toContain("23,665,113 + 353 + 65 = 23,665,531");
-    expect(MAX_UNPACKED_BYTES).toBe(23_665_531);
+    expect(MAX_UNPACKED_BYTES).toBe(23_736_079);
     expect(budget).toContain("23,037,873 + 65 = 23,037,938");
     expect(budget).toContain("f9f3ab38a682690ceaa2699a7309997512030f0fa500a9dc29dcd108123dc41f");
     expect(budget).toContain("23,038,557 + 65 = 23,038,622");
@@ -1580,7 +1580,7 @@ describe("npm publication contract", () => {
     expect(budget).toContain("01875f12ab73a49d6c7d6bf520dc3d318db816addee2fa7981889f35c958cf7c");
     expect(budget).toContain("b12909f08f7c19460ced56e30619f4860a1183f4b0106170c07837dae577a937");
     expect(budget).toContain("0b212ac291218528dcf979370110a36f10850e046ca90a536057d9a44e807d1d");
-    expect(MAX_UNPACKED_BYTES).toBe(23_665_113 + 353 + 65);
+    expect(MAX_UNPACKED_BYTES).toBe(23_735_661 + 353 + 65);
     expect(budget).toContain("22,794,052 + 65 = 22,794,117");
     expect(budget).toContain("c482efe748f880e3717727d6d39fd92a68953e6eea766642b329ba47ae772d80");
     expect(budget).toContain("22,759,423 + 65 = 22,759,488");
@@ -1614,10 +1614,10 @@ describe("npm publication contract", () => {
       expect(Object.isFrozen(range)).toBe(true);
     }
     expect(packageArtifactBudget).toEqual({
-      entryCount: { min: 607, max: 607 },
-      fileCount: { min: 607, max: 607 },
-      packedBytes: { min: 1_600_000, max: 12_086_889 },
-      unpackedBytes: { min: 9_000_000, max: 23_665_531 },
+      entryCount: { min: 609, max: 609 },
+      fileCount: { min: 609, max: 609 },
+      packedBytes: { min: 1_600_000, max: 12_098_790 },
+      unpackedBytes: { min: 9_000_000, max: 23_736_079 },
     });
   });
 
