@@ -1929,22 +1929,29 @@
 // Carry the same projections and allowances: 12,076,120 + 12,387 + 4,096 =
 // 12,092,603 packed; 23,687,219 + 353 + 65 = 23,687,637 unpacked.
 //
+// The 0.18.42 release bumps the version pins and rebuilds dist over that
+// merged tree: a clean npm 11.19.0 pack --ignore-scripts measured 607
+// entries, 12,076,471 packed bytes and 23,688,039 unpacked bytes; archive
+// SHA-256 7d802459a02adad63157c416bcc35158de2ccb1f3d003814006c351ebd46aa00.
+// Carry the same projections and allowances: 12,076,471 + 12,387 + 4,096 =
+// 12,092,954 packed; 23,688,039 + 353 + 65 = 23,688,457 unpacked.
+//
 // The capture-required Substack subscriber operations add the retained
 // substack-web 1.7.0 adapter snapshot and the substack-subscribers skill
-// reference over that merged tree: two additional packed files. A clean npm
+// reference over the 0.18.42 tree: two additional packed files. A clean npm
 // 11.19.0 pack --ignore-scripts on darwin arm64 measured 609 entries,
-// 12,088,622 packed bytes and 23,758,004 unpacked bytes; archive SHA-256
-// f920542e09838a5e6e35717fe13dcbc2ff626fe2d0f6e8a7cbbac452cb0d6ce9.
-// Carry the same projections and allowances: 12,088,622 + 12,387 + 4,096 =
-// 12,105,105 packed; 23,758,004 + 353 + 65 = 23,758,422 unpacked.
+// 12,089,062 packed bytes and 23,758,825 unpacked bytes; archive SHA-256
+// de75b0b81bf098fa08171d8bdf9c3a0798db74027652b777f6d2883c8b143c97.
+// Carry the same projections and allowances: 12,089,062 + 12,387 + 4,096 =
+// 12,105,545 packed; 23,758,825 + 353 + 65 = 23,759,243 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Capture-required Substack subscriber operations over menu kit v2 and 0.18.41",
+  scope: "Capture-required Substack subscriber operations over the Ghostget 0.18.42 release",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "f920542e09838a5e6e35717fe13dcbc2ff626fe2d0f6e8a7cbbac452cb0d6ce9",
-  packedBytes: 12_088_622,
-  unpackedBytes: 23_758_004,
+  archiveSha256: "de75b0b81bf098fa08171d8bdf9c3a0798db74027652b777f6d2883c8b143c97",
+  packedBytes: 12_089_062,
+  unpackedBytes: 23_758_825,
   entryCount: 609,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

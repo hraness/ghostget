@@ -7,6 +7,22 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+- Substack reserves `subscribers.export`, `subscribers.import`, and
+  `subscribers.import.status` for the signed-in owner's single publication.
+  They refuse to run until a live capture qualifies them. Import input is
+  checked before any cookie or network access: 1 to 25 unique lowercase
+  addresses and `send_welcome_email: false`. See
+  `skills/ghostget/references/substack-subscribers.md`.
+
+## 0.18.42
+
+This release retries the `v0.18.41` tag request and adds the menu kit v2
+menu bar and small CLI output fixes. The `v0.18.41` request failed in
+Verify before building any asset: the CLI spot-check merge moved `main`'s
+release-control files between the release merge and tag dispatch, and the
+exact release-control equality rule refused the tag. `v0.18.41` stays an
+assetless tag; everything it carried is in this version too.
+
 - The menu bar moves to the shared menu kit v2: a status line, at most ten
   top-level rows, a monochrome glyph with a dot only when something needs
   you, and one Help & support row with diagnostics behind ⌥.
@@ -19,12 +35,12 @@ Historical entries retain their original delivery coordinates.
   keychain access before Verify.
 - The control protocol's account view adds `profile`, the Chrome profile a
   browser sign-in reads.
-- Substack reserves `subscribers.export`, `subscribers.import`, and
-  `subscribers.import.status` for the signed-in owner's single publication.
-  They refuse to run until a live capture qualifies them. Import input is
-  checked before any cookie or network access: 1 to 25 unique lowercase
-  addresses and `send_welcome_email: false`. See
-  `skills/ghostget/references/substack-subscribers.md`.
+- `ghostget --version` prints `ghostget 0.18.42`; `--version --json` prints
+  `{"name":"ghostget","version":"0.18.42"}`.
+- With `--json`, usage and runtime errors print to stdout as one JSON
+  document carrying `code`, `message` and `next`, keeping the exit code.
+- `auth list` with no saved sign-ins ends its result with the
+  `ghostget auth add <id> --cookie-source chrome` hint.
 
 ## 0.18.41
 
