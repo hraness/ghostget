@@ -976,12 +976,27 @@ export async function runMenubarCommand(
     ...adapter,
     ...(binary === undefined || binary === "" ? {} : { binary }),
   };
+  // `HRANESS_LOCAL_APP=1` opts into the signed local app: install assembles
+  // `~/Applications/Hraness/Ghostget.app` (with the signed cookie reader
+  // inside) and registers login startup through it, so macOS names Ghostget.
+  // The module loads lazily so every other command keeps the same graph.
+  const localAppModule = process.platform === "darwin" && environment.HRANESS_LOCAL_APP === "1"
+    ? await import("../cookie-safe-storage")
+    : undefined;
+  const app = localApp(environment, adapter.stateDir);
+  if (app !== undefined && mapped[0] === "install" && localAppModule !== undefined) {
+    try {
+      await localAppModule.ensureLocalApp(environment, binary === undefined || binary === "" ? {} : { runnerBinary: binary });
+    } catch (error) {
+      output.stderr(`${error instanceof Error ? error.message : String(error)}\n`);
+      return 1;
+    }
+  }
   try {
     // Claim the private root before the shared lifecycle creates its service
     // directory. Otherwise a first launch leaves unmarked state that the
     // independently launched control helper must reject.
     if (mapped[0] === undefined || mapped[0] === "start" || mapped[0] === "--foreground") ensurePrivateStateDirectory(adapter.stateDir, environment);
-    const app = localApp(environment, adapter.stateDir);
     return await (dependencies.handle ?? handleCompanionCommand)(options, {
       args: mapped,
       foreground: { executable: process.execPath, args: [cli, "menubar", "--foreground"] },
