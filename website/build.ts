@@ -220,7 +220,7 @@ export const PUBLIC_PAGES = [
       "Every claim in Ghostget's public register with its current verification status, generated from the repository's verification/claims.json on each release.",
     outputFile: "claims/index.html",
     sourceFile: "claims.html",
-    title: "Ghostget claims register",
+    title: "Ghostget claims register: what is checked and what is not",
   },
   {
     canonicalPath: "/about/",
@@ -289,18 +289,18 @@ export const PUBLIC_PAGES = [
   {
     canonicalPath: "/compare/firecrawl/",
     description:
-      "Firecrawl turns URLs into Markdown and crawls whole sites through a hosted, credit-billed API. Ghostget reads one URL on your machine, free, with no key.",
+      "A Firecrawl alternative for one-page reads: Ghostget turns a URL into Markdown on your machine with no key or credits. Firecrawl adds crawls and proxies.",
     outputFile: "compare/firecrawl/index.html",
     sourceFile: "compare-firecrawl.html",
-    title: "Ghostget vs Firecrawl: a local page read instead of a hosted scraping API",
+    title: "Ghostget vs Firecrawl: a free, local Firecrawl alternative",
   },
   {
     canonicalPath: "/compare/jina-reader/",
     description:
-      "Jina AI Reader converts a URL to Markdown through its hosted r.jina.ai prefix, rate-limited or token-billed. Ghostget reads the URL on your machine.",
+      "A Jina Reader alternative that turns a URL into Markdown on your machine with no key or rate limit. Jina's hosted r.jina.ai prefix needs no install.",
     outputFile: "compare/jina-reader/index.html",
     sourceFile: "compare-jina-reader.html",
-    title: "Ghostget vs Jina Reader: URL to Markdown on your machine instead of a hosted prefix",
+    title: "Ghostget vs Jina Reader: a local Jina Reader alternative",
   },
   {
     canonicalPath: "/compare/personal-agents-browser-use/",

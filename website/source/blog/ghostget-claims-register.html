@@ -1,15 +1,14 @@
 <p>Before you let an agent act in your email, messages, or social accounts through Ghostget, you can read what Ghostget promises about itself and how each promise is checked. Ghostget keeps a public register of its claims. Every entry is one sentence, a status, the kind of check that supports it, the conditions it assumes, and a note on what that check leaves out.</p>
 <p>On 24 September 2026 the register held 244 claims: 180 evidenced, 45 planned, and 19 not verified. Three of them matter most when an agent can write on your behalf: an approval you give once is used once, a write happens at most once, and a send whose result is unknown is never sent again. Several claims you would want are still planned, and the register names them.</p>
 <p>Latest release: {{GHOSTGET_RELEASE}}. The counts below come from the main branch on 24 September 2026 and will change as checks are added. The <a href="/claims/">claims register page</a> renders the current register on every release.</p>
-<h2 id="confidence-you-cannot-check">Confidence you cannot check</h2>
-<p>Plenty of software now arrives looking finished. A model writes the app, the tests, and the landing page in an afternoon, and all three sound equally sure. Some of it is vibe-coded slop: code that looks done and breaks on the second use. More of it sits on fragile foundations, a layer underneath that nobody checked past the happy path.</p>
+<h2 id="why-claims-need-checks">Why a tool that acts in your accounts should list its claims</h2>
+<p>A model can now write an app, its tests, and its landing page in an afternoon, and all three sound equally sure of themselves. That confidence says nothing about the layer underneath, which may never have been checked past the first successful run.</p>
 <p>For a tool that acts in your accounts, the failures are specific and familiar. The page hangs after you press send, something retries, and your friend gets the message twice. You approve one post, and a later request quietly reuses that approval. The agent crashes halfway through, restarts, and nobody knows whether the first attempt went out. Each of these only happens when two ordinary things line up, and that is the case a hand-written test tends to miss.</p>
-<p>The product page for a tool like this usually says &quot;safe&quot; and &quot;reliable.&quot; Those words carry no information about how anyone knows, or which parts were never tried.</p>
-<h2 id="a-list-you-can-hold-the-product-to">A list you can hold the product to</h2>
-<p>The alternative is a plain list. Each line says one thing the product stands behind, with a status: a check runs today, a check is scheduled, or nothing checks it. Each line also says where the check stops. &quot;A write happens at most once&quot; means something different when it comes with &quot;checked for up to three attempts and one reconnect&quot; than when it comes with nothing.</p>
-<p>With that list you can ask which of the things you care about are checked, how, and what is left to trust. A long not-verified section tells you where to be careful. And when the list is kept by the build rather than by memory, it cannot quietly drift away from the product.</p>
-<p>Ghostget keeps that list.</p>
-<h2 id="how-the-register-decides-a-status">How the register decides a status</h2>
+<p>Words like &quot;safe&quot; and &quot;reliable&quot; on a product page do not say how anyone knows, or which parts were never tried.</p>
+<h2 id="what-a-claims-list-contains">What a useful claims list contains</h2>
+<p>A claims list is more useful. Each line says one thing the product stands behind, with a status: a check runs today, a check is scheduled, or nothing checks it. Each line also says where the check stops. &quot;A write happens at most once&quot; means something different when it comes with &quot;checked for up to three attempts and one reconnect&quot; than when it comes with nothing.</p>
+<p>With that list you can ask which of the things you care about are checked, how, and what is left to trust. A long not-verified section tells you where to be careful. Ghostget keeps such a list, and its build fails when the list and the code disagree in the ways described below.</p>
+<h2 id="how-the-register-decides-a-status">How the register assigns each status</h2>
 <p>The register lives in the Ghostget repository as a JSON file, and a readable assurance page is generated from it. The assurance page defines the three statuses: a claim is evidenced &quot;when its layer runs in CI,&quot; planned &quot;when a plan phase schedules its layer,&quot; and not verified &quot;when no automated check covers it.&quot;</p>
 <p>Evidenced does not mean proved. It means a named check runs on every change and passes. The check might be a handful of example tests or a machine-checked proof, and the register says which. On 24 September 2026 the claims broke down like this:</p>
 <table>
@@ -70,7 +69,7 @@
 <td align="right">4</td>
 </tr>
 </tbody></table>
-<p>In plain words:</p>
+<p>What each kind of check does:</p>
 <ul>
 <li><strong>Example tests</strong> check the cases someone wrote down, and only those.</li>
 <li><strong>Property tests</strong> generate many inputs and check a rule against each. They sample; they do not cover every input.</li>
@@ -79,7 +78,7 @@
 <li><strong>Lean proofs</strong> are machine-checked proofs about a model of one function. A differential test then checks that the real TypeScript agrees with that model on generated inputs.</li>
 <li><strong>Differential oracles</strong> compare Ghostget with an independent implementation, such as a separate URL parser or JSON canonicalizer, on the same inputs.</li>
 </ul>
-<p>The build keeps the list honest. Ghostget&#39;s <code>verify:claims</code> check fails when the assurance page is stale, when a guideline in a maintainer rules file has no current rule in the register, when a rule does not list exactly the claims that quote it, when an evidenced property claim names a test that runs no property, or when an evidence path no longer exists.</p>
+<p>Ghostget&#39;s <code>verify:claims</code> check fails when the assurance page is stale, when a guideline in a maintainer rules file has no current rule in the register, when a rule does not list exactly the claims that quote it, when an evidenced property claim names a test that runs no property, or when an evidence path no longer exists.</p>
 <p>A trimmed entry, to show the shape:</p>
 <pre><code class="language-json">{
   &quot;statement&quot;: &quot;An allow-once approval admits one exact pending request at most once.&quot;,
@@ -91,7 +90,7 @@
 </code></pre>
 <p>The real entry is longer, and most of the extra length is the <code>notVerified</code> list.</p>
 <h2 id="an-approval-you-give-once-is-used-once">An approval you give once is used once</h2>
-<p>When Ghostget asks you to allow an action once, that approval should cover one exact pending request and then be spent. The law, as the register writes it: allowed implies uses at most one, including across a client crash, expiry, and reconnect. Drift, expiry, and shutdown revoke it.</p>
+<p>When Ghostget asks you to allow an action once, that approval should cover one exact pending request and then be spent. The rule, as the register writes it: allowed implies uses at most one, including across a client crash, expiry, and reconnect. Drift, expiry, and shutdown revoke it.</p>
 <p>The Quint model states it as two rules:</p>
 <pre><code class="language-text">atMostOneUse:      the set of callers ever allowed has at most one member
 onlyHolderAllowed: if the grant is bound to a requester, only that requester is allowed
@@ -108,7 +107,7 @@ onlyHolderAllowed: if the grant is bound to a requester, only that requester is 
 <p>A send can fail after it leaves your machine: the connection drops before the reply arrives. Ghostget cannot know whether the service acted. Ghostget records the outcome as unknown and never retries it. A lost acknowledgement does not permit another submission.</p>
 <p>For confirmed writes through a signed-in web session, such as publishing a post, the Quint model checks this directly: no intent is dispatched twice, a later send of the same effect can only be an elected successor of a run whose outcome is unknown, and an unknown run keeps blocking later sends until it is resolved. Only evidence that the write applied resolves it. A caller who says the write never happened is recorded, and that claim releases nothing. The same rule on other paths, including local programs, iMessage, and linked devices, is covered by example and property tests, not by this model.</p>
 <p>Multi-part messages have their own evidenced model. A messaging turn is one confirmation and one ordered run: parts go out in order, at most one part is in flight or unknown at a time, and no part is sent again. That model covers one run of three parts.</p>
-<h2 id="the-gaps-by-name">The gaps, by name</h2>
+<h2 id="planned-and-unchecked-claims">Which claims are still planned or unchecked</h2>
 <p>On 24 September 2026, the register listed these as planned: the stronger check it names is scheduled but not yet running.</p>
 <ul>
 <li><strong>Preview before every write.</strong> The rule that a write runs only after an exact preview and a confirmation tied to that preview, with each plan used once, has example tests. Its stateful model is planned.</li>

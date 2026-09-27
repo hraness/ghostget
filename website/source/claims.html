@@ -6,7 +6,7 @@
     <meta name="color-scheme" content="light dark">
     <meta name="theme-color" content="#fbf1c7" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">
-    <title>Ghostget claims register</title>
+    <title>Ghostget claims register: what is checked and what is not</title>
     <meta name="description" content="Every claim in Ghostget's public register with its current verification status, generated from the repository's verification/claims.json on each release.">
     <meta name="robots" content="max-image-preview:large">
     <link rel="canonical" href="https://ghostget.com/claims/">
@@ -17,7 +17,7 @@
     {{MARKDOWN_ALTERNATE}}
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Ghostget">
-    <meta property="og:title" content="Ghostget claims register">
+    <meta property="og:title" content="Ghostget claims register: what is checked and what is not">
     <meta property="og:description" content="Every claim in Ghostget's public register with its current verification status, generated from the repository's verification/claims.json on each release.">
     <meta property="og:url" content="https://ghostget.com/claims/">
     <meta property="og:image" content="https://ghostget.com/og.png">
@@ -25,7 +25,7 @@
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Ghostget claims register">
+    <meta name="twitter:title" content="Ghostget claims register: what is checked and what is not">
     <meta name="twitter:description" content="Every claim in Ghostget's public register with its current verification status, generated from the repository's verification/claims.json on each release.">
     <meta name="twitter:image" content="https://ghostget.com/og.png">
     <meta name="twitter:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
@@ -52,7 +52,7 @@
         <header class="guide-hero">
           <p class="eyebrow">Verification · Ghostget {{GHOSTGET_VERSION}}</p>
           <h1>The Ghostget claims register</h1>
-          <p class="answer-lede">Ghostget's repository keeps a public register of the claims its maintainer rules make about the product. Each entry is one claim with a status, the kind of check behind it, the conditions it assumes, and what that check leaves out. The build generates this page from that register, so the counts always match the current release.</p>
+          <p class="answer-lede">This page lists every claim Ghostget's maintainer rules make about the product and says whether an automated check covers it. Each entry gives one claim, its status, the kind of check behind it, the conditions it assumes, and what that check leaves out. The build generates the page from the register in Ghostget's repository, so the counts match the current release.</p>
           <p class="review-note">Latest release: {{GHOSTGET_RELEASE}}. For a guided read of the claims that matter most when an agent writes on your behalf, see the post <a href="/blog/ghostget-claims-register/">What Ghostget has and has not verified</a>.</p>
         </header>
 
@@ -63,16 +63,16 @@
         </section>
 
         <section aria-labelledby="claims-summary">
-          <h2 id="claims-summary">Summary</h2>
+          <h2 id="claims-summary">How many claims are evidenced, planned, and not verified</h2>
           {{CLAIMS_SUMMARY}}
           <div class="table-scroll" role="region" tabindex="0" aria-label="Claims by kind of check and status">
             {{CLAIMS_LAYER_TABLE}}
           </div>
-          <p>Small models and proofs are tied to the code they describe: Quint models are replayed against the production implementation, and each Lean proof is paired with a test that checks the TypeScript agrees on generated inputs. The <a href="/blog/ghostget-claims-register/">register walkthrough</a> explains each kind of check in plain words.</p>
+          <p>Small models and proofs are tied to the code they describe: Quint models are replayed against the production implementation, and each Lean proof is paired with a test that checks the TypeScript agrees on generated inputs. The <a href="/blog/ghostget-claims-register/">register walkthrough</a> explains each kind of check with examples.</p>
         </section>
 
         <section aria-labelledby="claims-not-verified">
-          <h2 id="claims-not-verified">What is not verified</h2>
+          <h2 id="claims-not-verified">What the register does not verify</h2>
           <p>The register as a whole does not verify:</p>
           {{CLAIMS_SCOPE_LIST}}
           <p>Every claim below also lists its own not-verified scope.</p>
@@ -81,13 +81,13 @@
         </section>
 
         <section aria-labelledby="claims-by-area">
-          <h2 id="claims-by-area">Claims by area</h2>
+          <h2 id="claims-by-area">Every claim, grouped by area</h2>
           <p>Claims are grouped by the register's area labels. The identifier names the claim in <code>verification/claims.json</code>.</p>
           {{CLAIMS_BY_AREA}}
         </section>
 
         <section aria-labelledby="claims-assumptions">
-          <h2 id="claims-assumptions">Environmental assumptions</h2>
+          <h2 id="claims-assumptions">The environmental assumptions each claim depends on</h2>
           <p>Each claim holds only while its listed assumptions hold.</p>
           <div class="table-scroll" role="region" tabindex="0" aria-label="Environmental assumptions and claim counts">
             {{CLAIMS_ASSUMPTIONS_TABLE}}
