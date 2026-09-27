@@ -7,6 +7,16 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+- Prepare Substack subscriber export v2 from an authorized dashboard capture:
+  select one publication explicitly, verify its author/admin binding, request
+  at most 50 rows, and use encrypted account-bound continuation with duplicate
+  detection and a 500-row ceiling. Export projects email, dashboard type, and
+  signup time; it omits unobserved section membership and never claims a
+  complete snapshot. The exact v1 adapter and receipt identities are retained.
+  Export remains disabled while login-probe, installed-transport, and terminal
+  pagination qualification are incomplete. Import and import-status remain
+  separate disabled candidates.
+
 ## 0.18.43
 
 This release reserves three Substack subscriber actions and ships a quieter

@@ -432,6 +432,7 @@ const SUBSTACK_WEB_OPERATIONS = operationPolicies("substack", [
   "profiles.read",
 ], {
   "posts.publish": 3,
+  "subscribers.export": 2,
 });
 const TIKTOK_WEB_OPERATIONS = operationPolicies("tiktok", [
   "comments.read",
@@ -741,7 +742,7 @@ const substack = {
   "profiles.read": contract("substack", "profiles.read", SUBSTACK_WEB_OPERATIONS["profiles.read"].risk, SUBSTACK_WEB_OPERATIONS["profiles.read"].state, SUBSTACK_WEB_OPERATIONS["profiles.read"].reason),
   "relationships.follow.set": contract("substack", "relationships.follow.set", SUBSTACK_WEB_OPERATIONS["relationships.follow.set"].risk, SUBSTACK_WEB_OPERATIONS["relationships.follow.set"].state, SUBSTACK_WEB_OPERATIONS["relationships.follow.set"].reason),
   "replies.create": contract("substack", "replies.create", SUBSTACK_WEB_OPERATIONS["replies.create"].risk, SUBSTACK_WEB_OPERATIONS["replies.create"].state, SUBSTACK_WEB_OPERATIONS["replies.create"].reason),
-  "subscribers.export": contract("substack", "subscribers.export", SUBSTACK_WEB_OPERATIONS["subscribers.export"].risk, SUBSTACK_WEB_OPERATIONS["subscribers.export"].state, SUBSTACK_WEB_OPERATIONS["subscribers.export"].reason),
+  "subscribers.export": contract("substack", "subscribers.export", SUBSTACK_WEB_OPERATIONS["subscribers.export"].risk, SUBSTACK_WEB_OPERATIONS["subscribers.export"].state, SUBSTACK_WEB_OPERATIONS["subscribers.export"].reason, SUBSTACK_WEB_OPERATIONS["subscribers.export"].contractVersion),
   "subscribers.import": contract("substack", "subscribers.import", SUBSTACK_WEB_OPERATIONS["subscribers.import"].risk, SUBSTACK_WEB_OPERATIONS["subscribers.import"].state, SUBSTACK_WEB_OPERATIONS["subscribers.import"].reason),
   "subscribers.import.status": contract("substack", "subscribers.import.status", SUBSTACK_WEB_OPERATIONS["subscribers.import.status"].risk, SUBSTACK_WEB_OPERATIONS["subscribers.import.status"].state, SUBSTACK_WEB_OPERATIONS["subscribers.import.status"].reason),
 } as const satisfies Readonly<Partial<Record<SemanticOperationName, WebSessionContract>>>;

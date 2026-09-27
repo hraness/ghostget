@@ -56,6 +56,21 @@ const predecessorRedditReaders = [
   "16e4e48609c12d5ffdaf47e622764e06cc9b3381c6b8ceb2c9f773fa9d99bdd9",
   "91cc3364ab1ccba66bd2e099f64fcccc187fde94145a8bf1eaa14f0f5533f6d7",
 ];
+const predecessorSubstackWriter = "58438f60cf9b2d2db9363cb7dece0c6ca56e60c2178fe4bcbd60c844fc8893ba";
+const predecessorSubstackReaders = [
+  "99fc0287f9445b0e4d692e39201ebb8b9e9bb86308c9619c20e3bff83655243d",
+  "fb58ac6ba745b2dc4dc176e8e3b7f4d3362cd8026d3e00557f72342b76b7c519",
+  "58c2b588db7154883a154d05194cde62ff19b8e14045d10f854aacc9a4433e73",
+  "4fbfe4ae9638728c1ce48c15e0c8b2343a39c372ab01d8b5f6a75665af0df040",
+  "99fc0287f9445b0e4d692e39201ebb8b9e9bb86308c9619c20e3bff83655243d",
+  "fb58ac6ba745b2dc4dc176e8e3b7f4d3362cd8026d3e00557f72342b76b7c519",
+  "58c2b588db7154883a154d05194cde62ff19b8e14045d10f854aacc9a4433e73",
+  "3dfe5b506cef46b6534c7abd195a98df0a825a321bd0690eddae674e4592c041",
+  "d35dda6043e224f4a2d6305a4a6aac9f05bef37ecfbfd087973394cdbe0c6811",
+  "2062f7c39c75ce286f26e7bd513871e5cbc2b62e2408d20df28af906f8ad5012",
+  "e4ba73882eb3f5bf489c88861cdd1fedd790a55af027e03ff5a07b526b8f0f5f",
+  "96a992faae17420dc2ec74c9d22903bb7973f69d3f0de198800d357480651269",
+];
 let acceptedLegacy = true;
 let rejectedUnknown = true;
 function stableJson(value) {
@@ -130,9 +145,12 @@ for (const plugin of registry.list()) {
             contractVersion,
           );
           const isPredecessorReddit = binding.surfaceId === "reddit" && !operation.name.startsWith("flair.");
+          const isPredecessorSubstack = binding.surfaceId === "substack" && !operation.name.startsWith("subscribers.");
           const legacyImplementations = isPredecessorReddit
             ? predecessorRedditReaders.map((hash) => Buffer.from(hash, "hex"))
-            : registeredLegacyImplementations;
+            : isPredecessorSubstack
+              ? predecessorSubstackReaders.map((hash) => Buffer.from(hash, "hex"))
+              : registeredLegacyImplementations;
           if (binding.transport === "provider-api") {
           const contract = providerContracts.getProviderContract({
             provider: binding.surfaceId,
@@ -186,7 +204,9 @@ for (const plugin of registry.list()) {
           }, registry);
           const currentHash = isPredecessorReddit
             ? legacyHash(contract, Buffer.from(predecessorRedditWriter, "hex"), true)
-            : webContracts.webSessionContractHash(contract, registry);
+            : isPredecessorSubstack
+              ? legacyHash(contract, Buffer.from(predecessorSubstackWriter, "hex"), true)
+              : webContracts.webSessionContractHash(contract, registry);
           acceptedLegacy &&= webContracts.isCompatibleWebSessionContractHash(contract, currentHash, registry);
           const includePredecessorInventory = appendCurrentRow([binding.transport, binding.surfaceId, operation.name, contractVersion,
             currentHash]);
@@ -299,8 +319,8 @@ describe("durable provider contract inventory", () => {
       expect(inventory).toEqual({
         rows: 324,
         sha256: predecessorDefaultInventorySha256,
-        currentOnlyRows: 81,
-        currentOnlySha256: "e30f779848368193b9f572b1a698249889d4ddafbe9746b51adecd5ed2c66c58",
+        currentOnlyRows: 82,
+        currentOnlySha256: "1dfd6e202edbdb9d1612fbd995e8106e6cb4478b3d49aa7392fa3956f1ccbaca",
         automationRows: [
           ["linked-device", "whatsapp", "messaging.automation.read", 1],
           ["linked-device", "whatsapp", "messaging.automation.send.attachment", 1],

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 4,
   "id": "substack-web",
-  "version": "1.9.0",
+  "version": "1.8.0",
   "displayName": "Substack (Authenticated Web API)",
   "surfaceId": "substack",
   "origins": [
@@ -933,7 +933,7 @@
       }
     },
     "subscribers.export": {
-      "description": "Capture-required contract reservation: read one page of up to 50 subscribers from the selected viewer-owned Substack publication, projected to email, subscription type, and subscribed time. An encrypted account- and publication-bound cursor limits each chain to 500 rows; complete is always false, and stopReason distinguishes page exhaustion from the row limit.",
+      "description": "Capture-required contract reservation: read one bounded page of the bootstrap-bound sole viewer-owned Substack publication's subscribers, projected to email, subscription type, subscribed time, and sections with a publication- and total-bound cursor.",
       "risk": "R1",
       "sideEffect": "none",
       "idempotency": "none",
@@ -942,32 +942,25 @@
         "properties": {
           "cursor": {
             "type": "string",
-            "description": "Opaque encrypted cursor returned by the previous subscribers.export page; omit for the first page",
+            "description": "Opaque cursor returned by the previous subscribers.export page; omit for the first page",
             "minLength": 1,
-            "maxLength": 8192
+            "maxLength": 64
           },
           "limit": {
             "type": "number",
             "description": "Maximum subscribers on this page",
             "minimum": 1,
-            "maximum": 50
-          },
-          "publication": {
-            "type": "string",
-            "description": "Canonical lowercase Substack publication handle to select from the bound viewer dashboard",
-            "minLength": 1,
-            "maxLength": 63
+            "maximum": 500
           }
         },
         "required": [
-          "publication",
           "limit"
         ]
       },
       "webSession": {
         "site": "substack",
         "action": "subscribers.export",
-        "contractVersion": 2,
+        "contractVersion": 1,
         "timeoutMs": 60000,
         "maxOutputBytes": 8388608
       }
