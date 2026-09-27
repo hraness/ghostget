@@ -159,7 +159,7 @@ describe("auth commands through main", () => {
       expect(await main(["auth", "add", "y-main", "--cookie-source", "arc"], { ...environment, HRANESS_AUDIENCE: "human" }, human.output)).toBe(0);
       expect(human.stderr()).toBe(`${process.platform === "darwin" ? "macOS will ask to let security use \"Arc Safe Storage\" from your keychain.\n" : ""}Next: ghostget auth bind y-main --site <site>\n`);
     });
-  }, 60_000);
+  });
 
   test("auth list is text by default, JSON for --json or an agent", async () => {
     await withState(async (environment) => {
@@ -174,7 +174,7 @@ describe("auth commands through main", () => {
       expect(await main(["auth", "list"], { ...environment, CLAUDECODE: "1" }, agent.output)).toBe(0);
       expect(JSON.parse(agent.stdout())).toMatchObject([{ id: "x-main" }]);
     });
-  }, 60_000);
+  });
 
   test("auth bind prints the account for people and JSON for agents", async () => {
     await withState(async (environment) => {
@@ -190,5 +190,5 @@ describe("auth commands through main", () => {
       })).toBe(0);
       expect(JSON.parse(agent.stdout())).toMatchObject({ ok: true, id: "arc-main", site: "x", subject: "2244994945" });
     });
-  }, 60_000);
+  });
 });
