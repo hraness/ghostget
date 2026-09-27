@@ -1865,16 +1865,29 @@
 // --ignore-scripts on the merged tree measured 604 entries, 12,062,352
 // packed bytes and 23,631,919 unpacked bytes; archive SHA-256
 // d1cf2859e7c9c9f479c75473cbba27390f7fc23f72106f54549e08917cbac1a8.
-// Carry the same projections and allowances: 12,062,352 + 12,387 + 4,096 =
-// 12,078,835 packed; 23,631,919 + 353 + 65 = 23,632,337 unpacked.
+// Menu action error rows over the desktop-foundation v0.8.0 bump (menu
+// protocol v2 surface, MenuActionError, actionErrorItem, lintMenu) merged
+// with the help-advanced agent-verb move: a clean npm 11.16.0 pack
+// --ignore-scripts on the merged tree measured 604 entries, 12,062,831
+// packed bytes and 23,633,266 unpacked bytes; archive SHA-256
+// a091637d0a6df2ce09e14d0f2c4ebc5ef3b8b7d138c07625950ddf050ce3b30c.
+// Carry the same projections and allowances: 12,062,831 + 12,387 + 4,096 =
+// 12,079,314 packed; 23,633,266 + 353 + 65 = 23,633,684 unpacked.
+// CLI spot checks over the merged menu-errors and help-advanced tree:
+// a clean npm 11.16.0 pack --ignore-scripts on the merged tree measured
+// 604 entries, 12,063,593 packed bytes and 23,636,572
+// unpacked bytes; archive SHA-256 4162ed914d84e47454142a3f5bf5c4b9d430fda448b826ce551ef9d4ac2e620e.
+// Carry the same projections and allowances: 12,063,593 + 12,387 + 4,096 =
+// 12,080,076 packed; 23,636,572 + 353 + 65 = 23,636,990
+// unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "CLI spot checks over help advanced: version name, --json errors, auth-list hint",
+  scope: "CLI spot checks over menu errors and help advanced: version name, --json errors, auth-list hint",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.16.0",
   platform: "darwin-arm64",
-  archiveSha256: "d1cf2859e7c9c9f479c75473cbba27390f7fc23f72106f54549e08917cbac1a8",
-  packedBytes: 12_062_352,
-  unpackedBytes: 23_631_919,
+  archiveSha256: "4162ed914d84e47454142a3f5bf5c4b9d430fda448b826ce551ef9d4ac2e620e",
+  packedBytes: 12_063_593,
+  unpackedBytes: 23_636_572,
   entryCount: 604,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

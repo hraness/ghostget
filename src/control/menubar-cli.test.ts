@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { validateSnapshot, type MenuItem, type Snapshot } from "@hraness/desktop-foundation";
+import { MenuActionError, validateSnapshot, type MenuItem, type Snapshot } from "@hraness/desktop-foundation";
 import { ghostgetStateHome, installManifest } from "../storage";
 import { createAuth, saveAuth } from "../auth";
 import type { GhostgetManifest } from "../model";
@@ -298,7 +298,7 @@ describe("helper-backed companion options", () => {
     const signal = new AbortController().signal;
     await options.snapshot(signal);
     await options.onAction("permission:enable", signal);
-    await expect(options.onAction("permission:enable", signal)).rejects.toThrow("ghostget-");
+    await expect(options.onAction("permission:enable", signal)).rejects.toThrow(MenuActionError);
     const items = await options.snapshot(signal);
     expect(labels(items)).toContain("Operation permissions are managed per account.");
   });
@@ -334,7 +334,7 @@ describe("administrative action admission", () => {
     expect(actionIds(reviewed)).toContain("interface:confirm");
     await f.options.onAction("interface:confirm", f.signal);
     expect(f.requests.filter(request => request.action === "interface.activate")).toEqual([{ action: "interface.activate", id: draft.id, digest: draft.digest, adapterId: "x", expectedInstalledDigest: "b".repeat(64) }]);
-    await expect(f.options.onAction("interface:confirm", f.signal)).rejects.toThrow("CONTROL_UNCONFIRMED");
+    await expect(f.options.onAction("interface:confirm", f.signal)).rejects.toThrow("hasn't confirmed this menu yet");
     expect(f.requests.filter(request => request.action === "interface.activate")).toHaveLength(1);
   });
   test("draft or baseline movement cancels confirmation before dispatch", async () => {
@@ -354,25 +354,79 @@ describe("administrative action admission", () => {
     f.disconnect();
     await f.options.snapshot(f.signal);
     const before = f.requests.length;
-    await expect(f.options.onAction("permission:enable", f.signal)).rejects.toThrow("CONTROL_UNCONFIRMED");
+    await expect(f.options.onAction("permission:enable", f.signal)).rejects.toThrow("hasn't confirmed this menu yet");
     expect(f.requests).toHaveLength(before);
   });
   test("Linux rejects direct browser connection actions before any helper mutation", async () => {
     const f = controlled("linux");
     await f.options.snapshot(f.signal);
     const before = f.requests.length;
-    await expect(f.options.onAction("connect:x-web:safari", f.signal)).rejects.toThrow("CONNECTION_PLATFORM_UNSUPPORTED");
-    await expect(f.options.onAction("reconnect:x-web-main:x-web:chrome-default", f.signal)).rejects.toThrow("CONNECTION_PLATFORM_UNSUPPORTED");
+    await expect(f.options.onAction("connect:x-web:safari", f.signal)).rejects.toThrow("Browser sign-in needs macOS");
+    await expect(f.options.onAction("reconnect:x-web-main:x-web:chrome-default", f.signal)).rejects.toThrow("Browser sign-in needs macOS");
     expect(f.requests).toHaveLength(before);
   });
   test("a direct action ID cannot approve a truncated request, but denial remains available", async () => {
     const f = controlled();
     f.change(base({ approvals: [{ id: "hidden-tail", digest: "e".repeat(64), kind: "provider", title: "Request", account: "personal", effect: "write", preview: "Visible content ".repeat(30) + "unseen destination", expiresAt: "2026-09-20T00:00:00Z" }] }));
     await f.options.snapshot(f.signal);
-    await expect(f.options.onAction("approval:allow:hidden-tail", f.signal)).rejects.toThrow("APPROVAL_REQUIRES_FULL_REVIEW");
+    await expect(f.options.onAction("approval:allow:hidden-tail", f.signal)).rejects.toThrow("This approval needs the full review");
     expect(f.requests.filter(request => request.action === "approval.decide")).toEqual([]);
     await f.options.onAction("approval:deny:hidden-tail", f.signal);
     expect(f.requests.filter(request => request.action === "approval.decide")).toEqual([{ action: "approval.decide", id: "hidden-tail", digest: "e".repeat(64), decision: "deny" }]);
+  });
+});
+
+describe("action failure notices", () => {
+  function wired(code: string | null) {
+    const { environment } = fixture();
+    const requests: ControlRequest[] = [];
+    const options = companionOptions(environment, async () => {}, () => ({
+      request: async (request): Promise<ControlResponse> => {
+        requests.push(request);
+        if (request.action === "snapshot") return { ok: true, data: { kind: "snapshot", snapshot: base({ accounts: [] }) } };
+        if (request.action === "activity.query") return { ok: true, data: { kind: "activity", page: { rows: [], nextCursor: null, snapshotSequence: 0, matchingCount: 0, newerCount: 0 } } };
+        if (request.action === "connection.begin") return { ok: true, data: { kind: "connection", attemptId: "a1", status: "awaiting-sign-in", subject: null } };
+        if (code !== null) return { ok: false, code, message: `synthetic ${code} detail` };
+        return { ok: true, data: { kind: "success", message: "Saved" } };
+      },
+      close() {},
+    }), "darwin");
+    return { options, requests, signal: new AbortController().signal };
+  }
+  test("a typed keychain denial renders its plain copy instead of the code", async () => {
+    const f = wired("KEYCHAIN_DENIED");
+    await f.options.snapshot(f.signal);
+    await f.options.onAction("connect:x-web:safari", f.signal);
+    const failure = await Promise.resolve(f.options.onAction("attempt:verify:a1", f.signal)).then(() => null, (error: unknown) => error);
+    expect(failure).toBeInstanceOf(MenuActionError);
+    expect((failure as MenuActionError).message).toBe("macOS Keychain access was denied");
+    expect((failure as MenuActionError).detail).toContain("Always Allow");
+    // The failed attempt row survives, so "Verify sign-in" is the retry.
+    const items = await f.options.snapshot(f.signal);
+    expect(actionIds(items)).toContain("attempt:verify:a1");
+    expect(labels(items)).toContain("Finish sign-in in the opened browser, then verify.");
+  });
+  test("an expired attempt is the one failure that drops the sign-in row", async () => {
+    const f = wired("CONNECTION_EXPIRED");
+    await f.options.snapshot(f.signal);
+    await f.options.onAction("connect:x-web:safari", f.signal);
+    await expect(f.options.onAction("attempt:verify:a1", f.signal)).rejects.toThrow("That sign-in expired");
+    const items = await f.options.snapshot(f.signal);
+    expect(actionIds(items)).not.toContain("attempt:verify:a1");
+  });
+  test("an unmapped code surfaces the bounded message, not internals", async () => {
+    const f = wired("SOMETHING_NEW");
+    await f.options.snapshot(f.signal);
+    const failure = await Promise.resolve(f.options.onAction("permission:enable", f.signal)).then(() => null, (error: unknown) => error);
+    expect(failure).toBeInstanceOf(MenuActionError);
+    expect((failure as MenuActionError).message).toBe("synthetic SOMETHING_NEW detail");
+  });
+  test("an approval denial failure names the action instead of leaking codes", async () => {
+    const f = wired("ACCOUNT_CHANGED");
+    await f.options.snapshot(f.signal);
+    const failure = await Promise.resolve(f.options.onAction("permission:enable", f.signal)).then(() => null, (error: unknown) => error);
+    expect((failure as MenuActionError).message).toBe("The account changed");
+    expect((failure as MenuActionError).detail).toBe("Refresh, then try again");
   });
 });
 
@@ -405,7 +459,7 @@ describe("optional Accounts browser handoffs", () => {
     ]);
   });
 
-  test("concurrent clicks share one bounded handoff and failures reveal only a generic notice", async () => {
+  test("concurrent clicks share one bounded handoff and failures surface only a generic menu error", async () => {
     const { environment } = fixture();
     const opened: string[] = [];
     let finish: (() => void) | undefined;
@@ -415,18 +469,15 @@ describe("optional Accounts browser handoffs", () => {
       throw new Error("PRIVATE_BROWSER_DIAGNOSTIC");
     });
     const signal = new AbortController().signal;
-    const first = options.onAction("support:paid", signal);
+    const first = Promise.resolve(options.onAction("support:paid", signal));
     await options.onAction("support:updates", signal);
     expect(opened).toHaveLength(1);
     finish!();
-    await first;
-    const items = await options.snapshot(signal);
-    expect(labels(items)).toContain("Could not open Accounts. Try again from the menu.");
-    expect(JSON.stringify(items)).not.toContain("PRIVATE_BROWSER_DIAGNOSTIC");
-    const retry = options.onAction("support:updates", signal);
+    await expect(first).rejects.toMatchObject({ name: "MenuActionError", message: "Couldn't open Accounts", detail: "Try again from the menu" });
+    const retry = Promise.resolve(options.onAction("support:updates", signal));
     expect(opened).toHaveLength(2);
     finish!();
-    await retry;
+    await expect(retry).rejects.toMatchObject({ name: "MenuActionError" });
   });
 });
 
@@ -441,7 +492,8 @@ describe("menubar CLI routing", () => {
       expect(await runMenubarCommand(["menubar", "--foreground"], environment, { stdout: () => {}, stderr: () => {} }, {
         handle: async options => {
           expect(existsSync(marker)).toBe(true);
-          expect(labels(await options.snapshot(new AbortController().signal))).toContain("Updated 0s ago");
+          const model = await options.snapshot(new AbortController().signal);
+          expect(labels(("items" in model ? model.items : model) as readonly MenuItem[])).toContain("Updated 0s ago");
           return 0;
         },
       })).toBe(0);
@@ -509,7 +561,7 @@ describe("menubar CLI routing", () => {
     writeFileSync(binary, "#!/bin/sh\nexit 97\n", { mode: 0o700 });
     const lines: string[] = [];
     const output = { stdout: (text: string) => { lines.push(text); }, stderr: (text: string) => { lines.push(text); } };
-    await runMenubarCommand(["menubar", "doctor"], { ...environment, GHOSTGET_MENUBAR: binary }, output);
+    await runMenubarCommand(["menubar", "doctor", "--json"], { ...environment, GHOSTGET_MENUBAR: binary }, output);
     expect(JSON.parse(lines[0]!)).toMatchObject({ artifact: { path: binary, source: "maintainer-override", integrity: "not-release-verified" } });
   });
   test("invalid maintainer override paths are rejected before shared lifecycle dispatch", async () => {
@@ -524,7 +576,7 @@ describe("menubar CLI routing", () => {
     const { environment } = fixture();
     const lines: string[] = [];
     const output = { stdout: (text: string) => { lines.push(text); }, stderr: (text: string) => { lines.push(text); } };
-    expect(await runMenubarCommand(["menubar", "status"], environment, output)).toBe(0);
+    expect(await runMenubarCommand(["menubar", "status", "--json"], environment, output)).toBe(0);
     expect(JSON.parse(lines[0]!)).toMatchObject({ appId: "ghostget", running: false, state: "stopped" });
     expect(lines[0]).not.toContain("LaunchAgent");
   });
@@ -539,6 +591,7 @@ describe("menubar CLI routing", () => {
     const lines: string[] = [];
     const output = { stdout: (text: string) => { lines.push(text); }, stderr: () => {} };
     expect(await runMenubarCommand(["menubar", "--help"], environment, output)).toBe(0);
-    expect(lines[0]).toContain("start|stop|status|doctor|install|uninstall");
+    expect(lines[0]).toContain("Usage: ghostget menubar");
+    expect(lines[0]).toContain("start");
   });
 });
