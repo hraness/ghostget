@@ -370,6 +370,7 @@ export const linkedinWebPlugin = defineProviderPlugin({
       const runtime = await import("../../providers/linkedin-web-runtime");
       return {
         probe: runtime.probeLinkedInWebSubject,
+        probeIdentity: runtime.probeLinkedInWebIdentity,
         execute: (_manifest, recipe, input, auth, options) =>
           runtime.executeLinkedInWebOperation(recipe, input, auth, options),
         reconcile: async (operation, input, auth, context) => {

@@ -2,12 +2,27 @@ import { randomUUID } from "node:crypto";
 import { lstatSync, readdirSync, type BigIntStats } from "node:fs";
 import { dirname, isAbsolute, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createCliOutput, handleCompanionCommand, MenuActionError, openBrowser, type CompanionOptions, type MenuItem } from "@hraness/desktop-foundation";
+import {
+  companionHelp,
+  createCliOutput,
+  handleCompanionCommand,
+  MenuActionError,
+  openAtLoginItem,
+  openBrowser,
+  type ActionItemV2,
+  type AutostartApp,
+  type CompanionOptions,
+  type MenuItemV2,
+  type MenuModel,
+  type StatusItemV2,
+  type StatusMark,
+} from "@hraness/desktop-foundation";
 import { createSupportOffer } from "@hraness/support-foundation";
 import { ghostgetSupportProfile } from "../support-profile";
 import { TRAY_ICON } from "./menubar-icon";
 import { ensurePrivateStateDirectory, ghostgetStateHome } from "../storage";
-import { type ActivityRow, type ApprovalView, type CapabilityView, type ControlRequest, type ControlResponse, type ControlSnapshot } from "./protocol";
+import { type ActivityRow, type ApprovalView, type ControlRequest, type ControlResponse, type ControlSnapshot } from "./protocol";
+import { probeSafariAccess } from "../cookie-access";
 import { spawnHelper, type HelperClient } from "./helper-client";
 import { DEFAULT_BROWSER_CHOICES, browserChoices, type BrowserChoice } from "./browser-choices";
 import type { ControlEnvironment } from "./web-policy";
@@ -34,20 +49,6 @@ export function menuLabel(text: string, limit = 72): string {
   return scalars.length > limit ? `${scalars.slice(0, Math.max(0, limit - 1)).join("")}…` : clean;
 }
 
-function detailItems(detail: string): MenuItem[] {
-  const words = menuLabel(detail, 216).split(" ");
-  const rows: string[] = [];
-  let current = "";
-  for (const word of words) {
-    const next = current ? `${current} ${word}` : word;
-    if ([...next].length <= 72) current = next;
-    else { if (current !== "") rows.push(current); current = word; }
-  }
-  if (current !== "") rows.push(current);
-  const bounded = rows.slice(0, 3);
-  return bounded.length > 0 ? bounded.map((line) => ({ kind: "label" as const, label: menuLabel(line, 72) })) : [{ kind: "label" as const, label: "No additional detail." }];
-}
-
 /** One output file that passed ownership, type and permission checks. The
  * identity fields revalidate the same file at dispatch time. */
 export interface OutputEntry {
@@ -63,7 +64,7 @@ export interface OutputsView {
   readonly truncated: boolean;
 }
 const EMPTY_OUTPUTS: OutputsView = { directory: null, entries: [], message: null, truncated: false };
-const UNAVAILABLE_OUTPUTS: OutputsView = { directory: null, entries: [], message: "Outputs unavailable", truncated: false };
+const UNAVAILABLE_OUTPUTS: OutputsView = { directory: null, entries: [], message: "No outputs yet", truncated: false };
 
 /** Bounded newest-first listing of the product outputs directory. Reads never
  * create the directory and never follow symlinks; entries must be regular
@@ -106,70 +107,7 @@ function validatedOutputPath(directory: string, expected: OutputsView, name: str
   return join(directory, name);
 }
 
-function outputSize(size: number): string {
-  if (size < 1024) return `${size} B`;
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
-  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
-}
-function outputItems(outputs: OutputsView): MenuItem[] {
-  const items: MenuItem[] = [];
-  if (outputs.message !== null) items.push({ kind: "label", label: menuLabel(outputs.message) });
-  outputs.entries.forEach((entry, index) => {
-    const detail: MenuItem[] = [{ kind: "label", label: menuLabel(`${outputSize(entry.size)} · ${new Date(entry.modifiedMs).toLocaleString()}`) }];
-    const extension = entry.name.includes(".") ? entry.name.slice(entry.name.lastIndexOf(".") + 1).toLowerCase() : "";
-    if (OPENABLE_EXTENSIONS.has(extension)) detail.push({ kind: "action", id: `output:open:${index}`, label: "Open file" });
-    detail.push({ kind: "action", id: `output:reveal:${index}`, label: "Reveal in file manager" });
-    detail.push({ kind: "action", id: `output:copy:${index}`, label: "Copy file path" });
-    items.push({ kind: "submenu", label: menuLabel(entry.name), items: detail });
-  });
-  if (outputs.truncated) items.push({ kind: "label", label: `Showing up to ${OUTPUTS_LIMIT} files from a bounded scan` });
-  if (outputs.directory !== null && outputs.entries.length > 0) items.push({ kind: "action", id: "output:folder", label: "Reveal outputs folder" });
-  if (items.length === 0) items.push({ kind: "label", label: "No output files" });
-  return items;
-}
-
 const CLI_COMMANDS = ["ghostget --help", "ghostget menubar --help", "ghostget menubar status", "ghostget vault import-x --help"] as const;
-
-/** Short, plain action-failure copy per control code. `MenuActionError`
- * renders `message` as the ⚠︎ row and `detail` as its second line, so both
- * stay within the menu's 48/80-character lines and never carry internals. */
-const ACTION_FAILURE_COPY: Readonly<Record<string, { readonly message: string; readonly detail: string }>> = {
-  KEYCHAIN_DENIED: { message: "macOS Keychain access was denied", detail: "Choose Always Allow when macOS asks, then try again" },
-  KEYCHAIN_UNAVAILABLE: { message: "The login keychain didn't answer", detail: "Unlock it or answer the macOS dialog, then try again" },
-  FDA_DENIED: { message: "Safari cookies need Full Disk Access", detail: "Turn Ghostget on in System Settings, then try again" },
-  CONNECTION_EXPIRED: { message: "That sign-in expired", detail: "Start it again" },
-  CONNECTION_BUSY: { message: "That sign-in is already verifying", detail: "Wait for it to finish" },
-  CONNECTION_LIMIT: { message: "Too many sign-ins are open", detail: "Finish or cancel one first" },
-  CONNECTION_UNSUPPORTED: { message: "That provider can't connect from the menu", detail: "Use the provider's setup guide" },
-  SIGN_IN_UNVERIFIED: { message: "Sign-in couldn't be verified", detail: "Finish signing in, then try again" },
-  ACCOUNT_CHANGED: { message: "The account changed", detail: "Refresh, then try again" },
-  ACCOUNT_UNAVAILABLE: { message: "That account is no longer configured", detail: "Refresh the menu" },
-  BROWSER_UNAVAILABLE: { message: "The browser couldn't be opened", detail: "Check that it is installed" },
-  PROFILE_UNSUPPORTED: { message: "That Chrome profile can't be used", detail: "Choose Default or a numbered profile" },
-  ADAPTER_UNAVAILABLE: { message: "The provider adapter is unavailable", detail: "Repair it before connecting" },
-  CONTROL_TIMEOUT: { message: "Ghostget didn't answer in time", detail: "Its outcome may be uncertain; refresh before retrying" },
-  CONTROL_DISCONNECTED: { message: "Ghostget's control helper stopped", detail: "Reopen the menu" },
-  CONTROL_BUSY: { message: "Ghostget is busy", detail: "Try again in a moment" },
-  CONTROL_ALREADY_RUNNING: { message: "Another Ghostget control session is running", detail: "Close it, then try again" },
-  CONTROL_OPERATION_FAILED: { message: "Ghostget couldn't finish that", detail: "Try again" },
-  CONTROL_PATH_TOO_LONG: { message: "Ghostget's state path is too long", detail: "Use a shorter GHOSTGET_STATE_HOME" },
-  CONTROL_CLOSED: { message: "The menu controller is closed", detail: "Reopen it to retry" },
-  INVALID_REQUEST: { message: "Ghostget rejected that request", detail: "Update Ghostget if it repeats" },
-};
-function actionFailure(response: ControlResponse): MenuActionError {
-  if (response.ok) return new MenuActionError("Something went wrong");
-  const copy = ACTION_FAILURE_COPY[response.code];
-  if (copy !== undefined) return new MenuActionError(copy.message, copy.detail);
-  const message = menuLabel(response.message, 46);
-  return new MenuActionError(message === "" ? "That action didn't finish" : message);
-}
-function cliHelpItems(): MenuItem[] {
-  return [
-    { kind: "action", id: "clip:0", label: "CLI help" },
-    { kind: "action", id: "clip:1", label: "Menu-bar help" },
-    { kind: "action", id: "clip:2", label: "Menu-bar installation status" },
-  ];
-}
 
 /** OS open/reveal handoff for one validated path. Explorer exit codes are not
  * meaningful, so only spawn failure degrades the menu. */
@@ -189,245 +127,545 @@ function copyText(text: string): void {
 }
 
 
+function outputSize(size: number): string {
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/** "just now", "5 min ago", "3 hr ago", "2 days ago". */
+function ago(thenMs: number, nowMs: number): string {
+  const seconds = Math.max(0, Math.floor((nowMs - thenMs) / 1000));
+  if (seconds < 60) return "just now";
+  if (seconds < 3600) return `${Math.floor(seconds / 60)} min ago`;
+  if (seconds < 86_400) return `${Math.floor(seconds / 3600)} hr ago`;
+  const days = Math.floor(seconds / 86_400);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
+/** "in 4 min", "in 2 hr", or "now" for a request about to expire. */
+function expiresIn(expiresAt: string, nowMs: number): string {
+  const at = Date.parse(expiresAt);
+  if (!Number.isFinite(at)) return "Expires soon";
+  const seconds = Math.floor((at - nowMs) / 1000);
+  if (seconds < 60) return "Expires in under a minute";
+  if (seconds < 3600) return `Expires in ${Math.floor(seconds / 60)} min`;
+  return `Expires in ${Math.floor(seconds / 3600)} hr`;
+}
+
+function plural(count: number, one: string, many: string): string {
+  return `${count} ${count === 1 ? one : many}`;
+}
+
+/** Sentence-case one identifier: "timeline.read" -> "Timeline read". */
+function humanize(identifier: string): string {
+  const words = identifier.split(/[._\-\s]+/u).filter((word) => word.length > 0).map((word) => word.toLowerCase());
+  const text = words.join(" ");
+  return text === "" ? "Operation" : `${text[0]!.toUpperCase()}${text.slice(1)}`;
+}
+
+/** Row and budget bounds. The worst case of every bound together stays under
+ * the shared 256-node cap with room for the SDK's own rows (see the budget test). */
+export const MENU_BOUNDS = Object.freeze({
+  approvals: 4,
+  approvalLines: 4,
+  attempts: 4,
+  accounts: 8,
+  providers: 3,
+  outputs: 8,
+  permissions: 12,
+  interfaceReviews: 2,
+  webRules: 6,
+  interfaces: 4,
+  activity: 5,
+  disconnects: 8,
+});
+
+const PROVIDER_NAMES: Readonly<Record<string, string>> = { x: "X", linkedin: "LinkedIn", reddit: "Reddit" };
+/** Proper nouns the Ghostget menu may capitalize, for the strict menu lint. */
+export const GHOSTGET_MENU_NOUNS = ["X", "LinkedIn", "Reddit", "Chrome", "Safari", "1Password", "Ghostget", "TUI"] as const;
+
+function siteName(surface: string): string {
+  return Object.hasOwn(PROVIDER_NAMES, surface) ? PROVIDER_NAMES[surface]! : surface;
+}
+
+function providerTitle(title: string): string {
+  return menuLabel(title.split(" · ")[0] ?? title, 24) || "Provider";
+}
+
+function accountProvider(snapshot: ControlSnapshot, account: ControlSnapshot["accounts"][number]): string {
+  const key = account.provider ?? snapshot.connectionProviders.find((provider) => account.id.startsWith(`${provider.id}-`))?.id.replace(/-web$/u, "") ?? null;
+  if (key === null) return "Account";
+  return Object.hasOwn(PROVIDER_NAMES, key) ? PROVIDER_NAMES[key]! : humanize(key);
+}
+
+/** The browser choice an account was saved from, when it is one of the offered choices. */
+function accountBrowser(account: ControlSnapshot["accounts"][number], browsers: readonly BrowserChoice[]): BrowserChoice | undefined {
+  if (account.kind !== "cookie-source" || (account.source !== "chrome" && account.source !== "safari")) return undefined;
+  const profile = account.source === "chrome" ? (account.profile ?? "Default") : null;
+  return browsers.find((choice) => choice.browser === account.source && choice.profile === profile);
+}
+
+function accountSource(account: ControlSnapshot["accounts"][number], browsers: readonly BrowserChoice[]): string {
+  const choice = accountBrowser(account, browsers);
+  if (choice !== undefined) return choice.label;
+  if (account.kind === "cookie-source") return account.source === "safari" ? "Safari" : "Chrome";
+  if (account.kind === "oauth-token-file") return "Access token";
+  if (account.kind === "browser-profile") return "Browser profile";
+  if (account.kind === "cookies-file") return "Cookie file";
+  return "Saved sign-in";
+}
+
+/** A generated account ID ("x-web-3fa9c1b2") is noise; a chosen one ("x-main") is a name. */
+function accountName(id: string): string | null {
+  return /[0-9a-f]{8}/u.test(id) || id.length > 24 ? null : id;
+}
+
+/** "X · @name" once the provider verified a handle; otherwise
+ * "X · Chrome · Personal": provider and where the sign-in lives — never a
+ * numeric subject or generated account ID. */
+export function accountLabel(snapshot: ControlSnapshot, account: ControlSnapshot["accounts"][number], browsers: readonly BrowserChoice[]): string {
+  const provider = accountProvider(snapshot, account);
+  return menuLabel(account.displayName === null
+    ? `${provider} · ${accountSource(account, browsers)}`
+    : `${provider} · ${account.displayName}`, 48);
+}
+
+function accountStatus(account: ControlSnapshot["accounts"][number]): string {
+  return account.status === "verified" ? "Verified" : account.status === "configured" ? "Saved" : "Needs reconnecting";
+}
+
 function reconnectProviders(snapshot: ControlSnapshot, account: ControlSnapshot["accounts"][number]) {
   if (account.kind !== "cookie-source" && account.kind !== "browser-profile") return [];
   return snapshot.connectionProviders.filter((provider) => account.provider === provider.id.replace(/-web$/u, "")
     || account.provider === null && account.id.startsWith(`${provider.id}-`));
 }
 
-function accountItems(snapshot: ControlSnapshot, enabled: boolean, platform: NodeJS.Platform, browsers: readonly BrowserChoice[]): MenuItem[] {
-  const accounts = snapshot.accounts;
-  const rows: MenuItem[] = accounts.slice(0, 20).map((account) => {
-    const status = account.status === "verified" ? "Verified" : account.status === "configured" ? "Configured" : "Reconnect required";
-    const items: MenuItem[] = [
-      { kind: "label", label: status },
-      ...detailItems([account.provider, account.kind, account.subject].filter((part): part is string => part !== null).join(" · ") || "No subject recorded"),
-      ...(account.kind === "oauth-token-file" ? detailItems(`${account.tokenRefreshable ? "Renews automatically" : "No renewal"}${account.tokenExpiresAt === null ? "" : ` · expires ${account.tokenExpiresAt}`}`) : []),
-      { kind: "action", id: `account:select:${account.id}`, label: snapshot.accountId === account.id ? "Selected for permissions" : "Review this account's permissions", enabled },
-    ];
-    const providers = reconnectProviders(snapshot, account);
-    if (providers.length > 0) {
-      items.push({
-        kind: "submenu",
-        label: "Reconnect",
-        items: providers.map((provider) => ({
-          kind: "submenu" as const,
-          label: menuLabel(provider.title) || "Provider",
-          items: browsers.map((choice) => ({ kind: "action" as const, id: `reconnect:${account.id}:${provider.id}:${choice.key}`, label: choice.label, enabled: enabled && platform === "darwin" })),
-        })),
-      });
-    }
-    items.push({ kind: "action", id: `disconnect:${account.id}`, label: "Disconnect this account", enabled });
-    return { kind: "submenu" as const, label: menuLabel(`${account.id} · ${status}`) || "Account", items };
-  });
-  if (accounts.length === 0) rows.push({ kind: "label", label: "No accounts connected" });
-  if (accounts.length > 20) rows.push({ kind: "label", label: `${accounts.length - 20} more accounts` });
+function separated(groups: readonly (readonly MenuItemV2[])[]): MenuItemV2[] {
+  const out: MenuItemV2[] = [];
+  for (const group of groups) {
+    if (group.length === 0) continue;
+    if (out.length > 0) out.push({ kind: "separator" });
+    out.push(...group);
+  }
+  return out;
+}
+
+function wrapLines(text: string, width: number): string[] {
+  const rows: string[] = [];
+  let current = "";
+  for (const word of text.split(" ")) {
+    const next = current ? `${current} ${word}` : word;
+    if ([...next].length <= width) current = next;
+    else { if (current !== "") rows.push(current); current = [...word].length > width ? menuLabel(word, width) : word; }
+  }
+  if (current !== "") rows.push(current);
   return rows;
 }
 
-function approvalReview(approval: ApprovalView): { readonly items: MenuItem[]; readonly complete: boolean } {
-  const detail = [approval.kind, approval.account ?? "no account", approval.effect, approval.preview].join(" · ");
-  const items = detailItems(detail);
-  // Allow only when every account/effect/preview character survives the actual
+function approvalReview(approval: ApprovalView, account: string): { readonly lines: string[]; readonly complete: boolean } {
+  const who = menuLabel(`${account} · ${approval.effect}`, 4096);
+  const preview = wrapLines(menuLabel(approval.preview, 4096), 48);
+  const lines = [...wrapLines(who, 48), ...preview].slice(0, MENU_BOUNDS.approvalLines);
+  // Allow only when every account/effect/preview character survives the
   // bounded menu rendering. Truncation or normalization needs the full TUI.
-  const rendered = items.map(item => item.kind === "label" ? item.label : "").join(" ");
-  return { items, complete: rendered === detail };
+  const exact = [`${account} · ${approval.effect}`, approval.preview].filter((part) => part !== "").join(" ");
+  return { lines, complete: lines.join(" ") === exact };
 }
 
-function approvalItems(approvals: readonly ApprovalView[], enabled: boolean): MenuItem[] {
-  const rows: MenuItem[] = approvals.slice(0, 10).map((approval) => {
-    const review = approvalReview(approval);
+function approvalAccount(snapshot: ControlSnapshot, approval: ApprovalView, browsers: readonly BrowserChoice[]): string {
+  if (approval.account === null) return "No account";
+  const account = snapshot.accounts.find((item) => item.id === approval.account);
+  return account === undefined ? approval.account : accountLabel(snapshot, account, browsers);
+}
+
+function approvalItems(snapshot: ControlSnapshot, enabled: boolean, browsers: readonly BrowserChoice[], nowMs: number): MenuItemV2[] {
+  const groups: MenuItemV2[][] = snapshot.approvals.slice(0, MENU_BOUNDS.approvals).map((approval) => {
+    const review = approvalReview(approval, approvalAccount(snapshot, approval, browsers));
+    return [
+      { kind: "label", label: menuLabel(approval.title, 48) || "Approval request", subtitle: expiresIn(approval.expiresAt, nowMs) },
+      ...review.lines.map((line): MenuItemV2 => ({ kind: "label", label: line })),
+      ...(review.complete ? [] : [{ kind: "label" as const, label: "Too long to review here", subtitle: "Review it in the Ghostget TUI; switching cancels this request" }]),
+      { kind: "action", id: `approval:allow:${approval.id}`, label: "Allow once", symbol: "item.approval", enabled: enabled && review.complete },
+      { kind: "action", id: `approval:deny:${approval.id}`, label: "Deny", role: "destructive", enabled },
+    ];
+  });
+  const more = snapshot.approvals.length - MENU_BOUNDS.approvals;
+  if (more > 0) groups.push([{ kind: "label", label: `${plural(more, "more request", "more requests")} waiting` }]);
+  return separated(groups);
+}
+
+/** One in-flight browser sign-in. The helper keeps a failed verification
+ * alive, so its row stays and "verify" on the same attempt is the retry;
+ * only an expired attempt disappears. */
+export interface Attempt {
+  readonly attemptId: string;
+  readonly title: string;
+  readonly providerId: string;
+  readonly browserKey: string;
+  /** The saved account being reconnected, or null for a new account. */
+  readonly accountId: string | null;
+  status: "awaiting-sign-in" | "verified" | "failed";
+  subject: string | null;
+  /** The verified human handle, such as "@name"; null before it resolves. */
+  displayName: string | null;
+}
+
+function attemptItems(attempts: ReadonlyMap<string, Attempt>, enabled: boolean, browsers: readonly BrowserChoice[]): MenuItemV2[] {
+  return [...attempts.values()].slice(0, MENU_BOUNDS.attempts).map((attempt): MenuItemV2 => {
+    const name = providerTitle(attempt.title);
+    const where = browsers.find((choice) => choice.key === attempt.browserKey)?.label ?? "the browser";
+    const cancel = { id: `attempt:cancel:${attempt.attemptId}`, label: `Cancel ${name} sign-in` };
+    if (attempt.status === "verified") {
+      const verified = attempt.displayName === null ? `Signed in and verified in ${where}` : `Signed in as ${attempt.displayName} in ${where}`;
+      return { kind: "action", id: `attempt:commit:${attempt.attemptId}`, label: menuLabel(`Connect this ${name} account`, 48), subtitle: menuLabel(verified, 80), symbol: "action.add", enabled, alternate: cancel };
+    }
+    if (attempt.status === "failed") {
+      return { kind: "action", id: `attempt:verify:${attempt.attemptId}`, label: menuLabel(`Verify ${name} sign-in again`, 48), subtitle: menuLabel(`Couldn't verify the sign-in in ${where}`, 80), symbol: "action.refresh", enabled, alternate: cancel };
+    }
+    // Chromium keeps its cookie key in the keychain, so say before Verify that macOS will ask.
+    const chromium = browsers.find((choice) => choice.key === attempt.browserKey)?.browser === "chrome";
+    const subtitle = chromium ? `Sign in in ${where}, then allow keychain access when macOS asks` : `Sign in to ${name} in ${where} first`;
+    return { kind: "action", id: `attempt:verify:${attempt.attemptId}`, label: menuLabel(`Verify ${name} sign-in`, 48), subtitle: menuLabel(subtitle, 80), symbol: "action.signIn", enabled, alternate: cancel };
+  });
+}
+
+function accountRows(snapshot: ControlSnapshot, enabled: boolean, platform: NodeJS.Platform, browsers: readonly BrowserChoice[]): MenuItemV2[] {
+  const rows: MenuItemV2[] = [];
+  for (const account of snapshot.accounts.slice(0, MENU_BOUNDS.accounts)) {
+    const name = accountName(account.id);
+    // When the label already shows the handle, keep where the sign-in lives
+    // in the subtitle; without a handle the label carries it instead.
+    const subtitle = menuLabel([accountStatus(account), ...(account.displayName === null ? [] : [accountSource(account, browsers)]), name].filter((part): part is string => part !== null).join(" · "), 80);
+    rows.push({
+      kind: "action",
+      id: `account:select:${account.id}`,
+      label: accountLabel(snapshot, account, browsers),
+      subtitle,
+      symbol: "item.contact",
+      state: snapshot.accountId === account.id ? "on" : "off",
+      tooltip: "Choose it to set this account's permissions",
+      alternate: { id: `account:copy:${account.id}`, label: "Copy account ID", symbol: "action.copy" },
+    });
+    const choice = accountBrowser(account, browsers);
+    const provider = reconnectProviders(snapshot, account)[0];
+    if (account.status === "reconnect-required" && provider !== undefined && platform === "darwin") {
+      rows.push(choice === undefined
+        ? { kind: "label", label: menuLabel(`Reconnect ${providerTitle(provider.title)} below`, 48), subtitle: "Choose the browser you signed in with" }
+        : { kind: "action", id: `reconnect:${account.id}:${provider.id}:${choice.key}`, label: menuLabel(`Reconnect in ${choice.label}`, 48), symbol: "action.signIn", enabled });
+    }
+  }
+  const more = snapshot.accounts.length - MENU_BOUNDS.accounts;
+  if (more > 0) rows.push({ kind: "label", label: plural(more, "more account", "more accounts") });
+  return rows;
+}
+
+export type SafariAccess = "ok" | "denied" | "missing";
+
+function connectRows(snapshot: ControlSnapshot, enabled: boolean, platform: NodeJS.Platform, browsers: readonly BrowserChoice[], safari: SafariAccess): MenuItemV2[] {
+  const providers = snapshot.connectionProviders.slice(0, MENU_BOUNDS.providers);
+  if (providers.length === 0) return [{ kind: "label", label: "No sites to connect yet" }];
+  if (platform !== "darwin") {
+    return [
+      { kind: "label", label: "Browser sign-in works on macOS", subtitle: "Each site's guide shows how to connect from the terminal" },
+      ...providers.flatMap((provider): MenuItemV2[] => connectionGuide(provider.id) === undefined ? [] : [{ kind: "action", id: `provider:help:${provider.id}`, label: menuLabel(`${providerTitle(provider.title)} setup guide`, 48), symbol: "action.help", opens: "browser" }]),
+    ];
+  }
+  const rows: MenuItemV2[] = [];
+  const offered = browsers.filter((choice) => choice.browser !== "safari" || safari !== "denied");
+  for (const provider of providers) {
+    for (const choice of offered) {
+      rows.push({ kind: "action", id: `connect:${provider.id}:${choice.key}`, label: menuLabel(`Connect ${providerTitle(provider.title)} in ${choice.label}`, 48), symbol: "action.add", enabled });
+    }
+  }
+  if (safari === "denied" && browsers.some((choice) => choice.browser === "safari")) {
+    rows.push({ kind: "action", id: "foundation.settings.full-disk-access", label: "Safari needs Full Disk Access", subtitle: "Turn it on to connect with Safari", symbol: "action.permission", opens: "settings" });
+  }
+  return rows;
+}
+
+function accountsMenu(snapshot: ControlSnapshot, attempts: ReadonlyMap<string, Attempt>, enabled: boolean, platform: NodeJS.Platform, browsers: readonly BrowserChoice[], safari: SafariAccess): MenuItemV2 {
+  const items = separated([attemptItems(attempts, enabled, browsers), accountRows(snapshot, enabled, platform, browsers), connectRows(snapshot, enabled, platform, browsers, safari)]);
+  if (snapshot.accounts.length === 0) return { kind: "submenu", label: "Connect an account", symbol: "action.add", items };
+  return { kind: "submenu", label: `Accounts (${snapshot.accounts.length})`, symbol: "item.contact", items };
+}
+
+function outputItems(outputs: OutputsView, nowMs: number): MenuItemV2[] {
+  if (outputs.entries.length === 0) return [{ kind: "label", label: "No outputs yet", subtitle: "Saved pages appear here" }];
+  const rows: MenuItemV2[] = outputs.entries.slice(0, MENU_BOUNDS.outputs).map((entry, index): MenuItemV2 => {
+    const extension = entry.name.includes(".") ? entry.name.slice(entry.name.lastIndexOf(".") + 1).toLowerCase() : "";
+    const openable = OPENABLE_EXTENSIONS.has(extension);
     return {
-    kind: "submenu" as const,
-    label: menuLabel(approval.title) || "Approval request",
-    items: [
-      ...review.items,
-      ...(review.complete ? [] : [
-        ...detailItems("Full review requires TUI. Stop menu, open ghostget tui, then submit a new approval request."),
-        { kind: "label" as const, label: "Switching controllers cancels this pending request." },
-      ]),
-      { kind: "label", label: menuLabel(`Expires ${approval.expiresAt}`) },
-      { kind: "action", id: `approval:allow:${approval.id}`, label: "Allow once", enabled: enabled && review.complete },
-      { kind: "action", id: `approval:deny:${approval.id}`, label: "Deny", enabled },
-    ],
+      kind: "action",
+      id: openable ? `output:open:${index}` : `output:reveal:${index}`,
+      label: menuLabel(entry.name, 48) || "Output file",
+      subtitle: `${outputSize(entry.size)} · ${ago(entry.modifiedMs, nowMs)}`,
+      symbol: /^(png|jpe?g|gif|webp|tiff)$/u.test(extension) ? "item.image" : "item.file",
+      alternate: openable
+        ? { id: `output:reveal:${index}`, label: "Show in Finder", symbol: "action.folder" }
+        : { id: `output:copy:${index}`, label: "Copy file path", symbol: "action.copy" },
     };
   });
-  if (approvals.length === 0) rows.push({ kind: "label", label: "No pending approvals" });
-  if (approvals.length > 10) rows.push({ kind: "label", label: `${approvals.length - 10} more approvals` });
+  const more = outputs.entries.length - MENU_BOUNDS.outputs;
+  if (more > 0 || outputs.truncated) rows.push({ kind: "label", label: "More files in the outputs folder" });
+  if (outputs.directory !== null) rows.push({ kind: "separator" }, { kind: "action", id: "output:folder", label: "Open outputs folder", symbol: "action.folder", opens: "finder", alternate: { id: "output:copy-folder", label: "Copy folder location", symbol: "action.copy" } });
   return rows;
 }
 
-export interface Attempt { readonly attemptId: string; readonly title: string; status: "awaiting-sign-in" | "verified"; subject: string | null }
-function connectItems(snapshot: ControlSnapshot, attempts: ReadonlyMap<string, Attempt>, enabled: boolean, platform: NodeJS.Platform, browsers: readonly BrowserChoice[]): MenuItem[] {
-  const rows: MenuItem[] = [];
-  if (platform !== "darwin") rows.push({ kind: "label", label: "Browser sign-in requires macOS. Open a provider guide for CLI setup." });
-  for (const attempt of [...attempts.values()].slice(0, 8)) {
-    const items: MenuItem[] = attempt.status === "verified"
-      ? [
-          { kind: "label", label: menuLabel(`Signed in as ${attempt.subject ?? "unknown"}`) },
-          { kind: "action", id: `attempt:commit:${attempt.attemptId}`, label: `Connect ${menuLabel(attempt.subject ?? "this account", 40)}`, enabled },
-        ]
-      : [
-          { kind: "label", label: "Finish sign-in in the opened browser, then verify." },
-          { kind: "action", id: `attempt:verify:${attempt.attemptId}`, label: "Verify sign-in", enabled },
-        ];
-    items.push({ kind: "action", id: `attempt:cancel:${attempt.attemptId}`, label: "Cancel", enabled });
-    rows.push({ kind: "submenu", label: menuLabel(`${attempt.title} · ${attempt.status === "verified" ? "verified" : "awaiting sign-in"}`), items });
-  }
-  for (const provider of snapshot.connectionProviders.slice(0, 12)) {
-    const guide = connectionGuide(provider.id);
-    rows.push({
-      kind: "submenu",
-      label: menuLabel(provider.title) || "Provider",
-      items: [
-        ...browsers.map((choice) => ({ kind: "action" as const, id: `connect:${provider.id}:${choice.key}`, label: choice.label, enabled: enabled && platform === "darwin" })),
-        ...(guide === undefined ? [] : [{ kind: "action" as const, id: `provider:help:${provider.id}`, label: `Open ${guide.title} capabilities and setup…` }]),
-      ],
-    });
-  }
-  if (rows.length === 0) rows.push({ kind: "label", label: "No connection providers" });
-  return rows;
-}
-
-function capabilityItems(capabilities: readonly CapabilityView[]): MenuItem[] {
-  if (capabilities.length === 0) return [{ kind: "label", label: "No capabilities discovered" }];
-  const counts = new Map<string, number>();
-  for (const capability of capabilities) counts.set(capability.state, (counts.get(capability.state) ?? 0) + 1);
-  const rows: MenuItem[] = [...counts.entries()].map(([state, count]) => ({ kind: "label" as const, label: `${count} ${state}` }));
-  for (const capability of capabilities.slice(0, 15)) {
-    rows.push({ kind: "label", label: menuLabel(`${capability.adapterId} · ${capability.operationId} · ${capability.permission}`) });
-  }
-  if (capabilities.length > 15) rows.push({ kind: "label", label: `${capabilities.length - 15} more capabilities` });
-  return rows;
-}
-
-function permissionItems(snapshot: ControlSnapshot, enabled: boolean): MenuItem[] {
-  const rows: MenuItem[] = [
-    { kind: "label", label: menuLabel(snapshot.accountId === null ? "Scope: public operations" : `Account: ${snapshot.accountId}`) },
-    { kind: "action", id: "account:public", label: "Review public operations", enabled },
-    { kind: "label", label: "Choose an account under Accounts for private operations." },
+function permissionRows(snapshot: ControlSnapshot, enabled: boolean, browsers: readonly BrowserChoice[]): MenuItemV2[] {
+  const selected = snapshot.accountId === null ? undefined : snapshot.accounts.find((account) => account.id === snapshot.accountId);
+  const rows: MenuItemV2[] = [
+    { kind: "label", label: selected === undefined ? "For public operations" : menuLabel(`For ${accountLabel(snapshot, selected, browsers)}`, 48) },
+    { kind: "action", id: "account:public", label: "Use public operations", state: snapshot.accountId === null ? "on" : "off", enabled, tooltip: "Choose an account under Accounts for its private operations" },
   ];
-  if (!snapshot.policy.managed) rows.push({ kind: "action", id: "permission:enable", label: "Enable operation permissions", enabled });
-  else rows.push({ kind: "label", label: "Operation permissions are managed per account." });
-  if (!snapshot.policy.managed) rows.push({ kind: "label", label: "Enabling blocks operations until you choose Allow or Ask each time." });
+  if (!snapshot.policy.managed) {
+    rows.push({ kind: "action", id: "permission:enable", label: "Turn on operation permissions", subtitle: "Operations then wait until you choose Allow or Ask", symbol: "action.permission", enabled });
+  }
   const editable = snapshot.capabilities.filter((capability) => capability.permission !== "unavailable");
-  for (const capability of editable.slice(0, 15)) {
-    rows.push({
-      kind: "submenu",
-      label: menuLabel(`${capability.adapterId} · ${capability.operationId} · ${capability.permission}`),
-      items: [
-        ...detailItems(`${capability.surface} · ${capability.effect} · risk ${capability.risk}`),
-        { kind: "action", id: `permission:allow:${capability.adapterId}:${capability.operationId}`, label: "Allow", enabled: enabled && snapshot.policy.managed },
-        { kind: "action", id: `permission:ask:${capability.adapterId}:${capability.operationId}`, label: "Ask each time", enabled: enabled && snapshot.policy.managed },
-        { kind: "action", id: `permission:deny:${capability.adapterId}:${capability.operationId}`, label: "Deny", enabled: enabled && snapshot.policy.managed },
-      ],
-    });
+  for (const capability of editable.slice(0, MENU_BOUNDS.permissions)) {
+    const coordinates = `${capability.adapterId}:${capability.operationId}`;
+    const on = (decision: string): "on" | "off" => capability.permission === decision ? "on" : "off";
+    const editableNow = enabled && snapshot.policy.managed;
+    rows.push(
+      { kind: "label", label: menuLabel(humanize(capability.operationId), 48), subtitle: menuLabel(`${siteName(capability.surface)} · ${capability.effect} · ${capability.risk} risk`, 80) },
+      { kind: "action", id: `permission:allow:${coordinates}`, label: "Allow", state: on("allow"), enabled: editableNow },
+      { kind: "action", id: `permission:ask:${coordinates}`, label: "Ask each time", state: on("ask"), enabled: editableNow },
+      { kind: "action", id: `permission:deny:${coordinates}`, label: "Deny", state: on("deny"), enabled: editableNow },
+    );
   }
-  if (editable.length > 15) rows.push({ kind: "label", label: `${editable.length - 15} more operations; use ghostget tui to review all` });
-  if (editable.length === 0) rows.push({ kind: "label", label: "No compatible operations in this scope." });
-  return rows;
-}
-
-function webItems(snapshot: ControlSnapshot): MenuItem[] {
-  const rules = snapshot.web.rules;
-  const rows: MenuItem[] = [{ kind: "label", label: snapshot.web.gatewayOnly ? "Gateway-only mode" : "Direct retrieval allowed" }];
-  for (const rule of rules.slice(0, 10)) {
-    rows.push({ kind: "label", label: menuLabel(`${rule.origin}${rule.path.value} · ${rule.decision}`) });
-  }
-  if (rules.length > 10) rows.push({ kind: "label", label: `${rules.length - 10} more rules` });
+  const more = editable.length - MENU_BOUNDS.permissions;
+  if (more > 0) rows.push({ kind: "label", label: plural(more, "more operation", "more operations"), subtitle: "Review them all in the Ghostget TUI" });
+  if (editable.length === 0) rows.push({ kind: "label", label: "No operations to set here" });
   return rows;
 }
 
 export type PendingActivation = Extract<ControlRequest, { action: "interface.activate" }>;
-function interfaceItems(snapshot: ControlSnapshot, enabled: boolean, pending: PendingActivation | null): MenuItem[] {
-  const interfaces = snapshot.interfaces;
-  if (interfaces.length === 0) return [{ kind: "label", label: "No interfaces installed" }];
-  const rows: MenuItem[] = interfaces.slice(0, 10).map((entry) => ({
-    kind: "submenu" as const,
-    label: menuLabel(`${entry.title} · ${entry.state}`),
-    items: [
-      ...detailItems(`${entry.operationCount} operations · ${entry.adapterIds.join(", ") || "no adapters"}${entry.issues.length > 0 ? ` · ${entry.issues.length} issue(s)` : ""}`),
-      ...entry.activationTargets.slice(0, 3).map((target) => ({ kind: "action" as const, id: `interface:review:${entry.id}:${target.adapterId}`, label: menuLabel(`Review activation · ${target.adapterId}`), enabled })),
-    ],
-  }));
-  if (pending !== null) rows.unshift({ kind: "submenu", label: menuLabel(`Confirm activation · ${pending.adapterId}`), items: [
-    { kind: "label", label: "Activate this exact reviewed draft and installed baseline." },
-    { kind: "label", label: `Draft: ${pending.digest}` },
-    { kind: "label", label: `Base: ${pending.expectedInstalledDigest ?? "not installed"}` },
-    { kind: "action", id: "interface:confirm", label: menuLabel(`Activate ${pending.adapterId}`), enabled },
-    { kind: "action", id: "interface:cancel", label: "Cancel activation", enabled },
-  ] });
-  if (interfaces.length > 10) rows.push({ kind: "label", label: `${interfaces.length - 10} more interfaces` });
+function activationRows(snapshot: ControlSnapshot, enabled: boolean, pending: PendingActivation | null): MenuItemV2[] {
+  if (pending !== null) {
+    const entry = snapshot.interfaces.find((item) => item.id === pending.id);
+    return [
+      { kind: "label", label: menuLabel(`Activate ${entry?.title ?? "this interface"}?`, 48), subtitle: menuLabel(`Uses the reviewed draft for ${pending.adapterId}`, 80) },
+      { kind: "action", id: "interface:confirm", label: "Activate", symbol: "item.approval", enabled },
+      { kind: "action", id: "interface:cancel", label: "Cancel activation", enabled },
+    ];
+  }
+  const rows: MenuItemV2[] = [];
+  for (const entry of snapshot.interfaces) {
+    for (const target of entry.activationTargets) {
+      if (rows.length >= MENU_BOUNDS.interfaceReviews) break;
+      rows.push({ kind: "action", id: `interface:review:${entry.id}:${target.adapterId}`, label: menuLabel(`Review ${entry.title}`, 48), subtitle: menuLabel(`Activate it for ${target.adapterId}`, 80), enabled });
+    }
+  }
   return rows;
 }
 
-function activityItems(rows: readonly ActivityRow[]): MenuItem[] {
-  if (rows.length === 0) return [{ kind: "label", label: "No recent gateway activity" }];
-  return rows.slice(0, 8).map((row) => ({
+function hostOf(origin: string | null): string {
+  if (origin === null) return "request";
+  try { return new URL(origin).host || "request"; } catch { return "request"; }
+}
+
+function webRows(snapshot: ControlSnapshot): MenuItemV2[] {
+  const rows: MenuItemV2[] = [{ kind: "label", label: snapshot.web.gatewayOnly ? "Only through the gateway" : "Direct reads allowed" }];
+  for (const rule of snapshot.web.rules.slice(0, MENU_BOUNDS.webRules)) {
+    rows.push({ kind: "label", label: menuLabel(hostOf(rule.origin), 48), subtitle: `${humanize(rule.decision)}${rule.path.value === "/" && rule.path.kind === "prefix" ? "" : " · some paths"}` });
+  }
+  const more = snapshot.web.rules.length - MENU_BOUNDS.webRules;
+  if (more > 0) rows.push({ kind: "label", label: plural(more, "more rule", "more rules") });
+  return rows;
+}
+
+function interfaceRows(snapshot: ControlSnapshot): MenuItemV2[] {
+  if (snapshot.interfaces.length === 0) return [{ kind: "label", label: "No interfaces installed" }];
+  const rows: MenuItemV2[] = snapshot.interfaces.slice(0, MENU_BOUNDS.interfaces).map((entry) => ({
+    kind: "label", label: menuLabel(entry.title, 48) || "Interface",
+    subtitle: menuLabel(`${humanize(entry.state)} · ${plural(entry.operationCount, "operation", "operations")}${entry.issues.length > 0 ? ` · ${plural(entry.issues.length, "issue", "issues")}` : ""}`, 80),
+  }));
+  const more = snapshot.interfaces.length - MENU_BOUNDS.interfaces;
+  if (more > 0) rows.push({ kind: "label", label: plural(more, "more interface", "more interfaces") });
+  return rows;
+}
+
+function activityRows(rows: readonly ActivityRow[]): MenuItemV2[] {
+  if (rows.length === 0) return [{ kind: "label", label: "No recent reads" }];
+  return rows.slice(0, MENU_BOUNDS.activity).map((row) => ({
     kind: "label" as const,
-    label: menuLabel(`${row.method} ${row.origin ?? row.endpoint ?? "request"} · ${row.outcome}${row.httpStatus === null ? "" : ` · ${row.httpStatus}`}`),
+    label: menuLabel(hostOf(row.origin), 48),
+    subtitle: `${humanize(row.outcome)}${row.httpStatus === null ? "" : ` · ${row.httpStatus}`}`,
   }));
 }
 
-/** Map one control snapshot onto the shared menu contract. The helper stays
- * the authority; rows are display-only except the bounded actions below. */
-export function snapshotItems(
+function permissionsMenu(snapshot: ControlSnapshot, enabled: boolean, browsers: readonly BrowserChoice[]): MenuItemV2 {
+  return { kind: "submenu", label: "Permissions", symbol: "action.permission", items: permissionRows(snapshot, enabled, browsers) };
+}
+
+function advancedMenu(snapshot: ControlSnapshot, enabled: boolean, activity: readonly ActivityRow[], pending: PendingActivation | null, browsers: readonly BrowserChoice[]): MenuItemV2 {
+  const disconnects: MenuItemV2[] = snapshot.accounts.slice(0, MENU_BOUNDS.disconnects).map((account) => ({
+    kind: "action", id: `disconnect:${account.id}`, label: menuLabel(`Disconnect ${accountLabel(snapshot, account, browsers)}`, 48), ...(accountName(account.id) === null ? {} : { subtitle: accountName(account.id)! }), role: "destructive", symbol: "action.signOut", enabled,
+  }));
+  const tools: MenuItemV2[] = [
+    { kind: "action", id: "refresh", label: "Refresh", symbol: "action.refresh", shortcut: "CmdOrCtrl+R" },
+    { kind: "action", id: "clip:0", label: "Copy CLI help command", symbol: "action.copy" },
+    ...(snapshot.vault.available ? [{ kind: "action" as const, id: "clip:3", label: "Copy 1Password import command", symbol: "action.copy" as const, tooltip: "Imports one X token from 1Password into a private local copy" }] : []),
+  ];
+  return {
+    kind: "submenu",
+    label: "Advanced",
+    symbol: "action.settings",
+    items: separated([
+      activationRows(snapshot, enabled, pending),
+      [
+        { kind: "submenu", label: `Web rules (${snapshot.web.rules.length})`, items: webRows(snapshot) },
+        { kind: "submenu", label: `Interfaces (${snapshot.interfaces.length})`, items: interfaceRows(snapshot) },
+        { kind: "submenu", label: "Recent reads", items: activityRows(activity) },
+      ],
+      tools,
+      disconnects,
+    ]),
+  };
+}
+
+const MARK: StatusMark = Object.freeze({ symbol: "mark.masks", letters: "Gg", accessibilityLabel: "Ghostget" });
+const PRIMARY: ActionItemV2 = Object.freeze({ kind: "action", id: "open-website", label: "Open Ghostget", symbol: "action.open", opens: "browser", shortcut: "CmdOrCtrl+O", role: "primary" });
+/** The one "Help & support" row (support-foundation's shape), with diagnostics behind ⌥. */
+const HELP: ActionItemV2 = Object.freeze({ kind: "action", id: "support:open", label: "Help & support", symbol: "action.support", opens: "browser", alternate: { id: "support:diagnostics", label: "Copy diagnostics", symbol: "action.copy" } } as const);
+
+export interface MenuStatus {
+  readonly confirmedAgeSeconds: number | null;
+  readonly fresh: boolean;
+  readonly detail?: string | undefined;
+}
+
+/** Map one control snapshot onto menu kit v2. The helper stays the authority;
+ * rows are display-only except the bounded actions below. */
+export function snapshotMenu(
   snapshot: ControlSnapshot | null,
   attempts: ReadonlyMap<string, Attempt>,
-  status: { confirmedAgeSeconds: number | null; fresh: boolean; detail?: string | undefined },
-  activity: readonly ActivityRow[] = [],
-  outputs: OutputsView = EMPTY_OUTPUTS,
-  notice: string | null = null,
-  pendingActivation: PendingActivation | null = null,
-  platform: NodeJS.Platform = process.platform,
-  browsers: readonly BrowserChoice[] = DEFAULT_BROWSER_CHOICES,
-): MenuItem[] {
-  const confirmed = snapshot !== null && status.fresh;
-  const age = status.confirmedAgeSeconds;
-  const ageText = age !== null && age < 60 ? `${age}s ago` : `${Math.floor((age ?? 0) / 60)}m ago`;
-  const updated = age === null ? "Control status not confirmed" : status.fresh ? `Updated ${ageText}` : `Last confirmed ${ageText}`;
-  const tail: MenuItem[] = [
+  status: MenuStatus,
+  options: {
+    readonly activity?: readonly ActivityRow[];
+    readonly outputs?: OutputsView;
+    readonly notice?: string | null;
+    readonly pendingActivation?: PendingActivation | null;
+    readonly platform?: NodeJS.Platform;
+    readonly browsers?: readonly BrowserChoice[];
+    readonly safari?: SafariAccess;
+    readonly nowMs?: number;
+  } = {},
+): MenuModel<MenuItemV2> {
+  const platform = options.platform ?? process.platform;
+  const browsers = options.browsers ?? DEFAULT_BROWSER_CHOICES;
+  const nowMs = options.nowMs ?? Date.now();
+  const outputs = options.outputs ?? EMPTY_OUTPUTS;
+  const notice: StatusItemV2[] = options.notice == null ? [] : [{ kind: "status", symbol: "status.ok", label: menuLabel(options.notice, 48) }];
+  const tail: MenuItemV2[] = [
     { kind: "separator" },
-    { kind: "submenu", label: `Outputs · ${outputs.entries.length}`, items: outputItems(outputs) },
-    ...(notice === null ? [] : [{ kind: "label" as const, label: menuLabel(notice) }]),
-    { kind: "label", label: menuLabel(updated) },
-    { kind: "action", id: "refresh", label: "Refresh status" },
-    { kind: "action", id: "open-website", label: "Open Ghostget…" },
-    { kind: "action", id: "support:updates", label: "Get Ghostget updates (free)…" },
-    { kind: "action", id: "support:paid", label: "Support Ghostget development (optional paid)…" },
-    { kind: "submenu", label: "Copy CLI command", items: cliHelpItems() },
+    openAtLoginItem(),
     { kind: "separator" },
+    HELP,
     { kind: "quit", label: "Quit Ghostget" },
   ];
+  const outputsMenu: MenuItemV2 = { kind: "submenu", label: outputs.entries.length === 0 ? "Outputs" : `Outputs (${outputs.entries.length})`, symbol: "action.folder", items: outputItems(outputs, nowMs) };
   if (snapshot === null) {
-    return [
-      { kind: "label", label: "Ghostget control unavailable" },
-      { kind: "label", label: menuLabel(status.detail ?? "The control helper is not running. Requests need the companion open.") },
-      { kind: "label", label: "Close any Ghostget TUI or other control session, then refresh." },
-      ...tail,
-    ];
+    return {
+      items: [
+        { kind: "header", label: "Ghostget" },
+        { kind: "status", symbol: "status.offline", label: "Ghostget controls are paused", detail: "Close the Ghostget TUI, then choose Refresh" },
+        ...notice,
+        { kind: "separator" },
+        PRIMARY,
+        { kind: "separator" },
+        outputsMenu,
+        { kind: "action", id: "refresh", label: "Refresh", symbol: "action.refresh", shortcut: "CmdOrCtrl+R" },
+        ...tail,
+      ],
+      mark: { ...MARK, tone: "offline" },
+      tooltip: "Ghostget · controls paused",
+    };
   }
+  const confirmed = status.fresh;
   const pending = snapshot.approvals.length;
   const reconnect = snapshot.accounts.filter((account) => account.status === "reconnect-required").length;
-  return [
-    { kind: "label", label: menuLabel(`Ghostget ${snapshot.version}`) },
-    { kind: "label", label: menuLabel(`${snapshot.accounts.length} account${snapshot.accounts.length === 1 ? "" : "s"}${reconnect > 0 ? ` · ${reconnect} need reconnect` : ""} · ${pending} pending approval${pending === 1 ? "" : "s"}`) },
+  const needs = [
+    ...(pending > 0 ? [`${plural(pending, "approval", "approvals")} waiting`] : []),
+    ...(reconnect > 0 ? [`${plural(reconnect, "account needs", "accounts need")} reconnecting`] : []),
+  ];
+  const age = status.confirmedAgeSeconds ?? 0;
+  const stale = age < 60 ? `${age}s ago` : `${Math.floor(age / 60)} min ago`;
+  const primaryStatus: StatusItemV2 = !confirmed
+    ? { kind: "status", symbol: "status.syncing", label: "Reconnecting to Ghostget controls", detail: status.confirmedAgeSeconds === null ? "Not confirmed yet" : `Last confirmed ${stale}` }
+    : needs.length > 0
+      ? { kind: "status", symbol: "status.attention", label: menuLabel(needs[0]!, 48), ...(needs.length > 1 ? { detail: menuLabel(needs.slice(1).join(" · "), 80) } : {}) }
+      : snapshot.accounts.length === 0
+        ? { kind: "status", symbol: "status.idle", label: "No accounts connected", detail: "Public pages work without one" }
+        : { kind: "status", symbol: "status.running", label: menuLabel(`Ready · ${plural(snapshot.accounts.length, "account", "accounts")}`, 48) };
+  const items: MenuItemV2[] = [
+    { kind: "header", label: "Ghostget" },
+    primaryStatus,
+    ...notice,
     { kind: "separator" },
-    { kind: "submenu", label: `Approvals · ${pending}`, items: approvalItems(snapshot.approvals, confirmed) },
-    { kind: "submenu", label: `Accounts · ${snapshot.accounts.length}`, items: accountItems(snapshot, confirmed, platform, browsers) },
-    { kind: "submenu", label: "Connect X, LinkedIn, or Reddit", items: connectItems(snapshot, attempts, confirmed, platform, browsers) },
-    { kind: "submenu", label: "Permissions", items: permissionItems(snapshot, confirmed) },
-    { kind: "submenu", label: `Capabilities · ${snapshot.capabilities.length}`, items: capabilityItems(snapshot.capabilities) },
-    { kind: "submenu", label: `Web rules · ${snapshot.web.rules.length}`, items: webItems(snapshot) },
-    { kind: "submenu", label: `Interfaces · ${snapshot.interfaces.length}`, items: interfaceItems(snapshot, confirmed, pendingActivation) },
-    { kind: "submenu", label: "Recent activity", items: activityItems(activity) },
-    { kind: "submenu", label: "1Password · X token import", items: [
-      { kind: "label", label: snapshot.vault.available ? "Desktop platform supported; 1Password access has not been checked." : "Import requires a desktop platform and the 1Password desktop app." },
-      { kind: "label", label: "Imports one X token to a private local copy; optional renewal." },
-      { kind: "action", id: "clip:3", label: "Copy import help command" },
-    ] },
+    PRIMARY,
+    { kind: "separator" },
+    ...(pending > 0 ? [{ kind: "submenu" as const, label: `Approvals (${pending})`, symbol: "item.approval" as const, items: approvalItems(snapshot, confirmed, browsers, nowMs) }] : []),
+    accountsMenu(snapshot, attempts, confirmed, platform, browsers, options.safari ?? "ok"),
+    outputsMenu,
+    permissionsMenu(snapshot, confirmed, browsers),
+    advancedMenu(snapshot, confirmed, options.activity ?? [], options.pendingActivation ?? null, browsers),
     ...tail,
   ];
+  const attention = needs.length > 0;
+  return {
+    items,
+    mark: attention
+      ? { ...MARK, tone: "attention", ...(pending > 0 ? { text: pending > 99 ? "99+" : String(pending) } : {}) }
+      : confirmed ? MARK : { ...MARK, tone: "offline" },
+    tooltip: attention ? `Ghostget · ${needs.join(" · ")}` : "Ghostget · accounts, approvals and outputs",
+  };
+}
+
+/** Plain words for a failed control request. Codes stay on the error for
+ * tests and diagnostics; the menu shows only the message and one next step. */
+export class GhostgetMenuError extends MenuActionError {
+  constructor(readonly code: string, message: string, detail?: string) {
+    super(message, detail);
+    this.name = "GhostgetMenuError";
+  }
+}
+
+const ACTION_ERRORS: Readonly<Record<string, readonly [string, string]>> = {
+  CONTROL_UNCONFIRMED: ["That menu is out of date", "Open the menu again, then try again"],
+  CONTROL_DISCONNECTED: ["Ghostget controls stopped responding", "Choose Refresh, then try again"],
+  CONTROL_TIMEOUT: ["Ghostget controls didn't answer in time", "Choose Refresh, then try again"],
+  CONTROL_CLOSED: ["Ghostget controls are closed", "Quit and open the menu again"],
+  ACCOUNT_CHANGED: ["That account changed", "Open the menu again, then try again"],
+  ACCOUNT_UNAVAILABLE: ["That account is gone", "Open the menu again"],
+  CONNECTION_EXPIRED: ["That sign-in expired", "Start the connection again"],
+  CONNECTION_LIMIT: ["Too many sign-ins in progress", "Finish or cancel one first"],
+  CONNECTION_BUSY: ["Still checking that sign-in", "Wait a moment, then try again"],
+  CONNECTION_UNSUPPORTED: ["That site can't be connected here", "Open its setup guide for other ways"],
+  CONNECTION_PLATFORM_UNSUPPORTED: ["Browser sign-in works on macOS only", "Open the site's setup guide instead"],
+  BROWSER_UNAVAILABLE: ["Couldn't open that browser", "Check that it's installed, then try again"],
+  PROFILE_UNSUPPORTED: ["Couldn't use that browser profile", "Choose another profile"],
+  SIGN_IN_UNVERIFIED: ["Couldn't verify the sign-in", "Finish signing in in the browser, then try again"],
+  KEYCHAIN_DENIED: ["macOS didn't allow the keychain request", "Try again and choose Always Allow when macOS asks"],
+  KEYCHAIN_UNAVAILABLE: ["Couldn't read the keychain", "Unlock your login keychain, then try again"],
+  FDA_DENIED: ["Safari needs Full Disk Access", "Turn it on in Privacy & Security, then try again"],
+  APPROVAL_REQUIRES_FULL_REVIEW: ["This request is too long to review here", "Review it in the Ghostget TUI"],
+  REVISION_CONFLICT: ["Settings changed somewhere else", "Open the menu again to see them"],
+  STALE_REVISION: ["Settings changed somewhere else", "Open the menu again to see them"],
+};
+
+export function menuActionError(code: string): GhostgetMenuError {
+  const known = Object.hasOwn(ACTION_ERRORS, code) ? ACTION_ERRORS[code] : undefined;
+  return known === undefined
+    ? new GhostgetMenuError(code, "Couldn't finish that", "Try again in a moment")
+    : new GhostgetMenuError(code, known[0], known[1]);
+}
+
+/** Starts at login through the local Ghostget app only when HRANESS_LOCAL_APP=1,
+ * until the local app identity is checked on a clean macOS account. */
+export function localApp(environment: ControlEnvironment, stateDir: string, platform: NodeJS.Platform = process.platform): AutostartApp | undefined {
+  if (platform !== "darwin" || environment.HRANESS_LOCAL_APP !== "1") return undefined;
+  return { name: "Ghostget", argvFile: join(stateDir, "login-argv.json") };
 }
 
 /** The Ghostget menu companion owns the control helper's stdio channel and is
@@ -439,7 +677,8 @@ export function companionOptions(
   openPage: (url: string) => Promise<void> = openBrowser,
   createHelper: (environment: ControlEnvironment) => HelperClient = spawnHelper,
   platform: NodeJS.Platform = process.platform,
-): Omit<CompanionOptions, "snapshot"> & { readonly snapshot: (signal: AbortSignal) => Promise<MenuItem[]>; readonly dispose: () => Promise<void> } {
+  probeSafari: () => SafariAccess = probeSafariAccess,
+): CompanionOptions & { readonly dispose: () => Promise<void> } {
   let helper: HelperClient | null = null;
   let disposed = false;
   let closing: Promise<void> | null = null;
@@ -482,16 +721,34 @@ export function companionOptions(
     if (!response.ok && (response.code === "CONTROL_DISCONNECTED" || response.code === "CONTROL_TIMEOUT")) { administrativeConfirmed = false; await drop(); }
     return response;
   };
+  const fail = (response: ControlResponse): void => { if (!response.ok) throw menuActionError(response.code); };
+  const begin = async (attemptTitle: string, providerId: string, choice: BrowserChoice, account: ControlSnapshot["accounts"][number] | null): Promise<void> => {
+    const response = await request({ action: "connection.begin", id: account?.id ?? `${providerId}-${randomUUID().slice(0, 8)}`, provider: providerId, browser: choice.browser, profile: choice.profile, expectedRevision: account?.revision ?? null });
+    fail(response);
+    if (response.ok && response.data.kind === "connection") {
+      attempts.set(response.data.attemptId, { attemptId: response.data.attemptId, title: attemptTitle, providerId, browserKey: choice.key, accountId: account?.id ?? null, status: "awaiting-sign-in", subject: null, displayName: null });
+    }
+  };
+  const diagnostics = (): string => {
+    const snapshot = lastSnapshot;
+    return [
+      `Ghostget ${snapshot?.version ?? "unknown"} (${platform})`,
+      `Controls: ${snapshot === null ? "paused" : administrativeConfirmed ? "confirmed" : "not confirmed"}`,
+      `Accounts: ${snapshot?.accounts.length ?? 0}; approvals waiting: ${snapshot?.approvals.length ?? 0}; operations: ${snapshot?.capabilities.length ?? 0}`,
+      `Sign-ins in progress: ${attempts.size}`,
+    ].join("\n");
+  };
   return {
     dispose,
     appId: "ghostget",
     name: "Ghostget",
-    title: "\u{1f47b}",
+    mark: MARK,
     icon: TRAY_ICON,
-    tooltip: "Ghostget · control, outputs and CLI help",
+    tooltip: "Ghostget · accounts, approvals and outputs",
     stateDir: join(ghostgetStateHome(environment), "menubar"),
     refreshMs: 5_000,
     timeoutMs: 90_000,
+    degraded: () => ({ detail: "Retrying…", primary: PRIMARY }),
     snapshot: async () => {
       let fresh = false;
       administrativeConfirmed = false;
@@ -499,7 +756,7 @@ export function companionOptions(
       if (!response.ok && response.code === "ACCOUNT_UNAVAILABLE" && selectedAccount !== null) {
         selectedAccount = null;
         pendingActivation = null;
-        notice = "The selected account is no longer configured. Showing public operations.";
+        notice = "Showing public operations";
         response = await request({ action: "snapshot", accountId: null });
       }
       if (response.ok && response.data.kind === "snapshot") {
@@ -513,7 +770,7 @@ export function companionOptions(
           if (pendingActivation !== null && !response.data.snapshot.interfaces.some((entry) => entry.id === pendingActivation!.id && entry.digest === pendingActivation!.digest
             && entry.activationTargets.some((target) => target.adapterId === pendingActivation!.adapterId && target.installedDigest === pendingActivation!.expectedInstalledDigest))) {
             pendingActivation = null;
-            notice = "The draft or installed adapter changed. Review activation again.";
+            notice = "Interface changed; review it again";
           }
         }
       }
@@ -523,58 +780,72 @@ export function companionOptions(
         if (page.ok && page.data.kind === "activity") activity = page.data.page.rows;
       }
       lastOutputs = readOutputs(outputsDirectory);
-      return snapshotItems(lastSnapshot, attempts, { confirmedAgeSeconds: confirmedAt === null ? null : Math.max(0, Math.floor((Date.now() - confirmedAt) / 1000)), fresh: fresh && administrativeConfirmed, detail: response.ok ? undefined : response.message }, activity, lastOutputs, notice, pendingActivation, platform, browsers);
+      return snapshotMenu(lastSnapshot, attempts, {
+        confirmedAgeSeconds: confirmedAt === null ? null : Math.max(0, Math.floor((Date.now() - confirmedAt) / 1000)),
+        fresh: fresh && administrativeConfirmed,
+        detail: response.ok ? undefined : response.message,
+      }, {
+        activity,
+        outputs: lastOutputs,
+        notice,
+        pendingActivation,
+        platform,
+        browsers,
+        safari: platform === "darwin" ? probeSafari() : "ok",
+      });
     },
     onAction: async (id) => {
       if (id === "refresh") { notice = null; return; } // the runner re-reads state after every action
-      if (id === "open-website") { await openBrowser(WEBSITE); return; }
+      if (id === "open-website") { await openPage(WEBSITE); return; }
       if (id.startsWith("provider:help:")) {
         const guide = connectionGuide(id.slice("provider:help:".length));
         if (guide !== undefined) await openPage(guide.url);
         return;
       }
-      if (id === "support:updates" || id === "support:paid") {
+      if (id === "support:open") {
         if (openingAccountPage) return;
-        const action = SUPPORT_ACTIONS.find((item) => item.kind === (id === "support:updates" ? "updates" : "support"));
+        const action = SUPPORT_ACTIONS[0];
         if (action === undefined) return;
+        const url = new URL(action.url);
+        url.hash = "";
         openingAccountPage = true;
         notice = null;
-        try { await openPage(action.url); }
-        catch { throw new MenuActionError("Couldn't open Accounts", "Try again from the menu"); }
+        try { await openPage(url.href); }
+        catch { throw new GhostgetMenuError("SUPPORT_UNAVAILABLE", "Couldn't open Help & support", "Try again from the menu"); }
         finally { openingAccountPage = false; }
         return;
       }
-      if (id === "output:folder") {
+      if (id === "support:diagnostics") {
+        try { copyText(diagnostics()); } catch { throw new GhostgetMenuError("CLIPBOARD_UNAVAILABLE", "Couldn't copy diagnostics", "Copying needs a clipboard tool"); }
+        return;
+      }
+      if (id === "output:folder" || id === "output:copy-folder") {
         const expected = lastOutputs.directory;
         const fresh = (() => { try { return lstatSync(outputsDirectory, { bigint: true }); } catch { return null; } })();
-        if (expected !== null && fresh !== null && fresh.isDirectory() && !fresh.isSymbolicLink() && fresh.dev === expected.dev && fresh.ino === expected.ino) {
-          try { openPath(outputsDirectory, true); }
-          catch { throw new MenuActionError("Couldn't open the folder", "Try again, or copy its path"); }
+        if (expected === null || fresh === null || !fresh.isDirectory() || fresh.isSymbolicLink() || fresh.dev !== expected.dev || fresh.ino !== expected.ino) {
+          throw new GhostgetMenuError("OUTPUT_CHANGED", "The outputs folder changed", "Open the menu again");
         }
+        if (id === "output:copy-folder") copyText(outputsDirectory);
+        else openPath(outputsDirectory, false);
         return;
       }
       if (id.startsWith("output:open:") || id.startsWith("output:reveal:") || id.startsWith("output:copy:")) {
         const entry = lastOutputs.entries[Number(id.slice(id.indexOf(":", 7) + 1))];
         const path = entry === undefined ? null : validatedOutputPath(outputsDirectory, lastOutputs, entry.name);
-        if (path === null) throw new MenuActionError("That file changed or is unavailable", "Refresh the menu, then try again");
+        if (path === null) throw new GhostgetMenuError("OUTPUT_CHANGED", "That file changed or moved", "Open the menu again");
         notice = null;
-        try {
-          if (id.startsWith("output:copy:")) copyText(path);
-          else openPath(path, id.startsWith("output:reveal:"));
-        } catch { throw new MenuActionError("Couldn't open the file", "Try again, or reveal the outputs folder"); }
+        if (id.startsWith("output:copy:")) copyText(path);
+        else openPath(path, id.startsWith("output:reveal:"));
         return;
       }
-      if (id.startsWith("clip:")) {
-        const command = CLI_COMMANDS[Number(id.slice(5))];
-        if (command !== undefined) {
-          try { copyText(command); }
-          catch { throw new MenuActionError("Couldn't copy the command", "Copy it from Ghostget's CLI help instead"); }
-        }
-        return;
-      }
+      if (id.startsWith("clip:")) { const command = CLI_COMMANDS[Number(id.slice(5))]; if (command !== undefined) copyText(command); return; }
       const snapshot = lastSnapshot;
       if (snapshot === null) return;
       const parts = id.split(":");
+      if (parts[0] === "account" && parts[1] === "copy" && parts.length === 3) {
+        if (snapshot.accounts.some((account) => account.id === parts[2])) copyText(parts[2]!);
+        return;
+      }
       if (id === "account:public" || parts[0] === "account" && parts[1] === "select" && parts.length === 3) {
         if (id !== "account:public" && !snapshot.accounts.some((account) => account.id === parts[2])) return;
         selectedAccount = id === "account:public" ? null : parts[2]!;
@@ -583,8 +854,16 @@ export function companionOptions(
         return;
       }
       if (id === "interface:cancel") { pendingActivation = null; return; }
-      if (!administrativeConfirmed) throw new MenuActionError("Ghostget hasn't confirmed this menu yet", "Wait a moment, then try again");
-      const fail = (response: ControlResponse): void => { if (!response.ok) throw actionFailure(response); };
+      if (parts[0] === "attempt" && parts[1] === "cancel" && parts.length === 3) {
+        const attempt = attempts.get(parts[2]!);
+        if (attempt === undefined) return;
+        attempts.delete(attempt.attemptId);
+        // Failed attempts stay live in the helper until cancelled or expired,
+        // so every cancel reaches it; a stale id reports CONNECTION_EXPIRED.
+        await request({ action: "connection.cancel", attemptId: attempt.attemptId });
+        return;
+      }
+      if (!administrativeConfirmed) throw menuActionError("CONTROL_UNCONFIRMED");
       if (parts[0] === "interface" && parts[1] === "review" && parts.length === 4) {
         const entry = snapshot.interfaces.find((item) => item.id === parts[2]);
         const target = entry?.activationTargets.find((item) => item.adapterId === parts[3]);
@@ -598,15 +877,15 @@ export function companionOptions(
         if (activation === null) return;
         fail(await request(activation));
         administrativeConfirmed = false;
-        notice = "Interface activated. Review its operation permissions.";
+        notice = "Interface activated";
         return;
       }
       if (id === "permission:enable") { fail(await request({ action: "permission.enable", expectedRevision: snapshot.policy.revision })); return; }
       if (parts[0] === "approval" && parts.length === 3 && (parts[1] === "allow" || parts[1] === "deny")) {
         const approval = snapshot.approvals.find((item) => item.id === parts[2]);
         if (approval === undefined) return;
-        if (parts[1] === "allow" && !approvalReview(approval).complete) {
-          throw new MenuActionError("This approval needs the full review", "Review it in the Ghostget terminal view and ask again");
+        if (parts[1] === "allow" && !approvalReview(approval, approvalAccount(snapshot, approval, browsers)).complete) {
+          throw menuActionError("APPROVAL_REQUIRES_FULL_REVIEW");
         }
         fail(await request({ action: "approval.decide", id: approval.id, digest: approval.digest, decision: parts[1] === "allow" ? "allow-once" : "deny" }));
         return;
@@ -618,47 +897,45 @@ export function companionOptions(
         return;
       }
       if (parts[0] === "connect" && parts.length === 3) {
-        if (platform !== "darwin") throw new MenuActionError("Browser sign-in needs macOS", "Use the provider's setup guide for CLI sign-in");
+        if (platform !== "darwin") throw menuActionError("CONNECTION_PLATFORM_UNSUPPORTED");
         const provider = snapshot.connectionProviders.find((item) => item.id === parts[1]);
         const choice = browsers.find((item) => item.key === parts[2]);
         if (provider === undefined || choice === undefined) return;
-        const response = await request({ action: "connection.begin", id: `${provider.id}-${randomUUID().slice(0, 8)}`, provider: provider.id, browser: choice.browser, profile: choice.profile, expectedRevision: null });
-        fail(response);
-        if (response.ok && response.data.kind === "connection") attempts.set(response.data.attemptId, { attemptId: response.data.attemptId, title: provider.title, status: "awaiting-sign-in", subject: null });
+        await begin(provider.title, provider.id, choice, null);
         return;
       }
       if (parts[0] === "reconnect" && parts.length === 4) {
-        if (platform !== "darwin") throw new MenuActionError("Browser sign-in needs macOS", "Use the provider's setup guide for CLI sign-in");
+        if (platform !== "darwin") throw menuActionError("CONNECTION_PLATFORM_UNSUPPORTED");
         const account = snapshot.accounts.find((item) => item.id === parts[1]);
         const provider = snapshot.connectionProviders.find((item) => item.id === parts[2]);
         const choice = browsers.find((item) => item.key === parts[3]);
         if (account === undefined || provider === undefined || choice === undefined || !reconnectProviders(snapshot, account).some((item) => item.id === provider.id)) return;
-        const response = await request({ action: "connection.begin", id: account.id, provider: provider.id, browser: choice.browser, profile: choice.profile, expectedRevision: account.revision });
-        fail(response);
-        if (response.ok && response.data.kind === "connection") attempts.set(response.data.attemptId, { attemptId: response.data.attemptId, title: provider.title, status: "awaiting-sign-in", subject: null });
+        await begin(provider.title, provider.id, choice, account);
         return;
       }
       if (parts[0] === "attempt" && parts.length === 3) {
         const attempt = attempts.get(parts[2]!);
         if (attempt === undefined) return;
-        if (parts[1] === "cancel") { await request({ action: "connection.cancel", attemptId: attempt.attemptId }); attempts.delete(attempt.attemptId); return; }
         if (parts[1] === "verify") {
+          if (attempt.status === "verified") return;
           const response = await request({ action: "connection.verify", attemptId: attempt.attemptId }, 75_000);
-          // Keep the row on failure: the helper keeps the attempt too, so the
-          // "Verify sign-in" action is the Try again path. Only an expired
-          // attempt can never verify again.
           if (!response.ok) {
+            // An expired attempt is the one failure that drops the row; the
+            // helper keeps every other failed attempt re-verifiable, so the
+            // row stays and this same action is the retry.
             if (response.code === "CONNECTION_EXPIRED") attempts.delete(attempt.attemptId);
-            throw actionFailure(response);
+            else attempts.set(attempt.attemptId, { ...attempt, status: "failed", subject: null, displayName: null });
+            throw menuActionError(response.code);
           }
-          if (response.data.kind === "connection" && response.data.status === "verified") attempts.set(attempt.attemptId, { ...attempt, status: "verified", subject: response.data.subject });
+          if (response.data.kind === "connection" && response.data.status === "verified") attempts.set(attempt.attemptId, { ...attempt, status: "verified", subject: response.data.subject, displayName: response.data.displayName });
           return;
         }
         if (parts[1] === "commit") {
           if (attempt.status !== "verified" || attempt.subject === null) return;
           const response = await request({ action: "connection.commit", attemptId: attempt.attemptId, expectedSubject: attempt.subject });
-          if (response.ok) attempts.delete(attempt.attemptId);
+          attempts.delete(attempt.attemptId);
           fail(response);
+          notice = `Connected ${providerTitle(attempt.title)}`;
           return;
         }
         return;
@@ -679,7 +956,7 @@ export async function runMenubarCommand(
 ): Promise<number> {
   const rest = args.slice(1);
   if (rest[0] === "--help" || rest[0] === "help" || rest[0] === "-h") {
-    output.stdout("Usage: ghostget menubar [start|stop|status|doctor|install|uninstall] [--json]\nRuns the shared menu-bar companion; install registers login startup.\n");
+    output.stdout(companionHelp("Ghostget", "ghostget menubar"));
     return 0;
   }
   const verbs = rest.filter((value) => value !== "--json");
@@ -706,9 +983,7 @@ export async function runMenubarCommand(
   const localAppModule = process.platform === "darwin" && environment.HRANESS_LOCAL_APP === "1"
     ? await import("../cookie-safe-storage")
     : undefined;
-  const app = localAppModule !== undefined && localAppModule.localAppEnabled(environment)
-    ? { name: "Ghostget", argvFile: join(adapter.stateDir, "login-argv.json") }
-    : undefined;
+  const app = localApp(environment, adapter.stateDir);
   if (app !== undefined && mapped[0] === "install" && localAppModule !== undefined) {
     try {
       await localAppModule.ensureLocalApp(environment, binary === undefined || binary === "" ? {} : { runnerBinary: binary });
@@ -724,9 +999,9 @@ export async function runMenubarCommand(
     if (mapped[0] === undefined || mapped[0] === "start" || mapped[0] === "--foreground") ensurePrivateStateDirectory(adapter.stateDir, environment);
     return await (dependencies.handle ?? handleCompanionCommand)(options, {
       args: mapped,
+      foreground: { executable: process.execPath, args: [cli, "menubar", "--foreground"] },
       command: "ghostget menubar",
       env: environment,
-      foreground: { executable: process.execPath, args: [cli, "menubar", "--foreground"] },
       ...(app === undefined ? {} : { app }),
       write: (result) => output.stdout(`${JSON.stringify(result)}\n`),
       output: createCliOutput({ env: environment, stdout: { write: (text) => output.stdout(text) }, stderr: { write: (text) => output.stderr(text) } }),

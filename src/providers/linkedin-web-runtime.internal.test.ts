@@ -24,6 +24,7 @@ import {
 } from "../article-draft-document";
 import {
   executeLinkedInWebOperation,
+  probeLinkedInWebIdentity,
   probeLinkedInWebSubject,
   readLinkedInWebAcceptedPostTargetPresence,
   readLinkedInWebArticleDraftDesiredState,
@@ -450,6 +451,23 @@ describe("LinkedIn authenticated internal-API runtime", () => {
       dependencies: runtimeDependencies,
     });
     expect(subject).toBe(MEMBER_URN);
+    expect(calls).toHaveLength(1);
+  });
+
+  test("the identity probe resolves the public profile slug beside the member subject", async () => {
+    const calls: CapturedRequest[] = [];
+    const runtimeDependencies = dependencies(calls, (request) => {
+      expect(request.url.pathname).toBe("/voyager/api/me");
+      return jsonResponse({
+        data: { plainId: MEMBER_ID },
+        included: [{ entityUrn: MEMBER_URN, publicIdentifier: "0thernet" }],
+      });
+    });
+
+    expect(await probeLinkedInWebIdentity(linkedinAuth, {
+      timeoutMs: 1_000,
+      dependencies: runtimeDependencies,
+    })).toEqual({ subject: MEMBER_URN, displayName: "0thernet" });
     expect(calls).toHaveLength(1);
   });
 

@@ -7,6 +7,19 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+- The menu bar moves to the shared menu kit v2: a status line, at most ten
+  top-level rows, a monochrome glyph with a dot only when something needs
+  you, and one Help & support row with diagnostics behind ⌥.
+- Accounts read as their site and browser ("X · Chrome · Personal") instead
+  of numeric subjects or generated IDs. Reconnect is one row, one level deep.
+- A failed menu action shows a ⚠︎ row in plain words with one next step,
+  and a sign-in that fails verification keeps a "Try again" row.
+- When macOS blocks Safari's cookie store, the menu leaves Safari out and
+  links to Full Disk Access. Chrome sign-ins say that macOS will ask for
+  keychain access before Verify.
+- The control protocol's account view adds `profile`, the Chrome profile a
+  browser sign-in reads.
+
 ## 0.18.41
 
 This release adds an opt-in signed local app for browser cookie reads, so the

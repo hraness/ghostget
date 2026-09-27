@@ -1886,13 +1886,34 @@
 //
 // The GG-8 signed-helper cookie path adds src/cookie-safe-storage.ts,
 // src/cookie-chromium-mac.ts and the spawned src/cookie-companion-resolve.ts
-// resolver beside the local-custody 0.9.0 pin, and the 0.18.41 release bumps
-// the version pins and rebuilds dist: a clean npm 11.19.0 pack
-// --ignore-scripts on this branch measured 607 entries, 12,069,502 packed
-// bytes and 23,661,362 unpacked bytes; archive SHA-256
+// resolver beside the local-custody 0.9.0 pin: a clean npm 11.16.0 pack
+// --ignore-scripts on this branch measured 607 entries, 12,069,104 packed
+// bytes and 23,660,010 unpacked bytes; archive SHA-256
+// 9f8f589ce2465c95c5cbc566617730cd18a77aaeb446166bcaf4d27fdad6d295.
+// Carry the same projections and allowances: 12,069,104 + 12,387 + 4,096 =
+// 12,085,587 packed; 23,660,010 + 353 + 65 = 23,660,428 unpacked.
+//
+// Menu kit v2 with account handles and Safari Full Disk Access rows merged
+// with the GG-8 signed-helper cookie path over local-custody 0.9.0: a clean
+// npm 11.16.0 pack --ignore-scripts on the merged tree measured 607 entries,
+// 12,074,301 packed bytes and 23,682,116 unpacked bytes; archive SHA-256
+// db66d32223767fbb8fb716b360d571d2e09b72800d043fdb7e06a3e894156956.
+// Carry the same projections and allowances: 12,074,301 + 12,387 + 4,096 =
+// 12,090,784 packed; 23,682,116 + 353 + 65 = 23,682,534 unpacked.
+//
+// The 0.18.41 release then bumped the version pins and rebuilt dist: a
+// clean npm 11.19.0 pack --ignore-scripts on main measured 607 entries,
+// 12,069,502 packed bytes and 23,661,362 unpacked bytes; archive SHA-256
 // ef2baf9604502635dc466ce3ca77e902588e3db0fa35c4ddfdec2c0f53393913.
 // Carry the same projections and allowances: 12,069,502 + 12,387 + 4,096 =
 // 12,085,985 packed; 23,661,362 + 353 + 65 = 23,661,780 unpacked.
+//
+// Menu kit v2 remeasured over the released 0.18.41 tree: a clean
+// npm 11.19.0 pack --ignore-scripts on the merged tree measured 607
+// entries, 12,074,874 packed bytes and 23,683,488 unpacked bytes; archive
+// SHA-256 acd85cbe3e5f7579e0c9ae61bcd81d5894ffb62f2df306bd69dd367ba0028cef.
+// Carry the same projections and allowances: 12,074,874 + 12,387 + 4,096 =
+// 12,091,357 packed; 23,683,488 + 353 + 65 = 23,683,906 unpacked.
 //
 // CLI spot checks remeasured over the released 0.18.41 tree: a clean
 // npm 11.19.0 pack --ignore-scripts on the merged tree measured 607
@@ -1900,14 +1921,21 @@
 // SHA-256 e6609563d5b9825a38a503be4e2e99060685e041e62731acc56783cee6b678a2.
 // Carry the same projections and allowances: 12,070,406 + 12,387 + 4,096 =
 // 12,086,889 packed; 23,665,113 + 353 + 65 = 23,665,531 unpacked.
+//
+// Menu kit v2 remeasured over 0.18.41 plus the merged CLI spot checks: a
+// clean npm 11.19.0 pack --ignore-scripts on the merged tree measured 607
+// entries, 12,076,120 packed bytes and 23,687,219 unpacked bytes; archive
+// SHA-256 bb19515b7f9c733821bbc065bd27d140e7f93eaf20ec0de51b34dc595fa4a4bf.
+// Carry the same projections and allowances: 12,076,120 + 12,387 + 4,096 =
+// 12,092,603 packed; 23,687,219 + 353 + 65 = 23,687,637 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "CLI spot checks over the released 0.18.41 tree: version name, --json errors, auth-list hint",
+  scope: "Menu kit v2 over 0.18.41, the GG-8 signed-helper cookie path and the CLI spot checks",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "e6609563d5b9825a38a503be4e2e99060685e041e62731acc56783cee6b678a2",
-  packedBytes: 12_070_406,
-  unpackedBytes: 23_665_113,
+  archiveSha256: "bb19515b7f9c733821bbc065bd27d140e7f93eaf20ec0de51b34dc595fa4a4bf",
+  packedBytes: 12_076_120,
+  unpackedBytes: 23_687_219,
   entryCount: 607,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

@@ -395,6 +395,30 @@ describe("auth locators", () => {
     });
   });
 
+  test("cookie-source records carry an optional verified human handle", () => {
+    const record = {
+      schemaVersion: 1 as const,
+      id: "x-bound",
+      kind: "cookie-source" as const,
+      source: "chrome" as const,
+      subject: "2244994945",
+      displayName: "@reader",
+    };
+    expect(parseAuth(record)).toEqual(record);
+    expect(() => parseAuth({ ...record, displayName: 42 })).toThrow("invalid displayName");
+    for (const bad of [" leading", "trailing ", "two\nlines", "bidi\u202ehandle", "a>b", "x".repeat(129)]) {
+      expect(() => parseAuth({ ...record, displayName: bad })).toThrow("invalid displayName");
+    }
+    // Other locator kinds do not carry the field at all.
+    expect(() => parseAuth({
+      schemaVersion: 1,
+      id: "file-bound",
+      kind: "cookies-file",
+      path: "/private/cookies.json",
+      displayName: "@reader",
+    })).toThrow("unsupported fields");
+  });
+
   test("rejects unsafe subjects for every auth locator kind", () => {
     expect(() => createAuth("source", { source: "chrome", subject: "viewer\nspoofed" })).toThrow("invalid subject");
     expect(() => createAuth("file", { cookiesFile: "/private/cookies.json", subject: " viewer" })).toThrow("invalid subject");

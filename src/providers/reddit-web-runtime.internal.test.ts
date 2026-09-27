@@ -11,6 +11,7 @@ import type { OperationInput, WebSessionRecipe } from "../model";
 import {
   executeRedditWebOperation,
   prepareRedditWebDesiredState,
+  probeRedditWebIdentity,
   probeRedditWebSubject,
   readRedditWebContentDeleteDesiredState,
   readRedditWebDesiredState,
@@ -362,6 +363,16 @@ describe("Reddit authenticated internal API runtime", () => {
       },
     );
     expect(subject).toBe(SUBJECT);
+    expect(calls).toHaveLength(1);
+  });
+
+  test("the identity probe resolves the account username beside the subject", async () => {
+    const calls: CapturedRequest[] = [];
+    const identity = await probeRedditWebIdentity(
+      unboundRedditAuth,
+      { dependencies: dependencies(calls, () => jsonResponse(viewerResponse())) },
+    );
+    expect(identity).toEqual({ subject: SUBJECT, displayName: "u/wrench_viewer" });
     expect(calls).toHaveLength(1);
   });
 

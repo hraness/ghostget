@@ -44,7 +44,7 @@ export class ControlService {
     const accounts=listed.map(({auth})=>{
       let tokenExpiresAt:string|null=null;let tokenRefreshable=false;
       if(auth.kind==="oauth-token-file"){try{const credential=loadOAuthCredential(auth);tokenExpiresAt=credential.expiresAt;tokenRefreshable=credential.refresh!==null;}catch{/* an unreadable credential reports no expiry rather than failing the listing */}}
-      return {id:auth.id,provider:"provider" in auth?auth.provider:null,kind:auth.kind,subject:auth.subject??null,revision:revisions.get(auth.id)!,status:"configured" as const,source:auth.kind==="cookie-source"?auth.source:auth.kind==="browser-profile"?"Browser profile":null,tokenStorage:auth.kind==="oauth-token-file"?(auth.managed===true?"managed-oauth" as const:auth.ownedImport===true?"ghostget-import" as const:"external" as const):null,tokenExpiresAt,tokenRefreshable};
+      return {id:auth.id,provider:"provider" in auth?auth.provider:null,kind:auth.kind,subject:auth.subject??null,displayName:auth.kind==="cookie-source"?(auth.displayName??null):null,revision:revisions.get(auth.id)!,status:"configured" as const,source:auth.kind==="cookie-source"?auth.source:auth.kind==="browser-profile"?"Browser profile":null,profile:auth.kind==="cookie-source"?auth.profile??null:null,tokenStorage:auth.kind==="oauth-token-file"?(auth.managed===true?"managed-oauth" as const:auth.ownedImport===true?"ghostget-import" as const:"external" as const):null,tokenExpiresAt,tokenRefreshable};
     });
     if(accountId!==null&&!accounts.some(account=>account.id===accountId))throw new ControlError("ACCOUNT_UNAVAILABLE","The selected account is no longer configured.");
     const interfaces=listInterfaces(context);const manifests=new Map<string,GhostgetManifest>();

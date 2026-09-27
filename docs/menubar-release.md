@@ -131,27 +131,44 @@ control request dispatched by the product adapter; the shared runner only
 renders state and forwards action identifiers. A failed or indeterminate
 mutation is never retried.
 
-The menu lists connected accounts and reconnect or disconnect actions, pending
-approvals, connection providers and in-flight sign-in attempts, operation
-permissions, capabilities, web rules, interfaces, recent activity, and vault
-availability. It also lists up to 12 files from a bounded scan of the selected
-state home's `outputs` directory, each with size and modification time.
-Supported documents can be opened; every admitted file can be revealed in the
-file manager or have its path copied. A further submenu copies CLI help
-commands, and the menu opens documentation.
+The menu follows the shared menu kit v2 layout: a status line (ready, needs
+you, or controls paused), Open Ghostget, then at most ten top-level rows.
+`Approvals` appears only while requests wait. `Accounts` lists each account as
+its site and where the sign-in lives ("X · Chrome · Personal"), never a numeric
+subject; the account ID copies from its ⌥ alternate. A saved browser account
+that needs reconnecting has one "Reconnect in Chrome · Personal" row in the same
+submenu, and new connections are "Connect X in Safari" rows one level deep.
+When macOS blocks Safari's cookie store, Safari is left out and the menu links
+to Full Disk Access instead. `Outputs` lists up to 8 files from a bounded scan
+of the state home's `outputs` directory, each with size and age; supported
+documents open, and the ⌥ alternate reveals the file or copies its path.
+`Permissions` sets Allow, Ask each time or Deny for the selected account's
+operations. `Advanced` holds web rules, interfaces, recent reads, interface
+activation, Refresh, CLI help commands and Disconnect. The worst case of every
+row bound together stays under the shared 256-item cap, and a test fails first
+if a bound grows past it.
 
-The menu also offers free Ghostget product updates and optional paid development
-support. Each explicit selection opens the fixed Hraness Accounts page in the
-default browser, where the person reviews and confirms signup or payment. These
-links remain available when the control helper is unavailable. They carry no
-account details or email address and do not inspect local invitation preferences.
+A failed action shows one ⚠︎ row under the status line for 30 seconds, in plain
+words with one next step ("Couldn't verify the sign-in · Finish signing in in
+the browser, then try again"). A sign-in that fails verification keeps its row
+as "Try … sign-in again" in the same browser and profile.
+
+`Help & support` opens the fixed Hraness Accounts support page, which offers
+free Ghostget updates and optional paid development support; its ⌥ alternate
+copies diagnostics (version, control state and counts, no account details). The
+link carries no account details or email address and does not inspect local
+invitation preferences. It stays available when the control helper is not.
 The shared browser handoff has a 10-second deadline; repeated clicks while it is
 pending do not launch another browser process.
+
+`Open at login` uses the shared login item. It starts Ghostget through the local
+Ghostget app only when `HRANESS_LOCAL_APP=1`, until that app identity has been
+checked on a clean macOS user account.
 
 The adapter selects the state home through the existing private-state validator.
 The output directory must already exist, belong to the current user, and have
 mode `0700`. The adapter does not create or adopt it. An unavailable directory
-is shown as unavailable, separately from an empty directory. Snapshots inspect
+shows as "No outputs yet" with no folder action. Snapshots inspect
 at most 512 entries and never descend into subdirectories or follow symbolic
 links. File actions recheck the directory and file identity before the
 operating-system handoff. That readback does not eliminate races with the same
