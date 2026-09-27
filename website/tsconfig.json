@@ -12,7 +12,6 @@
     "./html-to-markdown.test.ts",
     "./analytics.test.ts",
     "./skill-install-command.test.ts",
-    "./lantern-material.test.ts",
     "../edge/**/*.test.ts"
   ],
   "exclude": ["./dist"]

@@ -23,6 +23,7 @@ const SKIP_CLASSES = new Set([
   "eyebrow",
   "flow-index",
   "hero-field",
+  "home-eyebrow",
   "hraness-marketing-cta__eyebrow",
   "hraness-marketing-hero__eyebrow",
   "hraness-marketing-install__eyebrow",

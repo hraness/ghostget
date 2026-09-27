@@ -1,7 +1,6 @@
 import { addDocumentAppearance } from "./appearance";
 import { releaseArchiveUrl } from "./github-release-artifact.mjs";
 import { snapshotMarketingPreset } from "./marketing-preset";
-import { snapshotLanternMaterial } from "./lantern-material";
 import { createHash } from "node:crypto";
 import {
   cp,
@@ -1209,7 +1208,6 @@ export async function buildWebsite(
   environment: Readonly<Record<string, string | undefined>> = process.env,
 ): Promise<void> {
   const marketingPreset = await snapshotMarketingPreset(join(repositoryRoot, "website/vendor/marketing-preset"));
-  const lanternMaterial = await snapshotLanternMaterial(join(repositoryRoot, "website/vendor/lantern-material"));
   const [
     manifest,
     publicTemplates,
@@ -1322,10 +1320,7 @@ export async function buildWebsite(
   const postHog = postHogEnvironment(environment);
   // The UI facade establishes its complete layer order before the static
   // marketing grammar and footer. Product tokens and composition follow them.
-  const lanternCss = lanternMaterial.files.get("lantern-material.css");
-  const lanternLicense = lanternMaterial.files.get("LICENSE");
-  if (lanternCss === undefined || lanternLicense === undefined) throw new Error("The complete Lantern build snapshot is required.");
-  const compiledCss = `${uiCss}\n\n${designKitFontsCss.trim()}\n\n${designKitTypographyCss.trim()}\n\n${designKitProductMarketingCss.trim()}\n\n${designKitPlainSiteCss.trim()}\n\n${designKitPlainPublicationCss.trim()}\n\n${designKitStatusPageCss.trim()}\n\n${hranessSiteFooterCss.trim()}\n\n${paperThemeCss.trim()}\n\n${paletteSystemCss.trim()}\n\n${paletteBridgeCss.replace('@import "./palette-system.css";', "").trim()}\n\n${appearanceCss.trim()}\n\n${css.trimEnd()}\n\n${marketingPreset.files.get("product-marketing-preset.css")!.toString("utf8")}\n\n${lanternCss.toString("utf8")}\n`;
+  const compiledCss = `${uiCss}\n\n${designKitFontsCss.trim()}\n\n${designKitTypographyCss.trim()}\n\n${designKitProductMarketingCss.trim()}\n\n${designKitPlainSiteCss.trim()}\n\n${designKitPlainPublicationCss.trim()}\n\n${designKitStatusPageCss.trim()}\n\n${hranessSiteFooterCss.trim()}\n\n${paperThemeCss.trim()}\n\n${paletteSystemCss.trim()}\n\n${paletteBridgeCss.replace('@import "./palette-system.css";', "").trim()}\n\n${appearanceCss.trim()}\n\n${css.trimEnd()}\n\n${marketingPreset.files.get("product-marketing-preset.css")!.toString("utf8")}\n`;
   const cssAsset = `/assets/styles-${contentHash(compiledCss)}.css`;
   const analyticsAsset = `/assets/analytics-${contentHash(analytics)}.js`;
   const appearanceAsset = `/assets/appearance-${contentHash(appearance)}.js`;
@@ -1372,9 +1367,6 @@ export async function buildWebsite(
   await rm(outputRoot, { force: true, recursive: true });
   await mkdir(join(outputRoot, "assets"), { recursive: true });
   await mkdir(join(outputRoot, "preview"), { recursive: true });
-  await mkdir(join(outputRoot, "assets/lantern-material"), { recursive: true });
-  await writeFile(join(outputRoot, "assets/lantern-material/LICENSE"), lanternLicense);
-  await writeFile(join(outputRoot, "assets/lantern-material/provenance.json"), `${JSON.stringify(lanternMaterial.manifest, null, 2)}\n`);
   for (const [path, bytes] of marketingPreset.files) {
     if (path === "product-marketing-preset.css" || path === "check.mjs" || path === "check.d.mts") continue;
     const publicPath = path === "LICENSE" ? "marketing-assets/LICENSE" : path;

@@ -69,7 +69,7 @@
         <header aria-labelledby="brand-name" class="hraness-marketing-hero ghostget-product-hero" data-align="start" data-hraness-marketing="hero" data-tone="paper">
           <div class="hraness-marketing-hero__copy">
             <p class="home-eyebrow">Web actions for agents</p>
-            <h1 class="hraness-marketing-hero__heading" id="brand-name">Your agent calls web actions by name and holds no password.</h1>
+            <h1 class="hraness-marketing-hero__heading" id="brand-name">Your agent calls web actions by name <span class="hero-heading-accent">and holds no password.</span></h1>
             <p class="hraness-marketing-hero__summary hero-explainer">Install the CLI or tell your agent to. It reads a page, archives one media item, or acts in an account you connected, and returns the result instead of a browser to steer.</p>
             <div class="hraness-marketing-hero__actions">
               <a class="hraness-marketing-action" data-emphasis="primary" href="#start">Install Ghostget</a>
@@ -103,32 +103,6 @@ This domain is for use in documentation examples without needing permission. Avo
           </div>
         </header>
 
-        <section aria-labelledby="measured-heading" class="hraness-marketing-section" data-hraness-marketing="section" data-layout="stack" id="measured">
-          <div class="hraness-marketing-section__heading-group">
-            <p class="home-eyebrow">Measured</p>
-            <h2 class="hraness-marketing-section__heading" id="measured-heading">Smaller answers cost fewer tokens.</h2>
-            <p class="hraness-marketing-section__summary">Your model provider charges for everything the agent reads. On September 22, 2026, <code>ghostget read</code> returned these bytes for each URL, compared with the raw HTML the URL serves. Every row was one HTTP capture with no browser and <code>capture_status: "complete"</code>.</p>
-          </div>
-          <div class="hraness-marketing-section__body">
-            <div class="table-scroll" role="region" aria-labelledby="measured-heading" tabindex="0">
-              <table>
-                <thead><tr><th scope="col">Page read</th><th scope="col">ghostget returns</th><th scope="col">Raw HTML</th><th scope="col">Smaller by</th></tr></thead>
-                <tbody>
-                  <tr><th scope="row">Wikipedia article</th><td>15,021 bytes</td><td>145,617 bytes</td><td>9.7×</td></tr>
-                  <tr><th scope="row">GitHub repository page</th><td>79,955 bytes</td><td>647,690 bytes</td><td>8.1×</td></tr>
-                  <tr><th scope="row">This site’s security guide</th><td>7,220 bytes</td><td>41,295 bytes</td><td>5.7×</td></tr>
-                  <tr><th scope="row">Hacker News front page</th><td>7,311 bytes</td><td>34,791 bytes</td><td>4.8×</td></tr>
-                  <tr><th scope="row">example.com</th><td>345 bytes</td><td>559 bytes</td><td>1.6×</td></tr>
-                </tbody>
-              </table>
-            </div>
-            <div class="hraness-marketing-prose">
-              <p>At roughly four bytes per token, that Wikipedia read costs about 3,800 tokens where the raw page carries about 36,000. The table counts bytes because tokenizers differ.</p>
-              <p>Browser-driving agents pay again on every step, because the page comes back into context each time. A July 2026 <a href="https://modernqacourse.com/docs/en/01-agent-skills-browser-automation/07-competitive-landscape/01-tool-comparison-matrix">comparison matrix</a> cites Microsoft’s reported figure of about 114,000 tokens for a typical Playwright MCP task, against about 27,000 for its disk-first CLI. Treat any single figure as an estimate.</p>
-            </div>
-          </div>
-        </section>
-
         <section aria-labelledby="how-it-works-heading" class="hraness-marketing-section" data-hraness-marketing="section" data-layout="split" id="how-it-works">
           <div class="hraness-marketing-section__heading-group">
             <p class="home-eyebrow">How it works</p>
@@ -155,6 +129,32 @@ This domain is for use in documentation examples without needing permission. Avo
             <div class="hraness-marketing-prose">
               <p>Page state and screenshots never enter the agent’s context. It never sees a cookie or token, and there are no selectors for it to guess. If a service changes how it responds, the affected action stops instead of improvising a click path.</p>
               <p>Some pages need a real browser to render. For those, Ghostget runs its own browser internally, at most two at a time, and the agent can’t steer it. The <a href="/compare/agent-browser/">agent-browser comparison</a> shows how that works.</p>
+            </div>
+          </div>
+        </section>
+
+        <section aria-labelledby="measured-heading" class="hraness-marketing-section" data-hraness-marketing="section" data-layout="stack" id="measured">
+          <div class="hraness-marketing-section__heading-group">
+            <p class="home-eyebrow">Measured</p>
+            <h2 class="hraness-marketing-section__heading" id="measured-heading">Smaller answers cost fewer tokens.</h2>
+            <p class="hraness-marketing-section__summary">Your model provider charges for everything the agent reads. On September 22, 2026, <code>ghostget read</code> returned these bytes for each URL, compared with the raw HTML the URL serves. Every row was one HTTP capture with no browser and <code>capture_status: "complete"</code>.</p>
+          </div>
+          <div class="hraness-marketing-section__body">
+            <div class="table-scroll" role="region" aria-labelledby="measured-heading" tabindex="0">
+              <table>
+                <thead><tr><th scope="col">Page read</th><th scope="col">ghostget returns</th><th scope="col">Raw HTML</th><th scope="col">Smaller by</th></tr></thead>
+                <tbody>
+                  <tr><th scope="row">Wikipedia article</th><td>15,021 bytes</td><td>145,617 bytes</td><td>9.7×</td></tr>
+                  <tr><th scope="row">GitHub repository page</th><td>79,955 bytes</td><td>647,690 bytes</td><td>8.1×</td></tr>
+                  <tr><th scope="row">This site’s security guide</th><td>7,220 bytes</td><td>41,295 bytes</td><td>5.7×</td></tr>
+                  <tr><th scope="row">Hacker News front page</th><td>7,311 bytes</td><td>34,791 bytes</td><td>4.8×</td></tr>
+                  <tr><th scope="row">example.com</th><td>345 bytes</td><td>559 bytes</td><td>1.6×</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="hraness-marketing-prose">
+              <p>At roughly four bytes per token, that Wikipedia read costs about 3,800 tokens where the raw page carries about 36,000. The table counts bytes because tokenizers differ.</p>
+              <p>Browser-driving agents pay again on every step, because the page comes back into context each time. A July 2026 <a href="https://modernqacourse.com/docs/en/01-agent-skills-browser-automation/07-competitive-landscape/01-tool-comparison-matrix">comparison matrix</a> cites Microsoft’s reported figure of about 114,000 tokens for a typical Playwright MCP task, against about 27,000 for its disk-first CLI. Treat any single figure as an estimate.</p>
             </div>
           </div>
         </section>
@@ -347,7 +347,7 @@ ghostget read https://example.com</code></pre>
             <div class="section-heading section-heading-wide">
               <p class="eyebrow home-eyebrow">Essays</p>
               <h2 id="arguments-title">Arguments and comparisons</h2>
-              <p>These essays compare named, reviewed actions with browser control, account identity, virtual machines, device policy, rumour-driven agentic search, and desktop privilege grants.</p>
+              <p>How named actions differ from browser control, virtual machines, device policy, and the other ways people try to limit what an agent can do.</p>
             </div>
             <div class="card-grid editorial-card-grid">
               {{EDITORIAL_CARDS}}

@@ -1,6 +1,5 @@
 # Contents
 
-- `vendor/lantern-material/` owns the asset-free immutable Lantern CSS, license, checker and provenance. `lantern-material.ts` verifies its complete inventory and retains bounded hash-matched CSS/license bytes for the static build.
 - `vendor/marketing-preset/` owns the immutable shared editorial CSS, licensed Instrument Serif, field textures, and source/hash provenance. `marketing-preset.ts` verifies that closed snapshot before `build.ts` publishes its bytes.
 - `source/` – checked HTML, CSS, analytics, discovery, fallback, markdown, llms.txt, and WebMCP registry snapshot sources.
 - `public/` – checked public icon, social, caption, and reusable demo assets.
@@ -20,7 +19,7 @@
 
 # Guidelines
 
-- Keep the homepage's shared editorial preset scoped by `data-hraness-marketing-preset="editorial"`; the homepage alone opts into `data-hraness-material="lantern"`, with `.hraness-material-wall` on its hero, quiet opaque reading surfaces and shared header chrome. Load the asset-free material after Paper/editorial foundations and keep the Node checker in the normal theme gate. Keep product adaptations outside the immutable snapshot and preserve the separate inert native-control previews, ordinary documentation, release identity, and all production admission gates.
+- Keep the homepage's shared editorial preset scoped by `data-hraness-marketing-preset="editorial"` with `data-hraness-pattern="none"`: a flat palette background, the sans display role, opaque reading surfaces, hairline-separated sections, and one real transcript beside the hero copy. Do not add hero fields, pointer-driven light, textures, serif display headings, glass, or material paint. Keep product adaptations outside the immutable snapshot and preserve the separate inert native-control previews, ordinary documentation, release identity, and all production admission gates.
 - Give ordinary HTML pages one final header appearance menu through `appearance.ts`, with the shared blocking bootstrap before styles for saved Light/Dark/System paint, canonical Gruvbox metadata, and a focusable skip target. Reuse the shared menu CSS and controller; do not add per-page listeners or a second theme owner. The deliberate `/preview` remains inert and all Markdown outputs remain text-only.
 - Keep the page useful without JavaScript. JavaScript may progressively enhance explicit copy controls, canonical-host analytics, and the shared `attachFoil` pointer treatment on `[data-foil]` elements; keep all commands readable and selectable without it.
 - Keep every product claim observable in the public Ghostget release and put each qualification beside the claim it limits.
