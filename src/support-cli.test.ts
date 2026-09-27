@@ -218,6 +218,7 @@ describe("optional Ghostget support", () => {
           return 0;
         },
         showGhostgetSupportInvitation: forbidden,
+        ghostgetSupportAdvancedHelp: forbidden,
       }),
     );
     expect(received).toEqual(["offer", "--json"]);
@@ -241,6 +242,7 @@ describe("optional Ghostget support", () => {
           return 2;
         },
         showGhostgetSupportInvitation: forbidden,
+        ghostgetSupportAdvancedHelp: forbidden,
       }),
     );
     expect(stderr).toBe("Invalid support command.\n");
@@ -293,6 +295,7 @@ describe("optional Ghostget support", () => {
         async () => ({
           runGhostgetSupportCommand: forbidden,
           showGhostgetSupportInvitation: async () => { invitations += 1; throw new Error("optional support unavailable"); },
+          ghostgetSupportAdvancedHelp: forbidden,
         }),
         standalone,
       );
