@@ -126,7 +126,7 @@ describe("Substack internal-web operation registry", () => {
   test("ships one schema-v4 semantic manifest entry for every provider operation", () => {
     expect(substackWebManifest.schemaVersion).toBe(4);
     expect(substackWebManifest.id).toBe("substack-web");
-    expect(substackWebManifest.version).toBe("1.9.0");
+    expect(substackWebManifest.version).toBe("1.10.0");
     expect(substackWebManifest.surfaceId).toBe("substack");
     expect(substackWebManifest.origins).toEqual(["https://substack.com"]);
     expect(Object.keys(substackWebManifest.operations).sort()).toEqual(
@@ -142,7 +142,7 @@ describe("Substack internal-web operation registry", () => {
       expect(operation.webSession).toMatchObject({
         site: "substack",
         action,
-        contractVersion: action === "posts.publish" ? 3 : action === "subscribers.export" ? 2 : 1,
+        contractVersion: action === "posts.publish" ? 3 : action.startsWith("subscribers.") ? 2 : 1,
       });
       expect("browser" in operation).toBe(false);
       expect("provider" in operation).toBe(false);
@@ -178,7 +178,7 @@ describe("Substack internal-web operation registry", () => {
     });
   });
 
-  test("graduates only the direct reads and authorized Note publication proved against the current site", () => {
+  test("graduates only the direct reads, owned-publication subscriber reads, and authorized Note publication proved against the current site", () => {
     expect(
       Object.entries(SUBSTACK_WEB_OPERATIONS)
         .filter(([, contract]) => contract.state === "observed")
@@ -195,8 +195,12 @@ describe("Substack internal-web operation registry", () => {
       "posts.publish",
       "posts.read",
       "profiles.read",
+      "subscribers.export",
+      "subscribers.import",
+      "subscribers.import.status",
     ]);
     expect(SUBSTACK_WEB_OPERATIONS["messaging.read"].state).toBe("capture-required");
+    expect(SUBSTACK_WEB_OPERATIONS["subscribers.import"]).toMatchObject({ state: "observed", risk: "R3", effect: "write" });
     expect(SUBSTACK_WEB_OPERATIONS["organizations.read"]).toMatchObject({
       state: "observed",
       risk: "R1",

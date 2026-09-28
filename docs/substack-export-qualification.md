@@ -1,7 +1,10 @@
-# Substack export v2 qualification
+# Substack subscriber qualification
 
-Export v2 is a disabled source candidate. Import and import-status are separate
-unqualified operations. No source, fixture, or package test enables them.
+Export v2, import-status v2, and import v2 are observed contracts. The reads
+were qualified through the checkout's installed CLI path on 2026-09-28, and
+import through one authorized add reconciled by a later complete census. The
+sections below keep the original export capture evidence, then record the
+installed-path qualification and the import qualification.
 
 ## Observed request and response
 
@@ -57,42 +60,72 @@ The approved browser navigation to the login probe was blocked; no bypass or
 cookie extraction was attempted. An installed Ghostget transport invocation
 and a terminal provider page remain unqualified.
 
-## Candidate behavior
+## Export behavior
 
-- Public execution remains `capture-required` while the account and paging
-  evidence is reviewed.
-- The direct runtime requires a bound viewer and an explicit publication handle matching
-  one dashboard entry. A separate read of that publication's subscriber page
-  must bind the same viewer and publication through the observed author/admin
-  fields. It admits only the selected publication's Substack origin.
-- Export v2 returns at most 50 rows per request and 500 per continuation chain.
-  AES-GCM cursors bind the operation version, selected account, viewer,
-  publication origin and ID, initial total, and consumed rows. Old unsigned
-  cursors and altered or cross-account tokens are rejected before cookie or
-  network access.
-- Encrypted, sorted 64-bit email fingerprints detect duplicates throughout
-  the chain. Hash collisions fail closed. Count drift and changed ordering metadata
-  fail closed. These checks cannot establish a consistent snapshot when
-  equal-count membership changes omit rows.
-- Every result has `complete: false` and `completeness.kind: "page"`.
-  `stopReason` distinguishes the observed provider total from the 500-row
-  limit. Exhausting a continuation does not certify collection completeness.
-- Export v1 retains its original historical identity without becoming
-  executable. Import and import-status remain disabled at version 1.
+- The direct runtime requires a bound viewer and an explicit publication
+  handle matching one dashboard entry. A separate read of that publication's
+  subscriber page must bind the same viewer and publication through the
+  observed author/admin fields before any subscriber exchange, including
+  import-status and import.
+- Export v2 returns at most 100 rows per request; the dashboard accepted 100
+  and rejected 101. One continuation chain covers provider positions below
+  500, which keeps the sealed cursor's fingerprint set under the 8,192-byte
+  token bound and covers the qualified 373-row publication.
+- AES-GCM cursors (payload schema 3) bind the operation, auth locator,
+  viewer, publication origin and ID, first-page total, next provider offset,
+  and sorted fingerprints of every address already returned.
+- Each continuation rewinds up to ten rows. The dashboard reorders rows that
+  share a signup instant between requests: a plain 100-row stride once
+  returned 372 unique addresses for a total of 373, while a ten-row overlap
+  recovered all 373. Rows the chain already returned are dropped, so each page
+  lists only new addresses. A repeat within one page, count drift, a short
+  page before the end, and changed ordering fail closed.
+- The last page reports `complete: true`, `completeness.kind: "census"`, and
+  `stopReason: "provider-exhausted"` only when the chain's unique addresses
+  equal the reported total. An exhausted chain with any other count reports
+  `census-mismatch`, and the 500-row bound reports `row-limit`; both keep
+  `complete: false`. A count match cannot detect an equal-count membership
+  swap.
+- Export v1, import v1, and import-status v1 keep their original identities
+  as separate disabled routes.
 
-## Evidence required before activation
+## Installed-path qualification
 
-Retain a reviewed second-page and terminal-page exchange, qualify the signed-in
-login probe, and exercise the installed Ghostget authentication and transport
-path under its approved authorization. Browser-observed identity fields and
-fixture replay do not qualify that transport. Review the exact current
-request, response, paging limits, identity checks, and implementation before
-changing either public execution registry to `observed`.
+On 2026-09-28 the checkout's CLI (`bun src/cli.ts invoke`) ran against an
+isolated development state with a fresh `substack-chrome` cookie-source
+locator bound to the owner's subject. `subscribers.export` with
+`{"publication":"hraness","limit":100}` returned five pages with 100, 90, 90,
+90, and 3 new rows. The chain returned 373 unique addresses for a reported
+total of 373 and ended with `complete: true` and `provider-exhausted`. Every
+row had exactly `email`, `subscriptionType`, and `subscribedAt`.
+`subscribers.import.status` with `{"publication":"hraness"}` returned the
+five-count projection from `GET /api/v1/import/instances`. No address, cookie,
+or response body was recorded.
 
-Keep approved raw evidence private and publish only structural findings,
-counts, request shapes, and digests. Never enable import or import-status
-from export evidence.
+## Import qualification
 
-Authored by Codex. The captured projections were independently replayed by the
-implementation worker; final code and evidence review remains with the
-integration owner.
+Import v2 sends the dashboard's observed add request: one
+`POST /api/v1/subscriber/add` with `{"email", "subscription": false,
+"sendEmail": false}`, after the owner binding, once, never retried. HTTP 200
+with `{}` is only an acknowledgement. Any other outcome after dispatch is
+`indeterminate` with `reconcile-required:`, because a started dispatch can
+never finish as `failed`.
+
+One authorized qualification add ran through the gated runtime, not the
+public dispatcher, at 2026-09-28T02:47:36Z. It used the oldest confirmed,
+unsuppressed, Substack-eligible Hraness opt-in absent from a fresh complete
+census. Substack returned HTTP 200 with `{}`.
+The latest import job changed from one skipped address to one added address.
+Complete censuses right after the add and four and eight minutes later still
+reported 373 addresses without it. A complete census 18 minutes after the
+add reported 374 unique addresses of 374, including the added address. That
+presence plus the one-address unique increase is the reconciliation evidence
+for promoting import to `observed`. The address was never retried.
+
+Callers must treat an accepted add as pending until a later complete census
+contains the address. Import-status counts cannot confirm a specific
+address, and the observed delay means an early census without the address
+is not evidence of failure.
+
+Authored by Devin. Keep approved raw evidence private and publish only
+structural findings, counts, request shapes, and digests.

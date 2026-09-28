@@ -191,18 +191,14 @@ export const SUBSTACK_WEB_OPERATIONS = Object.freeze({
     "first-party-bundle",
     "scheduled publication needs an exact viewer-owned publication, time zone, audience, notification, and returned-draft binding",
   ),
-  "subscribers.export": captureRequiredRead(
-    "none",
-    "owned-publication subscriber export v2 uses a bounded dashboard request and authenticated continuation; account-bound live pagination evidence remains under review before execution",
+  "subscribers.export": observedRead(
+    "installed-CLI census of the owner's publication through POST /api/v1/subscriber-stats with author/admin binding, 100-row pages, a ten-row overlap, and a complete unique census equal to the reported total",
   ),
-  "subscribers.import": captureRequired(
-    "R3",
-    "none",
-    "owned-publication subscriber import needs an authorized first-party capture of the exact add-subscribers request, welcome-email suppression field, acceptance response, and import-status effect before any dispatch",
+  "subscribers.import": observedWrite(
+    "one authorized qualification add of an absent, eligible address through POST /api/v1/subscriber/add with subscription: false and sendEmail: false, acknowledged with an empty object and reconciled by a later complete census that contained the address with a one-address unique increase",
   ),
-  "subscribers.import.status": captureRequiredRead(
-    "none",
-    "owned-publication GET /api/v1/import status projection is implemented from secondary documentation only and needs one authorized live read before execution",
+  "subscribers.import.status": observedRead(
+    "installed-CLI read of the owner's publication through GET /api/v1/import/instances with author/admin binding and nested latestImportResult counts",
   ),
 } as const satisfies Readonly<Record<SubstackWebOperationName, SubstackWebOperationContract>>);
 
@@ -490,9 +486,21 @@ export function normalizeSubstackPublicationStatsResponse(
   });
 }
 
-export const SUBSTACK_SUBSCRIBER_EXPORT_MAX_LIMIT = 50;
+/** Live 2026-09-27: the dashboard accepted 100 rows and rejected 101. */
+export const SUBSTACK_SUBSCRIBER_EXPORT_MAX_LIMIT = 100;
+/**
+ * One continuation chain covers provider positions below 500. That bounds the
+ * sealed cursor's fingerprint set and still covers the qualified publication's
+ * 373-row census with room to grow.
+ */
 export const SUBSTACK_SUBSCRIBER_EXPORT_MAX_ROWS = 500;
-export const SUBSTACK_SUBSCRIBER_IMPORT_MAX_EMAILS = 25;
+/**
+ * Rows repeated at the start of the next page. The dashboard reorders rows that
+ * share a signup instant between requests; a plain 100-row stride missed one
+ * of 373 addresses live, and a ten-row overlap recovered all of them.
+ */
+export const SUBSTACK_SUBSCRIBER_EXPORT_OVERLAP = 10;
+export const SUBSTACK_SUBSCRIBER_IMPORT_MAX_EMAILS = 1;
 const MAX_SUBSCRIBER_EMAIL_LENGTH = 254;
 const MAX_SUBSCRIBER_EMAIL_LOCAL_LENGTH = 64;
 const MAX_SUBSCRIBER_TOTAL = 100_000_000;
@@ -517,23 +525,32 @@ export type SubstackSubscriberRow = Readonly<{
   subscribedAt: string | null;
 }>;
 
+export type SubstackSubscriberStopReason =
+  | "provider-exhausted"
+  | "row-limit"
+  | "census-mismatch";
+
 export type SubstackSubscriberPage = Readonly<{
+  /** Addresses first seen on this page; overlap repeats are already removed. */
   subscribers: readonly SubstackSubscriberRow[];
   nextCursor: SubstackSubscriberCursor | null;
   total: number;
-  complete: false;
-  completeness: Readonly<{ kind: "page"; reason: string }>;
+  /** True only on the last page when the chain's unique addresses equal `total`. */
+  complete: boolean;
+  completeness: Readonly<{ kind: "page" | "census"; reason: string }>;
   continuationSupported: boolean;
-  stopReason: "provider-exhausted" | "row-limit" | null;
+  stopReason: SubstackSubscriberStopReason | null;
 }>;
 
 export type SubstackSubscriberCursor = Readonly<{
-  schemaVersion: 2;
+  schemaVersion: 3;
   viewerId: number;
   publicationId: number;
   publicationOrigin: string;
+  /** Next provider offset, which overlaps the previous page. */
   offset: number;
   total: number;
+  /** Sorted unique fingerprints of every address the chain has returned. */
   seenFingerprints: string;
 }>;
 
@@ -544,6 +561,7 @@ export type SubstackSubscriberExportPlan = Readonly<{
 }>;
 
 export type SubstackSubscriberImportPlan = Readonly<{
+  publication: string;
   emails: readonly string[];
   sendWelcomeEmail: false;
 }>;
@@ -603,22 +621,27 @@ function subscriberFingerprint(email: string): string {
   return createHash("sha256").update(email).digest("hex").slice(0, 16);
 }
 
-function subscriberFingerprints(value: unknown, offset: number): readonly string[] {
+function subscriberFingerprints(value: unknown): readonly string[] {
   if (typeof value !== "string" || value.length > 5_334 || /[^A-Za-z0-9_-]/u.test(value)) {
     throw new Error("Substack subscriber cursor fingerprints are malformed");
   }
   const bytes = Buffer.from(value, "base64url");
-  if (bytes.toString("base64url") !== value || bytes.byteLength !== offset * 8) {
+  if (
+    bytes.toString("base64url") !== value
+    || bytes.byteLength % 8 !== 0
+    || bytes.byteLength / 8 > SUBSTACK_SUBSCRIBER_EXPORT_MAX_ROWS
+  ) {
     throw new Error("Substack subscriber cursor fingerprints are malformed");
   }
-  const result = Array.from({ length: offset }, (_, index) => bytes.subarray(index * 8, (index + 1) * 8).toString("hex"));
+  const count = bytes.byteLength / 8;
+  const result = Array.from({ length: count }, (_, index) => bytes.subarray(index * 8, (index + 1) * 8).toString("hex"));
   if (result.some((entry, index) => index > 0 && entry <= result[index - 1]!)) {
     throw new Error("Substack subscriber cursor fingerprints must be unique and sorted");
   }
   return result;
 }
 
-/** Reconstruct only an authenticated v2 cursor payload, never caller offsets. */
+/** Reconstruct only an authenticated v3 cursor payload, never caller offsets. */
 export function parseSubstackSubscriberCursor(value: unknown): SubstackSubscriberCursor {
   const cursor = record(value, "Substack subscriber cursor");
   const keys = ["schemaVersion", "viewerId", "publicationId", "publicationOrigin", "offset", "total", "seenFingerprints"];
@@ -626,7 +649,7 @@ export function parseSubstackSubscriberCursor(value: unknown): SubstackSubscribe
   const viewerId = integerId(cursor.viewerId, "Substack subscriber cursor viewer");
   const publicationId = integerId(cursor.publicationId, "Substack subscriber cursor publication");
   if (
-    cursor.schemaVersion !== 2
+    cursor.schemaVersion !== 3
     || typeof cursor.publicationOrigin !== "string"
     || !SUBSTACK_PUBLICATION_SUBDOMAIN_ORIGIN.test(cursor.publicationOrigin)
     || typeof cursor.offset !== "number"
@@ -638,9 +661,14 @@ export function parseSubstackSubscriberCursor(value: unknown): SubstackSubscribe
     || cursor.total > MAX_SUBSCRIBER_TOTAL
     || cursor.offset >= cursor.total
   ) throw new Error("Substack subscriber cursor must name one bounded remaining page");
-  subscriberFingerprints(cursor.seenFingerprints, cursor.offset);
+  const fingerprints = subscriberFingerprints(cursor.seenFingerprints);
+  // The overlap rewinds at most ten rows, so every position before the next
+  // offset has been returned once and at most `offset + overlap` are unique.
+  if (fingerprints.length < 1 || fingerprints.length > cursor.offset + SUBSTACK_SUBSCRIBER_EXPORT_OVERLAP) {
+    throw new Error("Substack subscriber cursor fingerprints do not match its offset");
+  }
   return Object.freeze({
-    schemaVersion: 2,
+    schemaVersion: 3,
     viewerId,
     publicationId,
     publicationOrigin: cursor.publicationOrigin,
@@ -674,15 +702,24 @@ export function prepareSubstackSubscriberExportInput(value: unknown): SubstackSu
   return Object.freeze({ publication, cursor, limit: limit as number });
 }
 
+function subscriberPublicationHandle(value: unknown): string {
+  const publication = canonicalSubstackProfileHandle(value, "input.publication");
+  if (publication !== value || publication.length > 63) {
+    throw new Error("input.publication must be one canonical Substack handle");
+  }
+  return publication;
+}
+
 /** Validate a complete import request before any cookie or network access. */
 export function prepareSubstackSubscriberImportInput(value: unknown): SubstackSubscriberImportPlan {
   const input = record(value, "Substack subscriber import input");
   exactOwnKeys(
     input,
-    ["emails", "send_welcome_email"],
-    ["emails", "send_welcome_email"],
+    ["publication", "emails", "send_welcome_email"],
+    ["publication", "emails", "send_welcome_email"],
     "Substack subscriber import input",
   );
+  const publication = subscriberPublicationHandle(input.publication);
   if (input.send_welcome_email !== false) {
     throw new Error("input.send_welcome_email must be the literal false");
   }
@@ -706,15 +743,17 @@ export function prepareSubstackSubscriberImportInput(value: unknown): SubstackSu
     return address;
   });
   return Object.freeze({
+    publication,
     emails: Object.freeze(normalized),
     sendWelcomeEmail: false as const,
   });
 }
 
-/** The status read accepts exactly one empty object. */
-export function prepareSubstackSubscriberImportStatusInput(value: unknown): void {
+/** The status read names exactly one owned publication handle. */
+export function prepareSubstackSubscriberImportStatusInput(value: unknown): string {
   const input = record(value, "Substack subscriber import status input");
-  exactOwnKeys(input, [], [], "Substack subscriber import status input");
+  exactOwnKeys(input, ["publication"], ["publication"], "Substack subscriber import status input");
+  return subscriberPublicationHandle(input.publication);
 }
 
 /**
@@ -782,18 +821,22 @@ export function substackSubscriberStatsRequestBody(offset: number, limit: number
 }
 
 /**
- * Request-shape candidate for the add-subscribers import. The field names,
- * including welcome-email suppression, remain unproven until the operation's
- * authorized first-party capture; the contract stays capture-required.
+ * The dashboard's add-subscriber request, observed live on 2026-09-27: one
+ * address, no paid subscription, and no welcome email.
  */
 export function substackSubscriberImportRequestBody(
   plan: SubstackSubscriberImportPlan,
-): Readonly<{ emails: readonly string[]; sendWelcomeEmail: false }> {
+): Readonly<{ email: string; subscription: false; sendEmail: false }> {
   const checked = prepareSubstackSubscriberImportInput({
+    publication: plan.publication,
     emails: [...plan.emails],
     send_welcome_email: plan.sendWelcomeEmail,
   });
-  return Object.freeze({ emails: checked.emails, sendWelcomeEmail: false as const });
+  return Object.freeze({
+    email: checked.emails[0]!,
+    subscription: false as const,
+    sendEmail: false as const,
+  });
 }
 
 function exactCount(value: unknown, label: string): number {
@@ -859,8 +902,12 @@ function projectedSubscriber(value: unknown, label: string): SubstackSubscriberR
 
 /**
  * Project one owned-publication subscriber page to the frozen contract fields.
- * A stable total and duplicate checks detect some changes, but equal-count
- * membership changes can still omit rows. No page claims snapshot completeness.
+ * Each continuation rewinds up to ten rows because the dashboard reorders rows
+ * with equal signup instants between requests. Rows already returned by the
+ * chain are dropped, so every returned address is new. The last page is
+ * `complete` only when the chain's unique addresses equal the reported total;
+ * equal-count membership changes can still hide a swap, which is why a caller
+ * that needs a snapshot compares two censuses.
  */
 export function normalizeSubstackSubscriberPage(
   value: unknown,
@@ -883,7 +930,10 @@ export function normalizeSubstackSubscriberPage(
     throw new Error("Substack subscriber export reached its row bound");
   }
   substackSubscriberStatsRequestBody(expected.offset, expected.limit);
-  const previousFingerprints = subscriberFingerprints(expected.seenFingerprints ?? "", expected.offset);
+  const previousFingerprints = subscriberFingerprints(expected.seenFingerprints ?? "");
+  if ((expected.offset === 0) !== (previousFingerprints.length === 0)) {
+    throw new Error("Substack subscriber continuation state is inconsistent");
+  }
   const source = record(value, "Substack subscriber page response");
   const order = record(source.order, "Substack subscriber page response.order");
   exactOwnKeys(order, ["by", "direction"], ["by", "direction"], "Substack subscriber page response.order");
@@ -899,31 +949,43 @@ export function normalizeSubstackSubscriberPage(
     "Substack subscriber page response.subscribers",
     expected.limit,
   );
-  const subscribers = rows.map((row, index) =>
+  const projected = rows.map((row, index) =>
     projectedSubscriber(row, `Substack subscriber page response.subscribers[${String(index)}]`));
+  const onPage = new Set<string>();
   const seen = new Set(previousFingerprints);
-  for (const subscriber of subscribers) {
+  const subscribers: SubstackSubscriberRow[] = [];
+  for (const subscriber of projected) {
     const fingerprint = subscriberFingerprint(subscriber.email);
-    if (seen.has(fingerprint)) {
-      throw new Error("Substack subscriber export repeated an address; restart the export");
+    if (onPage.has(fingerprint)) {
+      throw new Error("Substack subscriber page repeated an address; restart the export");
     }
+    onPage.add(fingerprint);
+    if (seen.has(fingerprint)) continue;
     seen.add(fingerprint);
+    subscribers.push(subscriber);
   }
-  const consumed = expected.offset + subscribers.length;
+  const consumed = expected.offset + projected.length;
   if (consumed > total || consumed > SUBSTACK_SUBSCRIBER_EXPORT_MAX_ROWS) {
     throw new Error("Substack subscriber page exceeded the reported total");
   }
-  if (subscribers.length === 0 && expected.offset < total) {
+  if (projected.length === 0 && expected.offset < total) {
     throw new Error("Substack subscriber page ended before the reported total");
   }
-  const stopReason = consumed >= total ? "provider-exhausted" : consumed >= SUBSTACK_SUBSCRIBER_EXPORT_MAX_ROWS ? "row-limit" : null;
+  if (consumed < total && projected.length < expected.limit) {
+    throw new Error("Substack subscriber page ended early before the reported total");
+  }
+  const exhausted = consumed >= total;
+  const stopReason: SubstackSubscriberStopReason | null = exhausted
+    ? seen.size === total ? "provider-exhausted" : "census-mismatch"
+    : consumed >= SUBSTACK_SUBSCRIBER_EXPORT_MAX_ROWS ? "row-limit" : null;
+  const complete = stopReason === "provider-exhausted";
   const nextCursor = stopReason === null
     ? parseSubstackSubscriberCursor({
-        schemaVersion: 2,
+        schemaVersion: 3,
         viewerId: expected.viewerId,
         publicationId: expected.publicationId,
         publicationOrigin: expected.publicationOrigin,
-        offset: consumed,
+        offset: expected.offset + Math.max(1, projected.length - SUBSTACK_SUBSCRIBER_EXPORT_OVERLAP),
         total,
         seenFingerprints: Buffer.from([...seen].sort().join(""), "hex").toString("base64url"),
       })
@@ -932,11 +994,20 @@ export function normalizeSubstackSubscriberPage(
     subscribers: Object.freeze(subscribers),
     nextCursor,
     total,
-    complete: false,
-    completeness: Object.freeze({
-      kind: "page",
-      reason: "Offset pagination has no verified snapshot; membership or ordering changes can omit rows.",
-    }),
+    complete,
+    completeness: Object.freeze(complete
+      ? {
+          kind: "census" as const,
+          reason: "The chain reached the provider total and returned exactly that many unique addresses.",
+        }
+      : {
+          kind: "page" as const,
+          reason: stopReason === "census-mismatch"
+            ? "The provider was exhausted, but the chain's unique addresses did not equal the reported total; restart the export."
+            : stopReason === "row-limit"
+              ? "The chain reached its 500-row bound before the provider total."
+              : "More pages remain; continue with nextCursor.",
+        }),
     continuationSupported: nextCursor !== null,
     stopReason,
   });
@@ -960,6 +1031,42 @@ export function normalizeSubstackSubscriberImportStatus(value: unknown): Substac
     isSkipped: exactCount(source.is_skipped, "Substack import status response.is_skipped"),
     isLimited: exactCount(source.is_limited, "Substack import status response.is_limited"),
     passImportVerification: source.passImportVerification,
+  });
+}
+
+/** Project only reviewed counts from the publication-scoped import instances response. */
+export function normalizeSubstackSubscriberImportInstances(
+  value: unknown,
+): SubstackSubscriberImportStatus {
+  const source = record(value, "Substack subscriber import instances response");
+  exactOwnKeys(
+    source,
+    ["hasActiveListManagementModerationTask", "latestImportResult", "pubImports"],
+    ["hasActiveListManagementModerationTask", "latestImportResult", "pubImports"],
+    "Substack subscriber import instances response",
+  );
+  if (typeof source.hasActiveListManagementModerationTask !== "boolean") {
+    throw new Error("Substack subscriber import instances response moderation flag is invalid");
+  }
+  if (!Array.isArray(source.pubImports) || source.pubImports.length > 1_000) {
+    throw new Error("Substack subscriber import instances response jobs are invalid");
+  }
+  const latest = record(source.latestImportResult, "Substack subscriber latest import result");
+  exactOwnKeys(
+    latest,
+    ["total", "is_added", "is_skipped", "is_limited", "passImportVerification", "upload_date"],
+    ["total", "is_added", "is_skipped", "is_limited", "passImportVerification", "upload_date"],
+    "Substack subscriber latest import result",
+  );
+  if (typeof latest.upload_date !== "string" || !Number.isFinite(Date.parse(latest.upload_date))) {
+    throw new Error("Substack subscriber latest import result date is invalid");
+  }
+  return normalizeSubstackSubscriberImportStatus({
+    total: latest.total,
+    is_added: latest.is_added,
+    is_skipped: latest.is_skipped,
+    is_limited: latest.is_limited,
+    passImportVerification: latest.passImportVerification,
   });
 }
 
@@ -1005,14 +1112,18 @@ export function authorizeSubstackSubscriberRequest(input: {
       return Object.freeze({ operation: input.operation, method: "POST", path: url.pathname });
     }
     case "subscribers.import": {
-      if (method !== "POST" || url.pathname !== "/api/v1/import") {
+      if (method !== "POST" || url.pathname !== "/api/v1/subscriber/add") {
         throw new Error("Substack subscriber import request changed its reviewed exchange");
       }
       const body = record(input.body, "Substack subscriber import request body");
-      exactOwnKeys(body, ["emails", "sendWelcomeEmail"], ["emails", "sendWelcomeEmail"], "Substack subscriber import request body");
+      exactOwnKeys(body, ["email", "subscription", "sendEmail"], ["email", "subscription", "sendEmail"], "Substack subscriber import request body");
+      if (body.subscription !== false) {
+        throw new Error("Substack subscriber import request body changed its reviewed shape");
+      }
       const checked = prepareSubstackSubscriberImportInput({
-        emails: body.emails,
-        send_welcome_email: body.sendWelcomeEmail,
+        publication: input.organization,
+        emails: [body.email],
+        send_welcome_email: body.sendEmail,
       });
       if (JSON.stringify(body) !== JSON.stringify(substackSubscriberImportRequestBody(checked))) {
         throw new Error("Substack subscriber import request body changed its reviewed shape");
@@ -1020,7 +1131,7 @@ export function authorizeSubstackSubscriberRequest(input: {
       return Object.freeze({ operation: input.operation, method: "POST", path: url.pathname });
     }
     case "subscribers.import.status":
-      if (method !== "GET" || input.body !== undefined || url.pathname !== "/api/v1/import") {
+      if (method !== "GET" || input.body !== undefined || url.pathname !== "/api/v1/import/instances") {
         throw new Error("Substack import status request changed its reviewed exchange");
       }
       return Object.freeze({ operation: input.operation, method: "GET", path: url.pathname });

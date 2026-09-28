@@ -16,31 +16,44 @@ if (binding?.transport !== "web-session-api") {
 }
 
 describe("Substack web provider plugin", () => {
-  test("keeps the original subscriber export reservation separate from v2", () => {
-    expect(substackWebPlugin.version).toBe("1.5.0");
+  test("keeps each original subscriber reservation separate from its v2 route", () => {
+    expect(substackWebPlugin.version).toBe("1.6.0");
+    for (const [name, risk, currentState] of [
+      ["subscribers.export", "R1", "observed"],
+      ["subscribers.import", "R3", "observed"],
+      ["subscribers.import.status", "R1", "observed"],
+    ] as const) {
+      const routes = binding.operations.filter((operation) => operation.name === name);
+      expect(routes.map((operation) => operation.contractVersion).sort()).toEqual([1, 2]);
+      const current = routes.find((operation) => operation.contractVersion === 2);
+      const archived = routes.find((operation) => operation.contractVersion === 1);
+      expect(current).toMatchObject({ risk, state: currentState });
+      expect(archived).toMatchObject({ risk, state: "capture-required" });
+      for (const operation of routes) expect(operation).not.toHaveProperty("historicalContractVersions");
+      expect(current?.input.properties.publication).toMatchObject({ type: "string", minLength: 1, maxLength: 63 });
+      expect(archived?.input.properties).not.toHaveProperty("publication");
+    }
     const exports = binding.operations.filter((operation) => operation.name === "subscribers.export");
-    expect(exports).toHaveLength(2);
     const current = exports.find((operation) => operation.contractVersion === 2);
     const archived = exports.find((operation) => operation.contractVersion === 1);
-    for (const operation of exports) {
-      expect(operation).toMatchObject({ risk: "R1", state: "capture-required", dispatch: "none" });
-      expect(operation).not.toHaveProperty("historicalContractVersions");
-    }
     expect(current?.input.required).toEqual(["publication", "limit"]);
-    expect(current?.input.properties.publication).toMatchObject({ type: "string", minLength: 1, maxLength: 63 });
-    expect(archived?.input.properties).not.toHaveProperty("publication");
-    expect(current?.input.properties.limit).toMatchObject({ minimum: 1, maximum: 50 });
+    expect(current?.input.properties.limit).toMatchObject({ minimum: 1, maximum: 100 });
     expect(current?.input.properties.cursor).toMatchObject({ maxLength: 8192 });
     expect(archived?.input.properties.limit).toMatchObject({ minimum: 1, maximum: 500 });
     expect(archived?.input.properties.cursor).toMatchObject({ maxLength: 64 });
-    for (const name of ["subscribers.import", "subscribers.import.status"]) {
-      expect(binding.operations.find((operation) => operation.name === name)).toMatchObject({
-        contractVersion: 1, state: "capture-required",
-      });
-    }
+    const imports = binding.operations.filter((operation) => operation.name === "subscribers.import");
+    expect(imports.find((operation) => operation.contractVersion === 2)?.input).toMatchObject({
+      required: ["publication", "emails", "send_welcome_email"],
+      properties: { emails: { minItems: 1, maxItems: 1 } },
+    });
+    expect(imports.find((operation) => operation.contractVersion === 1)?.input.properties.emails)
+      .toMatchObject({ maxItems: 25 });
+    const statuses = binding.operations.filter((operation) => operation.name === "subscribers.import.status");
+    expect(statuses.find((operation) => operation.contractVersion === 2)?.input.required).toEqual(["publication"]);
+    expect(statuses.find((operation) => operation.contractVersion === 1)?.input.properties).toEqual({});
   });
 
-  test("derives the v1.5 durable writer identity from the reviewed v1.9 adapter and semantics", () => {
+  test("derives the v1.6 durable writer identity from the reviewed v1.10 adapter and semantics", () => {
     const adapterBytes = readFileSync(new URL("../../assets/adapters/substack/wrench-web-adapter.json", import.meta.url));
     const contracts = webSessionContractDefinitions.substack;
     if (contracts === undefined) throw new Error("Substack contracts unavailable");
@@ -48,16 +61,29 @@ describe("Substack web provider plugin", () => {
       format: "wrench.reviewed-built-in-contract-identity",
       schemaVersion: 1,
       pluginId: "substack-web",
-      pluginVersion: "1.5.0",
+      pluginVersion: "1.6.0",
       adapterId: "substack-web",
-      adapterVersion: "1.9.0",
+      adapterVersion: "1.10.0",
       adapterSha256: createHash("sha256").update(adapterBytes).digest("hex"),
       contractSemanticSha256: contractSemanticIdentity(Object.values(contracts)),
     })).digest("hex");
-    expect(reviewedBuiltInContractIdentity("substack-web", "1.5.0").implementationSha256).toBe(derived);
+    expect(reviewedBuiltInContractIdentity("substack-web", "1.6.0").implementationSha256).toBe(derived);
     expect(createHash("sha256").update(readFileSync(new URL(
       "../../assets/adapters/substack/wrench-web-adapter.v1.8.0.json", import.meta.url,
     ))).digest("hex")).toBe("93719a86fbab8a832d203fe05fc8446d26b09e46add2d566439a27eba957be8c");
+    // The retained v1.9 snapshot still derives the 1.5.0 identity it shipped with.
+    expect(createHash("sha256").update(JSON.stringify({
+      format: "wrench.reviewed-built-in-contract-identity",
+      schemaVersion: 1,
+      pluginId: "substack-web",
+      pluginVersion: "1.5.0",
+      adapterId: "substack-web",
+      adapterVersion: "1.9.0",
+      adapterSha256: createHash("sha256").update(readFileSync(new URL(
+        "../../assets/adapters/substack/wrench-web-adapter.v1.9.0.json", import.meta.url,
+      ))).digest("hex"),
+      contractSemanticSha256: "bff781c7c4c908e8d5ec8639c20420f8756ee4d05ce786431cf56a98675e5533",
+    })).digest("hex")).toBe("7e12bbfffb9629b9195b98fc42394d6c5163ae3e2efa8063a1086ff1cc3dde1b");
   });
 
   test("accepts predecessor receipts only on their exact historical routes", () => {
@@ -72,9 +98,11 @@ describe("Substack web provider plugin", () => {
       .update(Buffer.from("58438f60cf9b2d2db9363cb7dece0c6ca56e60c2178fe4bcbd60c844fc8893ba", "hex"))
       .digest("hex");
     expect(originalReceipt).toBe("f0a20609b1d0a0c902b52bdb99483a4115a1f2ad61c40d797e45e92f803bc796");
-    const identity = reviewedBuiltInContractIdentity("substack-web", "1.5.0");
+    const identity = reviewedBuiltInContractIdentity("substack-web", "1.6.0");
     const predecessors = identity.legacyDistributionReadImplementationSha256 ?? [];
-    expect(predecessors).toHaveLength(10);
+    expect(predecessors).toHaveLength(11);
+    expect(predecessors[0]?.implementationSha256).toBe("7e12bbfffb9629b9195b98fc42394d6c5163ae3e2efa8063a1086ff1cc3dde1b");
+    const subscriberV2 = new Set(["subscribers.export", "subscribers.import", "subscribers.import.status"]);
     for (const distribution of predecessors) {
       for (const operation of registered.operations) {
         for (const contractVersion of operation.contractVersions) {
@@ -87,14 +115,14 @@ describe("Substack web provider plugin", () => {
             .update("\0")
             .update(Buffer.from(distribution.implementationSha256, "hex"))
             .digest("hex");
-          const isNewExport = operation.name === "subscribers.export" && contractVersion === 2;
-          expect(isCompatibleWebSessionContractHash(contract, priorHash, providerPluginRegistry)).toBe(!isNewExport);
+          const isNewRoute = subscriberV2.has(operation.name) && contractVersion === 2;
+          expect(isCompatibleWebSessionContractHash(contract, priorHash, providerPluginRegistry)).toBe(!isNewRoute);
         }
       }
     }
-    expect(providerPluginRegistry.legacyContractImplementationHashes(
-      registered, "subscribers.export", 2,
-    )).toEqual([]);
+    for (const name of subscriberV2) {
+      expect(providerPluginRegistry.legacyContractImplementationHashes(registered, name as "subscribers.export", 2)).toEqual([]);
+    }
   });
 
   test("declares exact accepted-target reconciliation for current Note publishing", () => {
