@@ -1986,21 +1986,22 @@
 //
 // The persistent automation helpers add the iMessage automation session, the
 // synchronous persistent state-helper bridge, the state helper's serve mode and
-// rebuilt dist chunks in the same 615 packed entries. After `bun run build`, a
-// clean npm 11.19.0 pack --ignore-scripts with Node 24.18.1 on darwin arm64
-// measured 615 entries, 12,107,770 packed bytes and 23,834,622 unpacked bytes; archive
-// SHA-256 ed8d1a716d1e6f8303bb10376cf602a54cb700daba504b039abf934750134b9b.
-// Carry the same projections and allowances: 12,107,770 + 12,387 + 4,096 =
-// 12,124,253 packed; 23,834,622 + 353 + 65 = 23,835,040 unpacked.
+// rebuilt dist chunks, and ships the bridge as one new packed file. After
+// `bun run build`, a clean npm 11.19.0 pack --ignore-scripts with Node 24.18.1
+// on darwin arm64 measured 616 entries, 12,109,347 packed bytes and 23,840,831
+// unpacked bytes; archive SHA-256
+// cb84d130337d9f5efb520d78592c0047b67c75de2a1677633bea25064a06e46b.
+// Carry the same projections and allowances: 12,109,347 + 12,387 + 4,096 =
+// 12,125,830 packed; 23,840,831 + 353 + 65 = 23,841,249 unpacked.
 export const repairPackageMeasurement = Object.freeze({
   scope: "Persistent iMessage automation session and persistent state helpers over main 9f2dd16",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "ed8d1a716d1e6f8303bb10376cf602a54cb700daba504b039abf934750134b9b",
-  packedBytes: 12_107_770,
-  unpackedBytes: 23_834_622,
-  entryCount: 615,
+  archiveSha256: "cb84d130337d9f5efb520d78592c0047b67c75de2a1677633bea25064a06e46b",
+  packedBytes: 12_109_347,
+  unpackedBytes: 23_840_831,
+  entryCount: 616,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,

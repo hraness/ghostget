@@ -832,7 +832,8 @@ function persistentStateHelperResponse(
     executable: process.execPath,
     arguments: ["--no-env-file", "--no-install", "--no-macros", "--no-addons", `--config=${stateHelperConfigPath}`, stateHelperPath, "--serve"],
     cwd: directory,
-    environment: helperEnvironment,
+    // Persistent helpers never run under a crash plan, so this is exactly helperEnvironment.
+    environment: { NODE_ENV: helperEnvironment.NODE_ENV },
   }, JSON.stringify({ schemaVersion: 1, requestId, expected, operation }), 30_000);
   const current = inspectRealDirectoryIdentity(directory);
   if (!sameIdentity(current, expected)) throw new Error(`GHOSTGET_STATE_HOME changed identity after validation: ${directory}`);

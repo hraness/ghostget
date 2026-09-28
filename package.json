@@ -384,6 +384,7 @@
     "src/oauth-google.ts",
     "src/oauth-x.ts",
     "src/path-helper.ts",
+    "src/persistent-helper-bridge.ts",
     "src/pinned-https.ts",
     "src/plan-assets.ts",
     "src/platform-catalog.ts",

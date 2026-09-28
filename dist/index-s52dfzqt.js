@@ -763,7 +763,7 @@ function persistentStateHelperResponse(directory, expected, requestId, operation
     executable: process.execPath,
     arguments: ["--no-env-file", "--no-install", "--no-macros", "--no-addons", `--config=${stateHelperConfigPath}`, stateHelperPath, "--serve"],
     cwd: directory,
-    environment: helperEnvironment
+    environment: { NODE_ENV: helperEnvironment.NODE_ENV }
   }, JSON.stringify({ schemaVersion: 1, requestId, expected, operation }), 30000);
   const current2 = inspectRealDirectoryIdentity(directory);
   if (!sameIdentity(current2, expected))
