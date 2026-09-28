@@ -2025,14 +2025,22 @@
 // Retain the same platform projections and portability allowances:
 // 12,122,080 + 12,387 + 4,096 = 12,138,563 packed;
 // 23,930,250 + 353 + 65 = 23,930,668 unpacked.
+// The 0.18.44 release bumps the version pins, adds its changelog section and
+// rebuilds dist over merged main ab438a6. After `bun run build`, two clean npm
+// 11.19.0 packs --ignore-scripts with Node 24.18.1 on darwin arm64 were
+// byte-identical: 618 entries, 12,122,539 packed bytes and 23,931,430 unpacked
+// bytes; archive SHA-256
+// 7c61a2d4bcbbd722cfdebc9c5dfc221ea61545c6fe4f06a97e32a4f50200d7c4.
+// Carry the same projections and allowances: 12,122,539 + 12,387 + 4,096 =
+// 12,139,022 packed; 23,931,430 + 353 + 65 = 23,931,848 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Qualified Substack subscriber export, import status, and one-address import over main 4084ff5",
+  scope: "Ghostget 0.18.44 release over the qualified Substack subscriber operations",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "a3aed9af22331dba7333d6705ca83ac4d4cd2343ab084267086f7ce53d5d258e",
-  packedBytes: 12_122_080,
-  unpackedBytes: 23_930_250,
+  archiveSha256: "7c61a2d4bcbbd722cfdebc9c5dfc221ea61545c6fe4f06a97e32a4f50200d7c4",
+  packedBytes: 12_122_539,
+  unpackedBytes: 23_931_430,
   entryCount: 618,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

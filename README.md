@@ -28,7 +28,7 @@ Install [Bun 1.3.14](https://bun.sh/docs/installation) if needed, then install
 Ghostget and read a public page:
 
 ```sh
-bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.43/hraness-ghostget-0.18.43.tgz
+bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.44/hraness-ghostget-0.18.44.tgz
 ghostget read https://example.com
 ```
 
@@ -49,9 +49,9 @@ which always names the latest published release. Upgrading from Wrench? Read the
 The optional Agent Skill teaches your agent when and how to use Ghostget:
 
 ```sh
-npx skills add hraness/ghostget#v0.18.43
+npx skills add hraness/ghostget#v0.18.44
 # With Bun instead:
-bunx skills add hraness/ghostget#v0.18.43
+bunx skills add hraness/ghostget#v0.18.44
 ```
 
 Start a new agent session, then ask: “Use Ghostget to read https://example.com
@@ -150,7 +150,7 @@ firewall.
 
 ## Built-in provider catalog
 
-This v0.18.43 source tree supports executable actions for 21 services: Beeper,
+This v0.18.44 source tree supports executable actions for 21 services: Beeper,
 Bluesky, ClasificadosOnline, Facebook, Facebook Groups, Facebook Marketplace,
 GitHub, Gmail, Hacker News, Instagram, iMessage, LinkedIn, Reddit, Substack,
 Threads, TikTok, Twitch, WebMCP Registry, WhatsApp, X, and YouTube. LinkedIn
@@ -206,10 +206,9 @@ scripts, endpoints it picked, or open browser access. Each signed-in call is
 tied to one provider, origin, transport, account, contract, and implementation,
 so Ghostget never borrows whatever session happens to be open.
 
-This source tree reserves Microsoft Graph contact and calendar-attendee reads
-as disabled (`capture-required`) candidates. The published 0.18.43 package
-predates this implementation. Both stop before credentials or network access until an
-authorized account test confirms their behavior. See the
+Ghostget reserves Microsoft Graph contact and calendar-attendee reads as
+disabled (`capture-required`) candidates. Both stop before credentials or
+network access until an authorized account test confirms their behavior. See the
 [Microsoft Graph reference](skills/ghostget/references/microsoft-graph.md) for
 the proposed fields, limits, and account requirements.
 
@@ -235,7 +234,7 @@ For that same released coordinate, install Ghostget in an agent or application
 that owns its own model, planning, tool loop, approvals, and interface:
 
 ```sh
-bun add https://github.com/hraness/ghostget/releases/download/v0.18.43/hraness-ghostget-0.18.43.tgz
+bun add https://github.com/hraness/ghostget/releases/download/v0.18.44/hraness-ghostget-0.18.44.tgz
 ```
 
 ```ts
