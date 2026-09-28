@@ -47,6 +47,7 @@ export const PROVIDER_PRESENTATIONS = Object.freeze([
   { accent: "violet", icon: "photo", name: "Instagram", surfaceId: "instagram" },
   { accent: "blue", icon: "chat", name: "iMessage", surfaceId: "imessage" },
   { accent: "blue", icon: "network", name: "LinkedIn", surfaceId: "linkedin" },
+  { accent: "blue", icon: "mail", name: "Microsoft Graph", surfaceId: "microsoft-graph" },
   { accent: "coral", icon: "community", name: "Reddit", surfaceId: "reddit" },
   { accent: "coral", icon: "publish", name: "Substack", surfaceId: "substack" },
   { accent: "ink", icon: "community", name: "Threads", surfaceId: "threads" },

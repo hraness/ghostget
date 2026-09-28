@@ -1964,7 +1964,6 @@
 // 0fa290c4dbb3963c0d1f63c16c2bac584273c1dece30f3a4052244a701985187.
 // Carry the same projections and allowances: 12,077,310 + 12,387 + 4,096 =
 // 12,093,793 packed; 23,759,283 + 353 + 65 = 23,759,701 unpacked.
-//
 // The messaging-automation permission snapshot describes a status report's
 // action kinds from one admitted snapshot, and a dispatch reuses its own
 // poll's provider inspection: a small amount of added source and one rebuilt
@@ -1974,15 +1973,25 @@
 // bf77d04ec6cd5ccffbb7390880f423849b6be84066a3ca66da00bf40d1c767c0.
 // Carry the same projections and allowances: 12,090,401 + 12,387 + 4,096 =
 // 12,106,884 packed; 23,763,115 + 353 + 65 = 23,763,533 unpacked.
+//
+// The disabled Microsoft Graph contacts/calendar candidate adds six shipped
+// files over merged main 93a80a6 (0.18.43 plus permission snapshot): adapter, plugin, contracts,
+// runtime, policy, and public reference. A clean npm 11.19.0 pack
+// --ignore-scripts with Node 24.18.1 on darwin arm64 measured 615 entries,
+// 12,099,048 packed bytes and 23,798,398 unpacked bytes; archive SHA-256
+// 0f0aa0a6313132ac00477496792563879b902c16b786d86d88ae74843c93afed.
+// Retain the same platform projections and portability allowances:
+// 12,099,048 + 12,387 + 4,096 = 12,115,531 packed;
+// 23,798,398 + 353 + 65 = 23,798,816 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Messaging-automation permission snapshot and dispatch status reuse over the Ghostget 0.18.43 release tree",
+  scope: "Disabled Microsoft Graph contact/calendar candidates over Ghostget 0.18.43 main 93a80a6",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "bf77d04ec6cd5ccffbb7390880f423849b6be84066a3ca66da00bf40d1c767c0",
-  packedBytes: 12_090_401,
-  unpackedBytes: 23_763_115,
-  entryCount: 609,
+  archiveSha256: "0f0aa0a6313132ac00477496792563879b902c16b786d86d88ae74843c93afed",
+  packedBytes: 12_099_048,
+  unpackedBytes: 23_798_398,
+  entryCount: 615,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,
