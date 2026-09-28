@@ -5,7 +5,7 @@ import {
   materializeImsgNativeResources,
   readBundledMessagingAsset,
   verifyImsgNativeResources
-} from "./index-2ppjmztx.js";
+} from "./index-hn8awf7t.js";
 import"./index-s52dfzqt.js";
 import"./index-dw20pbkj.js";
 import"./index-5m1wfgkw.js";

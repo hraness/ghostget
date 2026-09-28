@@ -26,6 +26,13 @@ export function automationDigest(value: unknown): string {
   if (typeof value !== "string" || !/^[a-f0-9]{64}$/u.test(value)) throw new Error("Messaging automation digest is invalid.");
   return value;
 }
+/** One exact instant in canonical ISO form (the output of Date#toISOString). */
+export function automationInstant(value: unknown): string {
+  if (typeof value !== "string" || value.length !== 24) throw new Error("Invalid automation instant");
+  const time = Date.parse(value);
+  if (!Number.isFinite(time) || new Date(time).toISOString() !== value) throw new Error("Invalid automation instant");
+  return value;
+}
 export function automationInteger(value: unknown, minimum: number, maximum: number): number {
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value < minimum || value > maximum) throw new Error("Messaging automation integer is outside its bound.");
   return value;

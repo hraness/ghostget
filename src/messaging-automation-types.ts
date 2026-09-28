@@ -91,7 +91,9 @@ export interface MessagingAutomationProvider {
   resolve(coordinate: AutomationCoordinate, signal?: AbortSignal): Promise<Readonly<{
     identity: AutomationIdentity; conversation: AutomationConversation;
   }>>;
-  history(input: Readonly<{ coordinate: AutomationCoordinate; limit: number }>, signal?: AbortSignal): Promise<AutomationProviderPage>;
+  /** `before`/`after` bound a dated window (canonical ISO, exclusive/inclusive).
+   * Providers without dated windows must refuse them rather than ignore them. */
+  history(input: Readonly<{ coordinate: AutomationCoordinate; limit: number; before?: string; after?: string }>, signal?: AbortSignal): Promise<AutomationProviderPage>;
   events(input: Readonly<{ coordinates: readonly AutomationCoordinate[]; cursor: string | null; limit: number }>, signal?: AbortSignal): Promise<AutomationProviderPage>;
   /** Optional multi-scope event read. Implementations may run one provider
    * session across every scope instead of one session per `events` call; each
@@ -143,6 +145,7 @@ export interface MessagingAutomationHostApi {
   enroll(input: Readonly<{ provider: AutomationProviderId; coordinate: AutomationCoordinate }>, signal?: AbortSignal): Promise<AutomationEnrollment>;
   enrollments(): readonly AutomationEnrollment[];
   history(input: Readonly<{ enrollmentId: string; limit: number }>): Readonly<{ enrollment: AutomationEnrollment; messages: readonly AutomationMessage[] }>;
+  historyWindow(input: Readonly<{ enrollmentId: string; limit: number; before: string | null; after: string | null }>, signal?: AbortSignal): Promise<Readonly<{ enrollment: AutomationEnrollment; messages: readonly AutomationMessage[] }>>;
   grant(request: AutomationGrantRequest, intentId?: string): AutomationGrant;
   grantByIntent(intentId: string): AutomationGrant | null;
   grantStatus(grantId: string): AutomationGrant;

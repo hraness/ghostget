@@ -5,7 +5,7 @@ import { canonicalJson } from "./canonical-json";
 import { discoveryDiagnosticMessage } from "./messaging-automation-diagnostics";
 import { MessagingAutomationHost } from "./messaging-automation";
 import { MESSAGING_AUTOMATION_PROTOCOL as protocol, type AutomationGrantRequest, type AutomationProviderId, type AutomationProviderStatus } from "./messaging-automation-types";
-import { automationArray, automationDigest, automationId, automationInteger, automationRecord, automationText, parseAutomationAction } from "./messaging-automation-validation";
+import { automationArray, automationDigest, automationId, automationInteger, automationRecord, automationText, parseAutomationAction, automationInstant } from "./messaging-automation-validation";
 import { createMessagingAutomationSession } from "./messaging-automation-factory";
 import { enablePersistentStateHelpers } from "./storage";
 import type { ProviderPluginRegistry } from "./provider-plugin-registry";
@@ -89,6 +89,10 @@ export class MessagingAutomationRpcServer {
     if (method === "cancel") { const r = automationRecord(raw, ["planId"]); return { cancelled: host.cancel(automationId(r.planId)) }; }
     if (method === "poll") { const r = automationRecord(raw, ["enrollmentId"]); return host.poll(automationId(r.enrollmentId), this.abort.signal); }
     if (method === "history") { const r = automationRecord(raw, ["enrollmentId", "limit"]); return host.history({ enrollmentId: automationId(r.enrollmentId), limit: automationInteger(r.limit, 1, 200) }); }
+    if (method === "history.window") {
+      const r = automationRecord(raw, ["enrollmentId", "limit", "before", "after"]);
+      return host.historyWindow({ enrollmentId: automationId(r.enrollmentId), limit: automationInteger(r.limit, 1, 200), before: r.before === null ? null : automationInstant(r.before), after: r.after === null ? null : automationInstant(r.after) }, this.abort.signal);
+    }
     if (method === "events") {
       const r = automationRecord(raw, ["enrollmentIds", "cursor", "limit"]);
       return host.events({ enrollmentIds: automationArray(r.enrollmentIds, 50).map(automationId), cursor: r.cursor === null ? null : automationText(r.cursor, 16_384), limit: automationInteger(r.limit, 1, 500) });
@@ -185,7 +189,7 @@ export class MessagingAutomationRpcServer {
       const r = automationRecord(value, ["protocol", "id", "method", "params"]);
       id = automationText(r.id, 64); if (!/^[A-Za-z0-9._:-]+$/u.test(id) || r.protocol !== protocol) throw new Error("Invalid envelope");
       method = automationText(r.method, 32); priority = ["cancel", "revoke", "close"].includes(method);
-      scoped = ["poll", "pollSet", "history", "prepare", "grant", "submit", "events", "enrollments", "status", "run", "run.by-intent", "grant.get", "grant.by-intent"].includes(method);
+      scoped = ["poll", "pollSet", "history", "history.window", "prepare", "grant", "submit", "events", "enrollments", "status", "run", "run.by-intent", "grant.get", "grant.by-intent"].includes(method);
       if (this.requests.has(id) || (priority ? this.priorityBusy >= 8 : scoped ? this.scopedBusy >= 16 : this.normalBusy)) return { protocol, id, ok: false, error: { code: "not-ready", message: "The owner host is busy or this request is already active." } };
       this.requests.add(id); admitted = true;
       if (priority) this.priorityBusy++; else if (scoped) this.scopedBusy++; else this.normalBusy = true;

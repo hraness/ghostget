@@ -109,6 +109,7 @@ export function createWhatsAppAutomationProvider(options: WhatsAppAutomationOpti
     },
     resolve(value, signal) { const selected = coordinate(value); return run("resolve", signal, (admission, signal) => runtime.read(admission.auth, (database, snapshot) => ({ identity: identity(admission, snapshot), conversation: exact(database, selected, snapshot.account) }), signal)); },
     history(input, signal) {
+      if (input.before !== undefined || input.after !== undefined) return Promise.reject(new Error("Dated history windows are unavailable for WhatsApp."));
       const selected = coordinate(input.coordinate), limit = automationInteger(input.limit, 1, 200);
       return run("history", signal, (admission, signal) => runtime.read(admission.auth, (database, snapshot) => {
         if (!snapshot.ledgerReady) throw new Error("Start the owned WhatsApp connection before enrollment");

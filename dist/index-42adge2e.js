@@ -27,6 +27,14 @@ function automationDigest(value) {
     throw new Error("Messaging automation digest is invalid.");
   return value;
 }
+function automationInstant(value) {
+  if (typeof value !== "string" || value.length !== 24)
+    throw new Error("Invalid automation instant");
+  const time = Date.parse(value);
+  if (!Number.isFinite(time) || new Date(time).toISOString() !== value)
+    throw new Error("Invalid automation instant");
+  return value;
+}
 function automationInteger(value, minimum, maximum) {
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value < minimum || value > maximum)
     throw new Error("Messaging automation integer is outside its bound.");
@@ -300,4 +308,4 @@ class OperationDeadline {
   }
 }
 
-export { OperationDeadlineError, AUTOMATION_ACTION_KINDS, automationRecord, automationText, automationId, automationDigest, automationInteger, automationArray, automationDate, parseAutomationCoordinate, parseAutomationIdentity, parseAutomationActionKind, parseAutomationAction, parseAutomationMessage };
+export { OperationDeadlineError, AUTOMATION_ACTION_KINDS, automationRecord, automationText, automationId, automationDigest, automationInstant, automationInteger, automationArray, automationDate, parseAutomationCoordinate, parseAutomationIdentity, parseAutomationActionKind, parseAutomationAction, parseAutomationMessage };

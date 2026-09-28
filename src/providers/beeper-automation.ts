@@ -332,6 +332,7 @@ export function createBeeperAutomationProvider(options: BeeperAutomationOptions)
       });
     },
     history(input, signal) {
+      if (input.before !== undefined || input.after !== undefined) return Promise.reject(new Error("Dated history windows are unavailable for Beeper."));
       const selected = coordinate(input.coordinate), limit = automationInteger(input.limit, 1, 200);
       return run("history", signal, async (admission, active) => {
         const snapshot = await accountsSnapshot(admission, active);
