@@ -7,6 +7,12 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.45
+
+This release keeps the shipped type sources compiling under a consumer's
+strict compiler flags and moves the knowledge-base runtime to the
+immutable Wordcell release.
+
 - The packaged type sources compile again under a consumer's strict
   compiler flags. Consumers that set `erasableSyntaxOnly` and narrow
   `ProcessEnv.NODE_ENV` to its literal union, as Next.js does, can now

@@ -2083,14 +2083,25 @@
 // Retain the same platform projections and allowances:
 // 12,125,748 + 12,387 + 4,096 = 12,142,231 packed;
 // 23,940,758 + 353 + 65 = 23,941,176 unpacked.
+//
+// The 0.18.45 release bumps the version pins, adds its changelog section
+// over merged main 2ed33bb, and rebuilds the version chunk; no other
+// source or adapter file changes. After `bun run build`, a clean
+// npm 11.19.0 pack --ignore-scripts with Node 24.18.1 on darwin arm64
+// measured 618 entries, 12,125,761 packed bytes, and 23,940,938
+// unpacked bytes; archive SHA-256
+// 0d6a1de00fd825d700b1ed0505b6fa34992f11d1deb42a5c255f7cfc295eedbc.
+// Retain the same platform projections and allowances:
+// 12,125,761 + 12,387 + 4,096 = 12,142,244 packed;
+// 23,940,938 + 353 + 65 = 23,941,356 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "erasableSyntaxOnly packaged-source compatibility and @hraness/local-custody 0.9.1 pin",
+  scope: "Ghostget 0.18.45 release over merged main 2ed33bb",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "d5681ab13f0bc005bcd4bbf4b18152de887c062e7e8be3d0ecc28f14e11177d5",
-  packedBytes: 12_125_748,
-  unpackedBytes: 23_940_758,
+  archiveSha256: "0d6a1de00fd825d700b1ed0505b6fa34992f11d1deb42a5c255f7cfc295eedbc",
+  packedBytes: 12_125_761,
+  unpackedBytes: 23_940_938,
   entryCount: 618,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
