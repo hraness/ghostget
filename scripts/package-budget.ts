@@ -1983,15 +1983,35 @@
 // Retain the same platform projections and portability allowances:
 // 12,099,048 + 12,387 + 4,096 = 12,115,531 packed;
 // 23,798,398 + 353 + 65 = 23,798,816 unpacked.
+//
+// The persistent automation helpers add the iMessage automation session, the
+// synchronous persistent state-helper bridge, the state helper's serve mode and
+// rebuilt dist chunks, and ships the bridge as one new packed file. After
+// `bun run build`, a clean npm 11.19.0 pack --ignore-scripts with Node 24.18.1
+// on darwin arm64 measured 616 entries, 12,109,347 packed bytes and 23,840,831
+// unpacked bytes; archive SHA-256
+// cb84d130337d9f5efb520d78592c0047b67c75de2a1677633bea25064a06e46b.
+// Carry the same projections and allowances: 12,109,347 + 12,387 + 4,096 =
+// 12,125,830 packed; 23,840,831 + 353 + 65 = 23,841,249 unpacked.
+//
+// The Substack subscriber promotion ships the retained substack-web 1.8.0
+// adapter snapshot as one new packed file and grows the Substack adapter,
+// contracts, runtime, durable identity, subscriber reference, and rebuilt dist
+// chunks over merged main 31ef3fd. After `bun run build`, a clean npm 11.19.0
+// pack --ignore-scripts with Node 24.18.1 on darwin arm64 measured 617
+// entries, 12,115,122 packed bytes and 23,881,446 unpacked bytes; archive
+// SHA-256 00c7a9bee29bc0ba7e96dab425491fb6e0ffee7b04d8cf4e86ba24b59563e157.
+// Carry the same projections and allowances: 12,115,122 + 12,387 + 4,096 =
+// 12,131,605 packed; 23,881,446 + 353 + 65 = 23,881,864 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Disabled Microsoft Graph contact/calendar candidates over Ghostget 0.18.43 main 93a80a6",
+  scope: "Substack subscriber read promotion and gated one-address import over main 31ef3fd",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "0f0aa0a6313132ac00477496792563879b902c16b786d86d88ae74843c93afed",
-  packedBytes: 12_099_048,
-  unpackedBytes: 23_798_398,
-  entryCount: 615,
+  archiveSha256: "00c7a9bee29bc0ba7e96dab425491fb6e0ffee7b04d8cf4e86ba24b59563e157",
+  packedBytes: 12_115_122,
+  unpackedBytes: 23_881_446,
+  entryCount: 617,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,
@@ -2060,24 +2080,7 @@ export const MAX_PACKED_FILES = repairPackageMeasurement.entryCount;
 // exactly 589 files/entries and 23,229,987 payload bytes; archive SHA-256
 // 7aaeba9a98900ed8083f4ec0a7d36d137cbc7585c1a5a676c8b092d7f3e486cb. Retain the
 // reviewed 65-byte allowance: 23,229,987 + 65 = 23,230,052.
-// The guarded Substack subscriber contract adds 3,989 payload bytes over
-// merged main 9f2dd16. A clean Bun 1.3.14 `pm pack --ignore-scripts` on this
-// candidate measured exactly 615 entries, 11,944,756 packed bytes, and
-// 23,802,387 unpacked bytes; archive SHA-256
-// 54d62b5446dffa55fa9e42aac73ecca20d61e297c1053d19596a3340835806a4.
-// Keep the existing 353-byte platform projection and 65-byte allowance:
-// 23,802,387 + 353 + 65 = 23,802,805 unpacked.
-export const subscriberPackageMeasurement = Object.freeze({
-  scope: "Guarded Substack subscriber contract over Ghostget main 9f2dd16",
-  command: "bun pm pack --ignore-scripts",
-  bunVersion: "1.3.14",
-  platform: "darwin-arm64",
-  archiveSha256: "54d62b5446dffa55fa9e42aac73ecca20d61e297c1053d19596a3340835806a4",
-  packedBytes: 11_944_756,
-  unpackedBytes: 23_802_387,
-  entryCount: 615,
-});
-export const MAX_UNPACKED_BYTES = subscriberPackageMeasurement.unpackedBytes
+export const MAX_UNPACKED_BYTES = repairPackageMeasurement.unpackedBytes
   + repairPackageMeasurement.payloadPlatformProjection + repairPackageMeasurement.payloadAllowance;
 
 const TAR_BLOCK_BYTES = 512;

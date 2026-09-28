@@ -295,7 +295,7 @@ jobs:
   quint:
     name: quint ${{ matrix.shard }}/4
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -336,8 +336,10 @@ jobs:
       # simulation, Apalache, mutant, and ITF replay checks at the same bounds,
       # over the models scripts/verification-tools.ts assigns to this shard.
       # Every model runs in exactly one shard; the shard packing is tested.
+      # Allow the bounded 25-minute checker plus model/replay overhead, then
+      # leave five job minutes for setup and retaining diagnostic artifacts.
       - run: bun run ./scripts/verification-tools.ts quint ${{ matrix.shard }} 4
-        timeout-minutes: 30
+        timeout-minutes: 40
       - name: Retain checker output
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

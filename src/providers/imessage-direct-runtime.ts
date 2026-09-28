@@ -1236,6 +1236,401 @@ export async function withImsgAutomationRuntime<T>(
   ));
 }
 
+export type ImsgAutomationSessionContext = Readonly<{
+  subject: string;
+  sourceGeneration: string;
+  status: unknown;
+  /** Creates a private directory for this operation's files; it is removed
+   * when the operation settles. Only operations that stage files need it. */
+  operationDirectory: () => Promise<string>;
+  run: (
+    requests: readonly ImsgRpcRequest[],
+    beforeDispatch?: () => Promise<void>,
+  ) => Promise<ReadonlyMap<string, unknown>>;
+}>;
+
+export type ImsgAutomationSessionOptions = LocalCliExecutionOptions & Readonly<{
+  dependencies?: ImsgDirectRuntimeDependencies;
+  /** Close an unused helper after this long; the next operation reopens it. */
+  idleMs?: number;
+  /** Balanced calls: true when a helper starts holding durable cleanup
+   * custody and false once its cleanup settles. Helpers may overlap briefly
+   * when an idle close races a new operation. */
+  retainCustody?: (held: boolean) => void;
+  /** Unsolicited helper notifications, e.g. watch.subscribe message events. */
+  onNotification?: (method: string, params: unknown) => void;
+}>;
+
+/** One JSON-RPC exchange with a helper; resolves each response line by the id it wrote. */
+type ImsgSessionChannel = Readonly<{
+  request: (
+    lines: readonly Readonly<{ id: string; line: string }>[],
+    timeoutMs: number,
+    signal: AbortSignal | undefined,
+    beforeDispatch: (() => Promise<void>) | undefined,
+  ) => Promise<ReadonlyMap<string, string>>;
+  healthy: () => boolean;
+  /** Ends the helper and reports whether its process group provably exited. */
+  close: () => Promise<boolean>;
+}>;
+
+type ImsgLiveSession = {
+  readonly authKey: string;
+  readonly storePath: string;
+  readonly databasePath: string;
+  readonly databaseIdentity: Readonly<{ dev: bigint; ino: bigint; birthtimeNs: bigint }>;
+  readonly subject: string;
+  readonly sourceGeneration: string;
+  readonly root: string;
+  resource: LocalCliCleanupResourceIdentityV1;
+  readonly cleanup: ProviderPluginCleanupProofController;
+  channel: ImsgSessionChannel | undefined;
+  sequence: number;
+  closing: Promise<void> | undefined;
+};
+
+const IMSG_SESSION_IDLE_MS = 120_000;
+const IMSG_SESSION_MAX_OUTPUT_BYTES = 10 * 1024 * 1024;
+
+/** A long-lived `imsg rpc` helper serving requests line by line. Transport
+ * faults, stderr output, an early exit or an expired request poison it; the
+ * caller then closes it and proves its process group exited. */
+function processSessionChannel(
+  binary: string,
+  root: string,
+  afterSpawn: (pid: number) => void,
+  onNotification: ((method: string, params: unknown) => void) | undefined,
+): ImsgSessionChannel {
+  const child = Bun.spawn([binary, "rpc"], {
+    env: { ...rpcEnvironment(root) },
+    stdin: "pipe",
+    stdout: "pipe",
+    stderr: "pipe",
+    detached: true,
+  });
+  try {
+    afterSpawn(child.pid);
+  } catch (error) {
+    try { process.kill(-child.pid, "SIGKILL"); } catch { /* The unadmitted group already exited. */ }
+    throw error;
+  }
+  type Pending = { resolve: (line: string) => void; reject: (error: Error) => void };
+  const pending = new Map<string, Pending>();
+  let poison: Error | undefined;
+  let exited = false;
+  const fail = (error: Error): void => {
+    poison ??= error;
+    for (const entry of pending.values()) entry.reject(poison);
+    pending.clear();
+  };
+  void (async () => {
+    const reader = child.stdout.getReader();
+    const decoder = new TextDecoder("utf-8", { fatal: true });
+    let buffer = "";
+    try {
+      for (;;) {
+        const item = await reader.read();
+        if (item.done) break;
+        buffer += decoder.decode(item.value, { stream: true });
+        if (Buffer.byteLength(buffer, "utf8") > IMSG_SESSION_MAX_OUTPUT_BYTES) throw new Error("imsg RPC stdout exceeded its byte bound");
+        let newline: number;
+        while ((newline = buffer.indexOf("\n")) >= 0) {
+          const line = buffer.slice(0, newline); buffer = buffer.slice(newline + 1);
+          if (line.length === 0) continue;
+          let envelope: unknown;
+          try { envelope = JSON.parse(line) as unknown; } catch { throw new Error("imsg RPC returned malformed JSON"); }
+          if (envelope === null || typeof envelope !== "object" || Array.isArray(envelope)) throw new Error("imsg RPC returned a non-object line");
+          const fields = envelope as Record<string, unknown>;
+          if (typeof fields.id === "string" && pending.has(fields.id)) {
+            const entry = pending.get(fields.id)!; pending.delete(fields.id); entry.resolve(line);
+          } else if (!Object.hasOwn(fields, "id") && typeof fields.method === "string") {
+            try { onNotification?.(fields.method, fields.params); } catch { /* A notification consumer never poisons the helper. */ }
+          } else throw new Error("imsg RPC returned an unbound response ID");
+        }
+      }
+      fail(nativeDiagnostic(new Error("imsg RPC helper closed its output"), "process-failed"));
+    } catch (error) {
+      fail(nativeDiagnostic(error instanceof Error ? error : new Error("imsg RPC stream failed"), "streams-failed"));
+    }
+  })();
+  void (async () => {
+    const reader = child.stderr.getReader();
+    try {
+      for (;;) {
+        const item = await reader.read();
+        if (item.done) break;
+        if (item.value.byteLength > 0) fail(nativeDiagnostic(new Error("imsg RPC helper wrote diagnostics"), "process-stderr"));
+      }
+    } catch { fail(nativeDiagnostic(new Error("imsg RPC stderr failed"), "streams-failed")); }
+  })();
+  void child.exited.then(() => { exited = true; fail(nativeDiagnostic(new Error("imsg RPC helper exited"), "process-failed")); });
+  const groupGone = async (): Promise<boolean> => {
+    const deadline = performance.now() + 1_500;
+    for (;;) {
+      try { process.kill(-child.pid, 0); } catch (error) {
+        const code = typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
+        if (code === "ESRCH") return true;
+        if (code !== "EPERM") return false;
+      }
+      if (performance.now() >= deadline) return false;
+      await new Promise<void>(resolve => setTimeout(resolve, 20));
+    }
+  };
+  return Object.freeze({
+    healthy: () => poison === undefined && !exited,
+    async request(lines, timeoutMs, signal, beforeDispatch) {
+      if (poison) throw poison;
+      signal?.throwIfAborted();
+      await beforeDispatch?.();
+      if (poison) throw poison;
+      if (signal?.aborted) throw nativeDiagnostic(new Error("imsg RPC invocation was cancelled"), "cancelled");
+      const responses = lines.map(({ id }) => new Promise<string>((resolve, reject) => { pending.set(id, { resolve, reject }); }));
+      const timer = setTimeout(() => fail(nativeDiagnostic(new Error("imsg RPC invocation timed out"), "deadline")), timeoutMs);
+      const onAbort = (): void => fail(nativeDiagnostic(new Error("imsg RPC invocation was cancelled"), "cancelled"));
+      signal?.addEventListener("abort", onAbort, { once: true });
+      try {
+        try {
+          child.stdin.write(lines.map(({ line }) => `${line}\n`).join(""));
+          await child.stdin.flush();
+        } catch { fail(nativeDiagnostic(new Error("imsg RPC stdin failed"), "streams-failed")); }
+        const settled = await Promise.all(responses);
+        return new Map(lines.map(({ id }, index) => [id, settled[index]!]));
+      } finally {
+        clearTimeout(timer);
+        signal?.removeEventListener("abort", onAbort);
+      }
+    },
+    async close() {
+      fail(nativeDiagnostic(new Error("imsg RPC helper closed"), "cancelled"));
+      try { await child.stdin.end(); } catch { /* A closed pipe still needs group proof. */ }
+      const joined = await Promise.race([child.exited.then(() => true), new Promise<boolean>(resolve => setTimeout(() => resolve(false), 1_000))]);
+      if (joined && await groupGone()) return true;
+      try { process.kill(-child.pid, "SIGTERM"); } catch { /* Proven below. */ }
+      const forceKill = setTimeout(() => { try { process.kill(-child.pid, "SIGKILL"); } catch { /* Proven below. */ } }, 1_000);
+      try { return await groupGone() || (await new Promise<void>(resolve => setTimeout(resolve, 1_100)), await groupGone()); }
+      finally { clearTimeout(forceKill); }
+    },
+  });
+}
+
+/** Test seam: each exchange is one bounded `dependencies.run` invocation. */
+function runnerSessionChannel(
+  binary: string,
+  root: string,
+  dependencies: ImsgDirectRuntimeDependencies & { run: NonNullable<ImsgDirectRuntimeDependencies["run"]> },
+): ImsgSessionChannel {
+  let poisoned = false;
+  return Object.freeze({
+    healthy: () => !poisoned,
+    async request(lines, timeoutMs, signal, beforeDispatch) {
+      try {
+        const result = await dependencies.run(Object.freeze({
+          binary, arguments: Object.freeze(["rpc"] as const), stdin: lines.map(({ line }) => `${line}\n`).join(""),
+          environment: rpcEnvironment(root), timeoutMs, maxOutputBytes: IMSG_SESSION_MAX_OUTPUT_BYTES, maxStderrBytes: MAX_STDERR_BYTES,
+          ...(signal === undefined ? {} : { signal }), ...(beforeDispatch === undefined ? {} : { beforeSpawn: beforeDispatch }),
+        }));
+        if (result.exitCode !== 0 || result.stderr.trim().length !== 0) {
+          throw nativeDiagnostic(new Error("imsg RPC process failed before reviewed output was obtained"), result.exitCode !== 0 ? "process-failed" : "process-stderr");
+        }
+        const byId = new Map<string, string>();
+        for (const line of result.stdout.split("\n").filter(value => value.length > 0)) {
+          let id: unknown;
+          try { id = (JSON.parse(line) as Record<string, unknown>).id; } catch { throw nativeDiagnostic(new Error("imsg RPC returned malformed JSON"), "response-invalid"); }
+          if (typeof id !== "string" || byId.has(id)) throw nativeDiagnostic(new Error("imsg RPC returned an unbound response ID"), "response-invalid");
+          byId.set(id, line);
+        }
+        if (byId.size !== lines.length || lines.some(({ id }) => !byId.has(id))) throw nativeDiagnostic(new Error("imsg RPC returned an unexpected response count"), "response-invalid");
+        return byId;
+      } catch (error) { poisoned = true; throw error; }
+    },
+    async close() { poisoned = true; return true; },
+  });
+}
+
+/**
+ * Keeps one verified `imsg rpc` helper alive across automation operations
+ * instead of materializing and spawning a fresh one per call. Each helper is
+ * admitted exactly like a per-operation runtime: the owned device-default
+ * store, the exact pinned executable copy and its native resources, a durable
+ * cleanup barrier with the published process group, and a status check whose
+ * database must be the bound store. Every operation still revalidates the
+ * store, database generation and helper status before and after its work.
+ * Any fault closes the helper and proves its process group exited before the
+ * next operation opens a fresh one; an unused helper closes after idleMs.
+ * Operations must be serialized by the caller.
+ */
+export function createImsgAutomationSessions(options: ImsgAutomationSessionOptions) {
+  if (options.registerCleanupBarrier === undefined) throw new Error("Messaging automation requires durable provider cleanup custody");
+  const register = options.registerCleanupBarrier;
+  const idleMs = options.idleMs ?? IMSG_SESSION_IDLE_MS;
+  const dependencies = options.dependencies;
+  let live: ImsgLiveSession | undefined;
+  let idle: ReturnType<typeof setTimeout> | undefined;
+  let closed = false;
+  const discard = (session: ImsgLiveSession): Promise<void> => {
+    session.closing ??= (async () => {
+      if (live === session) live = undefined;
+      let verified = false;
+      try {
+        verified = session.channel === undefined ? true : await session.channel.close();
+        if (verified) {
+          const groups = session.resource.processGroups ?? [];
+          if (groups.length > 0 && localCliCleanupProcessGroupStatus(session.resource) !== "quiescent") verified = false;
+        }
+        if (verified) {
+          if (dependencies?.removeOperationRoot !== undefined) await dependencies.removeOperationRoot(session.root);
+          else if (!removePrivateDirectoryTree(session.root, { device: session.resource.root.device, inode: session.resource.root.inode, birthtimeNs: session.resource.root.birthtimeNs })) verified = false;
+        }
+      } catch { verified = false; }
+      if (verified) session.cleanup.verified(); else session.cleanup.unsafe(new ImsgCleanupUnverifiedError());
+      try { options.retainCustody?.(false); } catch { /* Custody accounting never masks cleanup proof. */ }
+    })();
+    return session.closing;
+  };
+  const armIdle = (): void => {
+    if (idle !== undefined) clearTimeout(idle);
+    idle = setTimeout(() => { idle = undefined; const current = live; if (current) void discard(current); }, idleMs);
+    (idle as unknown as { unref?: () => void }).unref?.();
+  };
+  const open = async (auth: ImsgAuth, authKey: string, store: Readonly<{ storePath: string; databasePath: string }>, deadline: LocalCliExecutionOptions["operationDeadline"]): Promise<ImsgLiveSession> => {
+    const subject = subjectForStore(store.storePath);
+    if (auth.subject !== undefined && auth.subject !== subject) throw new Error("current Messages device-default realm does not match the bound auth subject");
+    const identity = await lstat(store.databasePath, { bigint: true });
+    const sourceGeneration = createHash("sha256").update(canonicalJson({
+      subject, device: String(identity.dev), inode: String(identity.ino), birthtime: String(identity.birthtimeNs),
+    })).digest("hex");
+    const root = await (dependencies?.createOperationRoot ?? createOperationRoot)();
+    if (!isAbsolute(root)) throw new Error("imsg operation root must be absolute");
+    await mkdir(root, { recursive: true, mode: 0o700 });
+    await chmod(root, 0o700);
+    await mkdir(join(root, "tmp"), { mode: 0o700 });
+    await mkdir(join(root, "operations"), { mode: 0o700 });
+    let resolveBarrier!: () => void, rejectBarrier!: (reason: unknown) => void, settled = false;
+    const barrier = new Promise<void>((resolve, reject) => { resolveBarrier = resolve; rejectBarrier = reject; });
+    void barrier.catch(() => undefined);
+    const publish = register(barrier);
+    const cleanup: ProviderPluginCleanupProofController = Object.freeze({
+      verified: () => { if (!settled) { settled = true; resolveBarrier(); } },
+      unsafe: (reason: unknown) => { if (!settled) { settled = true; rejectBarrier(reason instanceof Error ? reason : new Error("provider cleanup could not be verified")); } },
+    });
+    const session: ImsgLiveSession = {
+      authKey, storePath: store.storePath, databasePath: store.databasePath,
+      databaseIdentity: Object.freeze({ dev: identity.dev, ino: identity.ino, birthtimeNs: identity.birthtimeNs }),
+      subject, sourceGeneration, root, resource: captureLocalCliCleanupResource(root), cleanup, channel: undefined, sequence: 0, closing: undefined,
+    };
+    try { options.retainCustody?.(true); } catch { /* Accounting only. */ }
+    try {
+      if (typeof publish === "function") publish(session.resource);
+      const binarySource = dependencies?.binaryPath ?? await resolvePinnedImsgBinary(options.environment ?? process.env);
+      if (dependencies?.binaryPath !== undefined && !isAbsolute(binarySource)) throw new Error("test imsg binary path must be absolute");
+      const binary = dependencies?.binaryPath !== undefined
+        ? binarySource
+        : await materializePinnedBinary(binarySource, root, imsgArtifactForCurrentRuntime().executableSha256);
+      if (dependencies?.binaryPath === undefined) await materializeImsgNativeResources(root);
+      deadline?.throwIfUnavailable(OPERATION_LABEL);
+      session.channel = dependencies?.run !== undefined
+        ? runnerSessionChannel(binary, root, { ...dependencies, run: dependencies.run })
+        : processSessionChannel(binary, root, pid => {
+            session.resource = attachLocalCliCleanupProcessGroup(session.resource, pid);
+            if (typeof publish === "function") publish(session.resource);
+          }, options.onNotification);
+      return session;
+    } catch (error) { await discard(session); throw error; }
+  };
+  const request = async (session: ImsgLiveSession, requests: readonly ImsgRpcRequest[], deadline: LocalCliExecutionOptions["operationDeadline"], beforeDispatch?: () => Promise<void>): Promise<ReadonlyMap<string, unknown>> => {
+    const channel = session.channel;
+    if (channel === undefined || !channel.healthy()) throw nativeDiagnostic(new Error("imsg RPC helper is unavailable"), "process-failed");
+    // Session-unique wire ids keep a late response from ever binding to a newer request.
+    const wire = requests.map(value => ({ original: value, id: `s${++session.sequence}:${value.id}` }));
+    const lines = await channel.request(
+      wire.map(({ original, id }) => ({ id, line: canonicalJson({ ...original, id }) })),
+      remainingTimeoutMs(30_000, deadline), deadline?.signal, beforeDispatch,
+    );
+    const stdout = wire.map(({ original, id }) => {
+      const envelope = JSON.parse(lines.get(id)!) as Record<string, unknown>;
+      return JSON.stringify({ ...envelope, id: original.id });
+    }).join("\n");
+    try { return parseRpcResponses({ exitCode: 0, stdout: `${stdout}\n`, stderr: "" }, requests); }
+    catch (error) { throw error instanceof Error ? nativeDiagnostic(error, "response-invalid") : error; }
+  };
+  return Object.freeze({
+    async withSession<T>(
+      authValue: GhostgetAuth,
+      operationOptions: Readonly<{ operationDeadline?: LocalCliExecutionOptions["operationDeadline"]; discoveryPhase?: (phase: DiscoveryDiagnosticPhase) => void }>,
+      operation: (context: ImsgAutomationSessionContext) => Promise<T>,
+    ): Promise<T> {
+      if (closed) throw new Error("iMessage automation sessions are closed");
+      if (idle !== undefined) { clearTimeout(idle); idle = undefined; }
+      const auth = requireImsgAuth(authValue);
+      const deadline = operationOptions.operationDeadline;
+      const authKey = createHash("sha256").update(canonicalJson(auth)).digest("hex");
+      const store = await validateMessagesStore(auth.path, dependencies?.expectedMessagesStorePath ?? join(homedir(), "Library", "Messages"));
+      const current = await lstat(store.databasePath, { bigint: true });
+      const previous = live;
+      if (previous !== undefined && (
+        previous.authKey !== authKey || previous.storePath !== store.storePath || previous.databasePath !== store.databasePath
+        || previous.databaseIdentity.dev !== current.dev || previous.databaseIdentity.ino !== current.ino || previous.databaseIdentity.birthtimeNs !== current.birthtimeNs
+        || previous.channel === undefined || !previous.channel.healthy()
+      )) await discard(previous);
+      const session = live ?? (live = await open(auth, authKey, store, deadline));
+      let operationRoot: string | undefined;
+      let operationIdentity: Readonly<{ device: string; inode: string; birthtimeNs: string }> | undefined;
+      const operationDirectory = async (): Promise<string> => {
+        if (operationRoot !== undefined) return operationRoot;
+        const path = join(session.root, "operations", randomBytes(16).toString("hex"));
+        await mkdir(path, { mode: 0o700 });
+        const stats = await lstat(path, { bigint: true });
+        operationIdentity = Object.freeze({ device: String(stats.dev), inode: String(stats.ino), birthtimeNs: String(stats.birthtimeNs) });
+        return operationRoot = path;
+      };
+      try {
+        operationOptions.discoveryPhase?.("native-status");
+        const status = await request(session, [imsgStatusRequest()], deadline);
+        let reportedDatabasePath: string;
+        try { reportedDatabasePath = parseStatus(status.get("status")); }
+        catch (error) { throw error instanceof Error ? nativeDiagnostic(error, "schema-invalid") : error; }
+        if (await realpath(reportedDatabasePath) !== reportedDatabasePath || reportedDatabasePath !== session.databasePath) {
+          throw nativeDiagnostic(new Error("imsg status reported a different Messages database than the bound subject"), "identity-changed");
+        }
+        const result = await operation(Object.freeze({
+          subject: session.subject, sourceGeneration: session.sourceGeneration, status: status.get("status"), operationDirectory,
+          run: (requests: readonly ImsgRpcRequest[], beforeDispatch?: () => Promise<void>) => request(session, requests, deadline, beforeDispatch),
+        }));
+        operationOptions.discoveryPhase?.("native-finalization");
+        const after = await lstat(session.databasePath, { bigint: true });
+        if (after.dev !== session.databaseIdentity.dev || after.ino !== session.databaseIdentity.ino || after.birthtimeNs !== session.databaseIdentity.birthtimeNs || after.isSymbolicLink()) {
+          throw nativeDiagnostic(new Error("Messages database generation changed during the operation"), "identity-changed");
+        }
+        if (operationRoot !== undefined && !removePrivateDirectoryTree(operationRoot, operationIdentity)) throw new ImsgCleanupUnverifiedError();
+        if (!closed && live === session) armIdle();
+        return result;
+      } catch (error) {
+        // Any fault retires the helper: the next operation starts from a
+        // freshly admitted process instead of reusing uncertain state.
+        await discard(session);
+        throw error;
+      }
+    },
+    /** Starts watching the enrolled chats on the live helper, when one exists. */
+    async subscribe(chatIds: readonly number[], deadline?: LocalCliExecutionOptions["operationDeadline"]): Promise<boolean> {
+      const session = live;
+      if (session === undefined || closed || chatIds.length === 0) return false;
+      try {
+        await request(session, chatIds.map((chatId, index) => Object.freeze({ jsonrpc: "2.0", id: `watch-${index}`, method: "watch.subscribe", params: Object.freeze({ chat_id: chatId }) }) as ImsgRpcRequest), deadline);
+        return true;
+      } catch { await discard(session); return false; }
+    },
+    live: (): boolean => live !== undefined && live.channel?.healthy() === true,
+    async close(): Promise<void> {
+      closed = true;
+      if (idle !== undefined) { clearTimeout(idle); idle = undefined; }
+      const current = live;
+      if (current) await discard(current);
+    },
+  });
+}
+export type ImsgAutomationSessions = ReturnType<typeof createImsgAutomationSessions>;
+
 export const imsgAutomationProjection = Object.freeze({ parseChats, parseChat, parseMessages, parseMessage, exactChat, parseSendAccepted });
 
 export async function inspectImsgDirectRuntime(
