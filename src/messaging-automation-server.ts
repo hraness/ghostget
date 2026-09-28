@@ -7,6 +7,7 @@ import { MessagingAutomationHost } from "./messaging-automation";
 import { MESSAGING_AUTOMATION_PROTOCOL as protocol, type AutomationGrantRequest, type AutomationProviderId, type AutomationProviderStatus } from "./messaging-automation-types";
 import { automationArray, automationDigest, automationId, automationInteger, automationRecord, automationText, parseAutomationAction } from "./messaging-automation-validation";
 import { createMessagingAutomationSession } from "./messaging-automation-factory";
+import { enablePersistentStateHelpers } from "./storage";
 import type { ProviderPluginRegistry } from "./provider-plugin-registry";
 
 type Environment = Readonly<Record<string, string | undefined>>;
@@ -206,6 +207,9 @@ export class MessagingAutomationRpcServer {
 export async function serveMessagingAutomationStdio(options: Readonly<{
   input: Readable; output: Writable; environment: Environment; registry: ProviderPluginRegistry; signal?: AbortSignal;
 }>): Promise<void> {
+  // The automation host is long-lived and describes permissions on every
+  // provider operation, so it keeps one bound state helper per root.
+  enablePersistentStateHelpers();
   const server = new MessagingAutomationRpcServer(options);
   const pending = new Set<Promise<void>>(); let writing = Promise.resolve();
   const write = (value: unknown) => writing = writing.then(async () => {

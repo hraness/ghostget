@@ -13,7 +13,7 @@ import { discoveryDiagnostic, nativeDiagnostic, type DiscoveryDiagnosticPhase } 
 import type { AutomationAction, AutomationConversation, AutomationCoordinate, AutomationIdentity, AutomationMessage, AutomationProviderStatus, AutomationProviderSendResult, AutomationScopedPage, MessagingAutomationProvider } from "../messaging-automation-types";
 import { AUTOMATION_ACTION_KINDS, automationArray, automationDigest, automationInteger, automationRecord, automationText, parseAutomationAction, parseAutomationCoordinate, parseAutomationIdentity } from "../messaging-automation-validation";
 import { IMSG_NO_FETCH_RICH_CARDS_AVAILABLE, type ImsgChatCoordinate, type ImsgRpcRequest } from "./imessage-direct";
-import { imsgAutomationProjection as project, withImsgAutomationRuntime, type ImsgChatProjection, type ImsgDirectRuntimeDependencies } from "./imessage-direct-runtime";
+import { createImsgAutomationSessions, imsgAutomationProjection as project, type ImsgAutomationSessionContext, type ImsgChatProjection, type ImsgDirectRuntimeDependencies } from "./imessage-direct-runtime";
 
 export type ImsgAutomationOperation = "inspect" | "conversations" | "resolve" | "history" | "events" | AutomationAction["kind"];
 /** The Ghostget host supplies existing permission admission, auth lifetime and
@@ -21,11 +21,16 @@ export type ImsgAutomationOperation = "inspect" | "conversations" | "resolve" | 
 export type ImsgAutomationAdmission = Readonly<{ auth: GhostgetAuth; accountIdentity: string; implementationIdentity: string }>;
 export type ImsgAutomationOptions = Readonly<{
   authorize(operation: ImsgAutomationOperation, signal?: AbortSignal): Promise<ImsgAutomationAdmission>;
-  execution: Pick<LocalCliExecutionOptions, "registerCleanupBarrier" | "environment">;
+  execution: Pick<LocalCliExecutionOptions, "registerCleanupBarrier" | "environment"> & Readonly<{
+    /** Balanced custody accounting for the long-lived helper; see createImsgAutomationSessions. */
+    retainCustody?: (held: boolean) => void;
+  }>;
   resolveAsset(assetId: string, signal?: AbortSignal): Promise<Readonly<{ bytes: Uint8Array; sha256: string }>>;
   dependencies?: ImsgDirectRuntimeDependencies;
+  /** Test seam: how long an unused helper stays open. */
+  sessionIdleMs?: number;
 }>;
-type Session = Parameters<Parameters<typeof withImsgAutomationRuntime>[2]>[0];
+type Session = ImsgAutomationSessionContext;
 const sha = (value: unknown): string => createHash("sha256").update(canonicalJson(value)).digest("hex");
 function request(method: string, params: Readonly<Record<string, unknown>> = {}, id = "operation"): ImsgRpcRequest { return { jsonrpc: "2.0", id, method, params }; }
 function coordinate(value: unknown): Extract<AutomationCoordinate, { provider: "imessage" }> {
@@ -153,6 +158,13 @@ async function eventsScope(session: Session, identity: AutomationIdentity, coord
  * bridge, changes OS permissions, or falls back to SMS or another transport. */
 export function createImsgAutomationProvider(options: ImsgAutomationOptions): MessagingAutomationProvider {
   let closed = false; let inFlight: Promise<unknown> | undefined;
+  // One verified helper serves the serialized operations below instead of a
+  // fresh materialized process per operation.
+  const sessions = createImsgAutomationSessions({
+    ...options.execution,
+    ...(options.dependencies ? { dependencies: options.dependencies } : {}),
+    ...(options.sessionIdleMs === undefined ? {} : { idleMs: options.sessionIdleMs }),
+  });
   async function run<T>(operation: ImsgAutomationOperation, signal: AbortSignal | undefined, work: (session: Session, identity: AutomationIdentity, reauthorize: () => Promise<void>, phase: (phase: DiscoveryDiagnosticPhase) => void) => Promise<T>, budgetMs = 30_000): Promise<T> {
     if (closed) throw new Error("iMessage provider is closed");
     // Provider operations stay serialized — helper sessions and session
@@ -169,7 +181,7 @@ export function createImsgAutomationProvider(options: ImsgAutomationOptions): Me
       const deadline = new OperationDeadline(budgetMs, signal ? { signal } : {});
       try {
         phase("native-preflight");
-        return await withImsgAutomationRuntime(admission.auth, { ...options.execution, operationDeadline: deadline, ...(operation === "conversations" ? { discoveryPhase: phase } : {}), ...(options.dependencies ? { dependencies: options.dependencies } : {}) }, async session => {
+        return await sessions.withSession(admission.auth, { operationDeadline: deadline, ...(operation === "conversations" ? { discoveryPhase: phase } : {}) }, async session => {
           const identity = parseAutomationIdentity({ provider: "imessage", authId: admission.auth.id, accountIdentity: admission.accountIdentity, accountSubject: session.subject, implementationIdentity: admission.implementationIdentity, sourceGeneration: session.sourceGeneration });
           const reauthorize = async () => { signal?.throwIfAborted(); const after = await options.authorize(operation, signal); if (sha(after) !== sha(admission)) throw nativeDiagnostic(new Error("iMessage account or permission changed during the operation"), "identity-changed"); };
           const result = await work(session, identity, reauthorize, phase);
@@ -285,7 +297,7 @@ export function createImsgAutomationProvider(options: ImsgAutomationOptions): Me
               if (!(asset.bytes instanceof Uint8Array) || asset.bytes.byteLength < 1 || asset.bytes.byteLength > maximum) throw new Error("Attachment byte admission failed");
               const bytes = Buffer.from(asset.bytes);
               if (createHash("sha256").update(bytes).digest("hex") !== automationDigest(asset.sha256)) throw new Error("Attachment byte admission failed");
-              const path = join(session.operationRoot, action.kind === "attachment" ? action.name : "sticker");
+              const path = join(await session.operationDirectory(), action.kind === "attachment" ? action.name : "sticker");
               const file = await open(path, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
               try { await file.writeFile(bytes); await file.sync(); } finally { await file.close(); }
               params.file = path;
@@ -324,6 +336,6 @@ export function createImsgAutomationProvider(options: ImsgAutomationOptions): Me
         });
       } catch { return { state: dispatched ? "indeterminate" : "not-started", reason: dispatched ? "iMessage dispatch or process cleanup could not be reconciled. Do not retry." : "iMessage admission failed before any send." }; }
     },
-    async close() { closed = true; await inFlight; },
+    async close() { closed = true; await inFlight; await sessions.close(); },
   };
 }
