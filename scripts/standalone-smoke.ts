@@ -622,8 +622,8 @@ async function exerciseCli(
   const supportUrls = offer.actions.map((value: unknown) =>
     requireJsonObject(`${target.label} support.action`, value).url);
   if (!isDeepStrictEqual(supportUrls, [
-    "https://account.hraness.com/support?product=wrench&source=cli#updates",
-    "https://account.hraness.com/support?product=wrench&source=cli#support",
+    "https://account.hraness.com/support?product=ghostget&source=cli#updates",
+    "https://account.hraness.com/support?product=ghostget&source=cli#support",
   ])) throw new Error(`${target.label} support links differ from the canonical handoff`);
 
   const protocolResult = await runCli(target, "support protocol", ["support", "protocol", "--json"]);

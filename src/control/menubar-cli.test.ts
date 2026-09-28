@@ -523,7 +523,7 @@ describe("optional Accounts browser handoffs", () => {
     expect(opened).toEqual([]);
     await options.onAction("support:open", signal);
     expect(opened).toEqual([
-      "https://account.hraness.com/support?product=wrench&source=desktop",
+      "https://account.hraness.com/support?product=ghostget&source=desktop",
     ]);
   });
 
