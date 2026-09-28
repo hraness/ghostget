@@ -18,6 +18,7 @@ import {
   rmdirSync,
   unlinkSync,
   writeFileSync,
+  writeSync,
   type BigIntStats,
 } from "node:fs";
 
@@ -2935,9 +2936,60 @@ function main(): void {
   process.stdout.write(encoded);
 }
 
+/**
+ * Persistent mode: the same requests and the same execute(), one JSON line
+ * each, so the caller pays process start once per bound root instead of per
+ * operation. Operations change cwd while traversing, so every request first
+ * returns to the root it was started in and proves it is the same directory
+ * (device and inode) before execute() re-asserts the caller's expected root.
+ * Any failure answers once and exits; the caller starts a fresh helper.
+ */
+function serve(): void {
+  const root = process.cwd();
+  const started = lstatSync(".", { bigint: true });
+  const input = Buffer.allocUnsafe(64 * 1024);
+  let pending = Buffer.alloc(0);
+  for (;;) {
+    let newline = pending.indexOf(0x0a);
+    while (newline < 0) {
+      const count = readSync(0, input, 0, input.byteLength, null);
+      if (count === 0) return;
+      pending = Buffer.concat([pending, input.subarray(0, count)]);
+      if (pending.byteLength > MAX_REQUEST_BYTES + 1) throw new Error("request exceeds its byte bound");
+      newline = pending.indexOf(0x0a);
+    }
+    const line = new TextDecoder("utf-8", { fatal: true }).decode(pending.subarray(0, newline));
+    pending = Buffer.from(pending.subarray(newline + 1));
+    let encoded: string;
+    try {
+      process.chdir(root);
+      const current = lstatSync(".", { bigint: true });
+      if (current.dev !== started.dev || current.ino !== started.ino || !current.isDirectory()) {
+        throw new Error("bound state directory identity does not match");
+      }
+      encoded = `${JSON.stringify(execute(parseRequest(JSON.parse(line) as unknown)))}\n`;
+      if (Buffer.byteLength(encoded, "utf8") > MAX_BATCH_STDOUT_BYTES) throw new Error("response exceeds its stdout byte bound");
+    } catch (error) {
+      writeAllSync(1, `${JSON.stringify({ ok: false, error: `state helper: ${error instanceof Error ? error.message : "unknown failure"}` })}\n`);
+      process.exitCode = 1;
+      return;
+    }
+    // Blocking writes: the next readSync blocks this thread, so a buffered
+    // response must never be left waiting to flush.
+    writeAllSync(1, encoded);
+  }
+}
+
+function writeAllSync(descriptor: number, text: string): void {
+  const bytes = Buffer.from(text, "utf8");
+  let offset = 0;
+  while (offset < bytes.byteLength) offset += writeSync(descriptor, bytes, offset, bytes.byteLength - offset);
+}
+
 if (import.meta.main) {
   try {
-    main();
+    if (process.argv.includes("--serve")) serve();
+    else main();
   } catch (error) {
     process.stderr.write(`state helper: ${error instanceof Error ? error.message : "unknown failure"}\n`);
     process.exitCode = 1;

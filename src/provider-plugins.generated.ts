@@ -12,16 +12,15 @@ import sourceProviderPlugin6 from "./plugins/imessage-direct/plugin";
 import sourceProviderPlugin7 from "./plugins/linkedin-official/plugin";
 import sourceProviderPlugin8 from "./plugins/linkedin-web/plugin";
 import sourceProviderPlugin9 from "./plugins/meta-web/plugin";
-import sourceProviderPlugin10 from "./plugins/microsoft-graph-official/plugin";
-import sourceProviderPlugin11 from "./plugins/reddit-web/plugin";
-import sourceProviderPlugin12 from "./plugins/substack-web/plugin";
-import sourceProviderPlugin13 from "./plugins/tiktok-web/plugin";
-import sourceProviderPlugin14 from "./plugins/twitch-web/plugin";
-import sourceProviderPlugin15 from "./plugins/webmcp/plugin";
-import sourceProviderPlugin16 from "./plugins/whatsapp-linked-device/plugin";
-import sourceProviderPlugin17 from "./plugins/x-official/plugin";
-import sourceProviderPlugin18 from "./plugins/x-web/plugin";
-import sourceProviderPlugin19 from "./plugins/youtube-web/plugin";
+import sourceProviderPlugin10 from "./plugins/reddit-web/plugin";
+import sourceProviderPlugin11 from "./plugins/substack-web/plugin";
+import sourceProviderPlugin12 from "./plugins/tiktok-web/plugin";
+import sourceProviderPlugin13 from "./plugins/twitch-web/plugin";
+import sourceProviderPlugin14 from "./plugins/webmcp/plugin";
+import sourceProviderPlugin15 from "./plugins/whatsapp-linked-device/plugin";
+import sourceProviderPlugin16 from "./plugins/x-official/plugin";
+import sourceProviderPlugin17 from "./plugins/x-web/plugin";
+import sourceProviderPlugin18 from "./plugins/youtube-web/plugin";
 
 export const generatedProviderPlugins = Object.freeze([
   sourceProviderPlugin0,
@@ -43,5 +42,4 @@ export const generatedProviderPlugins = Object.freeze([
   sourceProviderPlugin16,
   sourceProviderPlugin17,
   sourceProviderPlugin18,
-  sourceProviderPlugin19,
 ] as const satisfies readonly ProviderPluginV1[]);

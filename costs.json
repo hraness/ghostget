@@ -16,22 +16,6 @@
       "source": "Browsers whose last keychain read returned without a macOS dialog; only hides a repeated notice",
       "budget": { "maxEntries": 5, "maxBytes": 1024 },
       "expiry": "Rebuildable; deleting it only brings the keychain notice back"
-    },
-    "provider:microsoft-graph-reads": {
-      "kind": "served",
-      "retention": "ephemeral",
-      "owner": "src/providers/microsoft-graph.ts",
-      "budget": {
-        "maxRequestsPerInvocation": 2,
-        "maxBytesPerResponse": 4194304,
-        "maxIdentityResponseBytes": 16384,
-        "maxRowsPerPage": 100,
-        "maxAttendeesPerEvent": 500,
-        "maxAttendeesPerPage": 5000,
-        "maxTraversalPages": 100,
-        "maxCalendarDays": 90
-      },
-      "status": "capture-required; public execution rejects before credentials or network"
     }
   },
   "exempt": []

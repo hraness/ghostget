@@ -19,7 +19,7 @@ import {
   ensurePrivateStateDirectory,
   ghostgetStateHome,
   snapshotPrivateStateDirectory
-} from "./index-w2yy5p5y.js";
+} from "./index-defsnvtf.js";
 import"./index-dw20pbkj.js";
 import"./index-5m1wfgkw.js";
 import"./index-26yq8q16.js";

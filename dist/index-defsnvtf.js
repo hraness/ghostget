@@ -22,6 +22,108 @@ import {
   writeFileSync
 } from "fs";
 import { spawnSync } from "child_process";
+
+// src/persistent-helper-bridge.ts
+import { MessageChannel, Worker, receiveMessageOnPort } from "worker_threads";
+var MAX_RESPONSE_BYTES = 180 * 1024 * 1024;
+var IDLE_MS = 30000;
+var WORKER_SOURCE = `
+const { workerData } = require("node:worker_threads");
+const { spawn } = require("node:child_process");
+const flag = new Int32Array(workerData.control);
+const port = workerData.port;
+const MAX = ${MAX_RESPONSE_BYTES}, IDLE = ${IDLE_MS};
+const helpers = new Map();
+const answer = (message) => { port.postMessage(message); Atomics.store(flag, 0, 1); Atomics.notify(flag, 0); };
+const retire = (key, helper) => {
+  if (helpers.get(key) === helper) helpers.delete(key);
+  clearTimeout(helper.idle);
+  try { helper.child.stdin.end(); } catch {}
+  try { process.kill(helper.child.pid, "SIGKILL"); } catch {}
+};
+const start = (key, spec) => {
+  const child = spawn(spec.executable, spec.arguments, { cwd: spec.cwd, env: spec.environment, stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
+  const helper = { child, chunks: [], bytes: 0, stderr: "", waiting: null, idle: undefined };
+  child.stdout.on("data", (chunk) => {
+    helper.chunks.push(chunk); helper.bytes += chunk.length;
+    if (helper.bytes > MAX) { const waiting = helper.waiting; helper.waiting = null; retire(key, helper); if (waiting) answer({ id: waiting, kind: "failed", detail: "helper response exceeded its byte bound" }); return; }
+    const text = Buffer.concat(helper.chunks);
+    const newline = text.indexOf(10);
+    if (newline < 0) return;
+    const line = text.subarray(0, newline).toString("utf8");
+    const rest = text.subarray(newline + 1);
+    helper.chunks = rest.length ? [rest] : []; helper.bytes = rest.length;
+    const waiting = helper.waiting; helper.waiting = null;
+    // A helper that answered with a failure exits by design; retire it now so
+    // the next request never races its shutdown.
+    if (!waiting || line.startsWith('{"ok":false')) retire(key, helper);
+    if (waiting) answer({ id: waiting, kind: "response", line });
+  });
+  child.stderr.on("data", (chunk) => { if (helper.stderr.length < 4096) helper.stderr += chunk.toString("utf8"); });
+  const lost = () => {
+    if (helpers.get(key) === helper) helpers.delete(key);
+    clearTimeout(helper.idle);
+    const waiting = helper.waiting; helper.waiting = null;
+    if (waiting) answer({ id: waiting, kind: "failed", detail: helper.stderr.trim().slice(0, 512) });
+  };
+  // "close" fires only after stdout drained, so a final answer line is never lost to "exit".
+  child.on("error", lost); child.on("close", lost);
+  child.stdin.on("error", () => {});
+  helpers.set(key, helper);
+  return helper;
+};
+port.on("message", (message) => {
+  if (message.type === "retire") { const helper = helpers.get(message.key); if (helper) retire(message.key, helper); return; }
+  let helper = helpers.get(message.key);
+  if (!helper || helper.child.exitCode !== null || helper.child.signalCode !== null) helper = start(message.key, message.spec);
+  clearTimeout(helper.idle);
+  helper.idle = setTimeout(() => retire(message.key, helper), IDLE); helper.idle.unref?.();
+  helper.waiting = message.id;
+  helper.child.stdin.write(message.line + "\\n");
+});
+`;
+var bridge;
+function current() {
+  if (bridge !== undefined)
+    return bridge;
+  const control = new SharedArrayBuffer(4);
+  const { port1, port2 } = new MessageChannel;
+  const worker = new Worker(WORKER_SOURCE, { eval: true, workerData: { control, port: port2 }, transferList: [port2] });
+  worker.unref();
+  bridge = { worker, port: port1, flag: new Int32Array(control), sequence: 0 };
+  worker.on("exit", () => {
+    if (bridge?.worker === worker)
+      bridge = undefined;
+  });
+  return bridge;
+}
+function persistentHelperRequest(key, spec, line, timeoutMs) {
+  if (line.includes(`
+`))
+    throw new Error("persistent helper requests must be one line");
+  const active = current();
+  const id = ++active.sequence;
+  Atomics.store(active.flag, 0, 0);
+  active.port.postMessage({ type: "request", id, key, spec, line });
+  const deadline = performance.now() + timeoutMs;
+  for (;; ) {
+    for (let message = receiveMessageOnPort(active.port);message !== undefined; message = receiveMessageOnPort(active.port)) {
+      const value = message.message;
+      if (value.id !== id)
+        continue;
+      return value.kind === "response" ? { kind: "response", line: value.line ?? "" } : { kind: "failed", detail: value.detail ?? "" };
+    }
+    const remaining = deadline - performance.now();
+    if (remaining <= 0) {
+      active.port.postMessage({ type: "retire", key });
+      return { kind: "failed", detail: "helper did not answer within its deadline" };
+    }
+    Atomics.wait(active.flag, 0, 0, Math.min(remaining, 1000));
+    Atomics.store(active.flag, 0, 0);
+  }
+}
+
+// src/storage.ts
 import { readOwnedFileStableSync } from "@hraness/local-custody/private-paths";
 import { homedir, tmpdir } from "os";
 import { basename, dirname, isAbsolute, join, parse, relative, resolve, sep } from "path";
@@ -370,6 +472,7 @@ var pathHelperPath = join(dirname(fileURLToPath(import.meta.url)), "path-helper.
 var stateCrashPlanForTest = undefined;
 var helperEnvironment = stateCrashPlanForTest === undefined ? { NODE_ENV: "production" } : { NODE_ENV: "test", GHOSTGET_TEST_STATE_CRASH_PLAN: stateCrashPlanForTest };
 var helperPreloadForTest = stateCrashPlanForTest === undefined ? [] : ["--preload", join(dirname(fileURLToPath(import.meta.url)), "state-crash-preload.test-support.ts")];
+var persistentStateHelpers = false;
 var ghostgetSourcePackageRoot = realpathSync(resolve(dirname(fileURLToPath(import.meta.url)), ".."));
 function isWithinPath(root, candidate) {
   const pathFromRoot = relative(root, candidate);
@@ -609,6 +712,9 @@ function parseStateHelperResponse(value) {
 }
 function runStateHelper(directory, expected, operation, expectCreatedIdentity = false, faultForTest) {
   const requestId = crypto.randomUUID();
+  if (faultForTest === undefined && !expectCreatedIdentity && persistentStateHelpers) {
+    return persistentStateHelperResponse(directory, expected, requestId, operation);
+  }
   const child = spawnSync(process.execPath, [
     "--no-env-file",
     "--no-install",
@@ -631,8 +737,8 @@ function runStateHelper(directory, expected, operation, expectCreatedIdentity = 
     timeout: faultForTest === "pause-after-cas-claim" || faultForTest === "pause-after-mutation-claim-read" ? TEST_STATE_HELPER_TIMEOUT_MS : 30000,
     windowsHide: true
   });
-  const current = inspectRealDirectoryIdentity(directory);
-  if (!sameIdentity(current, expected))
+  const current2 = inspectRealDirectoryIdentity(directory);
+  if (!sameIdentity(current2, expected))
     throw new Error(`GHOSTGET_STATE_HOME changed identity after validation: ${directory}`);
   if (child.error !== undefined)
     throw new Error("bound state helper failed to start", { cause: child.error });
@@ -652,6 +758,36 @@ function runStateHelper(directory, expected, operation, expectCreatedIdentity = 
   }
   return response;
 }
+function persistentStateHelperResponse(directory, expected, requestId, operation) {
+  const result = persistentHelperRequest(`state\x00${directory}\x00${expected.device}:${expected.inode}`, {
+    executable: process.execPath,
+    arguments: ["--no-env-file", "--no-install", "--no-macros", "--no-addons", `--config=${stateHelperConfigPath}`, stateHelperPath, "--serve"],
+    cwd: directory,
+    environment: helperEnvironment
+  }, JSON.stringify({ schemaVersion: 1, requestId, expected, operation }), 30000);
+  const current2 = inspectRealDirectoryIdentity(directory);
+  if (!sameIdentity(current2, expected))
+    throw new Error(`GHOSTGET_STATE_HOME changed identity after validation: ${directory}`);
+  if (result.kind === "failed")
+    throw new Error(result.detail === "" ? "bound state helper rejected the operation" : result.detail);
+  const limit = operation.kind === "batch-read-files" || operation.kind === "batch-read-child-files" ? MAX_PRIVATE_STATE_BATCH_STDOUT_BYTES : 180 * 1024 * 1024;
+  if (Buffer.byteLength(result.line, "utf8") > limit)
+    throw new Error("state helper response exceeded its byte bound");
+  let parsed;
+  try {
+    parsed = JSON.parse(result.line);
+  } catch (error) {
+    throw new Error("state helper returned invalid JSON", { cause: error });
+  }
+  if (isRecord(parsed) && parsed.ok === false && typeof parsed.error === "string" && exactObjectKeys(parsed, ["ok", "error"], [])) {
+    throw new Error(parsed.error.trim().slice(0, 512) || "bound state helper rejected the operation");
+  }
+  const response = parseStateHelperResponse(parsed);
+  if (!sameIdentity(response.identity, expected)) {
+    throw new Error("state helper response came from the wrong directory identity");
+  }
+  return response;
+}
 function stateSegments(root, path) {
   const child = relative(root, canonicalNonStatePath(path));
   if (child === "")
@@ -662,17 +798,17 @@ function stateSegments(root, path) {
 }
 function captureStateDirectoryExpectations(root, segments) {
   const expectations = [];
-  let current = root;
+  let current2 = root;
   let missing = false;
   for (const segment of segments) {
-    current = join(current, segment);
+    current2 = join(current2, segment);
     if (missing) {
       expectations.push(null);
       continue;
     }
     let stats;
     try {
-      stats = lstatSync(current, { bigint: true });
+      stats = lstatSync(current2, { bigint: true });
     } catch (error) {
       if (!hasCode(error, "ENOENT"))
         throw error;
@@ -681,7 +817,7 @@ function captureStateDirectoryExpectations(root, segments) {
       continue;
     }
     if (!stats.isDirectory() || stats.isSymbolicLink() || !ownedByCurrentUser(stats) || (stats.mode & 0o777n) !== 0o700n) {
-      throw new Error(`ghostget state directory must be an owned real directory with mode 0700: ${current}`);
+      throw new Error(`ghostget state directory must be an owned real directory with mode 0700: ${current2}`);
     }
     expectations.push({ device: stats.dev.toString(), inode: stats.ino.toString() });
   }
@@ -716,27 +852,27 @@ function inspectRealDirectoryIdentity(path) {
 }
 function findCreationAnchor(root) {
   const segments = [];
-  let current = root;
+  let current2 = root;
   for (;; ) {
     let stats;
     try {
-      stats = lstatSync(current, { bigint: true });
+      stats = lstatSync(current2, { bigint: true });
     } catch (error) {
       if (!hasCode(error, "ENOENT"))
         throw error;
-      const parent = dirname(current);
-      if (parent === current)
+      const parent = dirname(current2);
+      if (parent === current2)
         throw new Error(`GHOSTGET_STATE_HOME has no real existing creation anchor: ${root}`);
-      segments.unshift(basename(current));
-      current = parent;
+      segments.unshift(basename(current2));
+      current2 = parent;
       continue;
     }
     if (!stats.isDirectory() || stats.isSymbolicLink() || !ownedByCurrentUser(stats) || (stats.mode & 0o022n) !== 0n) {
-      throw new Error(`GHOSTGET_STATE_HOME creation path contains a non-owned real directory: ${current}`);
+      throw new Error(`GHOSTGET_STATE_HOME creation path contains a non-owned real directory: ${current2}`);
     }
     return {
       identity: { device: stats.dev.toString(), inode: stats.ino.toString() },
-      path: current,
+      path: current2,
       segments
     };
   }
@@ -772,10 +908,10 @@ function assertNoSymbolicLinks(root, target, includeTarget, requirePrivateDirect
   const checkedTarget = includeTarget ? absoluteTarget : dirname(absoluteTarget);
   const child = relative(canonicalRoot, checkedTarget);
   const components = child === "" ? [] : child.split(sep);
-  let current = canonicalRoot;
-  const paths = [current, ...components.map((component) => {
-    current = join(current, component);
-    return current;
+  let current2 = canonicalRoot;
+  const paths = [current2, ...components.map((component) => {
+    current2 = join(current2, component);
+    return current2;
   })];
   for (const [index, path] of paths.entries()) {
     let stats;
@@ -829,21 +965,21 @@ function canonicalPotentialPath(value) {
 function canonicalComparisonPath(value) {
   const absolute = resolve(value);
   const components = (path) => path.split(process.platform === "win32" ? /[/\\]/u : /\//u).filter(Boolean);
-  let current = parse(absolute).root;
-  let remaining = components(absolute.slice(current.length));
+  let current2 = parse(absolute).root;
+  let remaining = components(absolute.slice(current2.length));
   let links = 0, steps = 0;
   while (remaining.length > 0) {
-    if (++steps > 1024 || Buffer.byteLength(current, "utf8") > 4096) {
+    if (++steps > 1024 || Buffer.byteLength(current2, "utf8") > 4096) {
       throw new Error("state comparison path exceeds its metadata resolution bound");
     }
     const part = remaining.shift();
     if (part === ".")
       continue;
     if (part === "..") {
-      current = dirname(current);
+      current2 = dirname(current2);
       continue;
     }
-    const candidate = join(current, part);
+    const candidate = join(current2, part);
     let before;
     try {
       before = lstatSync(candidate, { bigint: true });
@@ -866,7 +1002,7 @@ function canonicalComparisonPath(value) {
       }
       const targetRoot = isAbsolute(target) ? parse(target).root : "";
       if (targetRoot !== "")
-        current = targetRoot;
+        current2 = targetRoot;
       remaining = [...components(target.slice(targetRoot.length)), ...remaining];
       if (remaining.length > 1024)
         throw new Error("state comparison path exceeds its metadata resolution bound");
@@ -875,9 +1011,9 @@ function canonicalComparisonPath(value) {
     if (remaining.length > 0 && !before.isDirectory()) {
       throw new Error("state comparison path contains a non-directory parent");
     }
-    current = candidate;
+    current2 = candidate;
   }
-  return current;
+  return current2;
 }
 function comparisonIdentity(path) {
   try {
@@ -1068,8 +1204,8 @@ function ensureClaimedStateRoot(root) {
     if (anchor === null)
       throw new Error(`GHOSTGET_STATE_HOME has no validated creation anchor: ${root}`);
     const response = runStateHelper(anchor.path, anchor.identity, { kind: "create-root", segments: anchor.segments }, true);
-    const current = inspectStateRootIdentity(root);
-    if (!sameIdentity(current, response.identity))
+    const current2 = inspectStateRootIdentity(root);
+    if (!sameIdentity(current2, response.identity))
       throw new Error(`GHOSTGET_STATE_HOME changed identity while being created: ${root}`);
     remembered = { claimed: true, creationAnchor: null, identity: response.identity };
     knownStateRoots.set(root, remembered);
@@ -1107,27 +1243,27 @@ function canonicalNonStatePath(value) {
   const filesystemRoot = parse(absolute).root;
   const child = relative(filesystemRoot, absolute);
   const segments = child === "" ? [] : child.split(sep);
-  let current = filesystemRoot;
+  let current2 = filesystemRoot;
   for (const [index, segment] of segments.entries()) {
-    const candidate = join(current, segment);
+    const candidate = join(current2, segment);
     let stats;
     try {
       stats = lstatSync(candidate);
     } catch (error) {
       if (!hasCode(error, "ENOENT"))
         throw error;
-      return join(current, ...segments.slice(index));
+      return join(current2, ...segments.slice(index));
     }
     if (stats.isSymbolicLink()) {
       if (process.platform === "win32" || Number(stats.uid) !== 0) {
         throw new Error(`private path is not a real directory (symbolic link): ${candidate}`);
       }
-      current = realpathSync(candidate);
+      current2 = realpathSync(candidate);
       continue;
     }
-    current = candidate;
+    current2 = candidate;
   }
-  return current;
+  return current2;
 }
 function ensurePrivateStateDirectory(path, environment = process.env) {
   assertSafeStatePath(path, environment);

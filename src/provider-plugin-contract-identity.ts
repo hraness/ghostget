@@ -86,14 +86,6 @@ const REDDIT_1_3_BINDING_ROUTE_COORDINATES = Object.freeze([
 ].map((route) => `web-session-api:reddit/${route}`));
 
 const identities = Object.freeze({
-  "microsoft-graph-official": {
-    schemaVersion: 1,
-    pluginVersion: "1.0.0",
-    implementationSha256: "17326c44a8cfd796e6da472bfe1e2e3a3fc8c84e23714a5068b128c1a5d00494",
-    legacyCurrentReadImplementationSha256: [],
-    legacyReadImplementationSha256: null,
-    legacyE71ReadImplementationSha256: null,
-  },
   "beeper-linked-device": {
     schemaVersion: 1,
     pluginVersion: "2.5.0",

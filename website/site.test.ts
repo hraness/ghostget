@@ -2144,7 +2144,7 @@ describe("ghostget.com static site", () => {
       .map((match) => match[0]);
     expect(referencedReleases.length).toBeGreaterThan(0);
     expect(new Set(referencedReleases)).toEqual(new Set([identity.release]));
-    expect(catalogServiceCount).toBe(23);
+    expect(catalogServiceCount).toBe(22);
     expect(executableServiceCount).toBe(21);
     expect(readme).toContain(
       `This ${identity.release} source tree supports executable actions for ${String(executableServiceCount)} services:`,

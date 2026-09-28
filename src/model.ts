@@ -353,7 +353,6 @@ export const genericSemanticRisks = {
   "profiles.read": "R1",
   "organizations.read": "R1",
   "contacts.list": "R1",
-  "calendar.attendees.list": "R1",
   "contacts.search": "R1",
   "contacts.read": "R1",
   "feeds.read": "R1",

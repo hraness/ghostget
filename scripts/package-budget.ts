@@ -1964,6 +1964,7 @@
 // 0fa290c4dbb3963c0d1f63c16c2bac584273c1dece30f3a4052244a701985187.
 // Carry the same projections and allowances: 12,077,310 + 12,387 + 4,096 =
 // 12,093,793 packed; 23,759,283 + 353 + 65 = 23,759,701 unpacked.
+//
 // The messaging-automation permission snapshot describes a status report's
 // action kinds from one admitted snapshot, and a dispatch reuses its own
 // poll's provider inspection: a small amount of added source and one rebuilt
@@ -1974,24 +1975,23 @@
 // Carry the same projections and allowances: 12,090,401 + 12,387 + 4,096 =
 // 12,106,884 packed; 23,763,115 + 353 + 65 = 23,763,533 unpacked.
 //
-// The disabled Microsoft Graph contacts/calendar candidate adds six shipped
-// files over merged main 93a80a6 (0.18.43 plus permission snapshot): adapter, plugin, contracts,
-// runtime, policy, and public reference. A clean npm 11.19.0 pack
-// --ignore-scripts with Node 24.18.1 on darwin arm64 measured 615 entries,
-// 12,099,048 packed bytes and 23,798,398 unpacked bytes; archive SHA-256
-// 0f0aa0a6313132ac00477496792563879b902c16b786d86d88ae74843c93afed.
-// Retain the same platform projections and portability allowances:
-// 12,099,048 + 12,387 + 4,096 = 12,115,531 packed;
-// 23,798,398 + 353 + 65 = 23,798,816 unpacked.
+// The persistent automation helpers add the iMessage automation session, the
+// synchronous persistent state-helper bridge, the state helper's serve mode and
+// rebuilt dist chunks in the same 609 packed entries. After `bun run build`, a
+// clean npm 11.19.0 pack --ignore-scripts with Node 24.18.1 on darwin arm64
+// measured 609 entries, 12,098,767 packed bytes and 23,799,339 unpacked bytes; archive
+// SHA-256 6a40e23d33ba3ad886b652a0064946df9b95f09b1a70f18189e94af5116cd433.
+// Carry the same projections and allowances: 12,098,767 + 12,387 + 4,096 =
+// 12,115,250 packed; 23,799,339 + 353 + 65 = 23,799,757 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Disabled Microsoft Graph contact/calendar candidates over Ghostget 0.18.43 main 93a80a6",
+  scope: "Persistent iMessage automation session and persistent state helpers over the Ghostget 0.18.43 tree",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "0f0aa0a6313132ac00477496792563879b902c16b786d86d88ae74843c93afed",
-  packedBytes: 12_099_048,
-  unpackedBytes: 23_798_398,
-  entryCount: 615,
+  archiveSha256: "6a40e23d33ba3ad886b652a0064946df9b95f09b1a70f18189e94af5116cd433",
+  packedBytes: 12_098_767,
+  unpackedBytes: 23_799_339,
+  entryCount: 609,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,

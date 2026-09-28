@@ -19,6 +19,7 @@ import {
   type Stats,
 } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { persistentHelperRequest } from "./persistent-helper-bridge";
 import { readOwnedFileStableSync } from "@hraness/local-custody/private-paths";
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, parse, relative, resolve, sep } from "node:path";
@@ -144,6 +145,19 @@ const helperEnvironment = stateCrashPlanForTest === undefined
 const helperPreloadForTest: readonly string[] = stateCrashPlanForTest === undefined
   ? []
   : ["--preload", join(dirname(fileURLToPath(import.meta.url)), "state-crash-preload.test-support.ts")];
+// Persistent helpers are opt-in for long-lived hosts (see
+// enablePersistentStateHelpers). Commands and workers that must prove their
+// process group exits keep one-shot helpers. Crash-plan tests always keep
+// one-shot so their preload observes every durable effect, and
+// GHOSTGET_STATE_HELPER_MODE=one-shot forces one-shot everywhere.
+let persistentStateHelpers = false;
+/** Lets a long-lived host keep one bound state helper per root instead of
+ * starting one per operation. The helpers join the caller's process group and
+ * exit when the caller's pipes close. */
+export function enablePersistentStateHelpers(): void {
+  persistentStateHelpers = helperPreloadForTest.length === 0
+    && process.env.GHOSTGET_STATE_HELPER_MODE !== "one-shot";
+}
 const ghostgetSourcePackageRoot = realpathSync(
   resolve(dirname(fileURLToPath(import.meta.url)), ".."),
 );
@@ -741,6 +755,9 @@ function runStateHelper(
   // Generate before cwd binding so deterministic fault injection can force the
   // exact pre-spawn swap that the helper must reject without touching it.
   const requestId = crypto.randomUUID();
+  if (faultForTest === undefined && !expectCreatedIdentity && persistentStateHelpers) {
+    return persistentStateHelperResponse(directory, expected, requestId, operation);
+  }
   const child = spawnSync(process.execPath, [
     "--no-env-file",
     "--no-install",
@@ -793,6 +810,46 @@ function runStateHelper(
   }
   const response = parseStateHelperResponse(parsed);
   if (!expectCreatedIdentity && !sameIdentity(response.identity, expected)) {
+    throw new Error("state helper response came from the wrong directory identity");
+  }
+  return response;
+}
+
+/**
+ * The same bound request through a helper kept alive for this exact root
+ * identity: one process start per root instead of per operation. The helper
+ * returns to and re-proves its root before every request, execute() still
+ * asserts the caller's expected identity, and this caller still re-checks the
+ * root and the response identity exactly as the one-shot path does.
+ */
+function persistentStateHelperResponse(
+  directory: string,
+  expected: StateRootIdentity,
+  requestId: string,
+  operation: StateHelperOperation,
+): StateHelperResponse {
+  const result = persistentHelperRequest(`state\0${directory}\0${expected.device}:${expected.inode}`, {
+    executable: process.execPath,
+    arguments: ["--no-env-file", "--no-install", "--no-macros", "--no-addons", `--config=${stateHelperConfigPath}`, stateHelperPath, "--serve"],
+    cwd: directory,
+    environment: helperEnvironment,
+  }, JSON.stringify({ schemaVersion: 1, requestId, expected, operation }), 30_000);
+  const current = inspectRealDirectoryIdentity(directory);
+  if (!sameIdentity(current, expected)) throw new Error(`GHOSTGET_STATE_HOME changed identity after validation: ${directory}`);
+  if (result.kind === "failed") throw new Error(result.detail === "" ? "bound state helper rejected the operation" : result.detail);
+  const limit = operation.kind === "batch-read-files" || operation.kind === "batch-read-child-files" ? MAX_PRIVATE_STATE_BATCH_STDOUT_BYTES : 180 * 1024 * 1024;
+  if (Buffer.byteLength(result.line, "utf8") > limit) throw new Error("state helper response exceeded its byte bound");
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(result.line) as unknown;
+  } catch (error) {
+    throw new Error("state helper returned invalid JSON", { cause: error });
+  }
+  if (isRecord(parsed) && parsed.ok === false && typeof parsed.error === "string" && exactObjectKeys(parsed, ["ok", "error"], [])) {
+    throw new Error(parsed.error.trim().slice(0, 512) || "bound state helper rejected the operation");
+  }
+  const response = parseStateHelperResponse(parsed);
+  if (!sameIdentity(response.identity, expected)) {
     throw new Error("state helper response came from the wrong directory identity");
   }
   return response;
