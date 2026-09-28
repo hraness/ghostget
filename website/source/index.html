@@ -295,7 +295,7 @@ ghostget read https://example.com</code></pre>
               <table>
                 <thead><tr><th scope="col">Approach</th><th scope="col">Best fit</th><th scope="col">How Ghostget differs</th></tr></thead>
                 <tbody>
-                  <tr><th scope="row">Your agent’s built-in web fetch</th><td>Quick lookups with nothing to install. Claude Code’s WebFetch, for example, returns a small model’s answer about the page.</td><td>Returns the full page as Markdown and can save it on your machine.</td></tr>
+                  <tr><th scope="row">Your agent’s built-in web fetch</th><td>Quick lookups with nothing to install. Claude Code’s WebFetch, for example, returns a small model’s answer about the page.</td><td>Returns the page’s content as Markdown and can save it on your machine.</td></tr>
                   <tr><th scope="row"><a href="/compare/firecrawl/">Firecrawl</a> and <a href="/compare/jina-reader/">Jina Reader</a></th><td>Hosted URL-to-Markdown, crawling, and search, metered per page or per token</td><td>Reads one page on your machine with no key or meter. No crawl or search.</td></tr>
                   <tr><th scope="row"><a href="https://github.com/unclecode/crawl4ai">Crawl4AI</a></th><td>Open-source Python crawling of whole sites for RAG pipelines, on your own machine</td><td>Reads one URL at a time, and also runs actions in accounts you connect.</td></tr>
                   <tr><th scope="row"><a href="/compare/browser-use/">browser-use</a></th><td>Open-ended, multi-step browsing where the model observes the page and decides each step</td><td>The model chooses no steps. Each call runs one reviewed action or stops with an error.</td></tr>

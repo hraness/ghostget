@@ -95,7 +95,7 @@
       ]
     },
     {
-      "source": "/providers/:site/:path*",
+      "source": "/providers/:site([a-z0-9-]+(?:\\.[a-z0-9-]+)+)(/|\\.md)",
       "headers": [
         {
           "key": "X-Robots-Tag",

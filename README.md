@@ -68,7 +68,8 @@ above supplies the executable.
 | [Browserbase](https://www.browserbase.com) | You need many cloud browsers, proxies, or session replay. |
 | [Composio](https://composio.dev), [Arcade](https://www.arcade.dev) | You build a product whose agents act for many users across many apps. |
 
-[Detailed comparisons](https://ghostget.com/compare/) cover each one.
+[How agents reach the web](https://ghostget.com/compare/) compares browser tools,
+reader services, and integration platforms with Ghostget in more detail.
 
 ## Choose your next task
 

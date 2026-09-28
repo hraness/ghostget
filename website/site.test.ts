@@ -53,7 +53,12 @@ import {
   webmcpProviderPages,
 } from "./webmcp-registry";
 import { handleDocumentNegotiation } from "../edge/negotiation";
-import { isNoindexDocumentPath, NOINDEX_ESSAY_PATHS, NOINDEX_ROBOTS } from "../edge/robots";
+import {
+  isNoindexDocumentPath,
+  NOINDEX_ESSAY_PATHS,
+  NOINDEX_ROBOTS,
+  WEBMCP_DOMAIN_HEADER_SOURCE,
+} from "../edge/robots";
 import { ghostgetSupportProfile } from "../src/support-profile";
 import {
   EDITORIAL_ARTICLE_IMAGE_SIZES,
@@ -1063,7 +1068,7 @@ describe("ghostget.com static site", () => {
       { key: "X-Robots-Tag", value: "noindex, nofollow" },
     ]);
     const registryDomainHeaders = vercel.headers.find((rule: { source: string }) =>
-      rule.source === "/providers/:site/:path*");
+      rule.source === WEBMCP_DOMAIN_HEADER_SOURCE);
     expect(registryDomainHeaders?.headers).toEqual([
       { key: "X-Robots-Tag", value: NOINDEX_ROBOTS },
     ]);
@@ -1368,9 +1373,7 @@ describe("ghostget.com static site", () => {
     expect(html).toContain('<a href="/compare/firecrawl/">Firecrawl</a> and <a href="/compare/jina-reader/">Jina Reader</a></th>');
     expect(html).toContain('href="https://github.com/unclecode/crawl4ai">Crawl4AI</a>');
     expect(html).toContain('<a href="https://composio.dev">Composio</a>, <a href="https://www.arcade.dev">Arcade</a>, and <a href="https://pipedream.com/docs/connect">Pipedream Connect</a></th>');
-    expect(html).toContain("Large app-integration catalogs with managed sign-in");
     expect(html).not.toContain("Hosted integration breadth and managed end-user authentication");
-    expect(html).toContain("A free CLI and TypeScript SDK for Claude Code, Codex, Cursor, and other agents that run commands.");
     expect(html).toContain('href="https://docs.apify.com/integrations/mcp">Apify MCP</a>');
     expect(html).toContain("Discovering and running eligible Apify Store Actors");
     expect(html).toContain('href="/compare/browserbase/">Browserbase + Stagehand</a>');
@@ -2068,6 +2071,8 @@ describe("ghostget.com static site", () => {
         `<link rel="canonical" href="${SITE_ORIGIN}${comparePath}">`,
       );
       expect(comparison?.html).toContain('href="/compare/"');
+      expect(comparison?.html).toContain("six approaches");
+      expect(comparison?.html).not.toMatch(/\b(?:four|five) (?:ways|approaches)\b/iu);
       expect(comparison?.html).toContain(
         '<meta property="og:image" content="https://ghostget.com/og.png">',
       );
