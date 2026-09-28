@@ -7,6 +7,17 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+- Substack `subscribers.export` and `subscribers.import.status` now run
+  against the signed-in owner's publication. Pass `publication_origin` when
+  the account owns more than one. Export pages hold at most 100 rows, and
+  adjacent pages overlap by up to ten rows because Substack can reorder
+  subscribers who share a signup time. Keep paging until `nextCursor` is
+  `null`, then check that the count of unique addresses equals `total`.
+- `subscribers.import` still refuses to run. It now takes exactly one
+  address and requires `publication_origin`, matching the request Substack's
+  dashboard sends. It stays gated until adding a new address has been
+  confirmed through a later export.
+
 ## 0.18.43
 
 This release reserves three Substack subscriber actions and ships a quieter

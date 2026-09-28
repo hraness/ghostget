@@ -59,12 +59,12 @@ function publication(origin = ORIGIN, id = PUBLICATION_ID): SubstackWebViewer["p
 }
 
 describe("Substack subscriber contract states", () => {
-  test("keeps all three operations capture-required with the frozen risks", () => {
+  test("enables qualified reads and keeps the one-address write gated", () => {
     expect(SUBSTACK_WEB_OPERATIONS["subscribers.export"]).toMatchObject({
       effect: "read",
       risk: "R1",
-      state: "capture-required",
-      evidence: "none",
+      state: "observed",
+      evidence: "live-direct",
     });
     expect(SUBSTACK_WEB_OPERATIONS["subscribers.import"]).toMatchObject({
       effect: "write",
@@ -75,8 +75,8 @@ describe("Substack subscriber contract states", () => {
     expect(SUBSTACK_WEB_OPERATIONS["subscribers.import.status"]).toMatchObject({
       effect: "read",
       risk: "R1",
-      state: "capture-required",
-      evidence: "none",
+      state: "observed",
+      evidence: "live-direct",
     });
   });
 });
@@ -197,13 +197,16 @@ describe("Substack subscriber export projection", () => {
           expect(page.total).toBe(total);
           for (const subscriber of page.subscribers) emails.add(subscriber.email);
           summed += page.subscribers.length;
-          offset += page.subscribers.length;
           cursor = page.nextCursor;
+          offset = cursor === null
+            ? total
+            : prepareSubstackSubscriberExportInput({ cursor, limit }).cursor!.offset;
           pages += 1;
         } while (cursor !== null);
-        expect(summed).toBe(total);
+        expect(summed).toBeGreaterThanOrEqual(total);
         expect(emails.size).toBe(total);
-        expect(pages).toBe(Math.max(1, Math.ceil(total / limit)));
+        const stride = Math.max(1, limit - 10);
+        expect(pages).toBe(total <= limit ? 1 : 1 + Math.ceil((total - limit) / stride));
       },
     ));
   });
@@ -263,36 +266,45 @@ describe("Substack subscriber export projection", () => {
 describe("Substack subscriber import validation", () => {
   test("accepts exactly one normalized address with welcome email suppressed", () => {
     const emails = ["reader@example.com"];
-    expect(prepareSubstackSubscriberImportInput({ emails, send_welcome_email: false })).toEqual({
+    expect(prepareSubstackSubscriberImportInput({
+      emails,
+      send_welcome_email: false,
+      publication_origin: ORIGIN,
+    })).toEqual({
       emails,
       sendWelcomeEmail: false,
-      publicationOrigin: null,
+      publicationOrigin: ORIGIN,
     });
   });
 
   test("rejects every invalid batch", () => {
     const valid = ["reader@example.com"];
     for (const value of [
-      { emails: [], send_welcome_email: false },
+      { emails: [], send_welcome_email: false, publication_origin: ORIGIN },
       {
         emails: ["first@example.com", "second@example.com"],
         send_welcome_email: false,
+        publication_origin: ORIGIN,
       },
-      { emails: ["reader@example.com", "reader@example.com"], send_welcome_email: false },
-      { emails: ["Reader@example.com"], send_welcome_email: false },
-      { emails: [" reader@example.com"], send_welcome_email: false },
-      { emails: ["reader"], send_welcome_email: false },
-      { emails: ["reader@localhost"], send_welcome_email: false },
-      { emails: ["a..b@example.com"], send_welcome_email: false },
-      { emails: ["a@b@example.com"], send_welcome_email: false },
-      { emails: [7], send_welcome_email: false },
-      { emails: valid, send_welcome_email: true },
-      { emails: valid, send_welcome_email: "false" },
-      { emails: valid, send_welcome_email: 0 },
-      { emails: valid },
-      { emails: valid, sendWelcomeEmail: false },
-      { emails: valid, send_welcome_email: false, publication: "other" },
-      { emails: "reader@example.com", send_welcome_email: false },
+      { emails: valid, send_welcome_email: false },
+      { emails: valid, send_welcome_email: false, publication_origin: null },
+      { emails: valid, send_welcome_email: false, publication_origin: "https://news.example.com" },
+      { emails: valid, send_welcome_email: false, publication_origin: `${ORIGIN}/` },
+      { emails: ["reader@example.com", "reader@example.com"], send_welcome_email: false, publication_origin: ORIGIN },
+      { emails: ["Reader@example.com"], send_welcome_email: false, publication_origin: ORIGIN },
+      { emails: [" reader@example.com"], send_welcome_email: false, publication_origin: ORIGIN },
+      { emails: ["reader"], send_welcome_email: false, publication_origin: ORIGIN },
+      { emails: ["reader@localhost"], send_welcome_email: false, publication_origin: ORIGIN },
+      { emails: ["a..b@example.com"], send_welcome_email: false, publication_origin: ORIGIN },
+      { emails: ["a@b@example.com"], send_welcome_email: false, publication_origin: ORIGIN },
+      { emails: [7], send_welcome_email: false, publication_origin: ORIGIN },
+      { emails: valid, send_welcome_email: true, publication_origin: ORIGIN },
+      { emails: valid, send_welcome_email: "false", publication_origin: ORIGIN },
+      { emails: valid, send_welcome_email: 0, publication_origin: ORIGIN },
+      { emails: valid, publication_origin: ORIGIN },
+      { emails: valid, sendWelcomeEmail: false, publication_origin: ORIGIN },
+      { emails: valid, send_welcome_email: false, publication: "other", publication_origin: ORIGIN },
+      { emails: "reader@example.com", send_welcome_email: false, publication_origin: ORIGIN },
     ]) {
       expect(() => prepareSubstackSubscriberImportInput(value)).toThrow();
     }
@@ -309,6 +321,7 @@ describe("Substack subscriber import validation", () => {
         const attempt = (): unknown => prepareSubstackSubscriberImportInput({
           emails,
           send_welcome_email: false,
+          publication_origin: ORIGIN,
         });
         if (valid) expect(attempt()).toMatchObject({ emails });
         else expect(attempt).toThrow();
@@ -452,7 +465,7 @@ describe("Substack subscriber publication and request binding", () => {
     const importBody = substackSubscriberImportRequestBody({
       emails: ["reader@example.com"],
       sendWelcomeEmail: false,
-      publicationOrigin: null,
+      publicationOrigin: ORIGIN,
     });
     expect(importBody).toEqual({
       email: "reader@example.com",

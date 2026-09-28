@@ -126,7 +126,7 @@ describe("Substack internal-web operation registry", () => {
   test("ships one schema-v4 semantic manifest entry for every provider operation", () => {
     expect(substackWebManifest.schemaVersion).toBe(4);
     expect(substackWebManifest.id).toBe("substack-web");
-    expect(substackWebManifest.version).toBe("1.8.0");
+    expect(substackWebManifest.version).toBe("1.9.0");
     expect(substackWebManifest.surfaceId).toBe("substack");
     expect(substackWebManifest.origins).toEqual(["https://substack.com"]);
     expect(Object.keys(substackWebManifest.operations).sort()).toEqual(
@@ -178,7 +178,7 @@ describe("Substack internal-web operation registry", () => {
     });
   });
 
-  test("graduates only the direct reads and authorized Note publication proved against the current site", () => {
+  test("graduates only the direct reads, owned-publication subscriber reads, and authorized Note publication proved against the current site", () => {
     expect(
       Object.entries(SUBSTACK_WEB_OPERATIONS)
         .filter(([, contract]) => contract.state === "observed")
@@ -195,8 +195,14 @@ describe("Substack internal-web operation registry", () => {
       "posts.publish",
       "posts.read",
       "profiles.read",
+      "subscribers.export",
+      "subscribers.import.status",
     ]);
     expect(SUBSTACK_WEB_OPERATIONS["messaging.read"].state).toBe("capture-required");
+    expect(SUBSTACK_WEB_OPERATIONS["subscribers.import"]).toMatchObject({
+      state: "capture-required",
+      risk: "R3",
+    });
     expect(SUBSTACK_WEB_OPERATIONS["organizations.read"]).toMatchObject({
       state: "observed",
       risk: "R1",

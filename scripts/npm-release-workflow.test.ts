@@ -20,6 +20,7 @@ import {
   MAX_UNPACKED_BYTES,
   packageArtifactBudget,
   repairPackageMeasurement,
+  subscriberPackageMeasurement,
 } from "./package-budget.js";
 import { verifyNpmPackageIdentity } from "./npm-package-identity.js";
 import {
@@ -1549,7 +1550,15 @@ describe("npm publication contract", () => {
     expect(budget).toContain("47684b3e2eb5cf3ed07fbb520aade8c7251d993f75262fbf1af627d9081a1a5f");
     expect(budget).toContain("23,688,277 + 353 + 65 = 23,688,695");
     expect(budget).toContain("23,759,283 + 353 + 65 = 23,759,701");
-    expect(MAX_UNPACKED_BYTES).toBe(23_798_816);
+    expect(MAX_UNPACKED_BYTES).toBe(23_802_805);
+    expect(Object.isFrozen(subscriberPackageMeasurement)).toBeTrue();
+    expect(subscriberPackageMeasurement).toMatchObject({
+      archiveSha256: "54d62b5446dffa55fa9e42aac73ecca20d61e297c1053d19596a3340835806a4",
+      packedBytes: 11_944_756,
+      unpackedBytes: 23_802_387,
+      entryCount: 615,
+    });
+    expect(budget).toContain("23,802,387 + 353 + 65 = 23,802,805 unpacked");
     expect(budget).toContain("23,037,873 + 65 = 23,037,938");
     expect(budget).toContain("f9f3ab38a682690ceaa2699a7309997512030f0fa500a9dc29dcd108123dc41f");
     expect(budget).toContain("23,038,557 + 65 = 23,038,622");
@@ -1582,7 +1591,7 @@ describe("npm publication contract", () => {
     expect(budget).toContain("01875f12ab73a49d6c7d6bf520dc3d318db816addee2fa7981889f35c958cf7c");
     expect(budget).toContain("b12909f08f7c19460ced56e30619f4860a1183f4b0106170c07837dae577a937");
     expect(budget).toContain("0b212ac291218528dcf979370110a36f10850e046ca90a536057d9a44e807d1d");
-    expect(MAX_UNPACKED_BYTES).toBe(23_798_398 + 353 + 65);
+    expect(MAX_UNPACKED_BYTES).toBe(23_802_387 + 353 + 65);
     expect(budget).toContain("22,794,052 + 65 = 22,794,117");
     expect(budget).toContain("c482efe748f880e3717727d6d39fd92a68953e6eea766642b329ba47ae772d80");
     expect(budget).toContain("22,759,423 + 65 = 22,759,488");
@@ -1619,7 +1628,7 @@ describe("npm publication contract", () => {
       entryCount: { min: 615, max: 615 },
       fileCount: { min: 615, max: 615 },
       packedBytes: { min: 1_600_000, max: 12_115_531 },
-      unpackedBytes: { min: 9_000_000, max: 23_798_816 },
+      unpackedBytes: { min: 9_000_000, max: 23_802_805 },
     });
   });
 

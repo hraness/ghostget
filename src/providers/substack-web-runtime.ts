@@ -27,6 +27,7 @@ import type {
   WebSessionOperationDeadline,
   WebSessionProviderAcceptedMutationTargetEvent,
 } from "../web-session-execution";
+import { WebSessionResponseRejectedError } from "../web-session-read-errors";
 import { failedProviderRead } from "./read-failure";
 import { substackMp4Metadata } from "./substack-video-mp4";
 import { hasExactKeys, hasSameKeys } from "../contracts-shape.js";
@@ -2746,6 +2747,7 @@ export function substackSubscriberImportOperationId(input: Readonly<{
   const plan = prepareSubstackSubscriberImportInput({
     emails: [...input.plan.emails],
     send_welcome_email: input.plan.sendWelcomeEmail,
+    publication_origin: input.plan.publicationOrigin,
   });
   return createHash("sha256").update(canonicalJson({
     schemaVersion: 1,
@@ -2761,6 +2763,7 @@ export function substackSubscriberImportOperationId(input: Readonly<{
 type SubstackSubscriberImportFailureStage =
   | "dispatch-admission"
   | "import-transport"
+  | "import-rejected"
   | "import-response"
   | "accepted-target-recording"
   | "verification-recording";
@@ -2984,7 +2987,20 @@ export async function executeSubstackSubscriberOperation(
       dispatchStarted: true,
       dispatch: { planned: 1, started, verified },
     };
-  } catch {
+  } catch (error) {
+    // A started dispatch can never finish as failed (run-journal invariant), so
+    // even a 4xx on the add request stays indeterminate. The stage and status
+    // code tell the caller what Substack said without echoing its body.
+    const rejectedStatus = failureStage === "import-transport"
+      && error instanceof WebSessionResponseRejectedError
+      && error.status >= 400
+      && error.status < 500
+      ? error.status
+      : null;
+    if (rejectedStatus !== null) failureStage = "import-rejected";
+    const stage = rejectedStatus === null
+      ? failureStage
+      : `${failureStage}, HTTP ${String(rejectedStatus)}`;
     return {
       status: started > 0 ? "indeterminate" : "failed",
       output: null,
@@ -2992,8 +3008,8 @@ export async function executeSubstackSubscriberOperation(
       dispatchStarted: started > 0,
       dispatch: { planned: 1, started, verified },
       error: started > 0
-        ? `reconcile-required: Substack may have accepted subscriber import ${operationId}, but acceptance was not verified; read subscribers.export and never retry this import (stage: ${failureStage})`
-        : `Substack subscriber import failed before submission (stage: ${failureStage})`,
+        ? `reconcile-required: Substack may have accepted subscriber import ${operationId}, but acceptance was not verified; read subscribers.export and never retry this import (stage: ${stage})`
+        : `Substack subscriber import failed before submission (stage: ${stage})`,
     };
   }
 }

@@ -2060,7 +2060,24 @@ export const MAX_PACKED_FILES = repairPackageMeasurement.entryCount;
 // exactly 589 files/entries and 23,229,987 payload bytes; archive SHA-256
 // 7aaeba9a98900ed8083f4ec0a7d36d137cbc7585c1a5a676c8b092d7f3e486cb. Retain the
 // reviewed 65-byte allowance: 23,229,987 + 65 = 23,230,052.
-export const MAX_UNPACKED_BYTES = repairPackageMeasurement.unpackedBytes
+// The guarded Substack subscriber contract adds 3,989 payload bytes over
+// merged main 9f2dd16. A clean Bun 1.3.14 `pm pack --ignore-scripts` on this
+// candidate measured exactly 615 entries, 11,944,756 packed bytes, and
+// 23,802,387 unpacked bytes; archive SHA-256
+// 54d62b5446dffa55fa9e42aac73ecca20d61e297c1053d19596a3340835806a4.
+// Keep the existing 353-byte platform projection and 65-byte allowance:
+// 23,802,387 + 353 + 65 = 23,802,805 unpacked.
+export const subscriberPackageMeasurement = Object.freeze({
+  scope: "Guarded Substack subscriber contract over Ghostget main 9f2dd16",
+  command: "bun pm pack --ignore-scripts",
+  bunVersion: "1.3.14",
+  platform: "darwin-arm64",
+  archiveSha256: "54d62b5446dffa55fa9e42aac73ecca20d61e297c1053d19596a3340835806a4",
+  packedBytes: 11_944_756,
+  unpackedBytes: 23_802_387,
+  entryCount: 615,
+});
+export const MAX_UNPACKED_BYTES = subscriberPackageMeasurement.unpackedBytes
   + repairPackageMeasurement.payloadPlatformProjection + repairPackageMeasurement.payloadAllowance;
 
 const TAR_BLOCK_BYTES = 512;

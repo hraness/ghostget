@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
 import { describe, expect, test } from "bun:test";
 
 const predecessorDefaultInventorySha256 =
-  "3aef102dfcf019a2c258a782527f6a652df0127224cd7714339878c8e730eb26";
+  "7eee27b37f079bfcf8941e2f2399d7df68d52399f858b6622e2b83538374896c";
 const predecessorLegacyInventorySha256 = [
   "4abf50326edbc8c8294a2056a08fc7ab2fd038d2d798708b77e29df98c2a86d0",
   "112cb715f1466ed5eb29cf97116151ae8b6a56aeb8aa9c08ed26ebadd47b86be",
@@ -13,12 +13,12 @@ const predecessorLegacyInventorySha256 = [
   "303ca3ae1b44693bbbdbdcf48665c388eaaa8b677f982a2ebdc0ae9ccb82a8b4",
   "0b7b037e045497f96920c8e751711f767b6358589c39ba0ea9d9db880ddef2ca",
   "ce149cd1d2d695a693b2dac2c16c3b7f18b5ab1adb108a3dee07ae8031414255",
-  "0496b19acf9cb7d84c8cf335a54081a670e9d20ca7a07fabfb3f2bde69993857",
-  "a8afb05b1e43932893020c4421dad911945e29dd7f7c6deb3b8e4412e5b19038",
-  "adce058620ce1d6b4fe6596da3ca9e58e1e73dc83b699d883eda1e6795cb0f89",
-  "7c3c14073f83c6a18daff16381430e2cce010209c4efe8c966b4a4a197c48b34",
-  "2303c37a7595b44cbb997056d7b7d31e3ef706db9573166427768e738066ad12",
-  "bfafe93552d576c1a52da29ab5a56dfe7cf828b1e7b44bfd546937966c186f95",
+  "4f447b84ce2c31e6c0089b30afd8eb24d4e232acaac7320a2a4c29904aa3c6d7",
+  "fdf6e30690e7b9ae002b40929cb639f5eb914b8efcfcd7851fc74eee79fa2a37",
+  "580a79c2cf7ad38a348193e8e9e3f7f7e34c6402a31161d7572b51c3ae0889c2",
+  "302b9fa7be77727b6024ebedec702aa5be7b87ae7bde2ba81c17386d4a757263",
+  "184b1485943a0cb8237502ae6dec7a300a7735c16ef960f7e70eaf46c716bbbf",
+  "6f5f0b00da2227b151fb13c6199cc5f0783448af08f25e63afb4857839210dc6",
   "bf0e56da9f3b3529e59d2aa2c9d4b8c7e3c117be1b666c31288bcc8f90818ce3",
   "58e5e5b27881f30114891f7c266f901e7dda800d3f12309e420c602348816a58",
   "7db7a8a56a969f082a8fb588425d23e2525ee1fec8862d28606df29e2383db4b",
@@ -301,7 +301,7 @@ describe("durable provider contract inventory", () => {
         rows: 324,
         sha256: predecessorDefaultInventorySha256,
         currentOnlyRows: 83,
-        currentOnlySha256: "675cdc7d0b722682db014a1d8488c50ae2842116ac2de686c022ee577a69bbe1",
+        currentOnlySha256: "869c31232e778601a4c9627778715fb02552a86bbd7081a750c01b8728ee6266",
         automationRows: [
           ["linked-device", "whatsapp", "messaging.automation.read", 1],
           ["linked-device", "whatsapp", "messaging.automation.send.attachment", 1],
@@ -334,7 +334,7 @@ describe("durable provider contract inventory", () => {
           254,
           228,
           212,
-          166,
+          191,
           146,
           146,
           146,

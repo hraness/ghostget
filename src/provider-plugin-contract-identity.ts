@@ -397,9 +397,10 @@ const identities = Object.freeze({
   },
   "substack-web": {
     schemaVersion: 1,
-    pluginVersion: "1.4.0",
-    implementationSha256: "58438f60cf9b2d2db9363cb7dece0c6ca56e60c2178fe4bcbd60c844fc8893ba",
+    pluginVersion: "1.5.0",
+    implementationSha256: "7176f8c114e7ad2c8471976dc46301b9b9c1c2abd6f2ac6a24901c175c66bceb",
     legacyCurrentReadImplementationSha256: [
+      "58438f60cf9b2d2db9363cb7dece0c6ca56e60c2178fe4bcbd60c844fc8893ba",
       "3dfe5b506cef46b6534c7abd195a98df0a825a321bd0690eddae674e4592c041",
       "d35dda6043e224f4a2d6305a4a6aac9f05bef37ecfbfd087973394cdbe0c6811",
       "2062f7c39c75ce286f26e7bd513871e5cbc2b62e2408d20df28af906f8ad5012",

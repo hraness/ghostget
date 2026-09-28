@@ -189,18 +189,16 @@ export const SUBSTACK_WEB_OPERATIONS = Object.freeze({
     "first-party-bundle",
     "scheduled publication needs an exact viewer-owned publication, time zone, audience, notification, and returned-draft binding",
   ),
-  "subscribers.export": captureRequiredRead(
-    "none",
-    "Chrome observed POST /api/v1/subscriber-stats with includeTags: true and a 50-row request, but the full row and section projection and page ceiling still need live qualification",
+  "subscribers.export": observedRead(
+    "live owned-publication POST /api/v1/subscriber-stats with includeTags, a 100-row ceiling, ten-row overlap, and a complete 373-address unique census",
   ),
   "subscribers.import": captureRequired(
     "R3",
     "none",
     "Chrome observed one-address POST /api/v1/subscriber/add with sendEmail: false, but the address was already subscribed and the file-import status is unrelated; a new-add readback and reconciliation rule remain unproven",
   ),
-  "subscribers.import.status": captureRequiredRead(
-    "none",
-    "Chrome observed GET /api/v1/import/instances with nested latestImportResult; its projection still needs full live qualification",
+  "subscribers.import.status": observedRead(
+    "live owned-publication GET /api/v1/import/instances with nested latestImportResult counts",
   ),
 } as const satisfies Readonly<Record<SubstackWebOperationName, SubstackWebOperationContract>>);
 
@@ -549,7 +547,8 @@ export type SubstackSubscriberExportPlan = Readonly<{
 export type SubstackSubscriberImportPlan = Readonly<{
   emails: readonly string[];
   sendWelcomeEmail: false;
-  publicationOrigin: string | null;
+  /** A write always names its exact owned publication; it never defaults. */
+  publicationOrigin: string;
 }>;
 
 export type SubstackSubscriberImportStatus = Readonly<{
@@ -658,7 +657,7 @@ export function prepareSubstackSubscriberImportInput(value: unknown): SubstackSu
   exactOwnKeys(
     input,
     ["emails", "send_welcome_email", "publication_origin"],
-    ["emails", "send_welcome_email"],
+    ["emails", "send_welcome_email", "publication_origin"],
     "Substack subscriber import input",
   );
   if (input.send_welcome_email !== false) {
@@ -683,10 +682,14 @@ export function prepareSubstackSubscriberImportInput(value: unknown): SubstackSu
     seen.add(address);
     return address;
   });
+  const publicationOrigin = requestedSubscriberPublicationOrigin(input);
+  if (publicationOrigin === null) {
+    throw new Error("input.publication_origin must name the exact owned publication");
+  }
   return Object.freeze({
     emails: Object.freeze(normalized),
     sendWelcomeEmail: false as const,
-    publicationOrigin: requestedSubscriberPublicationOrigin(input),
+    publicationOrigin,
   });
 }
 
@@ -761,6 +764,7 @@ export function substackSubscriberImportRequestBody(
   const checked = prepareSubstackSubscriberImportInput({
     emails: [...plan.emails],
     send_welcome_email: plan.sendWelcomeEmail,
+    publication_origin: plan.publicationOrigin,
   });
   return Object.freeze({
     email: checked.emails[0]!,
@@ -837,8 +841,10 @@ function projectedSubscriber(value: unknown, label: string): SubstackSubscriberR
 /**
  * Project one owned-publication subscriber page to the frozen contract fields.
  * The cursor binds the publication, next offset, and the total observed on the
- * first page. Consumers must also reject repeated addresses across pages:
- * a stable reported total does not prove a complete census.
+ * first page. Adjacent pages overlap by ten rows to cover the publication's
+ * observed unstable ordering among equal subscription timestamps. Consumers
+ * must count unique addresses against the reported total before accepting a
+ * complete census.
  */
 export function normalizeSubstackSubscriberPage(
   value: unknown,
@@ -875,10 +881,13 @@ export function normalizeSubstackSubscriberPage(
   if (subscribers.length === 0 && expected.offset < total) {
     throw new Error("Substack subscriber page ended before the reported total");
   }
+  if (consumed < total && subscribers.length < expected.limit) {
+    throw new Error("Substack subscriber page ended early before the reported total");
+  }
   const nextCursor = consumed < total
     ? encodeSubstackSubscriberCursor({
         publicationId: expected.publicationId,
-        offset: consumed,
+        offset: expected.offset + Math.max(1, subscribers.length - 10),
         total,
       })
     : null;
@@ -990,6 +999,7 @@ export function authorizeSubstackSubscriberRequest(input: {
       const checked = prepareSubstackSubscriberImportInput({
         emails: [body.email],
         send_welcome_email: body.sendEmail,
+        publication_origin: input.publicationOrigin,
       });
       if (JSON.stringify(body) !== JSON.stringify(substackSubscriberImportRequestBody(checked))) {
         throw new Error("Substack subscriber import request body changed its reviewed shape");

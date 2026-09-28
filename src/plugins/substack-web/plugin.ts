@@ -18,7 +18,7 @@ if (substackContracts === undefined) {
 export const substackWebPlugin = defineProviderPlugin({
   apiVersion: 1,
   id: "substack-web",
-  version: "1.4.0",
+  version: "1.5.0",
   displayName: "Substack Authenticated Web",
   sourceKind: "built-in",
   implementationSources: webImplementationSources(import.meta.url, [
@@ -37,7 +37,7 @@ export const substackWebPlugin = defineProviderPlugin({
     authKinds: browserSessionAuthKinds,
     operations: webSessionContractOperations(
       Object.values(substackContracts),
-      "4cb58f147520a9ef7322f7fb0281f31b5bac886c1134a86496da5c19774781d4",
+      "5bb5026f8fcfc6695ab0a81338af8283864a1dd8af6169c532bdd33f86caa28f",
       {
         "posts.publish": [2],
       },
