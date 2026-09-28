@@ -9,8 +9,10 @@
  * Cookies are read from the selected browser separately for every origin the
  * download visits and filtered to that exact URL by the shared cookie filter,
  * so a cookie is only ever sent to a host it belongs to. Every hop is a
- * DNS-pinned public HTTPS request; plain HTTP, private addresses, and
- * credential-bearing URLs are refused before any cookie is read.
+ * DNS-pinned public HTTPS request. Plain HTTP, credential-bearing URLs,
+ * non-public IP literals, and local host names are refused before any cookie
+ * is read; a name that resolves to a private address is refused by the pinned
+ * fetch before any request is sent.
  */
 
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -22,29 +24,10 @@ import type { StrictCookie } from "@hraness/wordcell/clip/cookies";
 import type { CookieSelection } from "@hraness/wordcell/clip/acquire";
 
 import type { GhostgetAuth } from "./auth";
+import { isPublicUnicastAddress, parseIpv4, parseIpv6 } from "./public-address";
+import { PDF_SIGN_IN_OPTIONS, hasPdfSignInOptions } from "./usage";
 
-/** Sign-in options `pdf` understands; they are never forwarded to Wordcell. */
-const AUTH_VALUE_OPTIONS = new Set([
-  "--auth",
-  "--browser-profile",
-  "--cookie-source",
-  "--cookie-profile",
-  "--cookies-file",
-  "--mode",
-]);
-
-/** Wordcell `pdf` options that take a value, so their values are not the input. */
-const WORDCELL_VALUE_OPTIONS = new Set([
-  "--output",
-  "--slug",
-  "--annotations",
-  "--timeout-ms",
-  "--max-pdf-bytes",
-  "--max-pages",
-  "--max-images",
-  "--max-asset-bytes",
-  "--max-total-asset-bytes",
-]);
+export { hasPdfSignInOptions };
 
 /** Same limits Wordcell applies to an anonymous PDF download. */
 export const PDF_AUTH_DEFAULTS = Object.freeze({
@@ -86,13 +69,6 @@ function usage(message: string): PdfAuthError {
   return new PdfAuthError("usage", message);
 }
 
-/** True when `pdf` arguments carry any sign-in option. */
-export function hasPdfSignInOptions(pdfArguments: readonly string[]): boolean {
-  const separator = pdfArguments.indexOf("--");
-  const scanned = separator === -1 ? pdfArguments : pdfArguments.slice(0, separator);
-  return scanned.some((argument) => AUTH_VALUE_OPTIONS.has(argument.split("=", 1)[0] ?? ""));
-}
-
 function isCookieSource(value: string): value is CookieSource {
   return (cookieSources as readonly string[]).includes(value);
 }
@@ -113,7 +89,7 @@ export function splitPdfSignInArguments(pdfArguments: readonly string[]): PdfAut
     }
     const equals = argument.indexOf("=");
     const name = argument.startsWith("--") && equals !== -1 ? argument.slice(0, equals) : argument;
-    if (!AUTH_VALUE_OPTIONS.has(name)) {
+    if (!PDF_SIGN_IN_OPTIONS.has(name)) {
       remaining.push(argument);
       continue;
     }
@@ -132,10 +108,6 @@ export function splitPdfSignInArguments(pdfArguments: readonly string[]): PdfAut
   }
   if (values.size === 0) return { signIn: null, remaining };
 
-  const mode = values.get("--mode");
-  if (mode !== undefined && !["auto", "http", "browser"].includes(mode)) {
-    throw usage("--mode must be auto, http or browser");
-  }
   const authId = values.get("--auth");
   const browserProfile = values.get("--browser-profile");
   const cookieSource = values.get("--cookie-source");
@@ -177,21 +149,6 @@ export function splitPdfSignInArguments(pdfArguments: readonly string[]): PdfAut
   };
 }
 
-/** Index of the Wordcell `pdf` input positional in `remaining`, or -1. */
-export function pdfInputIndex(remaining: readonly string[]): number {
-  const start = remaining[0] === "save" || remaining[0] === "capture" ? 1 : 0;
-  for (let index = start; index < remaining.length; index += 1) {
-    const argument = remaining[index] ?? "";
-    if (argument === "--") return remaining[index + 1] === undefined ? -1 : index + 1;
-    if (argument.startsWith("-")) {
-      if (WORDCELL_VALUE_OPTIONS.has(argument)) index += 1;
-      continue;
-    }
-    return index;
-  }
-  return -1;
-}
-
 export type PdfCookieReader = (url: URL) => Promise<{
   readonly cookies: readonly StrictCookie[];
   readonly warnings: readonly string[];
@@ -206,11 +163,15 @@ export type PdfDownload = {
   readonly cookieHosts: readonly string[];
 };
 
+/** What the shared reader says when a cookie file has nothing for one URL. */
+const COOKIE_FILE_NO_MATCH = "the explicitly selected cookie file contained no usable cookies for this request";
+
 function isNoMatchingCookies(error: unknown): boolean {
   const message = error instanceof Error ? error.message : "";
   return message.startsWith("no matching cookies were found")
     || message.startsWith("no usable origin-scoped cookies were found")
-    || message.startsWith("the managed Chromium profile contained no usable origin-scoped cookies");
+    || message.startsWith("the managed Chromium profile contained no usable origin-scoped cookies")
+    || message === COOKIE_FILE_NO_MATCH;
 }
 
 function browserLabel(signIn: PdfSignIn | null, auth: GhostgetAuth | undefined): string {
@@ -230,8 +191,21 @@ function browserLabel(signIn: PdfSignIn | null, auth: GhostgetAuth | undefined):
 }
 
 function noAccessMessage(browser: string): string {
-  return `The site sent a web page instead of the PDF, so your ${browser} sign-in does not seem to have access to it. `
-    + `Open the link in ${browser}, sign in through your library or university if it asks, check that the PDF opens there, then run this again.`;
+  return `the site sent a web page instead of the PDF, so your ${browser} sign-in does not seem to have access to it. `
+    + `Open the link in ${browser}, sign in through your library or university if it asks, check that the PDF opens there, then run this again`;
+}
+
+function readableSize(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  const value = bytes / (1024 * 1024);
+  return `${value >= 10 ? Math.round(value) : Math.round(value * 10) / 10} MB`;
+}
+
+function tooLarge(maxBytes: number): PdfAuthError {
+  return new PdfAuthError(
+    "download",
+    `the PDF is larger than the ${readableSize(maxBytes)} limit. Pass a larger --max-pdf-bytes to allow it`,
+  );
 }
 
 function contentTypeEssence(response: Response): string {
@@ -258,7 +232,7 @@ async function readBounded(response: Response, maxBytes: number, signal: AbortSi
   const declared = Number(response.headers.get("content-length") ?? "");
   if (Number.isFinite(declared) && declared > maxBytes) {
     await response.body?.cancel().catch(() => undefined);
-    throw new PdfAuthError("download", `The PDF is larger than the ${maxBytes}-byte limit. Pass a larger --max-pdf-bytes to allow it`);
+    throw tooLarge(maxBytes);
   }
   if (response.body === null) return new Uint8Array();
   const reader = response.body.getReader();
@@ -271,7 +245,7 @@ async function readBounded(response: Response, maxBytes: number, signal: AbortSi
       if (next.done) break;
       total += next.value.byteLength;
       if (total > maxBytes) {
-        throw new PdfAuthError("download", `The PDF is larger than the ${maxBytes}-byte limit. Pass a larger --max-pdf-bytes to allow it`);
+        throw tooLarge(maxBytes);
       }
       chunks.push(next.value);
     }
@@ -288,12 +262,31 @@ async function readBounded(response: Response, maxBytes: number, signal: AbortSi
   return bytes;
 }
 
+/**
+ * True for hosts that are plainly not public websites: non-public IP literals
+ * and local-only names. Names that merely resolve to a private address are
+ * caught by the pinned fetch, which checks every resolved address.
+ */
+function isLocalOnlyHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/gu, "").replace(/\.$/u, "");
+  if (parseIpv4(host) !== null || parseIpv6(host) !== null) return !isPublicUnicastAddress(host);
+  return !host.includes(".")
+    || host === "localhost"
+    || [".localhost", ".local", ".internal", ".home.arpa", ".lan", ".intranet"].some((suffix) => host.endsWith(suffix));
+}
+
 function checkedHttpsUrl(url: URL): URL {
   if (url.protocol !== "https:") {
-    throw new PdfAuthError("download", "Signed-in PDF downloads only use https links, so your sign-in is never sent unencrypted");
+    throw new PdfAuthError("download", "signed-in PDF downloads only use https links, so your sign-in is never sent unencrypted");
   }
   if (url.username !== "" || url.password !== "") {
-    throw new PdfAuthError("download", "The PDF link must not contain a user name or password");
+    throw new PdfAuthError("download", "the PDF link must not contain a user name or password");
+  }
+  if (isLocalOnlyHost(url.hostname)) {
+    throw new PdfAuthError(
+      "download",
+      `signed-in PDF downloads only go to public websites, so ${url.hostname} was not contacted and no sign-in was read for it`,
+    );
   }
   const clean = new URL(url);
   clean.hash = "";
@@ -325,7 +318,7 @@ export async function downloadSignedInPdf(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(new PdfAuthError(
     "download",
-    `The download did not finish within ${Math.round(timeoutMs / 1000)} seconds. Try again, or pass a larger --timeout-ms`,
+    `the download did not finish within ${Math.round(timeoutMs / 1000)} seconds. Try again, or pass a larger --timeout-ms`,
   )), timeoutMs);
   const deadline = Date.now() + timeoutMs;
   const cookiesByOrigin = new Map<string, string>();
@@ -364,7 +357,7 @@ export async function downloadSignedInPdf(
         }, remaining);
       } catch (error) {
         if (controller.signal.aborted && controller.signal.reason instanceof PdfAuthError) throw controller.signal.reason;
-        throw new PdfAuthError("download", `Could not reach ${url.hostname}. Check the link and your connection, then try again`, { cause: error });
+        throw new PdfAuthError("download", `could not reach ${url.hostname}. Check the link and your connection, then try again`, { cause: error });
       }
       if ([301, 302, 303, 307, 308].includes(response.status)) {
         await response.body?.cancel().catch(() => undefined);
@@ -373,7 +366,7 @@ export async function downloadSignedInPdf(
           throw new PdfAuthError("download", `${url.hostname} sent a redirect without a destination`);
         }
         if (hop >= maxRedirects) {
-          throw new PdfAuthError("download", `The link redirected more than ${maxRedirects} times without reaching a PDF`);
+          throw new PdfAuthError("download", `the link redirected more than ${maxRedirects} times without reaching a PDF`);
         }
         let next: URL;
         try {
@@ -402,7 +395,7 @@ export async function downloadSignedInPdf(
       }
       if (isPdfSignature(bytes)) return { bytes, finalUrl: url, cookieHosts: [...cookieHosts] };
       if (looksLikeHtml(bytes, contentType)) throw new PdfAuthError("access", noAccessMessage(options.browser));
-      throw new PdfAuthError("download", "The link did not return a PDF file");
+      throw new PdfAuthError("download", "the link did not return a PDF file");
     }
   } finally {
     clearTimeout(timer);
@@ -431,9 +424,29 @@ export type PdfAuthOutput = {
   readonly stderr: (value: string) => void;
 };
 
+/** A PDF Ghostget already downloaded, for Wordcell to import as that link. */
+export type PdfDownloadedSource = {
+  /** Owner-only local copy; Ghostget removes it after the import. */
+  readonly inputPath: string;
+  /** The link the person gave, with secrets in the query redacted. */
+  readonly requestedUrl: string;
+  /** The link the PDF finally came from, redacted the same way. */
+  readonly finalUrl: string;
+};
+
+/**
+ * Runs Wordcell `pdf`. Without `download` it is the ordinary anonymous path;
+ * with it, Wordcell imports the local copy but records the web link as the
+ * note's source, exactly as when it downloads the link itself.
+ */
+export type RunWordcellPdf = (
+  pdfArguments: readonly string[],
+  download?: PdfDownloadedSource,
+) => Promise<number>;
+
 export type PdfAuthDependencies = {
   readonly environment: Readonly<Record<string, string | undefined>>;
-  readonly runWordcellPdf: (pdfArguments: readonly string[]) => Promise<number>;
+  readonly runWordcellPdf: RunWordcellPdf;
   readonly readCookies?: (signIn: PdfSignIn, auth: GhostgetAuth | undefined, url: URL, timeoutMs: number) => ReturnType<PdfCookieReader>;
   readonly loadAuth?: (id: string) => GhostgetAuth;
   readonly fetch?: PdfFetch;
@@ -470,7 +483,16 @@ async function validateWordcellArguments(
 
 function authForSignIn(signIn: PdfSignIn, load: (id: string) => GhostgetAuth): GhostgetAuth | undefined {
   if (signIn.kind !== "auth") return undefined;
-  const auth = load(signIn.id);
+  let auth: GhostgetAuth;
+  try {
+    auth = load(signIn.id);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (/^auth locator .* was not found/u.test(message)) {
+      throw new PdfAuthError("usage", `there is no connected account named ${signIn.id}; ghostget auth list shows the ones you have`, { cause: error });
+    }
+    throw error;
+  }
   if (auth.kind === "cookie-source" || auth.kind === "cookies-file") return auth;
   if (auth.kind === "browser-profile" && auth.cookieSource !== undefined) return auth;
   if (auth.kind === "browser-profile") {
@@ -487,6 +509,35 @@ function selectionFor(signIn: PdfSignIn, timeoutMs: number): CookieSelection {
     return { cookieSources: [signIn.source], cookiesFile: undefined, cookieProfile: signIn.profile, timeoutMs, requireExplicitCookieScope: true };
   }
   throw new Error("stored sign-ins are read through their auth record");
+}
+
+function cookieFilePath(signIn: PdfSignIn, auth: GhostgetAuth | undefined): string | undefined {
+  if (signIn.kind === "cookies-file") return signIn.path;
+  return auth?.kind === "cookies-file" ? auth.path : undefined;
+}
+
+/**
+ * Check a cookie file once, before the download, with the same reader `read`
+ * uses. A file with no cookies for the first link is fine (a DOI link, say,
+ * redirects to the publisher the cookies belong to); a file that cannot be
+ * used at all is a plain error instead of an anonymous download.
+ */
+async function checkCookieFile(path: string, url: URL, requireExplicitScope: boolean): Promise<void> {
+  const { readCookieFile } = await import("@hraness/wordcell/clip/cookies");
+  const checked = readCookieFile(path, url, { requirePrivate: true });
+  if (checked.ok) {
+    if (requireExplicitScope && checked.scopeProvenance !== "explicit") {
+      throw usage(`the cookie file ${path} must say which website each cookie belongs to; export it as a Netscape cookies.txt file`);
+    }
+    return;
+  }
+  if (checked.reason === "empty") return;
+  if (checked.reason === "unavailable") throw usage(`could not open the cookie file ${path}`);
+  if (checked.reason === "unsafe-permissions") {
+    throw usage(`the cookie file ${path} must be readable only by you; run chmod 600 on it and try again`);
+  }
+  if (checked.reason === "too-large") throw usage(`the cookie file ${path} is too large to be a browser cookie export`);
+  throw usage(`the cookie file ${path} is not in a format Ghostget can read; export it as a Netscape cookies.txt file`);
 }
 
 async function defaultReadCookies(
@@ -507,6 +558,36 @@ async function defaultReadCookies(
 async function defaultFetch(url: URL, init: RequestInit, timeoutMs: number): Promise<Response> {
   const { pinnedHttpsFetch } = await import("./pinned-https");
   return pinnedHttpsFetch(url, init, timeoutMs);
+}
+
+async function redactedUrl(url: URL): Promise<string> {
+  const { sanitizeArtifactUrl } = await import("@hraness/wordcell/clip/persist");
+  return sanitizeArtifactUrl(url.href);
+}
+
+/**
+ * Wordcell `pdf` for a PDF Ghostget already downloaded: the arguments keep the
+ * web link, and Wordcell's source step is replaced by the local copy, so the
+ * note's `source_url` and the manifest's requested and final URLs are the same
+ * as for an anonymous download.
+ */
+export async function runWordcellPdfWithDownload(
+  pdfArguments: readonly string[],
+  download: PdfDownloadedSource,
+  environment: Readonly<Record<string, string | undefined>>,
+  output: PdfAuthOutput,
+  /** Test seam for the capture step; the source step is always the local copy. */
+  capture: { readonly runPdfCapture?: typeof import("@hraness/wordcell/pdf").runPdfCapture } = {},
+): Promise<number> {
+  const { runPdfCommand } = await import("@hraness/wordcell/pdf");
+  return runPdfCommand(pdfArguments, environment, output, {
+    ...capture,
+    preparePdfSource: async () => ({
+      inputPath: download.inputPath,
+      remoteSource: { requestedUrl: download.requestedUrl, finalUrl: download.finalUrl },
+      dispose: () => undefined,
+    }),
+  });
 }
 
 /**
@@ -537,9 +618,9 @@ export async function runSignedInPdf(
   const browser = browserLabel(signIn, auth);
   const timeoutMs = validated.timeoutMs ?? PDF_AUTH_DEFAULTS.timeoutMs;
   const readCookies = dependencies.readCookies ?? defaultReadCookies;
-  const inputIndex = pdfInputIndex(remaining);
-  if (inputIndex === -1 || remaining[inputIndex] !== validated.input) {
-    throw usage("a PDF link is missing");
+  const cookiesFile = cookieFilePath(signIn, auth);
+  if (cookiesFile !== undefined && dependencies.readCookies === undefined) {
+    await checkCookieFile(cookiesFile, url, signIn.kind === "cookies-file");
   }
   dependencies.beforeCookieRead?.();
   const download = await downloadSignedInPdf(url, {
@@ -556,11 +637,13 @@ export async function runSignedInPdf(
     ?? ((path: string) => rmSync(path, { recursive: true, force: true }));
   try {
     chmodSync(directory, 0o700);
-    const localPath = join(directory, pdfFilename(download.finalUrl));
-    writeFileSync(localPath, download.bytes, { flag: "wx", mode: 0o600 });
-    const forwarded = [...remaining];
-    forwarded[inputIndex] = localPath;
-    return await dependencies.runWordcellPdf(forwarded);
+    const inputPath = join(directory, pdfFilename(download.finalUrl));
+    writeFileSync(inputPath, download.bytes, { flag: "wx", mode: 0o600 });
+    return await dependencies.runWordcellPdf(remaining, {
+      inputPath,
+      requestedUrl: await redactedUrl(url),
+      finalUrl: await redactedUrl(download.finalUrl),
+    });
   } finally {
     remove(directory);
   }
@@ -570,47 +653,60 @@ function terminalSafe(value: string): string {
   return value.replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/gu, "?");
 }
 
+/** Plain sentences for failures the shared cookie readers report in their own words. */
+function plainCookieFailure(message: string): string | null {
+  if (/^authenticated API cookie files require an explicit domain or URL/u.test(message)) {
+    return "the cookie file must say which website each cookie belongs to; export it as a Netscape cookies.txt file";
+  }
+  if (/^the explicitly selected cookie file contained no usable cookies/u.test(message)) {
+    return "the cookie file has no cookies for this website";
+  }
+  return null;
+}
+
 /**
  * The `ghostget pdf` entry for sign-in options: runs the download, shows the
- * keychain notice on an interactive terminal, and turns failures into plain
- * sentences with a next step. Returns the process exit code.
+ * keychain notice the same way `read` does (a JSON line for agents, a short
+ * notice on a terminal), and turns failures into plain sentences with a next
+ * step. Returns the process exit code.
  */
 export async function runSignedInPdfCommand(
   pdfArguments: readonly string[],
   output: PdfAuthOutput,
   options: {
     readonly environment: Readonly<Record<string, string | undefined>>;
-    readonly runWordcellPdf: (pdfArguments: readonly string[]) => Promise<number>;
-    readonly interactive: boolean;
+    readonly runWordcellPdf: RunWordcellPdf;
+    readonly stdinIsTTY?: boolean;
+    readonly stderrIsTTY?: boolean;
     readonly overrides?: Partial<PdfAuthDependencies>;
   },
 ): Promise<number> {
   const json = pdfArguments.includes("--json");
   const quiet = json || pdfArguments.includes("--quiet");
-  const { cliStyle, renderCliError } = await import("./cli-style");
+  const { cliSentence, cliStyle, renderCliError } = await import("./cli-style");
   const cookieAccess = await import("./cookie-access");
-  const style = cliStyle(options.environment, process.stderr.isTTY === true);
+  const stderrIsTTY = options.stderrIsTTY ?? process.stderr.isTTY === true;
+  const style = cliStyle(options.environment, stderrIsTTY);
   const fail = (code: string, message: string, next: string, exitCode: number): number => {
-    const safe = terminalSafe(message.replace(/\.$/u, ""));
+    const sentence = cliSentence(terminalSafe(message));
     if (json) {
-      output.stdout(`${JSON.stringify({ ok: false, error: { code, message: `${safe}.`, next } })}\n`);
+      output.stdout(`${JSON.stringify({ ok: false, error: { code, message: sentence, next } })}\n`);
     } else {
-      output.stderr(renderCliError(style, `${safe}.`, next));
+      output.stderr(renderCliError(style, sentence, next));
     }
     return exitCode;
   };
-  if (options.interactive) {
-    const { stateKeychainNoticeRecord } = await import("./keychain-notice-record");
-    cookieAccess.configureCookieAccessNotice({
-      environment: options.environment,
-      stdinIsTTY: process.stdin.isTTY === true,
-      stderrIsTTY: process.stderr.isTTY === true,
-      write: (text) => output.stderr(text),
-      readKey: (timeoutSeconds) => cookieAccess.terminalReadKey(timeoutSeconds),
-      confirm: false,
-      record: stateKeychainNoticeRecord(options.environment),
-    });
-  }
+  const { stateKeychainNoticeRecord } = await import("./keychain-notice-record");
+  cookieAccess.configureCookieAccessNotice({
+    environment: options.environment,
+    stdinIsTTY: options.stdinIsTTY ?? process.stdin.isTTY === true,
+    stderrIsTTY,
+    write: (text) => output.stderr(text),
+    readKey: (timeoutSeconds) => cookieAccess.terminalReadKey(timeoutSeconds),
+    confirm: false,
+    record: stateKeychainNoticeRecord(options.environment),
+  });
+  const openFirst = "Open the link in your browser first, then run this again";
   try {
     return await runSignedInPdf(pdfArguments, {
       environment: options.environment,
@@ -633,19 +729,21 @@ export async function runSignedInPdfCommand(
       return fail("permission-denied", `${denied.message}. ${cookieAccess.cookieAccessRemedy(denied)}`, "ghostget pdf --help", 3);
     }
     if (error instanceof PdfAuthError) {
-      if (error.code === "usage") return fail("usage", error.message, "ghostget pdf --help", 2);
-      if (error.code === "access") return fail("no-access", error.message, "Open the link in your browser first, then run this again", 1);
+      if (error.code === "usage") {
+        const next = error.message.startsWith("there is no connected account") ? "ghostget auth list" : "ghostget pdf --help";
+        return fail("usage", error.message, next, 2);
+      }
+      if (error.code === "access") return fail("no-access", error.message, openFirst, 1);
       return fail("download-failed", error.message, "ghostget pdf --help", 1);
     }
     const message = error instanceof Error ? error.message : "the signed-in PDF download failed";
-    if (/auth locator .* was not found/u.test(message)) {
-      return fail("usage", message, "ghostget auth list", 2);
-    }
+    const plain = plainCookieFailure(message);
+    if (plain !== null) return fail("no-sign-in", plain, "ghostget pdf --help", 2);
     if (/no matching cookies|no usable origin-scoped cookies|could not be read/u.test(message)) {
-      return fail("no-sign-in", `Could not use your browser sign-in: ${message}`, "Open the link in your browser first, then run this again", 1);
+      return fail("no-sign-in", `could not use your browser sign-in: ${message}`, openFirst, 1);
     }
-    return fail("download-failed", `The signed-in PDF download failed: ${message}`, "ghostget pdf --help", 1);
+    return fail("download-failed", `the signed-in PDF download failed: ${message}`, "ghostget pdf --help", 1);
   } finally {
-    if (options.interactive) cookieAccess.configureCookieAccessNotice(null);
+    cookieAccess.configureCookieAccessNotice(null);
   }
 }

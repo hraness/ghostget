@@ -121,8 +121,10 @@ name has changed. Use a new context name when the intended account changes.
 `--browser-profile`, `--cookie-profile`, `--auth`, or `--cookies-file`)
 downloads the PDF itself instead of passing the link on anonymously. It uses
 only HTTPS and DNS-pinned public addresses, follows at most five redirects,
-and refuses credential-bearing links, plain HTTP, and private addresses before
-any cookie is read. It reads cookies separately for each host it visits
+and refuses credential-bearing links, plain HTTP, private IP literals, and
+local names such as `.local` or single-label hosts before any cookie is read
+for that host. A public name that resolves to a private address is refused
+before any request is sent. It reads cookies separately for each host it visits
 through the same cookie filter as `read`, so a site receives only the cookies
 that belong to it, never another host's. It does not launch the browser
 profile, so no profile egress consent applies. The response is bounded by

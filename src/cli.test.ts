@@ -528,7 +528,7 @@ throw new Error("private fallback did not load a forbidden module");
 
   test("has only static help and release identity as eager dependencies and bounds startup CPU work", async () => {
     const source = readFileSync(cliPath, "utf8");
-    expect(source).toContain('import { ghostgetBareUsage, ghostgetHelpRequest } from "./usage"');
+    expect(source).toContain('import { ghostgetBareUsage, ghostgetHelpRequest, hasPdfSignInOptions } from "./usage"');
     expect(source).toContain('import { cliStyle, renderCliError } from "./cli-style"');
     expect(source).toContain('import { GHOSTGET_VERSION } from "./version"');
     expect(source).toContain('import("./ghostget")');

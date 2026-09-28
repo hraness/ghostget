@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import fc from "fast-check";
@@ -12,12 +12,14 @@ import {
   downloadSignedInPdf,
   hasPdfSignInOptions,
   pdfFilename,
-  pdfInputIndex,
   runSignedInPdf,
   runSignedInPdfCommand,
+  runWordcellPdfWithDownload,
   splitPdfSignInArguments,
+  type PdfDownloadedSource,
   type PdfFetch,
 } from "./pdf-auth";
+import { createClassifiedCookieRecordReader } from "./cookie-access";
 
 const PDF = new TextEncoder().encode("%PDF-1.7\n1 0 obj\n<<>>\nendobj\n%%EOF\n");
 const LOGIN = new TextEncoder().encode("<!DOCTYPE html><html><body>Sign in through your institution</body></html>");
@@ -79,9 +81,12 @@ describe("splitPdfSignInArguments", () => {
       .toEqual({ kind: "browser", source: "brave", profile: "Work" });
   });
 
-  test("--auth, --cookies-file and --mode are recognised", () => {
-    expect(splitPdfSignInArguments(["u", "--auth", "uni", "--mode", "browser"]))
+  test("--auth and --cookies-file are recognised; --mode is left for Wordcell to reject", () => {
+    expect(splitPdfSignInArguments(["u", "--auth", "uni"]))
       .toEqual({ signIn: { kind: "auth", id: "uni" }, remaining: ["u"] });
+    expect(hasPdfSignInOptions(["u", "--mode", "browser"])).toBe(false);
+    expect(splitPdfSignInArguments(["u", "--mode", "browser"]))
+      .toEqual({ signIn: null, remaining: ["u", "--mode", "browser"] });
     expect(splitPdfSignInArguments(["u", "--cookies-file=/c.json"]).signIn)
       .toEqual({ kind: "cookies-file", path: "/c.json" });
   });
@@ -106,8 +111,6 @@ describe("splitPdfSignInArguments", () => {
       ["u", "--cookies-file", "/c", "--cookie-source", "chrome"],
       ["u", "--browser-profile", "A", "--cookie-profile", "B"],
       ["u", "--cookie-profile", "Default"],
-      ["u", "--mode", "browser"],
-      ["u", "--mode", "turbo", "--cookie-source", "chrome"],
     ];
     for (const argv of cases) {
       expect(() => splitPdfSignInArguments(argv)).toThrow(PdfAuthError);
@@ -125,15 +128,6 @@ describe("splitPdfSignInArguments", () => {
       expect(split.remaining).toEqual(others);
       expect(split.signIn?.kind).toBe("browser");
     }));
-  });
-});
-
-describe("pdfInputIndex", () => {
-  test("skips option values and the capture verb", () => {
-    expect(pdfInputIndex(["--output", "/n", "https://e.org/a.pdf"])).toBe(2);
-    expect(pdfInputIndex(["save", "--slug", "s", "https://e.org/a.pdf"])).toBe(3);
-    expect(pdfInputIndex(["--json", "--", "-odd.pdf"])).toBe(2);
-    expect(pdfInputIndex(["--json"])).toBe(-1);
   });
 });
 
@@ -231,14 +225,14 @@ describe("downloadSignedInPdf", () => {
     }), { status: 200 }) });
     await expect(downloadSignedInPdf(new URL("https://a.example.org/x.pdf"), {
       readCookies: jar({}).read, fetch: web.fetch, browser: "Chrome", maxPdfBytes: 5000,
-    })).rejects.toThrow("larger than the 5000-byte limit");
+    })).rejects.toThrow("the PDF is larger than the 5 KB limit");
   });
 
   test("a declared length over the limit is refused before reading", async () => {
     const web = server({ "https://a.example.org/x.pdf": () => pdfResponse(PDF, { "content-length": "999999" }) });
     await expect(downloadSignedInPdf(new URL("https://a.example.org/x.pdf"), {
       readCookies: jar({}).read, fetch: web.fetch, browser: "Chrome", maxPdfBytes: 1000,
-    })).rejects.toThrow("larger than the 1000-byte limit");
+    })).rejects.toThrow("larger than the 1 KB limit");
   });
 
   test("a non-PDF, non-HTML body is refused", async () => {
@@ -268,12 +262,118 @@ describe("downloadSignedInPdf", () => {
   });
 });
 
+describe("downloadSignedInPdf: public hosts only", () => {
+  test("a redirect to a private address is refused before that host's cookies are read", async () => {
+    for (const target of ["https://10.0.0.1/x.pdf", "https://[::1]/x.pdf", "https://intranet.local/x.pdf", "https://printer/x.pdf"]) {
+      const cookies = jar({ "a.example.org": [cookie("sid", "1", "a.example.org")] });
+      const web = server({
+        "https://a.example.org/x": () => new Response(null, { status: 302, headers: { location: target } }),
+      });
+      await expect(downloadSignedInPdf(new URL("https://a.example.org/x"), {
+        readCookies: cookies.read, fetch: web.fetch, browser: "Chrome",
+      })).rejects.toThrow("only go to public websites");
+      expect(cookies.reads).toEqual(["a.example.org"]);
+      expect(web.requests).toHaveLength(1);
+    }
+  });
+
+  test("a private first link reads no cookies and sends nothing", async () => {
+    const cookies = jar({});
+    const web = server({});
+    await expect(downloadSignedInPdf(new URL("https://192.168.1.4/x.pdf"), {
+      readCookies: cookies.read, fetch: web.fetch, browser: "Chrome",
+    })).rejects.toThrow("192.168.1.4 was not contacted and no sign-in was read for it");
+    expect(cookies.reads).toEqual([]);
+    expect(web.requests).toEqual([]);
+  });
+
+  test("sizes in messages are readable", async () => {
+    const web = server({ "https://a.example.org/x.pdf": () => pdfResponse(PDF, { "content-length": String(64 * 1024 * 1024) }) });
+    await expect(downloadSignedInPdf(new URL("https://a.example.org/x.pdf"), {
+      readCookies: jar({}).read, fetch: web.fetch, browser: "Chrome", maxPdfBytes: 5 * 1024 * 1024,
+    })).rejects.toThrow("the PDF is larger than the 5 MB limit. Pass a larger --max-pdf-bytes to allow it");
+  });
+});
+
+describe("runSignedInPdf with a real cookie file", () => {
+  test("a DOI link with no cookies redirects to the publisher, which alone gets its cookie", async () => {
+    const parent = mkdtempSync(join(tmpdir(), "ghostget-pdf-test-"));
+    try {
+      const file = join(parent, "cookies.txt");
+      writeFileSync(file, "# Netscape HTTP Cookie File\npublisher.example.com\tFALSE\t/\tTRUE\t4102444800\tsession\tp1\n");
+      chmodSync(file, 0o600);
+      const web = server({
+        "https://doi.example.org/10.1/x": () => new Response(null, { status: 302, headers: { location: "https://publisher.example.com/pdf/x.pdf" } }),
+        "https://publisher.example.com/pdf/x.pdf": () => pdfResponse(),
+      });
+      let imported = false;
+      const code = await runSignedInPdf(["https://doi.example.org/10.1/x", "--cookies-file", file], {
+        environment: {},
+        fetch: web.fetch,
+        makeTemporaryDirectory: () => mkdtempSync(join(parent, "run-")),
+        runWordcellPdf: async (_argv, download) => {
+          imported = download !== undefined;
+          return 0;
+        },
+      });
+      expect(code).toBe(0);
+      expect(imported).toBe(true);
+      expect(web.requests.map((request) => [request.url, request.cookie])).toEqual([
+        ["https://doi.example.org/10.1/x", null],
+        ["https://publisher.example.com/pdf/x.pdf", "session=p1"],
+      ]);
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
+  test("a cookie file anyone can read is refused before any request", async () => {
+    const parent = mkdtempSync(join(tmpdir(), "ghostget-pdf-test-"));
+    try {
+      const file = join(parent, "cookies.txt");
+      writeFileSync(file, "publisher.example.com\tFALSE\t/\tTRUE\t4102444800\tsession\tp1\n");
+      chmodSync(file, 0o644);
+      await expect(runSignedInPdf(["https://publisher.example.com/x.pdf", "--cookies-file", file], {
+        environment: {},
+        fetch: async () => { throw new Error("must not fetch"); },
+        runWordcellPdf: async () => 0,
+      })).rejects.toThrow("must be readable only by you");
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("runWordcellPdfWithDownload", () => {
+  test("records the web link as the note's source, as an anonymous download does", async () => {
+    const seen: { inputPath: string; remoteSource: unknown }[] = [];
+    const code = await runWordcellPdfWithDownload(
+      ["https://a.example.org/x.pdf", "--output", "/notes", "--quiet"],
+      { inputPath: "/private/copy/x.pdf", requestedUrl: "https://doi.example.org/10.1/x", finalUrl: "https://a.example.org/x.pdf" },
+      {},
+      { stdout: () => undefined, stderr: () => undefined },
+      {
+        runPdfCapture: async (options) => {
+          seen.push({ inputPath: options.inputPath, remoteSource: options.remoteSource });
+          throw new Error("stop after the source step");
+        },
+      },
+    );
+    expect(code).not.toBe(0);
+    expect(seen).toEqual([{
+      inputPath: "/private/copy/x.pdf",
+      remoteSource: { requestedUrl: "https://doi.example.org/10.1/x", finalUrl: "https://a.example.org/x.pdf" },
+    }]);
+  });
+});
+
 describe("runSignedInPdf", () => {
   test("hands Wordcell a private local copy with the sign-in options removed, then deletes it", async () => {
     const parent = mkdtempSync(join(tmpdir(), "ghostget-pdf-test-"));
     let seen: readonly string[] = [];
     let copy = "";
     let mode = 0;
+    let source: PdfDownloadedSource | undefined;
     const web = server({ "https://a.example.org/papers/Deep%20Sea.pdf": () => pdfResponse() });
     const code = await runSignedInPdf(
       ["https://a.example.org/papers/Deep%20Sea.pdf", "--cookie-source", "chrome", "--output", "/notes", "--json"],
@@ -282,9 +382,10 @@ describe("runSignedInPdf", () => {
         readCookies: async () => ({ cookies: [cookie("s", "1", "a.example.org")], warnings: [] }),
         fetch: web.fetch,
         makeTemporaryDirectory: () => mkdtempSync(join(parent, "run-")),
-        runWordcellPdf: async (argv) => {
+        runWordcellPdf: async (argv, download) => {
           seen = argv;
-          copy = argv[0] ?? "";
+          source = download;
+          copy = download?.inputPath ?? "";
           mode = statSync(copy).mode & 0o777;
           expect(readFileSync(copy).subarray(0, 5).toString()).toBe("%PDF-");
           return 0;
@@ -292,7 +393,9 @@ describe("runSignedInPdf", () => {
       },
     );
     expect(code).toBe(0);
-    expect(seen.slice(1)).toEqual(["--output", "/notes", "--json"]);
+    expect(seen).toEqual(["https://a.example.org/papers/Deep%20Sea.pdf", "--output", "/notes", "--json"]);
+    expect(source?.requestedUrl).toBe("https://a.example.org/papers/Deep%20Sea.pdf");
+    expect(source?.finalUrl).toBe("https://a.example.org/papers/Deep%20Sea.pdf");
     expect(copy.endsWith("Deep-Sea.pdf")).toBe(true);
     expect(mode).toBe(0o600);
     expect(existsSync(copy)).toBe(false);
@@ -308,8 +411,8 @@ describe("runSignedInPdf", () => {
       readCookies: async () => ({ cookies: [], warnings: [] }),
       fetch: web.fetch,
       makeTemporaryDirectory: () => mkdtempSync(join(parent, "run-")),
-      runWordcellPdf: async (argv) => {
-        copy = argv[0] ?? "";
+      runWordcellPdf: async (_argv, download) => {
+        copy = download?.inputPath ?? "";
         throw new Error("import failed");
       },
     })).rejects.toThrow("import failed");
@@ -356,6 +459,78 @@ describe("runSignedInPdf", () => {
 });
 
 describe("runSignedInPdfCommand", () => {
+  test("agents get the keychain notice line before the browser store is read, even without a terminal", async () => {
+    const state = mkdtempSync(join(tmpdir(), "ghostget-pdf-state-"));
+    try {
+      const errors: string[] = [];
+      let beforeRead = "";
+      const reader = createClassifiedCookieRecordReader(async () => {
+        beforeRead = errors.join("");
+        return { cookies: [], warnings: [] };
+      }, { platform: "darwin" });
+      const web = server({ "https://a.example.org/x.pdf": () => pdfResponse() });
+      await runSignedInPdfCommand(["https://a.example.org/x.pdf", "--cookie-source", "chrome", "--quiet"], {
+        stdout: () => undefined,
+        stderr: (text) => errors.push(text),
+      }, {
+        environment: { CLAUDECODE: "1", GHOSTGET_STATE_HOME: state },
+        stdinIsTTY: false,
+        stderrIsTTY: false,
+        runWordcellPdf: async () => 0,
+        overrides: {
+          fetch: web.fetch,
+          readCookies: (_signIn, _auth, url, timeoutMs) => reader({
+            cookieSources: ["chrome"], cookiesFile: undefined, cookieProfile: undefined, timeoutMs, requireExplicitCookieScope: true,
+          }, url),
+        },
+      });
+      const line = JSON.parse(beforeRead.trim().split("\n")[0] ?? "") as Record<string, unknown>;
+      expect(line).toMatchObject({ type: "permission-notice", product: "Ghostget", kind: "keychain" });
+    } finally {
+      rmSync(state, { recursive: true, force: true });
+    }
+  });
+
+  test("an unknown account name gets a plain sentence and the command that lists accounts", async () => {
+    const errors: string[] = [];
+    const code = await runSignedInPdfCommand(["https://a.example.org/x.pdf", "--auth", "nosuch"], {
+      stdout: () => undefined,
+      stderr: (text) => errors.push(text),
+    }, {
+      environment: { NO_COLOR: "1" },
+      stderrIsTTY: false,
+      runWordcellPdf: async () => 0,
+      overrides: { loadAuth: () => { throw new Error("auth locator nosuch was not found."); } },
+    });
+    expect(code).toBe(2);
+    const text = errors.join("");
+    expect(text).toContain("There is no connected account named nosuch; ghostget auth list shows the ones you have.");
+    expect(text).toContain("ghostget auth list");
+    expect(text).not.toContain("auth locator");
+  });
+
+  test("an oversize PDF names its limit in MB", async () => {
+    const lines: string[] = [];
+    const web = server({ "https://a.example.org/x.pdf": () => pdfResponse(PDF, { "content-length": String(900 * 1024 * 1024) }) });
+    const code = await runSignedInPdfCommand(["https://a.example.org/x.pdf", "--cookie-source", "chrome", "--json"], {
+      stdout: (text) => lines.push(text),
+      stderr: () => undefined,
+    }, {
+      environment: {},
+      stderrIsTTY: false,
+      runWordcellPdf: async () => 0,
+      overrides: { fetch: web.fetch, readCookies: async () => ({ cookies: [], warnings: [] }) },
+    });
+    expect(code).toBe(1);
+    expect(JSON.parse(lines.join(""))).toEqual({
+      ok: false,
+      error: {
+        code: "download-failed",
+        message: "The PDF is larger than the 512 MB limit. Pass a larger --max-pdf-bytes to allow it.",
+        next: "ghostget pdf --help",
+      },
+    });
+  });
   test("prints a plain-language error with a next step for a login page", async () => {
     const errors: string[] = [];
     const web = server({ "https://a.example.org/x.pdf": () => pdfResponse(LOGIN, { "content-type": "text/html" }) });
@@ -364,7 +539,7 @@ describe("runSignedInPdfCommand", () => {
       stderr: (text) => errors.push(text),
     }, {
       environment: { NO_COLOR: "1" },
-      interactive: false,
+      stderrIsTTY: false,
       runWordcellPdf: async () => 0,
       overrides: { fetch: web.fetch, readCookies: async () => ({ cookies: [], warnings: [] }) },
     });
@@ -380,7 +555,7 @@ describe("runSignedInPdfCommand", () => {
     const code = await runSignedInPdfCommand(["https://a.example.org/x.pdf", "--cookie-source", "netscape", "--json"], {
       stdout: (text) => lines.push(text),
       stderr: () => undefined,
-    }, { environment: {}, interactive: false, runWordcellPdf: async () => 0 });
+    }, { environment: {}, stderrIsTTY: false, runWordcellPdf: async () => 0 });
     expect(code).toBe(2);
     const parsed = JSON.parse(lines.join("")) as { ok: boolean; error: { code: string } };
     expect(parsed).toMatchObject({ ok: false, error: { code: "usage" } });
