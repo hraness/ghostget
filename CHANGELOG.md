@@ -7,6 +7,16 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+- The packaged type sources compile again under a consumer's strict
+  compiler flags. Consumers that set `erasableSyntaxOnly` and narrow
+  `ProcessEnv.NODE_ENV` to its literal union, as Next.js does, can now
+  typecheck the shipped sources cleanly: the last constructor parameter
+  property is an explicit field, the persistent helper's environment keeps
+  `NODE_ENV` literal, and portable request bodies omit `body` instead of
+  passing an explicit `undefined`. The clean-consumer package smoke now
+  typechecks the public entrypoints under those same flags, and
+  `@hraness/local-custody` moves to the immutable 0.9.1 release, whose
+  shipped sources made the same erasable-syntax cleanup.
 - Move the shared clip, capture, and URL-intelligence runtime from
   `@hraness/kb` 0.19.6 to the immutable `@hraness/wordcell` 0.24.0 release.
   The reviewed dynamic-resolution boundary now pins the two bundled modules
