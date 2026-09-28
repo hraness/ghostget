@@ -290,6 +290,17 @@ export async function runGhostgetCliProcess(
     process.exitCode = await support.runGhostgetSupportCommand(rawArguments.slice(1), resolvedOutput);
     return;
   }
+  if (rawArguments[0] === "pdf" && help === null) {
+    const { hasPdfSignInOptions, runSignedInPdfCommand } = await import("./pdf-auth");
+    if (hasPdfSignInOptions(rawArguments.slice(1))) {
+      process.exitCode = await runSignedInPdfCommand(rawArguments.slice(1), resolvedOutput, {
+        environment: process.env,
+        interactive: process.stdin.isTTY === true && process.stderr.isTTY === true,
+        runWordcellPdf: async (pdfArguments) => (await loadKnowledgeCli()).main(["pdf", ...pdfArguments], resolvedOutput),
+      });
+      return;
+    }
+  }
   if (isPublicGhostgetCommand(rawArguments)) {
     const knowledge = await loadKnowledgeCli();
     process.exitCode = await knowledge.main(rawArguments, resolvedOutput);

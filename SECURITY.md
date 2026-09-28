@@ -117,6 +117,19 @@ metadata, or transport fragments. Authorization-context names separate
 declared access realms, but they cannot detect that the account behind a reused
 name has changed. Use a new context name when the intended account changes.
 
+`ghostget pdf <url>` with a browser sign-in option (`--cookie-source`,
+`--browser-profile`, `--cookie-profile`, `--auth`, or `--cookies-file`)
+downloads the PDF itself instead of passing the link on anonymously. It uses
+only HTTPS and DNS-pinned public addresses, follows at most five redirects,
+and refuses credential-bearing links, plain HTTP, and private addresses before
+any cookie is read. It reads cookies separately for each host it visits
+through the same cookie filter as `read`, so a site receives only the cookies
+that belong to it, never another host's. It does not launch the browser
+profile, so no profile egress consent applies. The response is bounded by
+`--max-pdf-bytes` and `--timeout-ms`, must start with a PDF signature, and is
+written to an owner-only temporary file that is removed after the import.
+Cookie values are not printed, logged, or stored.
+
 The unauthenticated direct-media adapter intentionally permits loopback and
 private-network HTTP(S) targets because its URL is supplied by the local user.
 It is not an SSRF boundary for remotely supplied URLs. It reads a bounded

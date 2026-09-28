@@ -367,6 +367,15 @@ Commands
   adapters [--json]                  List page-capture adapters
 
 Most commands take --root <directory> to pick the notes folder.
+
+Paywalled PDFs
+  Add the browser you use to open the paper, and Ghostget downloads it
+  with that sign-in:
+    ghostget pdf <url> --cookie-source chrome
+  Also: --browser-profile <name|path>, --cookie-profile <name>,
+  --auth <id> or --cookies-file <path>. Each site gets only its own cookies.
+  If the site sends a sign-in page instead, open the link in your browser
+  first, then run it again.
 `;
 
 const supportHelp = `Usage: ghostget support [--json]
