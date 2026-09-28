@@ -189,13 +189,13 @@ describe("ghostget.com static site", () => {
     expect(packageFiles).not.toContain("vercel.json");
     expect(manifest).toMatchObject({
       devDependencies: {
-        "@hraness/design-kit": "github:hraness/design-kit#v0.21.0",
+        "@hraness/design-kit": "github:hraness/design-kit#v0.24.0",
 
         "@hraness/site-footer": "github:hraness/site-footer#v0.20.0",
         "@hraness/ui": "github:hraness/ui#v0.5.18",
       },
     });
-    expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.21.0"');
+    expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.24.0"');
     expect(lockfile).toContain('"@hraness/ui": "github:hraness/ui#v0.5.18"');
 
     expect(lockfile).toContain('"@hraness/site-footer": "github:hraness/site-footer#v0.20.0"');
@@ -881,6 +881,9 @@ describe("ghostget.com static site", () => {
       expect(contentFooter).toContain('class="hraness-marketing-footer__link" href="https://github.com/hraness/ghostget"');
       expect(document.indexOf('data-hraness-marketing="footer"'))
         .toBeLessThan(document.indexOf('data-slot="hraness-site-footer"'));
+      // The two footers stay directly adjacent so the shared stylesheet can
+      // join them into one band; the Ask AI row belongs above the pair.
+      expect(document).toMatch(/<\/footer>\n<footer\b[^>]*data-slot="hraness-site-footer"/u);
       expect(footer).toBeDefined();
       expect(footer).toBe(productionFooter);
       expect(footer).toContain('data-slot="hraness-site-footer"');
