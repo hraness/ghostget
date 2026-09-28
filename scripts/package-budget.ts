@@ -2097,20 +2097,20 @@
 // Signed-in `ghostget pdf <url>` downloads add src/pdf-auth.ts to the packed
 // source and a lazy import from cli.ts; no dist chunk changes. After
 // `bun run build`, a clean npm 11.19.0 pack --ignore-scripts with Node
-// 24.20.0 on darwin arm64 measured 619 entries, 12,122,431 packed bytes, and
-// 23,974,690 unpacked bytes; archive SHA-256
-// 241bb3a4c165903b71857a55ed764dfc1e991b9725f04148ed7e1fc59b7bf399.
+// 24.20.0 on darwin arm64 measured 619 entries, 12,125,567 packed bytes, and
+// 23,983,384 unpacked bytes; archive SHA-256
+// c3eb265064671b86c2124e88873dd2ad5c31008c84582b5cb7dc908894459b22.
 // Retain the same platform projections and allowances:
-// 12,122,431 + 12,387 + 4,096 = 12,138,914 packed;
-// 23,974,690 + 353 + 65 = 23,975,108 unpacked.
+// 12,125,567 + 12,387 + 4,096 = 12,142,050 packed;
+// 23,983,384 + 353 + 65 = 23,983,802 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget signed-in PDF downloads over merged main 50f3ef9",
+  scope: "Ghostget signed-in PDF downloads over merged main 95c6a2c",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "241bb3a4c165903b71857a55ed764dfc1e991b9725f04148ed7e1fc59b7bf399",
-  packedBytes: 12_122_431,
-  unpackedBytes: 23_974_690,
+  archiveSha256: "c3eb265064671b86c2124e88873dd2ad5c31008c84582b5cb7dc908894459b22",
+  packedBytes: 12_125_567,
+  unpackedBytes: 23_983_384,
   entryCount: 619,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
