@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { resolveSafeNetworkTarget, type ResolvedNetworkAddress } from "@hraness/kb/clip/network";
+import { resolveSafeNetworkTarget, type ResolvedNetworkAddress } from "@hraness/wordcell/clip/network";
 import {
   createPinnedHttpsFetchScope,
   pinnedHttpsFetch,
@@ -342,8 +342,8 @@ describe("DNS-pinned authenticated HTTPS", () => {
     }
     expect(createdPools).toBe(0);
   });
-  // @hraness/kb 0.19.6 admits these during resolution; the pinned transport must refuse them itself.
-  test("refuses a resolved non-public address that the kb resolver admits, before any request", async () => {
+  // @hraness/wordcell 0.24.0 admits these during resolution; the pinned transport must refuse them itself.
+  test("refuses a resolved non-public address that the Wordcell resolver admits, before any request", async () => {
     for (const resolved of ["::ffff:0:7f00:1", "::ffff:0:a00:1", "::1:2:3:4:5", "4000::1", "e000::1", "6000::1", "192.88.99.1"]) {
       let requested = 0;
       const failure = await rejectedError(pinnedHttpsFetch(

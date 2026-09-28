@@ -80,7 +80,7 @@ ghostget search "Example Domain" --root ./ghostget-notes --mode exact</code></pr
           <p>The saved form is Markdown intended to remain inspectable and searchable in local knowledge. <code>ghostget context</code> resolves nearby agent context for a repository path, while <code>ghostget search</code> queries the knowledge already kept locally.</p>
           <p>To add metadata to URLs you’ve already saved, run:</p>
           <div class="command-panel"><pre><code>ghostget url-metadata backfill --root kb</code></pre></div>
-          <p>The backfill uses the shared <code>@hraness/kb</code> URL tools. It looks up metadata with a pinned Rust search helper and writes a <code>url-metadata.json</code> file next to each saved URL, so you can stop and resume it. By default it also checks Archive.today, including archive.is URLs, for archived copies, read-only. <code>--no-archive</code> turns that check off; <code>--refresh</code> replaces an existing metadata file after a fresh lookup.</p>
+          <p>The backfill uses the shared <code>@hraness/wordcell</code> URL tools. It looks up metadata with a pinned Rust search helper and writes a <code>url-metadata.json</code> file next to each saved URL, so you can stop and resume it. By default it also checks Archive.today, including archive.is URLs, for archived copies, read-only. <code>--no-archive</code> turns that check off; <code>--refresh</code> replaces an existing metadata file after a fresh lookup.</p>
         </section>
 
         <section aria-labelledby="media-archive">

@@ -80,24 +80,34 @@ afterAll(() => {
   });
 });
 
-function resolveInstalledKbDynamicModulePath(): string {
-  const dist = dirname(fileURLToPath(import.meta.resolve("@hraness/kb")));
-  const candidates = readdirSync(dist, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && entry.name.endsWith(".js"))
-    .map((entry) => join(dist, entry.name))
-    .filter((path) => {
-      const source = readFileSync(path, "utf8");
-      return source.match(
-        /createRequire\(parentUrl\)\.resolve\(`\$\{packageName\}\/package\.json`\)/gu,
-      )?.length === 1
-        && source.match(/resolvePackageDirectory\("agent-browser"\)/gu)?.length === 1;
-    });
-  if (candidates.length !== 1 || candidates[0] === undefined) {
+function resolveInstalledWordcellDynamicModulePaths(): {
+  readonly resolverPath: string;
+  readonly callSitePath: string;
+} {
+  const dist = dirname(fileURLToPath(import.meta.resolve("@hraness/wordcell")));
+  const candidatesFor = (pattern: RegExp): readonly string[] =>
+    readdirSync(dist, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && entry.name.endsWith(".js"))
+      .map((entry) => join(dist, entry.name))
+      .filter(
+        (path) => readFileSync(path, "utf8").match(pattern)?.length === 1,
+      );
+  const resolvers = candidatesFor(
+    /createRequire\(parentUrl\)\.resolve\(`\$\{packageName\}\/package\.json`\)/gu,
+  );
+  const callers = candidatesFor(/resolvePackageDirectory\("agent-browser"\)/gu);
+  if (
+    resolvers.length !== 1
+    || callers.length !== 1
+    || resolvers[0] === undefined
+    || callers[0] === undefined
+    || resolvers[0] === callers[0]
+  ) {
     throw new Error(
-      `installed @hraness/kb exposes ${String(candidates.length)} dynamic-resolution modules, expected exactly one`,
+      `installed @hraness/wordcell exposes ${String(resolvers.length)} dynamic-resolution resolvers and ${String(callers.length)} agent-browser call sites, expected exactly one each`,
     );
   }
-  return candidates[0];
+  return { resolverPath: resolvers[0], callSitePath: callers[0] };
 }
 
 function operation(
@@ -2902,22 +2912,22 @@ describe("provider plugin definition and registry", () => {
   test("binds reviewed built-in dynamic-load exceptions to exact module bytes", () => {
     const repositoryPackageRootPath = join(
       providerPluginRepositoryRoot,
-      "packages/kb/src/clip/package-root.ts",
+      "packages/wordcell/src/clip/package-root.ts",
     );
     const repositoryAcquisitionPath = join(
       providerPluginRepositoryRoot,
-      "packages/kb/src/clip/acquire.ts",
+      "packages/wordcell/src/clip/acquire.ts",
     );
     const repositoryLayout = existsSync(repositoryPackageRootPath);
-    const installedKbDynamicModulePath = repositoryLayout
+    const installedWordcellDynamicModulePaths = repositoryLayout
       ? undefined
-      : resolveInstalledKbDynamicModulePath();
+      : resolveInstalledWordcellDynamicModulePaths();
     const packageRootPath = repositoryLayout
       ? repositoryPackageRootPath
-      : installedKbDynamicModulePath as string;
+      : installedWordcellDynamicModulePaths?.resolverPath as string;
     const acquisitionPath = repositoryLayout
       ? repositoryAcquisitionPath
-      : installedKbDynamicModulePath as string;
+      : installedWordcellDynamicModulePaths?.callSitePath as string;
     const packageRootSource = readFileSync(packageRootPath, "utf8");
     const acquisitionSource = readFileSync(acquisitionPath, "utf8");
     expect(packageRootSource.match(
@@ -2928,13 +2938,13 @@ describe("provider plugin definition and registry", () => {
     )).toHaveLength(1);
     expect(acquisitionSource.match(
       /resolvePackageDirectory\([^)]*\)/gu,
-    )).toHaveLength(repositoryLayout ? 1 : 2);
+    )).toHaveLength(1);
 
     const metaPlugin = providerPluginRegistry.get("meta-web");
     if (metaPlugin === undefined) {
       throw new Error("meta-web built-in fixture is unavailable");
     }
-    let kbResolutionMutated = false;
+    let wordcellResolutionMutated = false;
     expect(() => createProviderPluginRegistry([metaPlugin], {
       readDependencySource: (path) => {
         const bytes = readFileSync(path);
@@ -2947,15 +2957,15 @@ describe("provider plugin definition and registry", () => {
           "$" + "{packageNamE}/package.json",
         );
         if (changed === source || changed.length !== source.length) {
-          throw new Error("KB dynamic-resolution fixture did not match");
+          throw new Error("Wordcell dynamic-resolution fixture did not match");
         }
-        kbResolutionMutated = true;
+        wordcellResolutionMutated = true;
         return Buffer.from(changed, "utf8");
       },
     })).toThrow("dynamic-resolution module");
-    expect(kbResolutionMutated).toBeTrue();
+    expect(wordcellResolutionMutated).toBeTrue();
 
-    let kbCallSiteMutated = false;
+    let wordcellCallSiteMutated = false;
     expect(() => createProviderPluginRegistry([metaPlugin], {
       readDependencySource: (path) => {
         const bytes = readFileSync(path);
@@ -2966,13 +2976,13 @@ describe("provider plugin definition and registry", () => {
           'resolvePackageDirectory("other-browser")',
         );
         if (changed === source) {
-          throw new Error("KB dynamic-resolution call-site fixture did not match");
+          throw new Error("Wordcell dynamic-resolution call-site fixture did not match");
         }
-        kbCallSiteMutated = true;
+        wordcellCallSiteMutated = true;
         return Buffer.from(changed, "utf8");
       },
     })).toThrow();
-    expect(kbCallSiteMutated).toBeTrue();
+    expect(wordcellCallSiteMutated).toBeTrue();
 
     let mutated = false;
     expect(() => createProviderPluginRegistry([metaPlugin], {

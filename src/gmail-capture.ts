@@ -14,7 +14,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 
-import type { CaptureArguments } from "@hraness/kb/capture";
+import type { CaptureArguments } from "@hraness/wordcell/capture";
 import {
   abortCaptureBundle,
   beginCaptureBundle,
@@ -25,11 +25,11 @@ import {
   type CaptureManifestAsset,
   type CaptureManifestInput,
   writeCaptureBundle,
-} from "@hraness/kb/clip/persist";
+} from "@hraness/wordcell/clip/persist";
 import {
   sanitizeTerminalLine,
   sanitizeTerminalText,
-} from "@hraness/kb/clip/terminal";
+} from "@hraness/wordcell/clip/terminal";
 import {
   type GhostgetAuth,
 } from "./auth";

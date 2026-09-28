@@ -6,7 +6,7 @@
  * from the immediately preceding page; normalized output never contains them.
  */
 
-import { renderCookieHeader } from "@hraness/kb/clip/cookies";
+import { renderCookieHeader } from "@hraness/wordcell/clip/cookies";
 
 import { pinnedHttpsFetch } from "../pinned-https";
 import type {

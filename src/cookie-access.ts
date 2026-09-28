@@ -19,7 +19,7 @@ import {
   type CookieRecordReader,
   type CookieSelection,
   type CookieStoreReader,
-} from "@hraness/kb/clip/acquire";
+} from "@hraness/wordcell/clip/acquire";
 
 import { getCookies } from "@steipete/sweet-cookie";
 import { cliStyle, responsibleApp, type CliEnvironment } from "./cli-style";

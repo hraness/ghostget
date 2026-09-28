@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync, realpathSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 
 import { providerPluginRepositoryRoot } from "../src/provider-plugin";
@@ -28,11 +28,11 @@ const expectedClosureRuntimeDependencies = Object.freeze({
   "@1password/sdk": "0.5.0",
   "@hraness/accounts-cli": "github:hraness/accounts-cli#v0.1.3",
   "@hraness/desktop-foundation": "https://github.com/hraness/desktop-foundation/releases/download/v0.8.0/hraness-desktop-foundation-0.8.0.tgz",
-  "@hraness/kb": "https://github.com/hraness/kb/releases/download/v0.19.6/hraness-kb-0.19.6.tgz",
+  "@hraness/wordcell": "https://github.com/hraness/wordcell/releases/download/v0.24.0/hraness-wordcell-0.24.0.tgz",
   "@hraness/local-custody": "https://github.com/hraness/local-custody/releases/download/v0.9.0/hraness-local-custody-0.9.0.tgz",
   "@hraness/message-like-me": "github:hraness/textbutler#83453cc7c17b49bb53fdfd89ccb69b8b44b30af1",
   "@hraness/support-foundation": "github:hraness/support-foundation#8bb514d24b79dc3f305390700ae312cab88e7ad2",
-  // The browser cookie reader, also pinned by @hraness/kb. Ghostget wraps it
+  // The browser cookie reader, also pinned by @hraness/wordcell. Ghostget wraps it
   // directly to report keychain and Full Disk Access denials.
   "@steipete/sweet-cookie": "0.4.3",
   "buffer-from": "1.1.2",
@@ -41,9 +41,12 @@ const expectedClosureRuntimeDependencies = Object.freeze({
   typescript: "6.0.3",
   effect: "3.22.1",
 });
-const reviewedKbDynamicModuleKeyFile = "dist/index-5vdj4pae.js";
-const reviewedKbDynamicModuleSha256 =
-  "107b59e5a662171180d098e30469457f8b2ceeb6ec9d22971fec7076d855704a";
+const reviewedWordcellDynamicResolverKeyFile = "dist/index-4knsp9qj.js";
+const reviewedWordcellDynamicResolverSha256 =
+  "7e717af9b45ad412086f23c8089c50b396dbed62f84c6282abe58b9e070c82a8";
+const reviewedWordcellDynamicCallSiteKeyFile = "dist/index-xwxy71ew.js";
+const reviewedWordcellDynamicCallSiteSha256 =
+  "59aa734b79fbac03ced4bb872389db92db1d7ab19fb7ae8053e29f97d67ac34e";
 const archivedAdapterNamePattern =
   /^wrench(?:-web)?-adapter\.v([0-9]+\.[0-9]+\.[0-9]+)\.json$/u;
 const MAX_PACKED_ARCHIVED_UPGRADE_FAMILIES = 32;
@@ -416,17 +419,11 @@ function requireJsonObject(label: string, value: unknown): Record<string, unknow
   return value as Record<string, unknown>;
 }
 
-async function resolveReviewedKbDynamicKeyFile(root: string): Promise<string> {
-  const manifest = requireJsonObject(
-    "clean consumer @hraness/kb manifest",
-    await Bun.file(join(root, "package.json")).json(),
-  );
-  if (manifest.version !== "0.19.6") {
-    throw new Error(
-      `clean consumer resolved @hraness/kb@${String(manifest.version)}, expected 0.19.6`,
-    );
-  }
-  const candidates: Readonly<{ keyFile: string; sha256: string }>[] = [];
+async function collectWordcellDynamicModules(
+  root: string,
+  pattern: RegExp,
+): Promise<Readonly<{ keyFile: string; sha256: string; source: string }>[]> {
+  const candidates: { keyFile: string; sha256: string; source: string }[] = [];
   const dist = join(root, "dist");
   for (
     const entry of (await readdir(dist, { withFileTypes: true }))
@@ -441,33 +438,59 @@ async function resolveReviewedKbDynamicKeyFile(root: string): Promise<string> {
     } catch {
       continue;
     }
-    if (
-      source.match(
-        /createRequire\(parentUrl\)\.resolve\(`\$\{packageName\}\/package\.json`\)/gu,
-      )?.length !== 1
-      || source.match(/resolvePackageDirectory\("agent-browser"\)/gu)?.length !== 1
-    ) continue;
+    if (source.match(pattern)?.length !== 1) continue;
     candidates.push({
       keyFile,
       sha256: createHash("sha256").update(bytes).digest("hex"),
+      source,
     });
   }
-  if (candidates.length !== 1) {
+  return candidates;
+}
+
+async function resolveReviewedWordcellDynamicKeyFile(root: string): Promise<string> {
+  const manifest = requireJsonObject(
+    "clean consumer @hraness/wordcell manifest",
+    await Bun.file(join(root, "package.json")).json(),
+  );
+  if (manifest.version !== "0.24.0") {
     throw new Error(
-      `clean consumer @hraness/kb@0.19.6 exposes ${String(candidates.length)} dynamic-resolution modules, expected exactly one`,
+      `clean consumer resolved @hraness/wordcell@${String(manifest.version)}, expected 0.24.0`,
     );
   }
-  const candidate = candidates[0];
+  // Wordcell's bundler splits the reviewed dynamic-resolution surface across
+  // two modules: the package-root helper owns the createRequire resolution and
+  // the acquisition chunk owns the literal "agent-browser" call site. Pin both
+  // byte identities so a changed resolver or a new call site needs review.
+  const resolvers = await collectWordcellDynamicModules(
+    root,
+    /createRequire\(parentUrl\)\.resolve\(`\$\{packageName\}\/package\.json`\)/gu,
+  );
+  const callers = await collectWordcellDynamicModules(
+    root,
+    /resolvePackageDirectory\("agent-browser"\)/gu,
+  );
+  const resolver = resolvers[0];
+  const caller = callers[0];
   if (
-    candidate === undefined
-    || candidate.keyFile !== reviewedKbDynamicModuleKeyFile
-    || candidate.sha256 !== reviewedKbDynamicModuleSha256
+    resolvers.length !== 1
+    || callers.length !== 1
+    || resolver === undefined
+    || caller === undefined
+    || resolver.keyFile === caller.keyFile
+    || resolver.keyFile !== reviewedWordcellDynamicResolverKeyFile
+    || resolver.sha256 !== reviewedWordcellDynamicResolverSha256
+    || caller.keyFile !== reviewedWordcellDynamicCallSiteKeyFile
+    || caller.sha256 !== reviewedWordcellDynamicCallSiteSha256
+    || !caller.source.includes(
+      `from "./${basename(reviewedWordcellDynamicResolverKeyFile)}"`,
+    )
   ) {
     throw new Error(
-      `clean consumer @hraness/kb@0.19.6 dynamic-resolution module ${candidate?.keyFile ?? "missing"} has sha256 ${candidate?.sha256 ?? "missing"}, expected ${reviewedKbDynamicModuleKeyFile} with sha256 ${reviewedKbDynamicModuleSha256}`,
+      `clean consumer @hraness/wordcell@0.24.0 dynamic-resolution modules differ from the reviewed resolver ${reviewedWordcellDynamicResolverKeyFile} and call site ${reviewedWordcellDynamicCallSiteKeyFile}`,
     );
   }
-  return candidate.keyFile;
+  return resolver.keyFile;
 }
 
 function requireKeys(
@@ -621,7 +644,7 @@ async function exerciseCli(
   );
   if (
     urlMetadataHelp.stderr !== ""
-    || !urlMetadataHelp.stdout.includes("kb url-metadata")
+    || !urlMetadataHelp.stdout.includes("wordcell url-metadata")
     || !urlMetadataHelp.stdout.includes("metadata-search-engine-rs")
   ) {
     throw new Error(`${target.label} url-metadata help is malformed`);
@@ -800,8 +823,8 @@ try {
         );
       }
     }
-    const installedKbRoot = resolveInstalledDependencyRoot(
-      "@hraness/kb",
+    const installedWordcellRoot = resolveInstalledDependencyRoot(
+      "@hraness/wordcell",
       installedPackageRoot,
     );
     const installedLocalCustodyRoot = resolveInstalledDependencyRoot(
@@ -834,8 +857,8 @@ try {
     const credentialSdkManifest = requireJsonObject("credential SDK manifest", await Bun.file(join(installedCredentialSdkRoot, "package.json")).json());
     if (!isDeepStrictEqual(credentialSdkManifest.dependencies, { "@1password/sdk-core": "0.5.0" })) throw new Error("Credential SDK core dependency differs from the reviewed pin");
     const installedCredentialCoreRoot = resolveInstalledDependencyRoot("@1password/sdk-core", installedCredentialSdkRoot);
-    const installedKbDynamicKeyFile = await resolveReviewedKbDynamicKeyFile(
-      installedKbRoot,
+    const installedWordcellDynamicKeyFile = await resolveReviewedWordcellDynamicKeyFile(
+      installedWordcellRoot,
     );
     await Promise.all([
       assertInstalledClosurePackage({ name: "@hraness/support-foundation", version: "0.6.0", root: installedSupportRoot, keyFile: "dist/index.js", sha256: "2ccf18fdc6f1ddbe8c957dd3060447b5f61a498928dd3d18e0e74c3dd2868981" }),
@@ -844,11 +867,18 @@ try {
       assertInstalledClosurePackage({ name: "@1password/sdk-core", version: "0.5.0", root: installedCredentialCoreRoot, keyFile: "nodejs/core.js", sha256: "fc6e7745837afd4cf42a325284040083bbd09679eeceb4fa9a21ddba34151470" }),
       assertInstalledClosurePackage({ name: "@1password/sdk-core", version: "0.5.0", root: installedCredentialCoreRoot, keyFile: "nodejs/core_bg.wasm", sha256: "97aa9140c5c923b39b41c059d5ab98e214b5fc78a80203d0026708cfbce8d6ab" }),
       assertInstalledClosurePackage({
-        keyFile: installedKbDynamicKeyFile,
-        name: "@hraness/kb",
-        root: installedKbRoot,
-        sha256: reviewedKbDynamicModuleSha256,
-        version: "0.19.6",
+        keyFile: installedWordcellDynamicKeyFile,
+        name: "@hraness/wordcell",
+        root: installedWordcellRoot,
+        sha256: reviewedWordcellDynamicResolverSha256,
+        version: "0.24.0",
+      }),
+      assertInstalledClosurePackage({
+        keyFile: reviewedWordcellDynamicCallSiteKeyFile,
+        name: "@hraness/wordcell",
+        root: installedWordcellRoot,
+        sha256: reviewedWordcellDynamicCallSiteSha256,
+        version: "0.24.0",
       }),
       assertInstalledClosurePackage({
         keyFile: "dist/private-paths.js",
@@ -977,11 +1007,11 @@ try {
       }),
     ]);
     await runCommand(
-      "import packed KB URL intelligence",
+      "import packed Wordcell URL intelligence",
       [
         process.execPath,
         "-e",
-        "import { ARCHIVE_TODAY_HOSTS, normalizeSourceUrlIdentity } from '@hraness/kb/url-intelligence'; if (!Array.isArray(ARCHIVE_TODAY_HOSTS) || ARCHIVE_TODAY_HOSTS.length === 0 || normalizeSourceUrlIdentity('https://example.com') !== 'https://example.com/') process.exit(1);",
+        "import { ARCHIVE_TODAY_HOSTS, normalizeSourceUrlIdentity } from '@hraness/wordcell/url-intelligence'; if (!Array.isArray(ARCHIVE_TODAY_HOSTS) || ARCHIVE_TODAY_HOSTS.length === 0 || normalizeSourceUrlIdentity('https://example.com') !== 'https://example.com/') process.exit(1);",
       ],
       consumer,
     );

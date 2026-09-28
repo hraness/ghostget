@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { CookieSelection } from "@hraness/kb/clip/acquire";
+import type { CookieSelection } from "@hraness/wordcell/clip/acquire";
 
 import { browserProfilesJson, renderBrowserProfiles } from "./browser-profiles-cli";
 import { responsibleApp } from "./cli-style";

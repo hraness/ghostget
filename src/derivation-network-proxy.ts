@@ -8,7 +8,7 @@ import {
   resolveSafeNetworkTarget,
   type NetworkResolver,
   type ResolvedNetworkAddress,
-} from "@hraness/kb/clip/network";
+} from "@hraness/wordcell/clip/network";
 
 const MAX_BROWSER_DOMAINS = 100;
 const MAX_CONNECT_AUTHORITY_BYTES = 1_024;

@@ -18,10 +18,10 @@ import { fileURLToPath } from "node:url";
 import {
   browserCookieCommands,
   type CookieRecordReader,
-} from "@hraness/kb/clip/acquire";
+} from "@hraness/wordcell/clip/acquire";
 import { acquireCookieRecords } from "./cookie-access";
-import { isPrivateAddress, isPrivateHostname } from "@hraness/kb/clip/network";
-import type { StrictCookie } from "@hraness/kb/clip/cookies";
+import { isPrivateAddress, isPrivateHostname } from "@hraness/wordcell/clip/network";
+import type { StrictCookie } from "@hraness/wordcell/clip/cookies";
 import { assertOwnedPathSync } from "@hraness/local-custody/private-paths";
 import type { GhostgetAuth } from "./auth";
 import {

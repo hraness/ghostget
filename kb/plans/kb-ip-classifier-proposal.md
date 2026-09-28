@@ -1,6 +1,6 @@
 ---
-title: Propose a checked IP address classifier for @hraness/kb
-description: A proposal to @hraness/kb for an IP classifier whose deny table follows the IANA special-purpose registries and whose bit-level lookup is machine-checked, so Ghostget's web gateway claim about private addresses can become evidenced.
+title: Propose a checked IP address classifier for @hraness/wordcell
+description: A proposal to @hraness/wordcell for an IP classifier whose deny table follows the IANA special-purpose registries and whose bit-level lookup is machine-checked, so Ghostget's web gateway claim about private addresses can become evidenced.
 type: plan
 area: verification
 status: proposed
@@ -14,11 +14,11 @@ tags:
   - formal-methods
 ---
 
-# Propose a checked IP address classifier for @hraness/kb
+# Propose a checked IP address classifier for @hraness/wordcell
 
 ## Outcome
 
-`@hraness/kb` ships an IP address classifier whose deny table is taken row by
+`@hraness/wordcell` ships an IP address classifier whose deny table is taken row by
 row from the IANA IPv4 and IPv6 special-purpose address registries, whose
 IPv6 policy admits only global unicast space, and whose bit-level lookup is
 checked against that table for every 32-bit and 128-bit address. Ghostget then
@@ -28,20 +28,20 @@ pins that release, runs the classifier's golden vectors in its own
 
 This document is the Phase 7 proposal that
 `kb/plans/formal-verification-assurance.md` calls for. Ghostget does not own
-the classifier. The kb maintainers decide whether and how to adopt it; nothing
-here is filed in the kb repository.
+the classifier. The Wordcell maintainers decide whether and how to adopt it; nothing
+here is filed in the wordcell repository.
 
 ## Context
 
 The web gateway resolves a host, then refuses to connect when
-`isPrivateAddress` from `@hraness/kb/clip/network` reports the resolved
+`isPrivateAddress` from `@hraness/wordcell/clip/network` reports the resolved
 address as non-public. Ghostget reaches it through `src/pinned-https.ts`,
 `src/derive.ts`, `src/model.ts`, and `src/derivation-network-proxy.ts`. That
 function is the real SSRF boundary: `publicUrl` in
 `src/control/validation.ts` refuses IP literals and reserved names, but it
 cannot see where a public name resolves.
 
-`isPrivateAddress` in `@hraness/kb` 0.19.6 is a hand-written chain of octet and
+`isPrivateAddress` in `@hraness/wordcell` 0.24.0 is a hand-written chain of octet and
 16-bit group comparisons. Probing it on 2026-09-23 against the registries
 gave these results.
 
@@ -207,7 +207,7 @@ host bits set for P5. A Kani timeout or an unfinished run is not evidence.
 
 ### Phase 4: Ghostget adoption
 
-- Pin the kb release that ships the classifier, at its immutable release URL.
+- Pin the wordcell release that ships the classifier, at its immutable release URL.
 - Copy the classifier's golden vectors into `verification/vectors/` with their
   source release, and run them through the classifier as Ghostget imports it,
   in `verification-vectors.test.ts`.
@@ -217,7 +217,7 @@ host bits set for P5. A Kani timeout or an unfinished run is not evidence.
 
 ## Verification
 
-- kb: the Kani proofs and their mutants pass in kb's CI, and the vector and
+- wordcell: the Kani proofs and their mutants pass in wordcell's CI, and the vector and
   parser tests pass.
 - Ghostget: `bun run verify:oracles` reproduces the vectors against the pinned
   release, and `bun run ./scripts/verification-claims.ts check` passes with
@@ -228,6 +228,6 @@ host bits set for P5. A Kani timeout or an unfinished run is not evidence.
 - The new classifier refuses a superset of what the old one refuses, except
   for the `192.0.0.0/16` addresses outside its reserved `/24` blocks and the
   returned 6bone block `3ffe::/16`, which the old code still refuses. If a
-  consumer depends on reaching a newly refused address, pin the previous kb
+  consumer depends on reaching a newly refused address, pin the previous wordcell
   release while the owner decides; do not add an exception to the table.
 - Revert a failing proof job by PR, never by skipping it.

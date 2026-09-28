@@ -1,6 +1,6 @@
 // @bun
 // src/model.ts
-import { isPrivateAddress, isPrivateHostname } from "@hraness/kb/clip/network";
+import { isPrivateAddress, isPrivateHostname } from "@hraness/wordcell/clip/network";
 var isRecord = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
 function hasUnpairedSurrogate(value) {
   for (let index = 0;index < value.length; index += 1) {

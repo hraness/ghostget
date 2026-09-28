@@ -148,13 +148,13 @@
     {
       "id": "pinned-https-trusts-resolver-classifier",
       "file": "src/pinned-https.ts",
-      "defect": "The pinned transport connects to whatever address the kb resolver admits, including the IPv4-translated form of loopback.",
+      "defect": "The pinned transport connects to whatever address the Wordcell resolver admits, including the IPv4-translated form of loopback.",
       "search": "  if (addresses.some((candidate) => !isPublicUnicastAddress(candidate.address))) {",
       "replace": "  if (false) {",
       "test": "src/pinned-https.test.ts",
       "killedBy": [
         "DNS-pinned authenticated HTTPS",
-        "refuses a resolved non-public address that the kb resolver admits, before any request"
+        "refuses a resolved non-public address that the Wordcell resolver admits, before any request"
       ]
     },
     {

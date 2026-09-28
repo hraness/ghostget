@@ -415,7 +415,7 @@ try {
         {
           id: "kb-capture",
           path: realpathSync(
-            fileURLToPath(import.meta.resolve("@hraness/kb/capture")),
+            fileURLToPath(import.meta.resolve("@hraness/wordcell/capture")),
           ),
         },
         {

@@ -11,7 +11,7 @@ import {
 import { createHash } from "node:crypto";
 import { isAbsolute, parse, resolve, sep } from "node:path";
 
-import { BoundedByteBuffer } from "@hraness/kb/clip/bounded-byte-buffer";
+import { BoundedByteBuffer } from "@hraness/wordcell/clip/bounded-byte-buffer";
 import type { GhostgetAuth } from "./auth";
 import {
   OperationDeadline,

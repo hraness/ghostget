@@ -5,11 +5,11 @@ import {
   runCapture as runKbCapture,
   type CaptureArguments,
   type CaptureOutcome,
-} from "@hraness/kb/capture";
+} from "@hraness/wordcell/capture";
 import {
   acquireBrowser as acquireKbBrowser,
   type AcquiredPage,
-} from "@hraness/kb/clip/acquire";
+} from "@hraness/wordcell/clip/acquire";
 import {
   canonicalJson,
   isCanonicalJsonFileText,

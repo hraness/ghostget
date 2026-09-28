@@ -616,21 +616,24 @@ const reviewedMetaDynamicInstalledModuleIdentities = Object.freeze([
   "source-map-support@0.5.21\u0000source-map-support.js\u0000da6f90928140ff29ca0b72f4bf8299deb986ba45f055fc5eb51d50dea2e5364d",
   "typescript@6.0.3\u0000lib/typescript.js\u0000569177652966bd528c319171c7dd22860dbf72bde116cbc4f644f1d02bb12e39",
 ]);
-const reviewedKbDynamicInstalledPackage = Object.freeze({
-  name: "@hraness/kb",
-  version: "0.19.6",
-  keyFile: "dist/index-5vdj4pae.js",
-  sha256:
-    "107b59e5a662171180d098e30469457f8b2ceeb6ec9d22971fec7076d855704a",
+const reviewedWordcellDynamicInstalledPackage = Object.freeze({
+  name: "@hraness/wordcell",
+  version: "0.24.0",
+  resolverKeyFile: "dist/index-4knsp9qj.js",
+  resolverSha256:
+    "7e717af9b45ad412086f23c8089c50b396dbed62f84c6282abe58b9e070c82a8",
+  callSiteKeyFile: "dist/index-xwxy71ew.js",
+  callSiteSha256:
+    "59aa734b79fbac03ced4bb872389db92db1d7ab19fb7ae8053e29f97d67ac34e",
 });
-const reviewedKbDynamicResolutionPolicy =
+const reviewedWordcellDynamicResolutionPolicy =
   "createRequire(parentUrl).resolve(`$" +
   "{packageName}/package.json`) is reached only by resolvePackageDirectory(\"agent-browser\") at module initialization";
 const reviewedDormantDynamicLoaderPolicy =
   "reviewed dependency parser API is not called by the owning Ghostget composition";
 const reviewedDynamicInstalledModuleIdentities =
   reviewedMetaDynamicInstalledModuleIdentities;
-const reviewedKbDynamicInstalledPluginIds = new Set([
+const reviewedWordcellDynamicInstalledPluginIds = new Set([
   "bluesky-web",
   "clasificados-web",
   "github-web",
@@ -653,17 +656,10 @@ const reviewedBuiltInDynamicInstalledModules = new Set(
     )),
 );
 
-function discoverReviewedKbDynamicInstalledModuleIdentity(
+function collectWordcellDynamicModuleCandidates(
   snapshot: InstalledPackageSnapshot,
-): string {
-  if (
-    snapshot.name !== reviewedKbDynamicInstalledPackage.name
-    || snapshot.version !== reviewedKbDynamicInstalledPackage.version
-  ) {
-    throw new Error(
-      `installed KB dynamic-resolution review requires ${reviewedKbDynamicInstalledPackage.name}@${reviewedKbDynamicInstalledPackage.version}, got ${snapshot.id}`,
-    );
-  }
+  pattern: RegExp,
+): InstalledPackageFileSnapshot[] {
   const candidates: InstalledPackageFileSnapshot[] = [];
   for (const file of snapshot.files) {
     if (extname(file.path) !== ".js") continue;
@@ -673,33 +669,64 @@ function discoverReviewedKbDynamicInstalledModuleIdentity(
     } catch {
       continue;
     }
-    if (
-      source.match(
-        /createRequire\(parentUrl\)\.resolve\(`\$\{packageName\}\/package\.json`\)/gu,
-      )?.length !== 1
-      || source.match(/resolvePackageDirectory\("agent-browser"\)/gu)?.length !== 1
-    ) continue;
+    if (source.match(pattern)?.length !== 1) continue;
     candidates.push(file);
   }
-  if (candidates.length !== 1) {
-    throw new Error(
-      `installed ${snapshot.id} exposes ${String(candidates.length)} dynamic-resolution modules, expected exactly one`,
-    );
-  }
-  const candidate = candidates[0];
-  if (candidate === undefined) {
-    throw new Error(`installed ${snapshot.id} dynamic-resolution module disappeared`);
-  }
-  const sha256 = createHash("sha256").update(candidate.bytes).digest("hex");
+  return candidates;
+}
+
+function discoverReviewedWordcellDynamicInstalledModuleIdentity(
+  snapshot: InstalledPackageSnapshot,
+): string {
+  const reviewed = reviewedWordcellDynamicInstalledPackage;
   if (
-    candidate.path !== reviewedKbDynamicInstalledPackage.keyFile
-    || sha256 !== reviewedKbDynamicInstalledPackage.sha256
+    snapshot.name !== reviewed.name
+    || snapshot.version !== reviewed.version
   ) {
     throw new Error(
-      `installed ${snapshot.id} dynamic-resolution module ${candidate.path} has sha256 ${sha256}, expected ${reviewedKbDynamicInstalledPackage.keyFile} with sha256 ${reviewedKbDynamicInstalledPackage.sha256}`,
+      `installed Wordcell dynamic-resolution review requires ${reviewed.name}@${reviewed.version}, got ${snapshot.id}`,
     );
   }
-  return `${snapshot.id}\u0000${candidate.path}\u0000${sha256}`;
+  // Wordcell's bundler splits the reviewed surface across two modules: the
+  // package-root helper owns the createRequire resolution and the acquisition
+  // chunk owns the literal "agent-browser" call site. Bind both byte
+  // identities so a changed resolver or a new call site fails closed.
+  const resolvers = collectWordcellDynamicModuleCandidates(
+    snapshot,
+    /createRequire\(parentUrl\)\.resolve\(`\$\{packageName\}\/package\.json`\)/gu,
+  );
+  const callers = collectWordcellDynamicModuleCandidates(
+    snapshot,
+    /resolvePackageDirectory\("agent-browser"\)/gu,
+  );
+  const resolver = resolvers[0];
+  const caller = callers[0];
+  if (
+    resolvers.length !== 1
+    || callers.length !== 1
+    || resolver === undefined
+    || caller === undefined
+    || resolver.path === caller.path
+  ) {
+    throw new Error(
+      `installed ${snapshot.id} dynamic-resolution module scan found ${String(resolvers.length)} resolvers and ${String(callers.length)} agent-browser call sites, expected exactly one of each`,
+    );
+  }
+  const resolverSha256 = createHash("sha256").update(resolver.bytes).digest("hex");
+  const callerSha256 = createHash("sha256").update(caller.bytes).digest("hex");
+  const callerSource = new TextDecoder("utf-8").decode(caller.bytes);
+  if (
+    resolver.path !== reviewed.resolverKeyFile
+    || resolverSha256 !== reviewed.resolverSha256
+    || caller.path !== reviewed.callSiteKeyFile
+    || callerSha256 !== reviewed.callSiteSha256
+    || !callerSource.includes(`from "./${basename(resolver.path)}"`)
+  ) {
+    throw new Error(
+      `installed ${snapshot.id} dynamic-resolution modules ${resolver.path} and ${caller.path} have sha256 ${resolverSha256} and ${callerSha256}, expected ${reviewed.resolverKeyFile} with sha256 ${reviewed.resolverSha256} and ${reviewed.callSiteKeyFile} with sha256 ${reviewed.callSiteSha256}`,
+    );
+  }
+  return `${snapshot.id}\u0000${resolver.path}\u0000${resolverSha256}`;
 }
 const reviewedBuiltInDynamicRepositoryModules = new Set(
   [
@@ -716,7 +743,7 @@ const reviewedBuiltInDynamicRepositoryModules = new Set(
     "youtube-web",
   ].map(
     (pluginId) =>
-      `${pluginId}\u0000packages/kb/src/clip/package-root.ts\u0000fede9141e7d8a9a900acfae25fd8954e4d09c7d4bdd7e3fa9187ab9722b8b199`,
+      `${pluginId}\u0000packages/wordcell/src/clip/package-root.ts\u0000a3246a8a9da8f00d1c5332c412b6480d5a6a39dfc0c3b943c1845996366946cb`,
   ),
 );
 
@@ -1916,7 +1943,7 @@ function providerPluginPackageDependencyIdentity(
   const installedPackageFiles =
     new Map<string, ReadonlyMap<string, InstalledPackageFileSnapshot>>();
   const installedOccurrences = new Map<string, InstalledPackageOccurrence>();
-  const reviewedKbDynamicInstalledModuleIdentities = new Map<string, string>();
+  const reviewedWordcellDynamicInstalledModuleIdentities = new Map<string, string>();
   const usedInstalledPackageRoots = new Set<string>();
   const visitedInstalledModules = new Set<string>();
   let installedFiles = 0;
@@ -2275,7 +2302,7 @@ function providerPluginPackageDependencyIdentity(
         }
         addRecord(
           `dependency-repository-dynamic-load-policy/${relativePath}`,
-          `${reviewedDynamicModule}\0${reviewedKbDynamicResolutionPolicy}`,
+          `${reviewedDynamicModule}\0${reviewedWordcellDynamicResolutionPolicy}`,
         );
       }
       for (
@@ -2341,23 +2368,23 @@ function providerPluginPackageDependencyIdentity(
       .digest("hex");
     const dynamicModuleIdentity =
       `${pendingModule.occurrence.snapshot.id}\0${pendingModule.path}\0${moduleSha256}`;
-    let reviewedKbDynamicInstalledModuleIdentity: string | undefined;
+    let reviewedWordcellDynamicInstalledModuleIdentity: string | undefined;
     if (
       pendingModule.occurrence.snapshot.name
-        === reviewedKbDynamicInstalledPackage.name
+        === reviewedWordcellDynamicInstalledPackage.name
     ) {
-      reviewedKbDynamicInstalledModuleIdentity =
-        reviewedKbDynamicInstalledModuleIdentities.get(
+      reviewedWordcellDynamicInstalledModuleIdentity =
+        reviewedWordcellDynamicInstalledModuleIdentities.get(
           pendingModule.occurrence.snapshot.root,
         );
-      if (reviewedKbDynamicInstalledModuleIdentity === undefined) {
-        reviewedKbDynamicInstalledModuleIdentity =
-          discoverReviewedKbDynamicInstalledModuleIdentity(
+      if (reviewedWordcellDynamicInstalledModuleIdentity === undefined) {
+        reviewedWordcellDynamicInstalledModuleIdentity =
+          discoverReviewedWordcellDynamicInstalledModuleIdentity(
             pendingModule.occurrence.snapshot,
           );
-        reviewedKbDynamicInstalledModuleIdentities.set(
+        reviewedWordcellDynamicInstalledModuleIdentities.set(
           pendingModule.occurrence.snapshot.root,
-          reviewedKbDynamicInstalledModuleIdentity,
+          reviewedWordcellDynamicInstalledModuleIdentity,
         );
       }
     }
@@ -2376,30 +2403,30 @@ function providerPluginPackageDependencyIdentity(
     if (analysis.nonLiteralModuleLoad) {
       const reviewedDynamicModule =
         `${plugin.id}\0${dynamicModuleIdentity}`;
-      const reviewedKbDynamicModule =
-        dynamicModuleIdentity === reviewedKbDynamicInstalledModuleIdentity
-        && reviewedKbDynamicInstalledPluginIds.has(plugin.id);
+      const reviewedWordcellDynamicModule =
+        dynamicModuleIdentity === reviewedWordcellDynamicInstalledModuleIdentity
+        && reviewedWordcellDynamicInstalledPluginIds.has(plugin.id);
       if (
         plugin.sourceKind !== "built-in"
         || (
           !reviewedBuiltInDynamicInstalledModules.has(reviewedDynamicModule)
-          && !reviewedKbDynamicModule
+          && !reviewedWordcellDynamicModule
         )
       ) {
         throw new Error(
           `provider plugin ${plugin.id} installed executable ${pendingModule.path} contains a non-literal module load`,
         );
       }
-      // KB executes one exact, reviewed package-manifest resolution from the
-      // literal agent-browser call site. The Meta parser dependencies only
+      // Wordcell executes one exact, reviewed package-manifest resolution
+      // from the literal agent-browser call site. The Meta parser dependencies only
       // expose dormant dynamic loader APIs. Bind either narrow policy and the
       // exact module identity into the closure. A new call site or changed
       // module must receive a new byte-level review.
       addRecord(
         `dependency-package-dynamic-load-policy/${pendingModule.occurrence.nodeId}/${pendingModule.path}`,
         `${reviewedDynamicModule}\0${
-          reviewedKbDynamicModule
-            ? reviewedKbDynamicResolutionPolicy
+          reviewedWordcellDynamicModule
+            ? reviewedWordcellDynamicResolutionPolicy
             : reviewedDormantDynamicLoaderPolicy
         }`,
       );

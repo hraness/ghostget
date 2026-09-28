@@ -1,8 +1,8 @@
-import { redactSensitiveText } from "@hraness/kb/clip/persist";
+import { redactSensitiveText } from "@hraness/wordcell/clip/persist";
 import {
   sanitizeTerminalLine,
   sanitizeTerminalText,
-} from "@hraness/kb/clip/terminal";
+} from "@hraness/wordcell/clip/terminal";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 

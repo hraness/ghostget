@@ -19,13 +19,13 @@ import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import {
   type CookieRecordReader,
   type CookieSelection,
-} from "@hraness/kb/clip/acquire";
+} from "@hraness/wordcell/clip/acquire";
 import { acquireCookieRecords } from "./cookie-access";
 import {
   filterCookies,
   MAX_COOKIE_RECORDS,
   type StrictCookie,
-} from "@hraness/kb/clip/cookies";
+} from "@hraness/wordcell/clip/cookies";
 
 import type { GhostgetAuth } from "./auth";
 import { listDerivations } from "./derive";

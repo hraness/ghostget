@@ -391,7 +391,7 @@ cleanup settlement. Managed provider/bootstrap and derivation browser sessions
 remain outside this first gate and keep their existing containment and cleanup
 boundaries.
 
-`ghostget url-metadata` delegates to the shared `@hraness/kb` URL-intelligence
+`ghostget url-metadata` delegates to the shared `@hraness/wordcell` URL-intelligence
 boundary. Backfill searches for bounded metadata through its pinned Rust search
 helper, records resumable `url-metadata.json` sidecars beside saved URLs, and
 performs read-only Archive.today discovery, including archive.is URLs, by

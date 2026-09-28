@@ -1,7 +1,7 @@
 /**
  * Ghostget's own check that a resolved address is public unicast space.
  *
- * `@hraness/kb` refuses private and reserved addresses during resolution, but
+ * `@hraness/wordcell` refuses private and reserved addresses during resolution, but
  * its classifier admits some non-public IPv6 forms, such as the IPv4-translated
  * `::ffff:0:0:0/96` form of a loopback address and space outside `2000::/3`
  * (`kb/plans/kb-ip-classifier-proposal.md`). The pinned transport therefore

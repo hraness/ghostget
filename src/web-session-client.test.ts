@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
-import type { CookieRecordReader } from "@hraness/kb/clip/acquire";
-import type { StrictCookie } from "@hraness/kb/clip/cookies";
+import type { CookieRecordReader } from "@hraness/wordcell/clip/acquire";
+import type { StrictCookie } from "@hraness/wordcell/clip/cookies";
 import type { GhostgetAuth } from "./auth";
 import {
   OperationDeadline,

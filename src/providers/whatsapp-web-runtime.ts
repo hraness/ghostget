@@ -21,7 +21,7 @@ import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { BoundedByteBuffer } from "@hraness/kb/clip/bounded-byte-buffer";
+import { BoundedByteBuffer } from "@hraness/wordcell/clip/bounded-byte-buffer";
 
 import type { GhostgetAuth } from "../auth";
 import { canonicalJson } from "../canonical-json";

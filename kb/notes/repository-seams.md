@@ -14,7 +14,7 @@ repository_scopes:
 
 Wrench is a foundational public CLI and SDK. It owns provider contracts, verified media archives, bounded capture operations, and the packaged Wrench skill. Consuming products own planning, agent loops, authentication policy, and application UI.
 
-The runtime dependency on `@hraness/kb` is pinned to a full commit, and the development dependency on `@steipete/sweet-cookie` is pinned to an immutable codeload commit. Preserve those artifact boundaries. Do not replace them with sibling paths, Git submodules, or coordinated `main` workflows.
+The runtime dependency on `@hraness/wordcell` is pinned to an immutable release archive, and the development dependency on `@steipete/sweet-cookie` is pinned to an immutable codeload commit. Preserve those artifact boundaries. Do not replace them with sibling paths, Git submodules, or coordinated `main` workflows.
 
 The dependency-free website remains a local documentation surface. New shared packages need two concrete consumers and a stable, product-neutral interface. Freeze a public contract before parallel implementation and give package manifests, generated catalogs, and other convergence files one owner.
 

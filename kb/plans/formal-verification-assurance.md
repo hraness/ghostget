@@ -56,7 +56,7 @@ assumptions. The register names each one.
   (#227 → #257) already demonstrated. Rust is admitted as dev-only oracles under
   `verification/oracles/`: the RFC 8785 canonicalizer, the `url` crate for
   differential URL admission, and a Kani-checked IP classifier proposed upstream
-  to `@hraness/kb`. Reopen the question only if a crash-safe store core or
+  to `@hraness/wordcell`. Reopen the question only if a crash-safe store core or
   process supervisor cannot meet its law in Bun.
 - **Port Valhalla's evidence discipline, not its toolchain.** Valhalla keeps a
   single `if: always()` aggregator gate, exact tool pins, finite models for
@@ -529,7 +529,7 @@ Acceptance:
 - Add a dev-only Rust crate under `verification/oracles/` with an RFC 8785
   canonicalizer and a `url`-crate differential for `publicUrl`. It runs in the
   `verification` job and is never packaged.
-- Propose to `@hraness/kb` a Kani-checked, or Lean bit-vector-checked, IP
+- Propose to `@hraness/wordcell` a Kani-checked, or Lean bit-vector-checked, IP
   classifier against the IANA special-purpose registries, including
   IPv4-mapped IPv6. That classifier is the real SSRF boundary for the web
   gateway.
@@ -566,13 +566,13 @@ Execution, 2026-09-23:
   the input. The vector test pins this, and the claim records it.
 - The classifier proposal is `kb/plans/kb-ip-classifier-proposal.md`.
   Update, 2026-09-24: `gateway-rejects-private-addresses` no longer waits for
-  `@hraness/kb`. The pinned transport checks every resolved answer with
-  Ghostget's own allowlist, `src/public-address.ts`, after the kb check, and
+  `@hraness/wordcell`. The pinned transport checks every resolved answer with
+  Ghostget's own allowlist, `src/public-address.ts`, after the wordcell check, and
   `verification/vectors/generate.py` restates the IANA special-purpose table
   in Python for golden vectors in `verification/vectors/addresses.json`. The
   claim is evidenced at the differential layer for the gateway's pinned
   transport only; page capture, derivation and the derivation network proxy
-  still rely on the kb classifier.
+  still rely on the wordcell classifier.
 
 ### Phase 8: continuous assurance
 

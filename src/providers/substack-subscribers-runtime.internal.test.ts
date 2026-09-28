@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { CookieRecordReader } from "@hraness/kb/clip/acquire";
+import type { CookieRecordReader } from "@hraness/wordcell/clip/acquire";
 import type { GhostgetAuth } from "../auth";
 import type { OperationInput, WebSessionRecipe } from "../model";
 import type { WebSessionDispatchEvent } from "../web-session-execution";

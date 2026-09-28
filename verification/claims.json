@@ -1223,9 +1223,9 @@
         "dns-tls"
       ],
       "notVerified": [
-        "The pinned transport checks every resolved answer with Ghostget's own allowlist, `src/public-address.ts`, because the `@hraness/kb` 0.19.6 resolver admits the IPv4-translated range `::ffff:0:0:0/96`, the rest of `::/8`, IPv6 outside `2000::/3`, and `192.88.99.0/24` (`kb/plans/kb-ip-classifier-proposal.md`). The kb check still runs first, so its over-blocking of `192.0.0.0/16` still refuses those addresses.",
+        "The pinned transport checks every resolved answer with Ghostget's own allowlist, `src/public-address.ts`, because the `@hraness/wordcell` 0.24.0 resolver admits the IPv4-translated range `::ffff:0:0:0/96`, the rest of `::/8`, IPv6 outside `2000::/3`, and `192.88.99.0/24` (`kb/plans/kb-ip-classifier-proposal.md`). The Wordcell check still runs first, so its over-blocking of `192.0.0.0/16` still refuses those addresses.",
         "The Python generator restates the same IANA special-purpose table from the registries, independently of the TypeScript, and compares verdicts on block edges, seeded random addresses, embedded IPv4 forms, and text forms. A row missing from both tables would not be caught; the vectors check the implementation of the table, not the table against the live registries.",
-        "Page capture, derivation, and the derivation network proxy (`src/browser.ts`, `src/derive.ts`, `src/model.ts`, `src/derivation-network-proxy.ts`) still rely on the kb classifier alone; this claim covers the gateway's pinned transport only.",
+        "Page capture, derivation, and the derivation network proxy (`src/browser.ts`, `src/derive.ts`, `src/model.ts`, `src/derivation-network-proxy.ts`) still rely on the Wordcell classifier alone; this claim covers the gateway's pinned transport only.",
         "DNS answers, the operating system's socket layer, and TLS are assumed; the check covers the address the transport connects to, not routing beyond it."
       ],
       "alsoQuotes": [

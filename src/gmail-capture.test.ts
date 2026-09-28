@@ -13,7 +13,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { CaptureArguments } from "@hraness/kb/capture";
+import type { CaptureArguments } from "@hraness/wordcell/capture";
 import type { GhostgetAuth } from "./auth";
 import {
   runGmailCapture,
