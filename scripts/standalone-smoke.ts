@@ -29,7 +29,7 @@ const expectedClosureRuntimeDependencies = Object.freeze({
   "@hraness/accounts-cli": "github:hraness/accounts-cli#v0.1.3",
   "@hraness/desktop-foundation": "https://github.com/hraness/desktop-foundation/releases/download/v0.8.0/hraness-desktop-foundation-0.8.0.tgz",
   "@hraness/wordcell": "https://github.com/hraness/wordcell/releases/download/v0.24.0/hraness-wordcell-0.24.0.tgz",
-  "@hraness/local-custody": "https://github.com/hraness/local-custody/releases/download/v0.9.0/hraness-local-custody-0.9.0.tgz",
+  "@hraness/local-custody": "https://github.com/hraness/local-custody/releases/download/v0.9.1/hraness-local-custody-0.9.1.tgz",
   "@hraness/message-like-me": "github:hraness/textbutler#83453cc7c17b49bb53fdfd89ccb69b8b44b30af1",
   "@hraness/support-foundation": "github:hraness/support-foundation#8bb514d24b79dc3f305390700ae312cab88e7ad2",
   // The browser cookie reader, also pinned by @hraness/wordcell. Ghostget wraps it
@@ -886,7 +886,7 @@ try {
         root: installedLocalCustodyRoot,
         sha256:
           "8266fec81ffa715f1edc845c022a35939547d093b6670b6b36a137b90cf6e88b",
-        version: "0.9.0",
+        version: "0.9.1",
       }),
       assertInstalledClosurePackage({
         keyFile: "dist/atomic-publish.js",
@@ -894,9 +894,9 @@ try {
         root: installedLocalCustodyRoot,
         sha256:
           "f74453ce9bb37e71996c8763a05b3d299f0e60a25a0a7710f6c30c24fd832177",
-        version: "0.9.0",
+        version: "0.9.1",
       }),
-      // local-custody v0.9.0 stages the Rust sidecar and its per-target
+      // local-custody v0.9.1 stages the Rust sidecar and its per-target
       // manifest inside the published tarball; admission pins each staged
       // byte-exact file the same way as the JS entry points.
       assertInstalledClosurePackage({
@@ -904,8 +904,8 @@ try {
         name: "@hraness/local-custody",
         root: installedLocalCustodyRoot,
         sha256:
-          "81eec495cae2314a66acb023c4742b34bd8d2f522a7b3567c1500f02ecab717c",
-        version: "0.9.0",
+          "00f47282e5e9f51343ec5e0c63cb0faa3019f8352e6d0709b3b062ae3a217076",
+        version: "0.9.1",
       }),
       assertInstalledClosurePackage({
         keyFile:
@@ -913,8 +913,8 @@ try {
         name: "@hraness/local-custody",
         root: installedLocalCustodyRoot,
         sha256:
-          "0eda257b175120daf5eb85766bd59e347c0a2d94f1ccfa07d2056ad0f0f35f7e",
-        version: "0.9.0",
+          "8a26839249060eb7822d79be39a3399b16e74250f4f289b73bfee122f5301b6a",
+        version: "0.9.1",
       }),
       assertInstalledClosurePackage({
         keyFile:
@@ -922,8 +922,8 @@ try {
         name: "@hraness/local-custody",
         root: installedLocalCustodyRoot,
         sha256:
-          "0a3ccd963067837df7c433246f20417cdb2e4b31e8bc161f6d7aa799943c7693",
-        version: "0.9.0",
+          "f0f2cfa818073ebdb03eafa3acad48bac2bbbe1a0d14a6d6814c6c4bd6f55d57",
+        version: "0.9.1",
       }),
       assertInstalledClosurePackage({
         keyFile:
@@ -932,7 +932,7 @@ try {
         root: installedLocalCustodyRoot,
         sha256:
           "eb445c00af1ec82ed220e01a7c3161f33e4ab8e08e2276a6fcc61f38382608ca",
-        version: "0.9.0",
+        version: "0.9.1",
       }),
       assertInstalledClosurePackage({
         keyFile:
@@ -941,7 +941,7 @@ try {
         root: installedLocalCustodyRoot,
         sha256:
           "35de4d107e30da2440fe1ac926581fd18fdf130d80c02e95694e23993e5d982d",
-        version: "0.9.0",
+        version: "0.9.1",
       }),
       assertInstalledClosurePackage({
         keyFile: "dist/message-bundle-v1.js",

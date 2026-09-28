@@ -139,9 +139,12 @@ const pathHelperPath = join(dirname(fileURLToPath(import.meta.url)), "path-helpe
 const stateCrashPlanForTest = process.env.NODE_ENV === "test"
   ? process.env.GHOSTGET_TEST_STATE_CRASH_PLAN
   : undefined;
+// NODE_ENV must stay a literal: consumers whose ambient types narrow
+// NodeJS.ProcessEnv.NODE_ENV to "development" | "test" | "production" reject a
+// widened string on the spawn options env field.
 const helperEnvironment = stateCrashPlanForTest === undefined
-  ? { NODE_ENV: "production" }
-  : { NODE_ENV: "test", GHOSTGET_TEST_STATE_CRASH_PLAN: stateCrashPlanForTest };
+  ? { NODE_ENV: "production" as const }
+  : { NODE_ENV: "test" as const, GHOSTGET_TEST_STATE_CRASH_PLAN: stateCrashPlanForTest };
 const helperPreloadForTest: readonly string[] = stateCrashPlanForTest === undefined
   ? []
   : ["--preload", join(dirname(fileURLToPath(import.meta.url)), "state-crash-preload.test-support.ts")];

@@ -2065,14 +2065,32 @@
 // Retain the same platform projections and allowances:
 // 12,125,239 + 12,387 + 4,096 = 12,141,722 packed;
 // 23,939,528 + 353 + 65 = 23,939,946 unpacked.
+//
+// Strict packaged-source compatibility for `erasableSyntaxOnly`
+// consumers removes the remaining constructor parameter property from
+// src/cookie-safe-storage.ts, keeps the persistent-helper environment
+// typed with literal NODE_ENV values so narrowed consumer ProcessEnv
+// unions still admit it, builds RequestInit bodies without explicit
+// undefined under exactOptionalPropertyTypes, teaches the package smoke
+// to compile the packed public entrypoints with the strict consumer
+// flags, and repins @hraness/local-custody to the immutable 0.9.1
+// release archive: three changed packed sources plus their rebuilt
+// bundles over the unchanged 618-file inventory. After `bun run build`,
+// a clean npm 11.19.0 pack --ignore-scripts with Node 24.18.1 on darwin
+// arm64 measured 618 entries, 12,125,748 packed bytes, and 23,940,758
+// unpacked bytes; archive SHA-256
+// d5681ab13f0bc005bcd4bbf4b18152de887c062e7e8be3d0ecc28f14e11177d5.
+// Retain the same platform projections and allowances:
+// 12,125,748 + 12,387 + 4,096 = 12,142,231 packed;
+// 23,940,758 + 353 + 65 = 23,941,176 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Wordcell 0.24.0 runtime adoption over @hraness/kb 0.19.6 with split dynamic-resolution review pins",
+  scope: "erasableSyntaxOnly packaged-source compatibility and @hraness/local-custody 0.9.1 pin",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "81b82626d55fcc0ef960ac59c3dfc0e90ed6417756d614b00796d5c4122b5072",
-  packedBytes: 12_125_239,
-  unpackedBytes: 23_939_528,
+  archiveSha256: "d5681ab13f0bc005bcd4bbf4b18152de887c062e7e8be3d0ecc28f14e11177d5",
+  packedBytes: 12_125_748,
+  unpackedBytes: 23_940_758,
   entryCount: 618,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

@@ -1045,9 +1045,12 @@ function capabilityHost(options: {
               {
                 method: request.method,
                 headers,
+                // A defined body stays literal for exactOptionalPropertyTypes
+                // consumers: RequestInit["body"] takes BodyInit | null, never
+                // an explicit undefined.
                 ...(request.body.kind === "none"
                   ? {}
-                  : { body: bodyBytes(request.body) }),
+                  : { body: bodyBytes(request.body) ?? null }),
                 redirect: "error",
                 signal: requestDeadline.signal,
               },
