@@ -1,4 +1,3 @@
-import { addDocumentAppearance } from "./appearance";
 import { releaseArchiveUrl } from "./github-release-artifact.mjs";
 import { snapshotMarketingPreset } from "./marketing-preset";
 import { createHash } from "node:crypto";
@@ -89,7 +88,7 @@ import {
 } from "./webmcp-registry";
 
 export const SITE_ORIGIN = "https://ghostget.com" as const;
-export const SITE_TITLE = "Ghostget: Your agent calls web actions by name and holds no password." as const;
+export const SITE_TITLE = "Ghostget: Your agent gets the result without clicking around." as const;
 export const SITE_DESCRIPTION =
   "Ghostget gives your AI agent named web actions: read a page, archive one media item, or use a connected account, without credentials or a browser to steer." as const;
 /** Alt text for the static `/og.png` card that `scripts/generate-og.tsx` renders from SITE_TITLE. */
@@ -493,7 +492,6 @@ export function agentSkillInstallCommands(
 
 type RenderOptions = Readonly<{
   analyticsAsset: string;
-  appearanceAsset: string;
   attestation: ProviderCapabilityAttestation;
   beeperFacts: BeeperPresentationFacts;
   claimsValues: Readonly<Record<string, string>>;
@@ -824,7 +822,6 @@ function renderTemplate(
   template: string,
   options: RenderOptions,
   page?: PublicPage,
-  format: "html" | "text" = "html",
   structuredDataOverride?: Readonly<Record<string, unknown>>,
 ): string {
   const { packageIdentity: identity } = options;
@@ -999,7 +996,7 @@ function renderTemplate(
   if (/\{\{[A-Z0-9_]+\}\}/u.test(rendered)) {
     throw new Error("The rendered page contains an unresolved template value.");
   }
-  return addDocumentAppearance(rendered, options.appearanceAsset, format);
+  return rendered;
 }
 
 /**
@@ -1134,7 +1131,6 @@ function renderBlogPages(
       }, renderBlogIndexMain()),
       options,
       indexPage,
-      "html",
       blogIndexJsonLd(BLOG_SITE, shared, HRANESS_ORGANIZATION_ID),
     ),
     indexable: true,
@@ -1162,7 +1158,7 @@ function renderBlogPages(
     }, renderBlogPostMain(post, fragment));
     pages.push({
       html: indexable
-        ? renderTemplate(filled, options, page, "html", blogPostJsonLd(post, BLOG_SITE, shared, HRANESS_ORGANIZATION_ID))
+        ? renderTemplate(filled, options, page, blogPostJsonLd(post, BLOG_SITE, shared, HRANESS_ORGANIZATION_ID))
         : renderTemplate(filled, options),
       indexable,
       page,
@@ -1219,7 +1215,6 @@ export async function buildWebsite(
     paperThemeCss,
     paletteSystemCss,
     paletteBridgeCss,
-    appearanceCss,
     uiCss,
     designKitFontsCss,
     designKitTypographyCss,
@@ -1244,7 +1239,6 @@ export async function buildWebsite(
     readFile(join(repositoryRoot, "website/vendor/paper-theme/paper-theme.css"), "utf8"),
     readFile(fileURLToPath(import.meta.resolve("@hraness/design-kit/palette-system.css")), "utf8"),
     readFile(fileURLToPath(import.meta.resolve("@hraness/design-kit/palette-bridge.css")), "utf8"),
-    readFile(fileURLToPath(import.meta.resolve("@hraness/design-kit/appearance-menu.css")), "utf8"),
     readUiStylesheet(),
     readFile(designKitFontsStylesPath, "utf8"),
     readFile(designKitTypographyStylesPath, "utf8"),
@@ -1274,7 +1268,6 @@ export async function buildWebsite(
         join(sourceRoot, "analytics.ts"),
         join(sourceRoot, "skill-install-command.ts"),
         join(sourceRoot, "foil.ts"),
-        join(sourceRoot, "appearance.ts"),
         join(sourceRoot, "status-page.ts"),
       ],
       format: "esm",
@@ -1294,7 +1287,7 @@ export async function buildWebsite(
   );
   const webmcpIndexValues = webmcpIndexTemplateValues(webmcpSnapshot);
   const allPages: readonly PublicPage[] = [...PUBLIC_PAGES, ...webmcpPages];
-  if (!browserBuild.success || browserBuild.outputs.length !== 5) {
+  if (!browserBuild.success || browserBuild.outputs.length !== 4) {
     const messages = browserBuild.logs.map((log) => log.message).join("\n");
     throw new Error(`Browser script build failed: ${messages || "no browser output"}`);
   }
@@ -1308,9 +1301,6 @@ export async function buildWebsite(
   const skillInstall = new Uint8Array(await scriptAsset("skill-install-command"));
   const foil = new Uint8Array(await scriptAsset("foil"));
   const statusPage = new Uint8Array(await scriptAsset("status-page"));
-  // The blocking head script is a classic script: wrap the shared ESM output in
-  // one strict-mode IIFE so it never leaks a top-level binding.
-  const appearance = new TextEncoder().encode(`(() => { "use strict";\n${new TextDecoder().decode(await scriptAsset("appearance"))}\n})();`);
   const identity = parsePackageIdentity(manifest);
   if (identity.release !== CONTENT_REVIEWED_RELEASE) {
     throw new Error(
@@ -1320,10 +1310,9 @@ export async function buildWebsite(
   const postHog = postHogEnvironment(environment);
   // The UI facade establishes its complete layer order before the static
   // marketing grammar and footer. Product tokens and composition follow them.
-  const compiledCss = `${uiCss}\n\n${designKitFontsCss.trim()}\n\n${designKitTypographyCss.trim()}\n\n${designKitProductMarketingCss.trim()}\n\n${designKitPlainSiteCss.trim()}\n\n${designKitPlainPublicationCss.trim()}\n\n${designKitStatusPageCss.trim()}\n\n${hranessSiteFooterCss.trim()}\n\n${paperThemeCss.trim()}\n\n${paletteSystemCss.trim()}\n\n${paletteBridgeCss.replace('@import "./palette-system.css";', "").trim()}\n\n${appearanceCss.trim()}\n\n${css.trimEnd()}\n\n${marketingPreset.files.get("product-marketing-preset.css")!.toString("utf8")}\n`;
+  const compiledCss = `${uiCss}\n\n${designKitFontsCss.trim()}\n\n${designKitTypographyCss.trim()}\n\n${designKitProductMarketingCss.trim()}\n\n${designKitPlainSiteCss.trim()}\n\n${designKitPlainPublicationCss.trim()}\n\n${designKitStatusPageCss.trim()}\n\n${hranessSiteFooterCss.trim()}\n\n${paperThemeCss.trim()}\n\n${paletteSystemCss.trim()}\n\n${paletteBridgeCss.replace('@import "./palette-system.css";', "").trim()}\n\n${css.trimEnd()}\n\n${marketingPreset.files.get("product-marketing-preset.css")!.toString("utf8")}\n`;
   const cssAsset = `/assets/styles-${contentHash(compiledCss)}.css`;
   const analyticsAsset = `/assets/analytics-${contentHash(analytics)}.js`;
-  const appearanceAsset = `/assets/appearance-${contentHash(appearance)}.js`;
   const skillInstallAsset = `/assets/skill-install-${contentHash(skillInstall)}.js`;
   const foilAsset = `/assets/foil-${contentHash(foil)}.js`;
   const statusPageAsset = `/assets/status-page-${contentHash(statusPage)}.js`;
@@ -1332,7 +1321,6 @@ export async function buildWebsite(
   const whatsappFacts = createWhatsAppPresentationFacts(providerDirectory, attestation);
   const renderOptions = {
     analyticsAsset,
-    appearanceAsset,
     attestation,
     beeperFacts,
     claimsValues: claimsTemplateValues(
@@ -1420,16 +1408,13 @@ export async function buildWebsite(
       ),
       renderOptions,
     )),
-    writeFile(join(outputRoot, "404.md"), renderTemplate(notFoundMarkdown, renderOptions, undefined, "text")),
+    writeFile(join(outputRoot, "404.md"), renderTemplate(notFoundMarkdown, renderOptions)),
     writeFile(join(outputRoot, "llms.txt"), renderTemplate(
       replaceRequired(llmsTemplate, "{{BLOG_LLMS_ENTRIES}}", renderBlogLlmsEntries(BLOG_SITE)),
       renderOptions,
-      undefined,
-      "text",
     )),
     writeFile(join(outputRoot, cssAsset.slice(1)), compiledCss),
     writeFile(join(outputRoot, analyticsAsset.slice(1)), analytics),
-    writeFile(join(outputRoot, appearanceAsset.slice(1)), appearance),
     writeFile(join(outputRoot, skillInstallAsset.slice(1)), skillInstall),
     writeFile(join(outputRoot, foilAsset.slice(1)), foil),
     writeFile(join(outputRoot, statusPageAsset.slice(1)), statusPage),

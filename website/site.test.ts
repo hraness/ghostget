@@ -374,13 +374,9 @@ describe("ghostget.com static site", () => {
     expect(builtCss).toContain('--hraness-marketing-display-font: var(--font-text)');
     expect(html).toContain('<main id="main" tabindex="-1">');
     for (const page of pages) {
-      const appearanceAsset = /<script src="(\/assets\/appearance-[a-f0-9]+\.js)"><\/script>/u.exec(page.html)?.[1];
-      expect(appearanceAsset).toBeDefined();
-      expect(page.html.indexOf(`<script src="${appearanceAsset}"></script>`)).toBeLessThan(page.html.indexOf('<link rel="stylesheet"'));
-      expect(page.html.match(/data-hraness-appearance-menu/gu)).toHaveLength(1);
-      expect(page.html.match(/role="menuitemradio"/gu)).toHaveLength(3);
+      expect(page.html).not.toContain("data-hraness-appearance-menu");
+      expect(page.html).not.toMatch(/appearance-[a-f0-9]+\.js/u);
       expect(page.html).toMatch(/<main\b[^>]*\bid="main"[^>]*\btabindex="-1"/u);
-      expect((await readFile(join(websiteRoot, "dist", appearanceAsset!.slice(1)))).byteLength).toBeGreaterThan(0);
     }
     expect(html).not.toContain('class="hraness-marketing-field"');
     for (const page of pages) {
@@ -396,7 +392,6 @@ describe("ghostget.com static site", () => {
       "@hraness/ui/components.css",
       "@hraness/ui/stylex.css",
       "@hraness/design-kit/syntax-highlighting.css",
-      "@hraness/design-kit/appearance-menu.css",
       "@hraness/site-footer/stylex.css",
     ]) {
       const stylesheet = (await readFile(
@@ -600,9 +595,10 @@ describe("ghostget.com static site", () => {
     // Task guides are the reader's next step after the FAQ; essays follow them.
     expect(html.indexOf(guidesSection ?? "")).toBeLessThan(html.indexOf(argumentsSection ?? ""));
     expect(html).toContain(
-      '<h1 class="hraness-marketing-hero__heading" id="brand-name">Your agent calls web actions by name <span class="hero-heading-accent">and holds no password.</span></h1>',
+      '<h1 class="hraness-marketing-hero__heading" id="brand-name">Your agent gets the result <span class="hero-heading-accent">without clicking around.</span></h1>',
     );
     expect(html).not.toContain("Give your coding agent bounded access to the web.");
+    expect(html).not.toContain("Your agent calls web actions by name and holds no password.");
     // The limit on uncertain writes: never resent, and unsettled until
     // separate evidence arrives. Home page and README state it in the same words.
     const indeterminateWriteBoundary =
@@ -659,7 +655,7 @@ describe("ghostget.com static site", () => {
     expect(preview).toContain('<link rel="canonical" href="https://ghostget.com/">');
     expect(preview).toContain(`<link rel="stylesheet" href="${cssAsset}">`);
     expect(preview).toContain('<body class="preview-body">');
-    expect(preview).toContain("Your agent calls web actions by name and holds no password.");
+    expect(preview).toContain("Your agent gets the result without clicking around.");
     expect(preview).not.toContain("Give your coding agent bounded access to the web.");
     expect(preview).toContain('class="preview-wordmark">Ghostget</p>');
     expect(preview).not.toMatch(/preview-field|preview-orbit|src="\/favicon\.svg"/u);

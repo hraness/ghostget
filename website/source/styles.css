@@ -3007,24 +3007,13 @@ body {
   }
 }
 
-/* One shared appearance controller serves every ordinary public header. */
-.ghostget-appearance[data-ready="false"] { display: none; }
-.ghostget-appearance { flex: 0 0 auto; margin-inline-start: auto; }
+/* Guide topbars keep their nav flush right and wrap it below the wordmark on
+ * narrow screens. */
 .topbar > nav { margin-inline-start: auto; }
-.ghostget-appearance .hraness-design-theme-toggle__trigger {
-  border-color: transparent;
-  box-shadow: var(--elevation-low);
-}
 @media (max-width: 48rem) {
   .hraness-marketing-header__actions { margin-inline-start: auto; }
   .topbar.guide-topbar { flex-direction: row; align-items: center; }
   .topbar > nav { order: 3; flex-basis: 100%; }
-}
-@media (forced-colors: active) {
-  .ghostget-appearance .hraness-design-theme-toggle__trigger {
-    border-color: ButtonText;
-    box-shadow: none;
-  }
 }
 
 /* Quiet homepage details: small mono eyebrows, one text link beside the
@@ -3534,8 +3523,3 @@ body {
   overflow-wrap: break-word;
 }
 
-@media (min-width: 48.01rem) {
-  .topbar .ghostget-appearance {
-    margin-inline-start: 0.5rem;
-  }
-}
