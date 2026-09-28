@@ -1,6 +1,6 @@
 # Ghostget
 
-[![The title “Ghostget: Your agent gets the result without clicking around.” and the Ghostget ghost mark on a light card](https://ghostget.com/og.png)](https://ghostget.com)
+[![Ghostget: Named web actions for AI agents: read pages, save media, use connected accounts](https://ghostget.com/og.png)](https://ghostget.com)
 
 [![skills.sh](https://skills.sh/b/hraness/ghostget)](https://www.skills.sh/hraness/ghostget/ghostget)
 

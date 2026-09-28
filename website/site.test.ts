@@ -47,6 +47,8 @@ import {
   type UiStylesheetImport,
 } from "./build";
 import webmcpRegistrySource from "./source/webmcp-registry.json";
+import { socialImageAlt } from "@hraness/web-discovery/social-image/card";
+import { socialSite } from "./social-image";
 import { BLOG_POSTS, blogPostPath, blogSitemapPaths } from "./blog";
 import {
   parseWebmcpRegistrySnapshot,
@@ -1213,7 +1215,7 @@ describe("ghostget.com static site", () => {
     }
     // One alt text for the shared social card, describing the card itself.
     expect(SOCIAL_IMAGE_ALT.length).toBeLessThanOrEqual(125);
-    expect(SOCIAL_IMAGE_ALT).toContain(SITE_TITLE);
+    expect(SOCIAL_IMAGE_ALT).toBe(socialImageAlt(socialSite));
     expect(html).toContain(`<meta property="og:image:alt" content="${SOCIAL_IMAGE_ALT}">`);
     expect(html).toContain(`<meta name="twitter:image:alt" content="${SOCIAL_IMAGE_ALT}">`);
     for (const { html: pageHtml } of pages) {
@@ -2214,5 +2216,18 @@ describe("ghostget.com static site", () => {
     const view = new DataView(image.buffer, image.byteOffset, image.byteLength);
     expect(view.getUint32(16)).toBe(1200);
     expect(view.getUint32(20)).toBe(630);
+  });
+
+  test("declares one social-image site for the shared template", async () => {
+    expect(socialSite.name).toBe("Ghostget");
+    expect(socialSite.domain).toBe(new URL(SITE_ORIGIN).host);
+    expect(socialSite.description).toBe(product("wrench").oneLiner);
+    expect(socialSite.icon?.kind).toBe("mark");
+    const markSvg = await readFile(join(websiteRoot, "public/marks/wrench.svg"), "utf8");
+    expect(socialSite.icon?.src).toBe(`data:image/svg+xml;base64,${Buffer.from(markSvg, "utf8").toString("base64")}`);
+    expect(socialSite.theme).toEqual({ accent: "#2474d4", background: "#fbf1c7", foreground: "#393533", muted: "#584f48" });
+    const generator = await readFile(join(websiteRoot, "../scripts/generate-og.tsx"), "utf8");
+    expect(generator).toContain("createSocialImageCard(socialImageSiteDetails(socialSite))");
+    expect(generator).not.toMatch(/<svg|<div|theme:/u);
   });
 });
