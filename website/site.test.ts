@@ -191,16 +191,16 @@ describe("ghostget.com static site", () => {
       devDependencies: {
         "@hraness/design-kit": "github:hraness/design-kit#v0.21.0",
 
-        "@hraness/site-footer": "github:hraness/site-footer#v0.19.3",
+        "@hraness/site-footer": "github:hraness/site-footer#v0.20.0",
         "@hraness/ui": "github:hraness/ui#v0.5.18",
       },
     });
     expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.21.0"');
     expect(lockfile).toContain('"@hraness/ui": "github:hraness/ui#v0.5.18"');
 
-    expect(lockfile).toContain('"@hraness/site-footer": "github:hraness/site-footer#v0.19.3"');
+    expect(lockfile).toContain('"@hraness/site-footer": "github:hraness/site-footer#v0.20.0"');
     expect(lockfile).toContain(
-      '"@hraness/site-footer": ["@hraness/site-footer@github:hraness/site-footer#4f38057"', 
+      '"@hraness/site-footer": ["@hraness/site-footer@github:hraness/site-footer#4244dc5"', 
     );
   });
 
@@ -369,11 +369,9 @@ describe("ghostget.com static site", () => {
     expect(builtCss).not.toMatch(/@import\b/iu);
     expect(builtCss.startsWith("@layer base, components;")).toBe(true);
     const presetCss = await readFile(join(websiteRoot, "vendor/marketing-preset/product-marketing-preset.css"), "utf8");
-    const lanternCss = await readFile(join(websiteRoot, "vendor/lantern-material/lantern-material.css"), "utf8");
-    expect(builtCss.endsWith(`${sourceCss.trimEnd()}\n\n${presetCss}\n\n${lanternCss}\n`)).toBe(true);
-    expect(builtCss.split(lanternCss)).toHaveLength(2);
-    expect(html).toContain('data-hraness-marketing-preset="editorial"');
-    expect(html).toContain('data-hraness-material="lantern"');
+    expect(builtCss.endsWith(`${sourceCss.trimEnd()}\n\n${presetCss}\n`)).toBe(true);
+    expect(html).toContain('data-hraness-marketing-preset="editorial" data-hraness-pattern="none"');
+    expect(builtCss).toContain('--hraness-marketing-display-font: var(--font-text)');
     expect(html).toContain('<main id="main" tabindex="-1">');
     for (const page of pages) {
       const appearanceAsset = /<script src="(\/assets\/appearance-[a-f0-9]+\.js)"><\/script>/u.exec(page.html)?.[1];
@@ -385,10 +383,9 @@ describe("ghostget.com static site", () => {
       expect((await readFile(join(websiteRoot, "dist", appearanceAsset!.slice(1)))).byteLength).toBeGreaterThan(0);
     }
     expect(html).not.toContain('class="hraness-marketing-field"');
-    for (const page of pages.slice(1)) expect(page.html).not.toContain('data-hraness-material="lantern"');
-    for (const path of ["LICENSE", "provenance.json"]) {
-      expect(Buffer.compare(await readFile(join(websiteRoot, "dist/assets/lantern-material", path)),
-        await readFile(join(websiteRoot, "vendor/lantern-material", path)))).toBe(0);
+    for (const page of pages) {
+      expect(page.html).not.toContain("data-hraness-material=");
+      expect(page.html).not.toContain("ghostget-field");
     }
     for (const path of ["fonts/instrument-serif/instrument-serif-latin-400.woff2", "fonts/instrument-serif/OFL.txt", "marketing-assets/grain.svg", "marketing-assets/cells.svg"]) {
       expect(await readFile(join(websiteRoot, "dist/assets", path))).toEqual(await readFile(join(websiteRoot, "vendor/marketing-preset", path)));
@@ -551,36 +548,16 @@ describe("ghostget.com static site", () => {
     expect(html).not.toContain("@jungle/");
     expect(html).not.toContain("hraness.com/ghostget");
     expect(html.match(/<h1\b/gu)).toHaveLength(1);
-    expect(html.match(/<details\b/gu)).toHaveLength(18);
+    expect(html.match(/<details\b/gu)).toHaveLength(12);
     expect(html.match(/<iframe\b/gu)).toBeNull();
-    // The decorative hero field: provider cards, ghosts, edges, and blur
-    // blobs, all inert to readers and input devices.
-    const fieldStart = html.indexOf('aria-hidden="true" class="ghostget-field"');
-    const copyStart = html.indexOf('class="hraness-marketing-hero__copy"');
-    const field = fieldStart >= 0 && copyStart > fieldStart
-      ? html.slice(fieldStart, copyStart)
-      : undefined;
-    expect(field).toBeDefined();
-    expect(field?.match(/class="ghostget-card /gu)).toHaveLength(10);
-    expect(field?.match(/class="ghostget-spirit /gu)).toHaveLength(3);
-    expect(field?.match(/class="ghostget-blob /gu)).toHaveLength(3);
-    expect(field?.match(/class="ghostget-edge"/gu)).toHaveLength(8);
-    expect(field?.match(/data-hraness-hero-item/gu)).toHaveLength(13);
-    expect(field).toContain('class="ghostget-card__name">Beeper<');
-    expect(field).toContain('class="ghostget-card__name">Gmail<');
-    expect(field).toContain('class="ghostget-card__name">WhatsApp<');
-    expect(field).toContain('class="ghostget-card__name">iMessage<');
-    expect(field).toContain('class="ghostget-spirit__eyes"');
-    expect(field).not.toContain("<a ");
-    expect(html.indexOf('class="ghostget-field"')).toBeLessThan(
-      html.indexOf('class="hraness-marketing-hero__copy"'),
-    );
-    expect(html).toContain('/assets/field-');
+    // The hero is copy plus one real transcript: no decorative field, drifting
+    // cards, blur, or pointer-driven light behind the text.
     for (const page of pages) {
-      if (page.definition.canonicalPath === "/") continue;
       expect(page.html).not.toContain("ghostget-field");
       expect(page.html).not.toContain("/assets/field-");
+      expect(page.html).not.toContain("data-hraness-hero-item");
     }
+    expect(html).toContain('class="proof-transcript"');
     expect(html).toContain("ghostget menubar");
     expect(html).toContain("Review connected accounts, permissions, pending approvals, and recent activity in your menu bar or terminal");
     expect(html).toContain("ghostget tui");
@@ -620,9 +597,10 @@ describe("ghostget.com static site", () => {
       expect(guidesSection).not.toContain(`href="${image.canonicalPath}"`);
     }
     expect(guidesSection).not.toContain('class="card editorial-card"');
-    expect(html.indexOf(argumentsSection ?? "")).toBeLessThan(html.indexOf(guidesSection ?? ""));
+    // Task guides are the reader's next step after the FAQ; essays follow them.
+    expect(html.indexOf(guidesSection ?? "")).toBeLessThan(html.indexOf(argumentsSection ?? ""));
     expect(html).toContain(
-      '<h1 class="hraness-marketing-hero__heading" id="brand-name">Your agent calls web actions by name and holds no password.</h1>',
+      '<h1 class="hraness-marketing-hero__heading" id="brand-name">Your agent calls web actions by name <span class="hero-heading-accent">and holds no password.</span></h1>',
     );
     expect(html).not.toContain("Give your coding agent bounded access to the web.");
     // The limit on uncertain writes: never resent, and unsettled until
@@ -843,11 +821,7 @@ describe("ghostget.com static site", () => {
     expect(sourceCss).toContain("grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr)");
     expect(sourceCss).toContain("min-block-size: 2.75rem");
     expect(builtCss).toContain("@media (pointer: coarse)");
-    const fieldController = await readFile(join(websiteRoot, "source/ghostget-field.ts"), "utf8");
-    expect(fieldController).toContain('import { attachHeroLight } from "@hraness/design-kit/browser";');
-    expect(fieldController).toContain('document.querySelector<HTMLElement>(".ghostget-product-hero")');
-    expect(fieldController).toContain("if (hero !== null) attachHeroLight(hero);");
-    expect(fieldController).not.toContain("requestAnimationFrame");
+    expect(await Bun.file(join(websiteRoot, "source/ghostget-field.ts")).exists()).toBe(false);
     for (const css of [sourceCss, builtCss]) {
       expect(css).toMatch(
         /\.ghostget-product-hero\s*\{[^{}]*\bgrid-column:\s*1\s*\/\s*-1\s*;/u,
@@ -860,23 +834,19 @@ describe("ghostget.com static site", () => {
       ]) {
         expect(css).not.toContain(`@keyframes ${keyframes}`);
       }
-      expect(css).toContain(".ghostget-field");
-      expect(css).toMatch(
-        /@media\s*\(forced-colors:\s*active\),\s*\(prefers-reduced-transparency:\s*reduce\),\s*print\s*\{\s*\.ghostget-field\s*\{\s*display:\s*none;\s*\}\s*\}/u,
-      );
-      expect(css).toContain("--hraness-hero-proximity");
-      expect(css).toContain("var(--hraness-hero-drift-x, 0px)");
-      expect(css).toContain("var(--hraness-hero-drift-y, 0px)");
+      // The shared kit still ships hero-light variables; this product uses none.
+      expect(css).not.toContain(".ghostget-field");
+      expect(sourceCss).not.toContain("--hraness-hero-proximity");
+      expect(sourceCss).not.toContain("--hraness-hero-drift-x");
       // The Agent Skill command stays on one line and scrolls inside its own box, so the
       // grid item that holds it must shrink below that line at phone widths instead of
       // pushing the install commands past the viewport edge.
       expect(cssPropertyValues(css, ".skill-install", "min-inline-size")).toContain("0");
-      for (const selector of [".ghostget-blob", ".ghostget-card", ".ghostget-edge", ".ghostget-spirit", ".ghostget-spirit__body"]) {
-        expect(cssPropertyValues(css, selector, "animation").every((value) => value === "none")).toBe(true);
+      for (const selector of [".ghostget-blob", ".ghostget-card", ".ghostget-spirit"]) {
+        expect(cssPropertyValues(css, selector, "filter")).toEqual([]);
       }
-      expect(css).toMatch(/prefers-reduced-motion: reduce[^}]*\}[^}]*\.ghostget-card/u);
       expect(cssPropertyValues(css, ".ghostget-product-hero .hero-explainer", "color").at(-1))
-        .toBe("var(--hraness-material-muted, var(--muted))");
+        .toBe("var(--muted)");
       expect(cssPropertyValues(css, '.hraness-marketing-action[data-emphasis="primary"]', "color").at(-1))
         .toBe("var(--ghostget-action-ink)");
       const providerMarkDisplay = cssPropertyValues(css, ".provider-mark", "display");
@@ -1469,7 +1439,7 @@ describe("ghostget.com static site", () => {
     expect(html).toContain(
       `<h2 id="providers-title">Reviewed actions across ${String(providerDirectory.providerCount)} services.</h2>`,
     );
-    expect(html).toContain("Each card shows how Ghostget connects to that service and links to");
+    expect(html).toContain("Each entry shows how Ghostget connects to that service and links to");
     expect(html).toContain("its supported actions in this release.");
     expect(html).not.toContain("Each card names the actions");
     for (const entry of providerDirectory.entries) {

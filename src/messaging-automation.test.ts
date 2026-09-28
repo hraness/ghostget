@@ -54,6 +54,20 @@ test("a grant permits one exact ordered dispatch and exact replay never sends ag
   const run = await f.host.submit({ planId: plan.id, grantId: grant.id }); expect(run.state).toBe("accepted"); expect(run.accepted).toEqual([{ messageId: "sent:1", providerReceiptId: null }]);
   expect(await f.host.submit({ planId: plan.id, grantId: grant.id })).toEqual(run); expect(f.calls).toHaveLength(1);
 });
+test("a dispatch inspects the provider once and still refuses a route whose identity moved after that inspection", async () => {
+  const f = fixture(); const { plan, grant, enrollment } = await prepared(f);
+  let inspections = 0; const inspect = f.provider.inspect;
+  f.provider.inspect = async signal => { inspections++; return await inspect(signal); };
+  expect((await f.host.submit({ planId: plan.id, grantId: grant.id })).state).toBe("accepted");
+  expect(inspections).toBe(1);
+  // The reused inspection saw the enrolled account; a switch observed by the
+  // live route check still stops the send before any provider effect.
+  const next = f.host.prepare({ enrollmentId: enrollment.id, expectedRevision: f.host.enrollments().find(item => item.id === enrollment.id)!.revision, intentId: "fixture:moved", actions: [{ kind: "text", text: "Synthetic response" }] });
+  const resolve = f.provider.resolve; inspections = 0;
+  f.provider.resolve = async (selected, signal) => { f.replace({ ...identity, accountSubject: "whatsapp:pn:15559999999" }); return await resolve(selected, signal); };
+  await expect(f.host.submit({ planId: next.id, grantId: grant.id })).rejects.toThrow("changed before dispatch");
+  expect(inspections).toBe(1); expect(f.calls).toHaveLength(1);
+});
 test("grant intents survive an unknown response and cannot change scope or revive revoked authority", async () => {
   const f = fixture(); const { enrollment } = await prepared(f);
   const request = { enrollmentId: enrollment.id, expectedBindingDigest: enrollment.bindingDigest, actions: ["text"] as const, expiresAt: "2026-09-12T00:00:00.000Z", maximumActions: 5, minimumIntervalMs: 0 };

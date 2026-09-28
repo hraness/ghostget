@@ -5,7 +5,7 @@ import { MessagingAutomationHost } from "./messaging-automation";
 import type { AutomationActionKind, AutomationProviderId, AutomationProviderStatus, MessagingAutomationProvider } from "./messaging-automation-types";
 import { AUTOMATION_ACTION_KINDS } from "./messaging-automation-validation";
 import { automationPermissionOperation, loadBeeperAutomationRuntime, loadImsgAutomationRuntime, loadWhatsAppAutomationRuntime } from "./messaging-automation-descriptors";
-import { describeOperationPermission, type OperationPermissionDescription } from "./operation-permission";
+import { describeOperationPermission, describeOperationPermissionSet, type OperationPermissionDescription } from "./operation-permission";
 import { loadProviderPluginExtensionRuntime } from "./provider-plugin";
 import type { ProviderPluginRegistry } from "./provider-plugin-registry";
 import { acquireWebSessionCleanupAdmission, type WebSessionCleanupAdmissionController } from "./web-session-cleanup-admission";
@@ -106,11 +106,27 @@ export async function createMessagingAutomationSession(options: MessagingAutomat
         activeCalls++;
         try { return await work(); } finally { if (--activeCalls === 0 && !persistent) await finishCustody(); }
       };
+      // Each description reads private state through isolated helper
+      // processes, so the action report takes one admitted snapshot for every
+      // kind instead of one full state read per kind. A kind without a host
+      // permission operation, or a snapshot that cannot be read, has no
+      // authority.
+      const describeActions = (signal?: AbortSignal): readonly (OperationPermissionDescription | null)[] => {
+        signal?.throwIfAborted();
+        const operations = AUTOMATION_ACTION_KINDS.map((kind: AutomationActionKind) => { try { return automationPermissionOperation(kind); } catch { return null; } });
+        const supported = operations.filter((operation): operation is string => operation !== null);
+        let described: readonly (OperationPermissionDescription | null)[];
+        try { described = describeOperationPermissionSet(adapterId, supported, selected.authId, { registry: options.registry, environment: options.environment }); }
+        catch { return AUTOMATION_ACTION_KINDS.map(() => null); }
+        let next = 0;
+        return operations.map(operation => operation === null ? null : described[next++] ?? null);
+      };
       const status = async (signal?: AbortSignal) => call(async () => {
         const status = await concrete.inspect(signal);
-        const actions = Object.fromEntries(AUTOMATION_ACTION_KINDS.map((kind: AutomationActionKind) => {
-          let allowed = false;
-          try { const admission = describe(kind, signal); allowed = admission.decision === "allow" && identity(admission) === status.identity.implementationIdentity && admission.coordinate.authIncarnation === status.identity.accountIdentity; } catch { /* unsupported operation has no authority */ }
+        const admissions = describeActions(signal);
+        const actions = Object.fromEntries(AUTOMATION_ACTION_KINDS.map((kind: AutomationActionKind, index: number) => {
+          const admission = admissions[index] ?? null;
+          const allowed = admission !== null && admission.decision === "allow" && identity(admission) === status.identity.implementationIdentity && admission.coordinate.authIncarnation === status.identity.accountIdentity;
           return [kind, allowed || !status.actions[kind].available ? status.actions[kind] : { available: false, reason: "Enable this exact account operation in Ghostget permissions before granting a contact access." }];
         })) as AutomationProviderStatus["actions"];
         return { ...status, actions };

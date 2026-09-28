@@ -201,143 +201,6 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
   color: var(--dark-foreground);
 }
 
-.hero {
-  align-items: center;
-  background:
-    radial-gradient(circle at 82% 34%, rgb(241 167 45 / 13%), transparent 29rem),
-    linear-gradient(145deg, #111518 0%, #0b0e10 72%);
-  border-bottom: 1px solid var(--dark-line);
-  color: var(--dark-foreground);
-  display: grid;
-  isolation: isolate;
-  min-height: min(84svh, 58rem);
-  overflow: hidden;
-  padding: clamp(4.5rem, 10vw, 9rem) var(--page-inline);
-  position: relative;
-}
-
-.hero::before {
-  background-image:
-    linear-gradient(rgb(255 255 255 / 3%) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(255 255 255 / 3%) 1px, transparent 1px);
-  background-size: 3.5rem 3.5rem;
-  content: "";
-  inset: 0;
-  mask-image: linear-gradient(90deg, transparent, black 60%, black);
-  opacity: 0.7;
-  pointer-events: none;
-  position: absolute;
-  z-index: -2;
-}
-
-.hero-field {
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-  position: absolute;
-  z-index: -1;
-}
-
-.hero-field::before,
-.hero-field::after {
-  border: 1px solid rgb(241 167 45 / 28%);
-  content: "";
-  position: absolute;
-  right: clamp(-16rem, -7vw, -4rem);
-  transform: rotate(18deg);
-}
-
-.hero-field::before {
-  border-radius: 26% 74% 42% 58%;
-  height: min(74vw, 46rem);
-  top: -5%;
-  width: min(52vw, 38rem);
-}
-
-.hero-field::after {
-  border-color: rgb(151 159 169 / 20%);
-  border-radius: 64% 36% 68% 32%;
-  height: min(62vw, 38rem);
-  right: clamp(-9rem, 5vw, 6rem);
-  top: 10%;
-  width: min(42vw, 30rem);
-}
-
-.hero-orbit {
-  border: 1px solid rgb(241 167 45 / 24%);
-  border-radius: 50%;
-  position: absolute;
-}
-
-.hero-orbit::before,
-.hero-orbit::after {
-  background: var(--ghostget-action-bright);
-  border-radius: 50%;
-  box-shadow: 0 0 1.5rem rgb(241 167 45 / 75%);
-  content: "";
-  height: 0.45rem;
-  position: absolute;
-  width: 0.45rem;
-}
-
-.hero-orbit-a {
-  height: 24rem;
-  right: 5%;
-  top: 16%;
-  width: 24rem;
-}
-
-.hero-orbit-a::before {
-  left: 8%;
-  top: 22%;
-}
-
-.hero-orbit-a::after {
-  bottom: 7%;
-  right: 23%;
-}
-
-.hero-orbit-b {
-  bottom: -5rem;
-  height: 34rem;
-  right: 15%;
-  width: 34rem;
-}
-
-.hero-orbit-b::before {
-  right: 7%;
-  top: 28%;
-}
-
-.hero-orbit-b::after {
-  left: 1%;
-  top: 46%;
-}
-
-.hero-glyph {
-  filter: grayscale(1) contrast(0.8) sepia(0.45);
-  font-size: min(31vw, 24rem);
-  line-height: 1;
-  opacity: 0.1;
-  position: absolute;
-  right: clamp(-4rem, 3vw, 7rem);
-  top: 50%;
-  transform: translateY(-48%) rotate(-11deg);
-  user-select: none;
-}
-
-.hero-glyph img {
-  display: block;
-  height: min(31vw, 24rem);
-  width: min(31vw, 24rem);
-}
-
-.hero-content {
-  margin-inline: auto;
-  max-width: 100rem;
-  width: 100%;
-}
-
 .eyebrow,
 .command-label,
 .prompt-label {
@@ -648,8 +511,7 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 }
 
 .card {
-  background:
-    linear-gradient(140deg, color-mix(in srgb, var(--surface-raised) 94%, transparent), color-mix(in srgb, var(--ghostget-action-soft) 30%, var(--surface)));
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   min-height: 14rem;
@@ -1325,8 +1187,7 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 }
 
 .guide-callout {
-  background:
-    linear-gradient(140deg, color-mix(in srgb, var(--surface-raised) 94%, transparent), color-mix(in srgb, var(--ghostget-action-soft) 38%, var(--surface)));
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   margin-top: clamp(2rem, 6vw, 5rem);
@@ -2763,13 +2624,28 @@ body {
   padding-block-end: clamp(2rem, 6vw, 4rem);
 }
 
-/* The editorial snapshot owns type; Lantern owns material paint. */
+/* Quiet homepage: the editorial layout with the sans display role, a flat
+ * palette background, and no serif, texture, or material paint. */
+[data-hraness-marketing-preset="editorial"] {
+  --hraness-marketing-display-font: var(--font-text);
+  --hraness-marketing-display-weight: 550;
+  --hraness-marketing-h1-size: clamp(2.375rem, 1.7rem + 2.6vw, 3.75rem);
+  --hraness-marketing-h1-leading: 1.06;
+  --hraness-marketing-h1-tracking: -0.03em;
+  --hraness-marketing-h2-size: clamp(1.625rem, 1.3rem + 1.2vw, 2.25rem);
+  --hraness-marketing-h2-leading: 1.15;
+  --hraness-marketing-h2-tracking: -0.02em;
+  --hraness-marketing-h3-size: clamp(1.25rem, 1.1rem + 0.5vw, 1.5rem);
+  --hraness-marketing-hero-space: clamp(3rem, 7vw, 5.5rem) clamp(3rem, 6vw, 4.5rem);
+  --hraness-marketing-story-space: clamp(3.5rem, 7vw, 5rem);
+}
+
 [data-hraness-marketing-preset] .hraness-marketing-page {
   --hraness-marketing-background: transparent;
   --hraness-marketing-heading-font: var(--hraness-marketing-display-font);
   --hraness-marketing-heading-weight: var(--hraness-marketing-display-weight);
-  --hraness-marketing-ink: var(--hraness-material-ink);
-  --hraness-marketing-muted: var(--hraness-material-muted);
+  --hraness-marketing-ink: var(--foreground);
+  --hraness-marketing-muted: var(--muted);
 }
 
 .hraness-marketing-header .wordmark {
@@ -2799,7 +2675,7 @@ body {
 }
 
 .ghostget-product-hero .hero-explainer {
-  color: var(--hraness-material-muted, var(--muted));
+  color: var(--muted);
 }
 
 .ghostget-product-hero .hraness-marketing-hero__frame {
@@ -2827,8 +2703,8 @@ body {
 }
 
 .hraness-marketing-page ::selection {
-  background-color: var(--hraness-material-warm-plane);
-  color: var(--hraness-material-ink);
+  background-color: var(--ghostget-action-soft);
+  color: var(--foreground);
 }
 
 .proof-transcript {
@@ -2893,7 +2769,7 @@ body {
 
 /* The provider heading carries only its id, so it takes the grammar's recipe here. */
 .hraness-marketing-section__heading-group > h2 {
-  color: var(--hraness-material-ink, var(--foreground));
+  color: var(--foreground);
   font-family: var(--hraness-type-h2-font);
   font-size: var(--hraness-paper-section-heading-size);
   font-weight: var(--hraness-type-h2-weight);
@@ -2958,13 +2834,22 @@ body {
 }
 
 @media (max-width: 48rem) {
-  /* Keep the five homepage links together without shrinking their hit targets. */
+  /* The homepage links take their own row and scroll sideways if they
+   * ever outgrow it, keeping full-size hit targets. */
   [data-hraness-marketing-preset="editorial"] .hraness-marketing-header__nav {
-    gap: 0.25rem;
+    flex-wrap: nowrap;
+    gap: 0 1.25rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  [data-hraness-marketing-preset="editorial"] .hraness-marketing-header__nav::-webkit-scrollbar {
+    display: none;
   }
 
   [data-hraness-marketing-preset="editorial"] .hraness-marketing-header__nav a {
-    font-size: 0.875rem;
+    flex: 0 0 auto;
+    font-size: 0.9375rem;
   }
 
   [data-hraness-marketing-preset="editorial"] .hraness-marketing-page > section[id] {
@@ -3061,254 +2946,7 @@ body {
   box-shadow: none;
 }
 
-/* Bind existing native surfaces to the shared material without changing their
- * layout, control semantics, inert preview documents or fixed transcript ink. */
-[data-hraness-material="lantern"] .hraness-marketing-header.hraness-material-chrome {
-  background-color: var(--hraness-material-chrome-paint);
-  border-block-end-color: var(--hraness-material-seam);
-  -webkit-backdrop-filter: var(--hraness-material-chrome-blur);
-  backdrop-filter: var(--hraness-material-chrome-blur);
-}
-
-[data-hraness-material="lantern"] :is(.provider-card, .card, .prompt-card, .control-frame) {
-  background-color: var(--hraness-material-plane);
-  border-color: var(--hraness-material-seam);
-  color: var(--hraness-material-ink);
-}
-
-[data-hraness-material="lantern"] .hraness-material-disclosure[open] > summary {
-  background-color: var(--hraness-material-warm-plane);
-  color: var(--hraness-material-ink);
-}
-
-@media (forced-colors: active) {
-  [data-hraness-material="lantern"] .hraness-material-disclosure[open] > summary {
-    background-color: Highlight;
-    color: HighlightText;
-  }
-}
-
-/* Decorative topic icons (agent-generated line art, public/icons/). */
-.ghostget-topic-icon { display: block; width: 88px; height: 88px; margin: 0 0 18px; }
-.hraness-marketing-pillars .ghostget-topic-icon { margin: 0 0 14px; }
-
-/* --------------------------------------------------------------------------
- * Hero field: drifting provider cards, wandering blur blobs, and ghosts.
- * Decorative only; the field is aria-hidden and pointer-transparent. Cards
- * sharpen under shared pointer proximity. Motion rests when the pointer
- * leaves, the hero is offscreen, or a motion preference changes.
- * ----------------------------------------------------------------------- */
-
-.ghostget-product-hero {
-  overflow: clip;
-  position: relative;
-}
-
-.ghostget-product-hero > :not(.ghostget-field) {
-  position: relative;
-  z-index: 1;
-}
-
-.ghostget-field {
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-  position: absolute;
-  z-index: 0;
-}
-
-/* --- organic light, moved by the shared bounded pointer drift ----------- */
-
-.ghostget-blob {
-  aspect-ratio: 1;
-  border-radius: 50%;
-  filter: blur(68px);
-  inline-size: var(--w, 45vmin);
-  left: var(--x);
-  opacity: 0.5;
-  position: absolute;
-  top: var(--y);
-  translate: calc(-50% + var(--hraness-hero-drift-x, 0px) * 2.5) calc(-50% + var(--hraness-hero-drift-y, 0px) * 2.5);
-}
-
-.ghostget-blob--blue {
-  --x: 18%; --y: 26%; --w: 52vmin; --s: 88s;
-  background: radial-gradient(closest-side, color-mix(in srgb, #4f86d9 34%, transparent), transparent);
-}
-.ghostget-blob--violet {
-  --x: 74%; --y: 62%; --w: 58vmin; --s: 74s;
-  background: radial-gradient(closest-side, color-mix(in srgb, #8b70cb 30%, transparent), transparent);
-}
-.ghostget-blob--coral {
-  --x: 46%; --y: 88%; --w: 44vmin; --s: 96s;
-  background: radial-gradient(closest-side, color-mix(in srgb, #d86a4b 26%, transparent), transparent);
-}
-
-
-
-/* --- provider cards ----------------------------------------------------- */
-
-.ghostget-card {
-  align-items: center;
-  background: var(--surface-raised);
-  border: 1px solid color-mix(in srgb, var(--line) 80%, var(--provider-accent));
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-low);
-  display: flex;
-  filter: blur(calc((1 - var(--hraness-hero-proximity, 0)) * 1.5px));
-  gap: 0.55rem;
-  inline-size: var(--w);
-  left: var(--x);
-  opacity: calc(0.4 + var(--hraness-hero-proximity, 0) * 0.6);
-  padding: 0.6rem 0.8rem;
-  position: absolute;
-  rotate: var(--r, 0deg);
-  top: var(--y);
-  translate: -50% -50%;
-  transition: filter 0.5s, opacity 0.5s;
-}
-
-
-
-.ghostget-card__mark {
-  align-items: center;
-  border-radius: var(--radius-sm);
-  display: inline-flex;
-  flex: none;
-  inline-size: 1.7rem;
-  block-size: 1.7rem;
-  justify-content: center;
-}
-
-.ghostget-card__mark .provider-icon {
-  block-size: 1.05rem;
-  inline-size: 1.05rem;
-}
-
-.ghostget-card__name {
-  font-size: 0.8rem;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
-}
-
-/* --- connecting edges: faint routes, dashes wander like messages -------- */
-
-.ghostget-edges {
-  block-size: 100%;
-  inline-size: 100%;
-  position: absolute;
-}
-
-.ghostget-edge {
-  fill: none;
-  opacity: calc(0.14 + var(--hraness-hero-proximity, 0) * 0.6);
-  stroke: var(--muted);
-  stroke-dasharray: 1.8 3.4;
-  stroke-width: 0.28;
-  transition: opacity 0.5s;
-}
-
-
-
-/* --- spirits: cute ghosts drifting between the providers ---------------- */
-
-.ghostget-spirit {
-  filter: blur(calc((1 - var(--hraness-hero-proximity, 0)) * 1.2px)) drop-shadow(0 6px 14px color-mix(in srgb, var(--foreground) 10%, transparent));
-  inline-size: var(--w);
-  left: var(--x);
-  opacity: calc(0.5 + var(--hraness-hero-proximity, 0) * 0.5);
-  position: absolute;
-  top: var(--y);
-  translate: -50% -50%;
-  transition: filter 0.5s, opacity 0.5s;
-}
-
-.ghostget-spirit__body {
-  display: block;
-  inline-size: 100%;
-}
-
-
-
-.ghostget-spirit__shape {
-  fill: var(--surface-raised);
-  stroke: var(--line);
-  stroke-width: 1.1;
-}
-
-.ghostget-spirit__eye { fill: var(--foreground); }
-.ghostget-spirit__blush { fill: color-mix(in srgb, #d86a4b 32%, transparent); }
-.ghostget-spirit__mouth {
-  fill: none;
-  stroke: var(--foreground);
-  stroke-linecap: round;
-  stroke-width: 1.4;
-}
-
-.ghostget-spirit__eyes {
-  transform: translate(calc(var(--hraness-hero-drift-x, 0px) * 0.4), calc(var(--hraness-hero-drift-y, 0px) * 0.4));
-  transform-box: fill-box;
-  transition: transform 0.25s ease-out;
-}
-
-/* --- field layout: percentage anchors inside the hero wall. The copy
-   column occupies the left half and the proof frame the right half on wide
-   viewports, so cards gather toward the outer edges and corners. --------- */
-
-.ghostget-card--beeper { --x: 7%; --y: 14%; --w: 150px; --r: -2deg; --dx: 12px; --dy: 10px; --s: 44s; --d: -6s; }
-.ghostget-card--gmail { --x: 26%; --y: 8%; --w: 140px; --r: 1.6deg; --dx: 10px; --dy: 14px; --s: 38s; --d: -18s; }
-.ghostget-card--whatsapp { --x: 47%; --y: 10%; --w: 150px; --r: -1.2deg; --dx: 14px; --dy: 8px; --s: 46s; --d: -25s; }
-.ghostget-card--imessage { --x: 66%; --y: 8%; --w: 146px; --r: 2.1deg; --dx: 9px; --dy: 12px; --s: 40s; --d: -10s; }
-.ghostget-card--x { --x: 87%; --y: 14%; --w: 120px; --r: -1.6deg; --dx: 12px; --dy: 9px; --s: 43s; --d: -31s; }
-.ghostget-card--instagram { --x: 94%; --y: 42%; --w: 148px; --r: 1.8deg; --dx: 8px; --dy: 13px; --s: 47s; --d: -15s; }
-.ghostget-card--youtube { --x: 90%; --y: 82%; --w: 148px; --r: -2.2deg; --dx: 11px; --dy: 11px; --s: 41s; --d: -22s; }
-.ghostget-card--github { --x: 68%; --y: 93%; --w: 138px; --r: -1.4deg; --dx: 13px; --dy: 8px; --s: 39s; --d: -8s; }
-.ghostget-card--reddit { --x: 40%; --y: 94%; --w: 144px; --r: 1.5deg; --dx: 10px; --dy: 12px; --s: 45s; --d: -27s; }
-.ghostget-card--linkedin { --x: 9%; --y: 78%; --w: 142px; --r: 2.4deg; --dx: 9px; --dy: 10px; --s: 42s; --d: -13s; }
-
-.ghostget-spirit--1 { --x: 34%; --y: 46%; --w: 68px; --dx: 14px; --dy: 16px; --s: 52s; --d: -20s; --bob: 7s; }
-.ghostget-spirit--2 { --x: 55%; --y: 60%; --w: 80px; --dx: 12px; --dy: 14px; --s: 58s; --d: -35s; --bob: 9s; }
-.ghostget-spirit--3 { --x: 80%; --y: 52%; --w: 60px; --dx: 16px; --dy: 12px; --s: 49s; --d: -12s; --bob: 8s; }
-
-/* --- reduced motion, coarse pointers, and small viewports --------------- */
-
-@media (prefers-reduced-motion: reduce) {
-  .ghostget-blob,
-  .ghostget-card,
-  .ghostget-edge,
-  .ghostget-spirit,
-  .ghostget-spirit__body {
-    animation: none;
-  }
-  .ghostget-card,
-  .ghostget-spirit {
-    filter: none;
-    opacity: 0.72;
-  }
-  .ghostget-edge { opacity: 0.3; }
-  .ghostget-spirit__eyes { transform: none; }
-}
-
-@media (pointer: coarse) {
-  .ghostget-card,
-  .ghostget-spirit {
-    filter: none;
-    opacity: 0.8;
-  }
-  .ghostget-edge { opacity: 0.3; }
-  .ghostget-blob { opacity: 0.4; }
-}
-
-@media (max-width: 48rem) {
-  .ghostget-card:nth-of-type(n + 5) { display: none; }
-  .ghostget-card { inline-size: min(var(--w), 34vw); }
-  .ghostget-spirit { inline-size: calc(var(--w) * 0.72); }
-  .ghostget-blob { filter: blur(48px); opacity: 0.4; }
-  .ghostget-edges { display: none; }
-}
-
-/* Shared material, with quieter reference pages and clear reading measures. */
+/* Quieter reference pages and clear reading measures. */
 :root[data-palette] .guide-hero h1 {
   letter-spacing: -0.05em;
   line-height: 1.04;
@@ -3338,7 +2976,7 @@ body {
 
 :root[data-palette] :is(.card, .provider-card, .provider-card-featured, .guide-callout, .demo-media video, .prompt-card) {
   border: 0;
-  box-shadow: var(--hraness-material-lift, var(--elevation-low));
+  box-shadow: var(--elevation-low);
 }
 
 :root[data-palette] :is(.provider-mark, .editorial-card img) {
@@ -3347,7 +2985,7 @@ body {
 
 :root[data-palette] .command-panel {
   border: 0;
-  box-shadow: var(--hraness-material-inset, var(--elevation-low));
+  box-shadow: var(--elevation-low);
   max-inline-size: 100%;
   min-inline-size: 0;
 }
@@ -3361,27 +2999,6 @@ body {
 
 :root[data-palette] .command-panel code {
   font-size: 0.875rem;
-}
-
-.ghostget-field::after {
-  background: radial-gradient(ellipse at 25% 48%, color-mix(in srgb, var(--background) 94%, transparent), color-mix(in srgb, var(--background) 74%, transparent) 42%, transparent 74%);
-  content: "";
-  inset: 0;
-  position: absolute;
-}
-
-.ghostget-card {
-  border: 0;
-  box-shadow: var(--hraness-material-lift, var(--elevation-low));
-}
-
-.ghostget-card,
-.ghostget-spirit {
-  transform: translate(var(--hraness-hero-drift-x, 0px), var(--hraness-hero-drift-y, 0px));
-}
-
-@media (forced-colors: active), (prefers-reduced-transparency: reduce), print {
-  .ghostget-field { display: none; }
 }
 
 @media (forced-colors: active) {
@@ -3407,5 +3024,518 @@ body {
   .ghostget-appearance .hraness-design-theme-toggle__trigger {
     border-color: ButtonText;
     box-shadow: none;
+  }
+}
+
+/* Quiet homepage details: small mono eyebrows, one text link beside the
+ * primary action, top-aligned split sections, bounded prose, and hairline
+ * link rows in place of card walls. */
+.home-eyebrow {
+  color: var(--ghostget-action);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 1.4;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.hero-heading-accent {
+  color: var(--ghostget-action);
+  display: block;
+  font-weight: 400;
+}
+
+.home-text-link {
+  align-items: center;
+  color: var(--foreground);
+  display: inline-flex;
+  font-weight: 550;
+  gap: 0.35rem;
+  min-block-size: 2.75rem;
+  text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+}
+
+.home-text-link:hover {
+  text-decoration-color: var(--ghostget-action);
+}
+
+.ghostget-product-hero .hraness-marketing-hero__heading {
+  max-inline-size: 16ch;
+}
+
+.ghostget-product-hero .hraness-marketing-hero__summary {
+  max-inline-size: 36rem;
+}
+
+.ghostget-product-hero .hraness-marketing-hero__boundary {
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+.hraness-marketing-section[data-layout="split"] {
+  align-items: start;
+}
+
+.hraness-marketing-prose {
+  max-inline-size: 42rem;
+}
+
+.hraness-marketing-prose > p {
+  margin: 0;
+}
+
+.hraness-marketing-prose > p + p {
+  margin-block-start: 1rem;
+}
+
+#measured .table-scroll {
+  max-inline-size: 48rem;
+}
+
+#measured table :is(td, thead th:not(:first-child)) {
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+  white-space: nowrap;
+}
+
+.home-reading .section {
+  border-block-start: 1px solid var(--line);
+  padding-block: var(--section-block);
+}
+
+.home-reading .card-grid {
+  border-block-start: 1px solid var(--line);
+  gap: 0 2.5rem;
+  margin-top: 2rem;
+}
+
+.home-reading .card {
+  background: none;
+  border: 0;
+  border-block-end: 1px solid var(--line);
+  border-radius: 0;
+  box-shadow: none;
+  min-height: 0;
+  padding: 1.1rem 0;
+}
+
+.home-reading .card h3 {
+  font-size: 1.0625rem;
+  line-height: 1.35;
+  margin: 0 0 0.35rem;
+}
+
+.home-reading .card p {
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.home-reading .editorial-card {
+  padding: 1.1rem 0;
+}
+
+.home-reading .editorial-card > a {
+  align-items: start;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 6rem minmax(0, 1fr);
+}
+
+.home-reading .editorial-card img {
+  aspect-ratio: 4 / 3;
+  border: 0;
+  border-radius: var(--radius-sm);
+  inline-size: 6rem;
+}
+
+.home-reading .editorial-card-copy {
+  padding: 0;
+}
+
+.home-reading .card h3 a {
+  text-decoration: none;
+}
+
+.home-reading .card :is(h3 a, a):hover h3,
+.home-reading .card h3 a:hover {
+  color: var(--ghostget-action);
+}
+
+@media (max-width: 45rem) {
+  .home-reading .card-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* One page column for every band: header, homepage sections, reference
+ * pages, and all three footer rows share the same 80rem outer width and
+ * gutter, so their left and right edges line up at every viewport. */
+:root[data-hraness-theme="paper"] {
+  --ghostget-column: 80rem;
+  --ghostget-column-inset: max(var(--page-inline), calc((100% - var(--ghostget-column)) / 2 + var(--page-inline)));
+  --hraness-site-footer-measure: calc(min(var(--ghostget-column), 100%) - 2 * var(--page-inline));
+}
+
+.topbar {
+  padding-inline: max(var(--ghostget-column-inset), env(safe-area-inset-left)) max(var(--ghostget-column-inset), env(safe-area-inset-right));
+}
+
+.site-disclosure,
+.hraness-marketing-footer__inner {
+  padding-inline: max(var(--ghostget-column-inset), env(safe-area-inset-left)) max(var(--ghostget-column-inset), env(safe-area-inset-right));
+}
+
+.hraness-marketing-footer__inner {
+  inline-size: 100%;
+  max-inline-size: none;
+}
+
+.site-disclosure {
+  align-items: flex-start;
+  flex-wrap: wrap;
+  min-height: 0;
+}
+
+.guide-article,
+:root[data-palette] .guide-article {
+  margin-inline: 0;
+}
+
+[data-hraness-marketing-preset] .hraness-marketing-related {
+  --hraness-marketing-measure: var(--ghostget-column);
+}
+
+.home-reading {
+  inline-size: min(100%, var(--ghostget-column));
+  padding-inline: var(--page-inline);
+}
+
+/* Homepage providers: one hairline row per service instead of a card wall. */
+#providers .provider-directory {
+  border-block-start: 1px solid var(--line);
+  display: grid;
+  gap: 0;
+  grid-template-columns: minmax(0, 1fr);
+  margin-top: 0;
+}
+
+#providers .provider-card,
+#providers .provider-card-featured {
+  align-items: baseline;
+  background: none;
+  border: 0;
+  border-block-end: 1px solid var(--line);
+  border-radius: 0;
+  box-shadow: none;
+  column-gap: 1.5rem;
+  display: grid;
+  grid-column: auto;
+  grid-template-columns: minmax(11rem, 1fr) minmax(9rem, 0.75fr) minmax(0, 2fr) minmax(10rem, 1.1fr);
+  min-height: 0;
+  padding: 0.8rem 0;
+  row-gap: 0.25rem;
+}
+
+#providers .provider-card > * {
+  margin: 0;
+}
+
+#providers .provider-card-heading {
+  align-self: center;
+  margin: 0;
+}
+
+#providers .provider-card h3 {
+  font-size: 1rem;
+}
+
+#providers .provider-state strong {
+  font-weight: 500;
+}
+
+#providers :is(.provider-capabilities, .provider-transport, .provider-feature-copy) {
+  color: var(--muted);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+#providers .provider-feature-copy {
+  grid-column: 2 / -1;
+  max-inline-size: 48rem;
+}
+
+@media (max-width: 56rem) {
+  #providers .provider-card,
+  #providers .provider-card-featured {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  #providers .provider-state {
+    text-align: end;
+  }
+
+  #providers :is(.provider-capabilities, .provider-transport, .provider-feature-copy) {
+    grid-column: 1 / -1;
+  }
+}
+
+/* WebMCP: flat note under the list, with sample sites as plain mono links. */
+#providers .registry-panel {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  padding: 0;
+}
+
+#providers .registry-panel h3 {
+  font-size: 1.125rem;
+  letter-spacing: -0.01em;
+}
+
+#providers .registry-panel p {
+  max-width: 42rem;
+}
+
+#providers .registry-domain-strip {
+  gap: 0.25rem 1rem;
+}
+
+#providers .registry-domain-strip a {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 0.8125rem;
+  min-block-size: 2rem;
+  align-items: center;
+  padding: 0;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 30%, transparent);
+}
+
+#providers .registry-domain-more a {
+  color: var(--ghostget-action);
+}
+
+/* Install: flat on the page, like every other section. */
+.start-section.hraness-marketing-install {
+  background: none;
+  border: 0;
+  border-block-start: 1px solid var(--line);
+  border-radius: 0;
+  grid-template-columns: minmax(0, 1fr);
+  margin-block: 0;
+  padding-block: var(--hraness-marketing-section-space);
+  padding-inline: var(--page-inline);
+}
+
+@media (min-width: 48rem) {
+  .start-section.hraness-marketing-install {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  }
+}
+
+.start-section .prompt-card,
+:root[data-palette] .start-section .prompt-card {
+  background: none;
+  border: 0;
+  border-inline-start: 2px solid var(--ghostget-action);
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0.25rem 0 0.25rem 1rem;
+}
+
+.start-section .prompt-card p:not(.prompt-label) {
+  color: var(--foreground);
+  font-size: 1.0625rem;
+}
+
+.start-section .command-panel,
+:root[data-palette] .start-section .command-panel {
+  background: var(--code-background);
+  border: 0;
+  box-shadow: none;
+  overflow: hidden;
+}
+
+.start-section .command-label {
+  border-bottom: 1px solid rgb(255 255 255 / 10%);
+  color: var(--code-muted);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+
+.start-section .command-label span {
+  color: var(--code-muted);
+}
+
+.start-section .skill-install-control {
+  background: var(--surface);
+}
+
+/* Interfaces: three short columns separated by hairlines, not cards. */
+.hraness-marketing-interface-grid {
+  border-block-start: 1px solid var(--line);
+  gap: 0 2rem;
+}
+
+.hraness-marketing-interface {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 1.25rem 0 0;
+}
+
+/* Limits: a two-column list of short statements with hairlines. */
+.hraness-marketing-trust-grid {
+  border-block-start: 1px solid var(--line);
+  gap: 0 2.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
+}
+
+.hraness-marketing-trust-item {
+  background: none;
+  border: 0;
+  border-block-end: 1px solid var(--line);
+  border-radius: 0;
+  box-shadow: none;
+  min-block-size: 0;
+  padding: 1.1rem 0;
+}
+
+.hraness-marketing-trust-item dt {
+  font-size: 1.0625rem;
+  font-weight: 600;
+}
+
+.hraness-marketing-trust-item dd {
+  color: var(--muted);
+  margin: 0;
+}
+
+/* Related products: plain rows. */
+.hraness-marketing-card-row .hraness-marketing-card {
+  box-shadow: none;
+}
+
+/* Fit and finish pass. */
+.ghostget-ask-ai {
+  margin: 0 auto;
+  width: min(calc(100% - 2 * var(--page-inline)), calc(var(--ghostget-column) - 2 * var(--page-inline)));
+}
+
+.hraness-marketing-footer__inner {
+  padding-block: 1.75rem;
+}
+
+@media (min-width: 62rem) {
+  .ghostget-product-hero {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+[data-hraness-marketing-preset="editorial"] .ghostget-product-hero .hraness-marketing-hero__heading {
+  font-size: clamp(2.375rem, 1.8rem + 2vw, 3.25rem);
+  max-inline-size: 20ch;
+}
+
+.proof-transcript,
+.proof-transcript code {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+/* Section hairlines run the width of the text column, not the padded box. */
+[data-hraness-marketing-preset="editorial"] .hraness-marketing-page > :is(.hraness-marketing-section, .hraness-marketing-install, .hraness-marketing-interfaces, .hraness-marketing-trust, .hraness-marketing-questions, .hraness-marketing-maker, .hraness-marketing-related, .hraness-marketing-cta) {
+  background: linear-gradient(var(--line), var(--line)) center top / calc(100% - 2 * var(--page-inline)) 1px no-repeat;
+  border-block-start: 0;
+}
+
+.start-section .hraness-marketing-install__heading {
+  max-inline-size: none;
+  text-wrap: balance;
+}
+
+.start-section .hraness-marketing-install__heading-group {
+  align-content: start;
+}
+
+#providers .provider-card,
+#providers .provider-card-featured {
+  align-items: center;
+}
+
+#providers .provider-state {
+  font-size: 0.9375rem;
+}
+
+:root[data-palette] .home-reading .card {
+  border: 0;
+  border-block-end: 1px solid var(--line);
+  box-shadow: none;
+}
+
+#providers .provider-transport {
+  padding-top: 0;
+}
+
+#uses .hraness-marketing-pillars > div {
+  padding-inline: 0;
+}
+
+@media (min-width: 48rem) {
+  #uses .hraness-marketing-pillars > div + div {
+    padding-inline-start: 1.75rem;
+  }
+
+  #uses .hraness-marketing-pillars > div:not(:last-child) {
+    padding-inline-end: 1.75rem;
+  }
+}
+
+/* Rows carry their own top hairline, so a list never ends in a double rule. */
+.hraness-marketing-trust-grid,
+.home-reading .card-grid {
+  border-block-start: 0;
+}
+
+.hraness-marketing-trust-item,
+:root[data-palette] .home-reading .card {
+  border-block-end: 0;
+  border-block-start: 1px solid var(--line);
+}
+
+.hraness-marketing-footer__link {
+  align-items: center;
+  display: inline-flex;
+  min-block-size: 2.75rem;
+}
+
+.start-section.hraness-marketing-install {
+  inline-size: min(100%, var(--ghostget-column));
+  margin-inline: auto;
+}
+
+/* Blog index and posts share the reference pages' left text edge. */
+:root .blog-main > .plain-publication.plain-publication--embedded {
+  margin-inline: 0;
+  padding-inline: 0;
+}
+
+.provider-card h3 {
+  overflow-wrap: break-word;
+}
+
+@media (min-width: 48.01rem) {
+  .topbar .ghostget-appearance {
+    margin-inline-start: 0.5rem;
   }
 }

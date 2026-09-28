@@ -1,7 +1,6 @@
 import { addDocumentAppearance } from "./appearance";
 import { releaseArchiveUrl } from "./github-release-artifact.mjs";
 import { snapshotMarketingPreset } from "./marketing-preset";
-import { snapshotLanternMaterial } from "./lantern-material";
 import { createHash } from "node:crypto";
 import {
   cp,
@@ -71,7 +70,6 @@ import {
   createBeeperPresentationFacts,
   createProviderDirectory,
   createWhatsAppPresentationFacts,
-  renderGhostgetField,
   renderProviderAttestationGroups,
   renderProviderOverviewCards,
   type BeeperPresentationFacts,
@@ -110,7 +108,7 @@ export const PUBLISHER_URL = "https://github.com/hraness" as const;
 export const HRANESS_URL = "https://hraness.com/" as const;
 export const HRANESS_ORGANIZATION_ID = `${HRANESS_URL}#organization` as const;
 export const SKILL_REPOSITORY = "hraness/ghostget" as const;
-export const CONTENT_REVIEWED_RELEASE = "v0.18.42" as const;
+export const CONTENT_REVIEWED_RELEASE = "v0.18.43" as const;
 export const DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com" as const;
 export const DEMO_PUBLIC_FILES = [
   "wrench-first-capture.gif",
@@ -500,9 +498,7 @@ type RenderOptions = Readonly<{
   beeperFacts: BeeperPresentationFacts;
   claimsValues: Readonly<Record<string, string>>;
   cssAsset: string;
-  fieldAsset: string;
   foilAsset: string;
-  ghostgetField: string;
   ghostgetContentFooter: string;
   hranessSiteFooter: string;
   packageIdentity: PackageIdentity;
@@ -872,14 +868,13 @@ function renderTemplate(
     }
     if (page.canonicalPath === "/") {
       rendered = replaceRequired(rendered, "{{EDITORIAL_CARDS}}", renderEditorialCards());
-      rendered = replaceRequired(rendered, "{{GHOSTGET_FIELD}}", options.ghostgetField);
       for (const [placeholder, ids] of Object.entries(RELATED_CARD_GROUPS)) {
         if (!rendered.includes(placeholder)) throw new Error(`Template is missing ${placeholder}.`);
         const cards = renderRelatedCards(ids);
         rendered = rendered.replaceAll(placeholder, () => cards);
       }
-    } else if (/\{\{(?:EDITORIAL_CARDS|GHOSTGET_FIELD|RELATED_[A-Z]+_CARDS)\}\}/u.test(rendered)) {
-      throw new Error("Editorial cards, related cards, and the hero field belong only on the homepage.");
+    } else if (/\{\{(?:EDITORIAL_CARDS|RELATED_[A-Z]+_CARDS)\}\}/u.test(rendered)) {
+      throw new Error("Editorial and related cards belong only on the homepage.");
     }
   } else if (rendered.includes("{{JSON_LD}}")) {
     throw new Error("A non-indexable page must not include structured data.");
@@ -943,7 +938,6 @@ function renderTemplate(
     ["{{GHOSTGET_REPOSITORY}}", REPOSITORY_URL],
     ["{{GHOSTGET_SKILLS}}", SKILLS_URL],
     ["{{GHOSTGET_SKILL_INSTALL_ASSET}}", options.skillInstallAsset],
-    ["{{GHOSTGET_FIELD_ASSET}}", options.fieldAsset],
     ["{{GHOSTGET_SKILL_INSTALL_COMMAND}}", skillInstallCommands.npx],
     ["{{GHOSTGET_SKILL_INSTALL_COMMAND_BUNX}}", skillInstallCommands.bunx],
     ["{{GHOSTGET_VERSION}}", identity.version],
@@ -1214,7 +1208,6 @@ export async function buildWebsite(
   environment: Readonly<Record<string, string | undefined>> = process.env,
 ): Promise<void> {
   const marketingPreset = await snapshotMarketingPreset(join(repositoryRoot, "website/vendor/marketing-preset"));
-  const lanternMaterial = await snapshotLanternMaterial(join(repositoryRoot, "website/vendor/lantern-material"));
   const [
     manifest,
     publicTemplates,
@@ -1281,7 +1274,6 @@ export async function buildWebsite(
         join(sourceRoot, "analytics.ts"),
         join(sourceRoot, "skill-install-command.ts"),
         join(sourceRoot, "foil.ts"),
-        join(sourceRoot, "ghostget-field.ts"),
         join(sourceRoot, "appearance.ts"),
         join(sourceRoot, "status-page.ts"),
       ],
@@ -1302,7 +1294,7 @@ export async function buildWebsite(
   );
   const webmcpIndexValues = webmcpIndexTemplateValues(webmcpSnapshot);
   const allPages: readonly PublicPage[] = [...PUBLIC_PAGES, ...webmcpPages];
-  if (!browserBuild.success || browserBuild.outputs.length !== 6) {
+  if (!browserBuild.success || browserBuild.outputs.length !== 5) {
     const messages = browserBuild.logs.map((log) => log.message).join("\n");
     throw new Error(`Browser script build failed: ${messages || "no browser output"}`);
   }
@@ -1315,7 +1307,6 @@ export async function buildWebsite(
   const analytics = new Uint8Array(await scriptAsset("analytics"));
   const skillInstall = new Uint8Array(await scriptAsset("skill-install-command"));
   const foil = new Uint8Array(await scriptAsset("foil"));
-  const field = new Uint8Array(await scriptAsset("ghostget-field"));
   const statusPage = new Uint8Array(await scriptAsset("status-page"));
   // The blocking head script is a classic script: wrap the shared ESM output in
   // one strict-mode IIFE so it never leaks a top-level binding.
@@ -1329,16 +1320,12 @@ export async function buildWebsite(
   const postHog = postHogEnvironment(environment);
   // The UI facade establishes its complete layer order before the static
   // marketing grammar and footer. Product tokens and composition follow them.
-  const lanternCss = lanternMaterial.files.get("lantern-material.css");
-  const lanternLicense = lanternMaterial.files.get("LICENSE");
-  if (lanternCss === undefined || lanternLicense === undefined) throw new Error("The complete Lantern build snapshot is required.");
-  const compiledCss = `${uiCss}\n\n${designKitFontsCss.trim()}\n\n${designKitTypographyCss.trim()}\n\n${designKitProductMarketingCss.trim()}\n\n${designKitPlainSiteCss.trim()}\n\n${designKitPlainPublicationCss.trim()}\n\n${designKitStatusPageCss.trim()}\n\n${hranessSiteFooterCss.trim()}\n\n${paperThemeCss.trim()}\n\n${paletteSystemCss.trim()}\n\n${paletteBridgeCss.replace('@import "./palette-system.css";', "").trim()}\n\n${appearanceCss.trim()}\n\n${css.trimEnd()}\n\n${marketingPreset.files.get("product-marketing-preset.css")!.toString("utf8")}\n\n${lanternCss.toString("utf8")}\n`;
+  const compiledCss = `${uiCss}\n\n${designKitFontsCss.trim()}\n\n${designKitTypographyCss.trim()}\n\n${designKitProductMarketingCss.trim()}\n\n${designKitPlainSiteCss.trim()}\n\n${designKitPlainPublicationCss.trim()}\n\n${designKitStatusPageCss.trim()}\n\n${hranessSiteFooterCss.trim()}\n\n${paperThemeCss.trim()}\n\n${paletteSystemCss.trim()}\n\n${paletteBridgeCss.replace('@import "./palette-system.css";', "").trim()}\n\n${appearanceCss.trim()}\n\n${css.trimEnd()}\n\n${marketingPreset.files.get("product-marketing-preset.css")!.toString("utf8")}\n`;
   const cssAsset = `/assets/styles-${contentHash(compiledCss)}.css`;
   const analyticsAsset = `/assets/analytics-${contentHash(analytics)}.js`;
   const appearanceAsset = `/assets/appearance-${contentHash(appearance)}.js`;
   const skillInstallAsset = `/assets/skill-install-${contentHash(skillInstall)}.js`;
   const foilAsset = `/assets/foil-${contentHash(foil)}.js`;
-  const fieldAsset = `/assets/field-${contentHash(field)}.js`;
   const statusPageAsset = `/assets/status-page-${contentHash(statusPage)}.js`;
   const providerDirectory = createProviderDirectory(attestation);
   const beeperFacts = createBeeperPresentationFacts(providerDirectory);
@@ -1365,8 +1352,6 @@ export async function buildWebsite(
     providerAttestationGroups: renderProviderAttestationGroups(providerDirectory, attestation),
     providerDirectory,
     providerOverviewCards: renderProviderOverviewCards(providerDirectory),
-    fieldAsset,
-    ghostgetField: renderGhostgetField(),
     skillInstallAsset,
     webmcpValues: (canonicalPath: string) => {
       const shared = webmcpSharedTemplateValues(webmcpSnapshot);
@@ -1382,9 +1367,6 @@ export async function buildWebsite(
   await rm(outputRoot, { force: true, recursive: true });
   await mkdir(join(outputRoot, "assets"), { recursive: true });
   await mkdir(join(outputRoot, "preview"), { recursive: true });
-  await mkdir(join(outputRoot, "assets/lantern-material"), { recursive: true });
-  await writeFile(join(outputRoot, "assets/lantern-material/LICENSE"), lanternLicense);
-  await writeFile(join(outputRoot, "assets/lantern-material/provenance.json"), `${JSON.stringify(lanternMaterial.manifest, null, 2)}\n`);
   for (const [path, bytes] of marketingPreset.files) {
     if (path === "product-marketing-preset.css" || path === "check.mjs" || path === "check.d.mts") continue;
     const publicPath = path === "LICENSE" ? "marketing-assets/LICENSE" : path;
@@ -1450,7 +1432,6 @@ export async function buildWebsite(
     writeFile(join(outputRoot, appearanceAsset.slice(1)), appearance),
     writeFile(join(outputRoot, skillInstallAsset.slice(1)), skillInstall),
     writeFile(join(outputRoot, foilAsset.slice(1)), foil),
-    writeFile(join(outputRoot, fieldAsset.slice(1)), field),
     writeFile(join(outputRoot, statusPageAsset.slice(1)), statusPage),
     writeFile(
       join(outputRoot, "robots.txt"),

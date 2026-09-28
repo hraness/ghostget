@@ -375,14 +375,13 @@ async function runExpectingFailure(
   forbiddenDiagnostics: readonly string[] = [],
   env?: Readonly<Record<string, string>>,
 ): Promise<void> {
-  const child = Bun.spawn(command, env === undefined
-    ? { cwd, stdout: "pipe", stderr: "pipe" }
-    : {
-        cwd,
-        env: { ...globalThis.process.env, ...env },
-        stdout: "pipe",
-        stderr: "pipe",
-      });
+  // These assertions cover human stderr diagnostics even under an agent host.
+  const child = Bun.spawn(command, {
+    cwd,
+    env: { ...globalThis.process.env, ...env, HRANESS_AUDIENCE: "human" },
+    stdout: "pipe",
+    stderr: "pipe",
+  });
   const [exitCode, stdout, stderr] = await Promise.all([
     child.exited,
     new Response(child.stdout).text(),
@@ -815,7 +814,9 @@ try {
     "--binary",
     missingReviewedImsg,
     "--json",
-  ], consumer, 3, "imsg", [
+  ], consumer, 3, process.platform === "darwin" && process.arch === "arm64"
+    ? "Imsg install source file does not exist."
+    : "imsg", [
     missingReviewedImsg,
     "private-missing-reviewed-imsg-canary",
   ], { GHOSTGET_STATE_HOME: imsgInstallerState });
