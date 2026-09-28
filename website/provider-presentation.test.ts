@@ -20,6 +20,16 @@ import {
 const repositoryRoot = resolve(import.meta.dir, "..");
 
 describe("provider presentation", () => {
+  test("keeps Microsoft Graph candidates out of available provider cards", async () => {
+    const attestation = await loadProviderCapabilityAttestation(repositoryRoot);
+    const rows = attestation.rows.filter((row) => row.surfaceId === "microsoft-graph");
+    expect(rows).toHaveLength(2);
+    expect(rows.every((row) => row.completeness === "capture-required")).toBeTrue();
+    const directory = createProviderDirectory(attestation);
+    expect(directory.entries.some((entry) => entry.surfaceId === "microsoft-graph")).toBeFalse();
+    expect(renderProviderOverviewCards(directory)).not.toContain("Microsoft Graph");
+  });
+
   test("groups the release attestation into exact public surfaces", async () => {
     const attestation = await loadProviderCapabilityAttestation(repositoryRoot);
     const directory = createProviderDirectory(attestation);
