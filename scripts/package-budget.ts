@@ -2094,14 +2094,25 @@
 // Retain the same platform projections and allowances:
 // 12,125,761 + 12,387 + 4,096 = 12,142,244 packed;
 // 23,940,938 + 353 + 65 = 23,941,356 unpacked.
+//
+// The 0.18.46 release carries the `ghostget` support handoff id (#450),
+// bumps the version pins, adds its changelog section over merged main
+// 95c6a2c, and rebuilds the version chunk; no adapter file changes. After
+// `bun run build`, a clean npm 11.19.0 pack --ignore-scripts with Node
+// 24.18.1 on darwin arm64 measured 618 entries, 12,125,923 packed bytes,
+// and 23,941,366 unpacked bytes; archive SHA-256
+// 25cfe9120e4cf43087a79e5bf302cb0683719a7db8267ed97503e75da5883185.
+// Retain the same platform projections and allowances:
+// 12,125,923 + 12,387 + 4,096 = 12,142,406 packed;
+// 23,941,366 + 353 + 65 = 23,941,784 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget 0.18.45 release over merged main 2ed33bb",
+  scope: "Ghostget 0.18.46 release over merged main 95c6a2c",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "0d6a1de00fd825d700b1ed0505b6fa34992f11d1deb42a5c255f7cfc295eedbc",
-  packedBytes: 12_125_761,
-  unpackedBytes: 23_940_938,
+  archiveSha256: "25cfe9120e4cf43087a79e5bf302cb0683719a7db8267ed97503e75da5883185",
+  packedBytes: 12_125_923,
+  unpackedBytes: 23_941_366,
   entryCount: 618,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

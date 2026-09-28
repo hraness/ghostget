@@ -1,5 +1,5 @@
 // @bun
 // src/version.ts
-var GHOSTGET_VERSION = "0.18.45";
+var GHOSTGET_VERSION = "0.18.46";
 
 export { GHOSTGET_VERSION };
