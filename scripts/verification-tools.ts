@@ -224,12 +224,13 @@ export const QUINT_TRACE_TIMEOUT_MS = 150_000;
  * The bound on one Apalache check. With `QUINT_CONCURRENCY` two checker jobs
  * share the runner's four vCPUs, so a check that finishes in about ten
  * minutes alone can need roughly twice that when a second Apalache or a
- * `bun test` replay runs beside it. The bound fails an actually stuck check,
- * not one that is merely sharing the runner.
+ * `bun test` replay runs beside it. The fence check passed in 18m23s, then
+ * hit the old 20-minute limit on three merged-source runs; the latest reached
+ * its final-state checks. Reserve headroom without changing any proof bounds.
+ * A timeout still fails the check.
  */
-const APALACHE_TIMEOUT_MS = 20 * 60_000;
-// Nightly runs sit outside the 50-minute CI verification step, so each deeper
-// checker run gets its own larger bound. A timeout still fails the run.
+export const APALACHE_TIMEOUT_MS = 25 * 60_000;
+// Deeper nightly checks retain their separate larger bounds.
 const NIGHTLY_QUINT_TIMEOUT_MS = 30 * 60_000;
 const NIGHTLY_APALACHE_TIMEOUT_MS = 60 * 60_000;
 /**
