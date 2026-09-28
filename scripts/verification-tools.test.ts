@@ -30,6 +30,7 @@ import { join, relative } from "node:path";
 import { assertAsyncProperty, assertProperty, fc } from "../src/test-support.js";
 import {
   APALACHE,
+  APALACHE_TIMEOUT_MS,
   ELAN,
   FORBIDDEN_AXIOMS,
   JDK,
@@ -288,6 +289,22 @@ describe("verification CI job", () => {
     expect(rust.run).toContain(`test "$(cargo --version | cut -d ' ' -f 2)" = "${RUST_ORACLE.toolchain}"`);
     expect(verify).toBe(install + 3);
     expect(source).not.toContain("setup-java");
+  });
+
+  test("reserves replay and artifact time outside each bounded Apalache check", async () => {
+    const workflow = Bun.YAML.parse(await workflowSource()) as Workflow;
+    const job = workflow.jobs.quint;
+    if (job === undefined) throw new Error("ci.yml has no quint job");
+    const checks = job.steps.filter(step => step.run?.startsWith("bun run ./scripts/verification-tools.ts quint "));
+    expect(checks).toHaveLength(1);
+    const stepMinutes = checks[0]!["timeout-minutes"]!;
+    const jobMinutes = job["timeout-minutes"]!;
+    // The observed passing shard needed over eleven minutes beyond its
+    // 18m23s fence check. Keep room for the other models, mutants, and replay.
+    expect(stepMinutes).toBeGreaterThanOrEqual(APALACHE_TIMEOUT_MS / 60_000 + 15);
+    expect(stepMinutes).toBeLessThanOrEqual(40);
+    expect(jobMinutes).toBeGreaterThanOrEqual(stepMinutes + 5);
+    expect(jobMinutes).toBeLessThanOrEqual(45);
   });
 
   test("runs the non-Quint verify phases once each, bounded, without credentials, and retains sanitized logs", async () => {

@@ -187,6 +187,16 @@ and repair checks. Independently review workflow, discovery, command, deadline,
 and platform changes against the prior required coverage; edited coverage
 assertions alone cannot certify a weakened workflow.
 
+CI bounds each Apalache check to 25 minutes, each Quint shard step to 40 minutes,
+and its job to 45 minutes. This preserves time for the remaining model checks,
+mutants, replay, setup, and diagnostic upload. The September 27, 2026
+[passing source run](https://github.com/hraness/ghostget/actions/runs/36354106391)
+took 18 minutes 23 seconds for `fenceSafety` and 29 minutes 38 seconds for its
+whole shard; three subsequent merged-source runs exhausted the former
+20-minute checker ceiling, the latest during final-state checks. The larger
+ceilings retain every model, depth, seed, invariant, and mutant. A timeout remains a failed gate;
+release admission still requires success for the current source candidate.
+
 Before cleanup, make sure no chat or shell is using the worktree and commit or
 otherwise preserve wanted changes. Then remove the exact worktree through Git,
 delete its branch only after Git accepts the removal, and prune stale metadata:
