@@ -89,7 +89,15 @@ export async function createMessagingAutomationSession(options: MessagingAutomat
         })().finally(() => { finishing = undefined; });
         return finishing;
       };
-      const execution = { environment: options.environment, registerCleanupBarrier };
+      // A long-lived provider helper keeps its cleanup barrier open for its
+      // whole life, so custody stays held while any helper is retained and is
+      // finished only once the last one settles with no call in flight.
+      let retained = 0;
+      const retainCustody = (held: boolean): void => {
+        retained = Math.max(0, retained + (held ? 1 : -1));
+        if (!held && retained === 0 && activeCalls === 0 && !persistent) void finishCustody().catch(() => undefined);
+      };
+      const execution = { environment: options.environment, registerCleanupBarrier, retainCustody };
       const binding = options.registry.requireOperationDefinition(selected.provider === "whatsapp" ? "linked-device" : "local-cli", selected.provider, "messaging.automation.read", 1).binding;
       const concrete: Concrete = await loadProviderPluginExtensionRuntime(binding.loadRuntime, async () => selected.provider === "imessage"
         ? (await loadImsgAutomationRuntime()).createImsgAutomationProvider({ authorize, execution, resolveAsset: options.resolveAsset })
@@ -104,7 +112,7 @@ export async function createMessagingAutomationSession(options: MessagingAutomat
         // the provider still reuse it, and it is released only once the last
         // active call settles — never underneath a sibling's operation.
         activeCalls++;
-        try { return await work(); } finally { if (--activeCalls === 0 && !persistent) await finishCustody(); }
+        try { return await work(); } finally { if (--activeCalls === 0 && !persistent && retained === 0) await finishCustody(); }
       };
       // Each description reads private state through isolated helper
       // processes, so the action report takes one admitted snapshot for every

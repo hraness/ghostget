@@ -1983,15 +1983,25 @@
 // Retain the same platform projections and portability allowances:
 // 12,099,048 + 12,387 + 4,096 = 12,115,531 packed;
 // 23,798,398 + 353 + 65 = 23,798,816 unpacked.
+//
+// The persistent automation helpers add the iMessage automation session, the
+// synchronous persistent state-helper bridge, the state helper's serve mode and
+// rebuilt dist chunks, and ships the bridge as one new packed file. After
+// `bun run build`, a clean npm 11.19.0 pack --ignore-scripts with Node 24.18.1
+// on darwin arm64 measured 616 entries, 12,109,347 packed bytes and 23,840,831
+// unpacked bytes; archive SHA-256
+// cb84d130337d9f5efb520d78592c0047b67c75de2a1677633bea25064a06e46b.
+// Carry the same projections and allowances: 12,109,347 + 12,387 + 4,096 =
+// 12,125,830 packed; 23,840,831 + 353 + 65 = 23,841,249 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Disabled Microsoft Graph contact/calendar candidates over Ghostget 0.18.43 main 93a80a6",
+  scope: "Persistent iMessage automation session and persistent state helpers over main 9f2dd16",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "0f0aa0a6313132ac00477496792563879b902c16b786d86d88ae74843c93afed",
-  packedBytes: 12_099_048,
-  unpackedBytes: 23_798_398,
-  entryCount: 615,
+  archiveSha256: "cb84d130337d9f5efb520d78592c0047b67c75de2a1677633bea25064a06e46b",
+  packedBytes: 12_109_347,
+  unpackedBytes: 23_840_831,
+  entryCount: 616,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,
