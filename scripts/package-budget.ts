@@ -2025,25 +2025,32 @@
 // Retain the same platform projections and portability allowances:
 // 12,122,080 + 12,387 + 4,096 = 12,138,563 packed;
 // 23,930,250 + 353 + 65 = 23,930,668 unpacked.
+// The 0.18.44 release bumps the version pins, adds its changelog section and
+// rebuilds dist over merged main 8d14662. After `bun run build`, a clean npm
+// 11.19.0 pack --ignore-scripts with Node 24.18.1 on darwin arm64 measured
+// 618 entries, 12,122,574 packed bytes and 23,931,644 unpacked bytes; archive
+// SHA-256
+// 7a0cc5855e8fbe6a1632195c6b85356df29a0ab4bd8a3719324aae9c70562d71.
+// Carry the same projections and allowances: 12,122,574 + 12,387 + 4,096 =
+// 12,139,057 packed; 23,931,644 + 353 + 65 = 23,932,062 unpacked.
 //
-// The read-only dated messaging history window over main 8d14662 adds the
+// The read-only dated messaging history window over main 53a1592 adds the
 // `history.window` host method, iMessage start/end forwarding, and explicit
 // WhatsApp and Beeper refusals without new packed files. After `bun run build`,
 // a clean npm 11.19.0 pack --ignore-scripts with Node 24.18.1 on darwin arm64
-// measured 618 entries, 12,124,192 packed bytes and 23,935,845 unpacked bytes;
+// measured 618 entries, 12,124,686 packed bytes and 23,937,025 unpacked bytes;
 // archive SHA-256
-// 9d20800db0593faa30a7962c6ceafb332929eb5a7e6d81489b883d2157714b6c.
-// Retain the same platform projections and portability allowances:
-// 12,124,192 + 12,387 + 4,096 = 12,140,675 packed;
-// 23,935,845 + 353 + 65 = 23,936,263 unpacked.
+// 91073eb4b08aa5900ce3d8becc42d4a539fb278dd2fece5da50b7116def2ce3f.
+// Carry the same projections and allowances: 12,124,686 + 12,387 + 4,096 =
+// 12,141,169 packed; 23,937,025 + 353 + 65 = 23,937,443 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Read-only dated messaging history window over main 8d14662",
+  scope: "Read-only dated messaging history window over main 53a1592",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "9d20800db0593faa30a7962c6ceafb332929eb5a7e6d81489b883d2157714b6c",
-  packedBytes: 12_124_192,
-  unpackedBytes: 23_935_845,
+  archiveSha256: "91073eb4b08aa5900ce3d8becc42d4a539fb278dd2fece5da50b7116def2ce3f",
+  packedBytes: 12_124_686,
+  unpackedBytes: 23_937_025,
   entryCount: 618,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
