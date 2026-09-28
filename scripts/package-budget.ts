@@ -1999,18 +1999,18 @@
 // contracts, runtime, durable identity, subscriber reference, and rebuilt dist
 // chunks over merged main 31ef3fd. After `bun run build`, a clean npm 11.19.0
 // pack --ignore-scripts with Node 24.18.1 on darwin arm64 measured 617
-// entries, 12,115,122 packed bytes and 23,881,446 unpacked bytes; archive
-// SHA-256 00c7a9bee29bc0ba7e96dab425491fb6e0ffee7b04d8cf4e86ba24b59563e157.
-// Carry the same projections and allowances: 12,115,122 + 12,387 + 4,096 =
-// 12,131,605 packed; 23,881,446 + 353 + 65 = 23,881,864 unpacked.
+// entries, 12,115,136 packed bytes and 23,881,501 unpacked bytes; archive
+// SHA-256 e5649b15a868b96168b019698737784835d5a75a2736ed904cd041080d1255e0.
+// Carry the same projections and allowances: 12,115,136 + 12,387 + 4,096 =
+// 12,131,619 packed; 23,881,501 + 353 + 65 = 23,881,919 unpacked.
 export const repairPackageMeasurement = Object.freeze({
   scope: "Substack subscriber read promotion and gated one-address import over main 31ef3fd",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "00c7a9bee29bc0ba7e96dab425491fb6e0ffee7b04d8cf4e86ba24b59563e157",
-  packedBytes: 12_115_122,
-  unpackedBytes: 23_881_446,
+  archiveSha256: "e5649b15a868b96168b019698737784835d5a75a2736ed904cd041080d1255e0",
+  packedBytes: 12_115_136,
+  unpackedBytes: 23_881_501,
   entryCount: 617,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

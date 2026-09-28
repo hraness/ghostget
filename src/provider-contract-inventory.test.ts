@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
 import { describe, expect, test } from "bun:test";
 
 const predecessorDefaultInventorySha256 =
-  "7eee27b37f079bfcf8941e2f2399d7df68d52399f858b6622e2b83538374896c";
+  "3cb6cdcd15f24b72a1da2695db7bf5ee6ea207e017cbeac99f1dddff7da20ad3";
 const predecessorLegacyInventorySha256 = [
   "4abf50326edbc8c8294a2056a08fc7ab2fd038d2d798708b77e29df98c2a86d0",
   "112cb715f1466ed5eb29cf97116151ae8b6a56aeb8aa9c08ed26ebadd47b86be",
@@ -301,7 +301,7 @@ describe("durable provider contract inventory", () => {
         rows: 324,
         sha256: predecessorDefaultInventorySha256,
         currentOnlyRows: 83,
-        currentOnlySha256: "869c31232e778601a4c9627778715fb02552a86bbd7081a750c01b8728ee6266",
+        currentOnlySha256: "819e2cc5d70dfda85183fe9a5555690ad2f2312cfe4caee010a2ff9f1ca3afcd",
         automationRows: [
           ["linked-device", "whatsapp", "messaging.automation.read", 1],
           ["linked-device", "whatsapp", "messaging.automation.send.attachment", 1],
