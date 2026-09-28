@@ -1994,23 +1994,34 @@
 // Carry the same projections and allowances: 12,109,347 + 12,387 + 4,096 =
 // 12,125,830 packed; 23,840,831 + 353 + 65 = 23,841,249 unpacked.
 //
-// The Substack subscriber promotion ships the retained substack-web 1.8.0
-// adapter snapshot as one new packed file and grows the Substack adapter,
-// contracts, runtime, durable identity, subscriber reference, and rebuilt dist
-// chunks over merged main 31ef3fd. After `bun run build`, a clean npm 11.19.0
-// pack --ignore-scripts with Node 24.18.1 on darwin arm64 measured 617
-// entries, 12,115,136 packed bytes and 23,881,501 unpacked bytes; archive
-// SHA-256 e5649b15a868b96168b019698737784835d5a75a2736ed904cd041080d1255e0.
-// Carry the same projections and allowances: 12,115,136 + 12,387 + 4,096 =
-// 12,131,619 packed; 23,881,501 + 353 + 65 = 23,881,919 unpacked.
+// The disabled Substack subscriber export v2 candidate over merged main
+// 9f2dd16 adds the retained 1.8.0 adapter snapshot and updates the bounded
+// parser, account/publication binding, encrypted pagination, contract identity,
+// and reference: one additional packed file. After `bun run build`, a clean
+// npm 11.19.0 pack --ignore-scripts with Node 24.18.1 on darwin arm64 measured
+// 616 entries, 12,104,883 packed bytes and 23,845,115 unpacked bytes; archive
+// SHA-256 90ef33da70559db4674510c401466fe74a240967f8d719a4cfb3f9e012af4227.
+// Retain the same platform projections and portability allowances:
+// 12,104,883 + 12,387 + 4,096 = 12,121,366 packed;
+// 23,845,115 + 353 + 65 = 23,845,533 unpacked.
+//
+// The disabled Substack subscriber export v2 candidate over merged main
+// 31ef3fd combines the retained 1.8.0 adapter snapshot and export updates with
+// the persistent helper bridge: 617 packed files. After `bun run build`, a
+// clean npm 11.19.0 pack --ignore-scripts with Node 24.18.1 on darwin arm64
+// measured 12,116,353 packed bytes and 23,887,548 unpacked bytes; archive
+// SHA-256 00ead58f3e0268855e0face59da2460faa723c68c18e19542c37fd891cd4431f.
+// Retain the same platform projections and portability allowances:
+// 12,116,353 + 12,387 + 4,096 = 12,132,836 packed;
+// 23,887,548 + 353 + 65 = 23,887,966 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Substack subscriber read promotion and gated one-address import over main 31ef3fd",
+  scope: "Disabled Substack subscriber export v2 over persistent helpers and formal headroom on main 31ef3fd",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "e5649b15a868b96168b019698737784835d5a75a2736ed904cd041080d1255e0",
-  packedBytes: 12_115_136,
-  unpackedBytes: 23_881_501,
+  archiveSha256: "00ead58f3e0268855e0face59da2460faa723c68c18e19542c37fd891cd4431f",
+  packedBytes: 12_116_353,
+  unpackedBytes: 23_887_548,
   entryCount: 617,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

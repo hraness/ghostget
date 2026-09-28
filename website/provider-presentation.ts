@@ -194,7 +194,6 @@ function capabilityLabel(operation: string): string {
     case "relationships": return "Relationships";
     case "replies": return "Replies";
     case "sites": return "Registry sites";
-    case "subscribers": return "Subscribers";
     case "threads": return "Threads";
     case "tools": return "Registry tools";
     default: throw new Error(`provider operation ${operation} has no public capability label`);
@@ -544,8 +543,6 @@ const operationTitleOverrides: Readonly<Record<string, string>> = Object.freeze(
   "relationships.recommendations.read": "Read account recommendations",
   "sites.get": "Read one registry site",
   "sites.search": "Search registry sites",
-  "subscribers.export": "Export subscribers",
-  "subscribers.import.status": "Read subscriber import status",
   "tools.call": "Call a read-only site tool",
 });
 

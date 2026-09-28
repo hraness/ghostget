@@ -933,7 +933,7 @@
       }
     },
     "subscribers.export": {
-      "description": "Observed contract: read one bounded, overlapping page of an exact viewer-owned Substack publication's subscribers, projected to email, subscription type, subscribed time, and sections with a publication- and total-bound cursor.",
+      "description": "Capture-required contract reservation: read one page of up to 50 subscribers from the selected viewer-owned Substack publication, projected to email, subscription type, and subscribed time. An encrypted account- and publication-bound cursor limits each chain to 500 rows; complete is always false, and stopReason distinguishes page exhaustion from the row limit.",
       "risk": "R1",
       "sideEffect": "none",
       "idempotency": "none",
@@ -942,46 +942,47 @@
         "properties": {
           "cursor": {
             "type": "string",
-            "description": "Opaque cursor returned by the previous subscribers.export page; omit for the first page",
+            "description": "Opaque encrypted cursor returned by the previous subscribers.export page; omit for the first page",
             "minLength": 1,
-            "maxLength": 64
+            "maxLength": 8192
           },
           "limit": {
             "type": "number",
             "description": "Maximum subscribers on this page",
             "minimum": 1,
-            "maximum": 100
+            "maximum": 50
           },
-          "publication_origin": {
+          "publication": {
             "type": "string",
-            "description": "Exact owned publication origin; required when the viewer owns several publications",
+            "description": "Canonical lowercase Substack publication handle to select from the bound viewer dashboard",
             "minLength": 1,
-            "maxLength": 256
+            "maxLength": 63
           }
         },
         "required": [
+          "publication",
           "limit"
         ]
       },
       "webSession": {
         "site": "substack",
         "action": "subscribers.export",
-        "contractVersion": 1,
+        "contractVersion": 2,
         "timeoutMs": 60000,
         "maxOutputBytes": 8388608
       }
     },
     "subscribers.import": {
-      "description": "Capture-required contract reservation: add exactly one address to an exact viewer-owned Substack publication with the welcome email disabled; new-add readback and reconciliation are not yet qualified.",
+      "description": "Capture-required contract reservation: import 1 to 25 unique normalized email addresses into the bootstrap-bound sole viewer-owned Substack publication with the welcome email disabled, freezing one operation identity before a single at-most-once dispatch.",
       "risk": "R3",
-      "sideEffect": "Adds one explicitly listed email address as a subscriber of the exact bound viewer-owned Substack publication without sending a welcome email.",
+      "sideEffect": "Adds up to 25 explicitly listed email addresses as subscribers of the exact bound viewer-owned Substack publication without sending a welcome email.",
       "idempotency": "local-at-most-once",
       "dedupeWindowMs": 86400000,
       "input": {
         "properties": {
           "emails": {
             "type": "array",
-            "description": "Exactly one normalized lowercase email address to add",
+            "description": "Unique normalized lowercase email addresses to import",
             "items": {
               "type": "string",
               "description": "One normalized lowercase email address",
@@ -989,7 +990,7 @@
               "maxLength": 254
             },
             "minItems": 1,
-            "maxItems": 1
+            "maxItems": 25
           },
           "send_welcome_email": {
             "type": "boolean",
@@ -997,18 +998,11 @@
             "enum": [
               false
             ]
-          },
-          "publication_origin": {
-            "type": "string",
-            "description": "Exact viewer-owned publication origin",
-            "minLength": 1,
-            "maxLength": 256
           }
         },
         "required": [
           "emails",
-          "send_welcome_email",
-          "publication_origin"
+          "send_welcome_email"
         ]
       },
       "webSession": {
@@ -1020,20 +1014,13 @@
       }
     },
     "subscribers.import.status": {
-      "description": "Observed contract: read the exact latest file-import status counts of an exact viewer-owned Substack publication.",
+      "description": "Capture-required contract reservation: read the exact latest subscriber-import status counts of the bootstrap-bound sole viewer-owned Substack publication.",
       "risk": "R1",
       "sideEffect": "none",
       "idempotency": "none",
       "dedupeWindowMs": 0,
       "input": {
-        "properties": {
-          "publication_origin": {
-            "type": "string",
-            "description": "Exact owned publication origin; required when the viewer owns several publications",
-            "minLength": 1,
-            "maxLength": 256
-          }
-        },
+        "properties": {},
         "required": []
       },
       "webSession": {

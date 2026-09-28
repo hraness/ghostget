@@ -85,6 +85,39 @@ const REDDIT_1_3_BINDING_ROUTE_COORDINATES = Object.freeze([
   "relationships.follow.set@1", "replies.create@1",
 ].map((route) => `web-session-api:reddit/${route}`));
 
+// Preserve the exact pre-v2 receipt routes without authorizing any predecessor
+// distribution as a reader for the new subscribers.export@2 contract.
+const SUBSTACK_1_4_BINDING_ROUTE_COORDINATES = Object.freeze([
+  "articles.publish@1",
+  "articles.read@1",
+  "comments.create@1",
+  "comments.read@1",
+  "content.delete@1",
+  "content.edit@1",
+  "content.save@1",
+  "content.schedule@1",
+  "content.share@1",
+  "feeds.read@1",
+  "likes.set@1",
+  "media.publish@1",
+  "media.read@1",
+  "messaging.list@1",
+  "messaging.read@1",
+  "messaging.send@1",
+  "organizations.read@1",
+  "posts.publish@2",
+  "posts.publish@3",
+  "posts.quote@1",
+  "posts.read@1",
+  "posts.repost@1",
+  "profiles.read@1",
+  "relationships.follow.set@1",
+  "replies.create@1",
+  "subscribers.export@1",
+  "subscribers.import.status@1",
+  "subscribers.import@1",
+].map((route) => `web-session-api:substack/${route}`));
+
 const identities = Object.freeze({
   "microsoft-graph-official": {
     schemaVersion: 1,
@@ -398,26 +431,25 @@ const identities = Object.freeze({
   "substack-web": {
     schemaVersion: 1,
     pluginVersion: "1.5.0",
-    implementationSha256: "bdd877725ebdc17df9d1ecba5721f7ba2381e21f465bbd98cb5007a3b9b1d6dc",
-    legacyCurrentReadImplementationSha256: [
+    implementationSha256: "7e12bbfffb9629b9195b98fc42394d6c5163ae3e2efa8063a1086ff1cc3dde1b",
+    legacyCurrentReadImplementationSha256: [],
+    legacyDistributionReadImplementationSha256: [
       "58438f60cf9b2d2db9363cb7dece0c6ca56e60c2178fe4bcbd60c844fc8893ba",
       "3dfe5b506cef46b6534c7abd195a98df0a825a321bd0690eddae674e4592c041",
       "d35dda6043e224f4a2d6305a4a6aac9f05bef37ecfbfd087973394cdbe0c6811",
       "2062f7c39c75ce286f26e7bd513871e5cbc2b62e2408d20df28af906f8ad5012",
       "e4ba73882eb3f5bf489c88861cdd1fedd790a55af027e03ff5a07b526b8f0f5f",
       "96a992faae17420dc2ec74c9d22903bb7973f69d3f0de198800d357480651269",
-    ],
-    legacyReadImplementationSha256: {
-      test: "99fc0287f9445b0e4d692e39201ebb8b9e9bb86308c9619c20e3bff83655243d",
-      production: "fb58ac6ba745b2dc4dc176e8e3b7f4d3362cd8026d3e00557f72342b76b7c519",
-      development: "58c2b588db7154883a154d05194cde62ff19b8e14045d10f854aacc9a4433e73",
-    },
-    legacyE71ReadImplementationSha256: {
-      default: "4fbfe4ae9638728c1ce48c15e0c8b2343a39c372ab01d8b5f6a75665af0df040",
-      test: "99fc0287f9445b0e4d692e39201ebb8b9e9bb86308c9619c20e3bff83655243d",
-      production: "fb58ac6ba745b2dc4dc176e8e3b7f4d3362cd8026d3e00557f72342b76b7c519",
-      development: "58c2b588db7154883a154d05194cde62ff19b8e14045d10f854aacc9a4433e73",
-    },
+      "99fc0287f9445b0e4d692e39201ebb8b9e9bb86308c9619c20e3bff83655243d",
+      "fb58ac6ba745b2dc4dc176e8e3b7f4d3362cd8026d3e00557f72342b76b7c519",
+      "58c2b588db7154883a154d05194cde62ff19b8e14045d10f854aacc9a4433e73",
+      "4fbfe4ae9638728c1ce48c15e0c8b2343a39c372ab01d8b5f6a75665af0df040",
+    ].map((implementationSha256) => ({
+      implementationSha256,
+      routes: SUBSTACK_1_4_BINDING_ROUTE_COORDINATES,
+    })),
+    legacyReadImplementationSha256: null,
+    legacyE71ReadImplementationSha256: null,
   },
   "tiktok-web": {
     schemaVersion: 1,

@@ -7,6 +7,8 @@
  * payload as a semantic input.
  */
 
+import { createHash } from "node:crypto";
+
 export const SUBSTACK_WEB_OPERATION_NAMES = Object.freeze([
   "articles.publish",
   "articles.read",
@@ -189,16 +191,18 @@ export const SUBSTACK_WEB_OPERATIONS = Object.freeze({
     "first-party-bundle",
     "scheduled publication needs an exact viewer-owned publication, time zone, audience, notification, and returned-draft binding",
   ),
-  "subscribers.export": observedRead(
-    "live owned-publication POST /api/v1/subscriber-stats with includeTags, a 100-row ceiling, ten-row overlap, and a complete 373-address unique census",
+  "subscribers.export": captureRequiredRead(
+    "none",
+    "owned-publication subscriber export v2 uses a bounded dashboard request and authenticated continuation; account-bound live pagination evidence remains under review before execution",
   ),
   "subscribers.import": captureRequired(
     "R3",
     "none",
-    "Chrome observed one-address POST /api/v1/subscriber/add with sendEmail: false, but the address was already subscribed and the file-import status is unrelated; a new-add readback and reconciliation rule remain unproven",
+    "owned-publication subscriber import needs an authorized first-party capture of the exact add-subscribers request, welcome-email suppression field, acceptance response, and import-status effect before any dispatch",
   ),
-  "subscribers.import.status": observedRead(
-    "live owned-publication GET /api/v1/import/instances with nested latestImportResult counts",
+  "subscribers.import.status": captureRequiredRead(
+    "none",
+    "owned-publication GET /api/v1/import status projection is implemented from secondary documentation only and needs one authorized live read before execution",
   ),
 } as const satisfies Readonly<Record<SubstackWebOperationName, SubstackWebOperationContract>>);
 
@@ -486,30 +490,18 @@ export function normalizeSubstackPublicationStatsResponse(
   });
 }
 
-export const SUBSTACK_SUBSCRIBER_EXPORT_MAX_LIMIT = 100;
-export const SUBSTACK_SUBSCRIBER_IMPORT_MAX_EMAILS = 1;
+export const SUBSTACK_SUBSCRIBER_EXPORT_MAX_LIMIT = 50;
+export const SUBSTACK_SUBSCRIBER_EXPORT_MAX_ROWS = 500;
+export const SUBSTACK_SUBSCRIBER_IMPORT_MAX_EMAILS = 25;
 const MAX_SUBSCRIBER_EMAIL_LENGTH = 254;
 const MAX_SUBSCRIBER_EMAIL_LOCAL_LENGTH = 64;
-const MAX_SUBSCRIBER_SECTIONS = 64;
-const MAX_SUBSCRIBER_SECTION_NAME_LENGTH = 256;
 const MAX_SUBSCRIBER_TOTAL = 100_000_000;
-const SUBSTACK_SUBSCRIBER_CURSOR_PATTERN =
-  /^ss1\.([1-9][0-9]{0,15})\.(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})$/u;
 const SUBSCRIBER_EMAIL_LOCAL_PATTERN =
   /^[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*$/u;
 const SUBSCRIBER_EMAIL_DOMAIN_PATTERN =
   /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/u;
 const SUBSTACK_PUBLICATION_SUBDOMAIN_ORIGIN =
   /^https:\/\/[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.substack\.com$/u;
-
-function requestedSubscriberPublicationOrigin(input: JsonRecord): string | null {
-  if (input.publication_origin === undefined) return null;
-  if (
-    typeof input.publication_origin !== "string"
-    || !SUBSTACK_PUBLICATION_SUBDOMAIN_ORIGIN.test(input.publication_origin)
-  ) throw new Error("input.publication_origin must be one canonical substack.com publication origin");
-  return input.publication_origin;
-}
 
 export type SubstackSubscriptionType =
   | "free"
@@ -523,32 +515,37 @@ export type SubstackSubscriberRow = Readonly<{
   email: string;
   subscriptionType: SubstackSubscriptionType;
   subscribedAt: string | null;
-  sections: readonly string[];
 }>;
 
 export type SubstackSubscriberPage = Readonly<{
   subscribers: readonly SubstackSubscriberRow[];
-  nextCursor: string | null;
-  total: number | null;
+  nextCursor: SubstackSubscriberCursor | null;
+  total: number;
+  complete: false;
+  completeness: Readonly<{ kind: "page"; reason: string }>;
+  continuationSupported: boolean;
+  stopReason: "provider-exhausted" | "row-limit" | null;
 }>;
 
 export type SubstackSubscriberCursor = Readonly<{
+  schemaVersion: 2;
+  viewerId: number;
   publicationId: number;
+  publicationOrigin: string;
   offset: number;
   total: number;
+  seenFingerprints: string;
 }>;
 
 export type SubstackSubscriberExportPlan = Readonly<{
-  cursor: SubstackSubscriberCursor | null;
+  publication: string;
+  cursor: string | null;
   limit: number;
-  publicationOrigin: string | null;
 }>;
 
 export type SubstackSubscriberImportPlan = Readonly<{
   emails: readonly string[];
   sendWelcomeEmail: false;
-  /** A write always names its exact owned publication; it never defaults. */
-  publicationOrigin: string;
 }>;
 
 export type SubstackSubscriberImportStatus = Readonly<{
@@ -600,37 +597,65 @@ export function normalizedSubstackSubscriberEmail(value: unknown, label: string)
   return value;
 }
 
-export function encodeSubstackSubscriberCursor(cursor: SubstackSubscriberCursor): string {
+function subscriberFingerprint(email: string): string {
+  // Truncated collisions can only reject a page. The encrypted cursor never
+  // permits a duplicate or treats this probabilistic guard as snapshot proof.
+  return createHash("sha256").update(email).digest("hex").slice(0, 16);
+}
+
+function subscriberFingerprints(value: unknown, offset: number): readonly string[] {
+  if (typeof value !== "string" || value.length > 5_334 || /[^A-Za-z0-9_-]/u.test(value)) {
+    throw new Error("Substack subscriber cursor fingerprints are malformed");
+  }
+  const bytes = Buffer.from(value, "base64url");
+  if (bytes.toString("base64url") !== value || bytes.byteLength !== offset * 8) {
+    throw new Error("Substack subscriber cursor fingerprints are malformed");
+  }
+  const result = Array.from({ length: offset }, (_, index) => bytes.subarray(index * 8, (index + 1) * 8).toString("hex"));
+  if (result.some((entry, index) => index > 0 && entry <= result[index - 1]!)) {
+    throw new Error("Substack subscriber cursor fingerprints must be unique and sorted");
+  }
+  return result;
+}
+
+/** Reconstruct only an authenticated v2 cursor payload, never caller offsets. */
+export function parseSubstackSubscriberCursor(value: unknown): SubstackSubscriberCursor {
+  const cursor = record(value, "Substack subscriber cursor");
+  const keys = ["schemaVersion", "viewerId", "publicationId", "publicationOrigin", "offset", "total", "seenFingerprints"];
+  exactOwnKeys(cursor, keys, keys, "Substack subscriber cursor");
+  const viewerId = integerId(cursor.viewerId, "Substack subscriber cursor viewer");
   const publicationId = integerId(cursor.publicationId, "Substack subscriber cursor publication");
   if (
-    !Number.isSafeInteger(cursor.offset)
+    cursor.schemaVersion !== 2
+    || typeof cursor.publicationOrigin !== "string"
+    || !SUBSTACK_PUBLICATION_SUBDOMAIN_ORIGIN.test(cursor.publicationOrigin)
+    || typeof cursor.offset !== "number"
+    || !Number.isSafeInteger(cursor.offset)
     || cursor.offset < 1
+    || cursor.offset >= SUBSTACK_SUBSCRIBER_EXPORT_MAX_ROWS
+    || typeof cursor.total !== "number"
     || !Number.isSafeInteger(cursor.total)
     || cursor.total > MAX_SUBSCRIBER_TOTAL
     || cursor.offset >= cursor.total
   ) throw new Error("Substack subscriber cursor must name one bounded remaining page");
-  return `ss1.${String(publicationId)}.${String(cursor.offset)}.${String(cursor.total)}`;
-}
-
-export function parseSubstackSubscriberCursor(value: unknown): SubstackSubscriberCursor {
-  const text = typeof value === "string" ? value : "";
-  const match = SUBSTACK_SUBSCRIBER_CURSOR_PATTERN.exec(text);
-  if (match === null) throw new Error("input.cursor is not a Substack subscriber export cursor");
-  const cursor = Object.freeze({
-    publicationId: integerId(Number(match[1]), "input.cursor publication"),
-    offset: Number(match[2]),
-    total: Number(match[3]),
+  subscriberFingerprints(cursor.seenFingerprints, cursor.offset);
+  return Object.freeze({
+    schemaVersion: 2,
+    viewerId,
+    publicationId,
+    publicationOrigin: cursor.publicationOrigin,
+    offset: cursor.offset,
+    total: cursor.total,
+    seenFingerprints: cursor.seenFingerprints as string,
   });
-  if (encodeSubstackSubscriberCursor(cursor) !== text) {
-    throw new Error("input.cursor is not a canonical Substack subscriber export cursor");
-  }
-  return cursor;
 }
 
 /** Validate a complete export request before any cookie or network access. */
 export function prepareSubstackSubscriberExportInput(value: unknown): SubstackSubscriberExportPlan {
   const input = record(value, "Substack subscriber export input");
-  exactOwnKeys(input, ["cursor", "limit", "publication_origin"], ["limit"], "Substack subscriber export input");
+  exactOwnKeys(input, ["publication", "cursor", "limit"], ["publication", "limit"], "Substack subscriber export input");
+  const publication = canonicalSubstackProfileHandle(input.publication, "input.publication");
+  if (publication !== input.publication || publication.length > 63) throw new Error("input.publication must be one canonical Substack handle");
   const limit = input.limit;
   if (
     !Number.isSafeInteger(limit)
@@ -641,14 +666,12 @@ export function prepareSubstackSubscriberExportInput(value: unknown): SubstackSu
       `input.limit must be an integer between 1 and ${String(SUBSTACK_SUBSCRIBER_EXPORT_MAX_LIMIT)}`,
     );
   }
-  const cursor = input.cursor === undefined || input.cursor === null
-    ? null
-    : parseSubstackSubscriberCursor(input.cursor);
-  return Object.freeze({
-    cursor,
-    limit: limit as number,
-    publicationOrigin: requestedSubscriberPublicationOrigin(input),
-  });
+  const cursor = input.cursor === undefined ? null : input.cursor;
+  if (cursor !== null && (typeof cursor !== "string" || cursor.length > 8192 || !/^smn1\.[A-Za-z0-9_-]+$/u.test(cursor))) {
+    throw new Error("input.cursor must be a Ghostget-issued subscriber export cursor");
+  }
+  if (input.cursor === null) throw new Error("input.cursor must be omitted for the first page");
+  return Object.freeze({ publication, cursor, limit: limit as number });
 }
 
 /** Validate a complete import request before any cookie or network access. */
@@ -656,8 +679,8 @@ export function prepareSubstackSubscriberImportInput(value: unknown): SubstackSu
   const input = record(value, "Substack subscriber import input");
   exactOwnKeys(
     input,
-    ["emails", "send_welcome_email", "publication_origin"],
-    ["emails", "send_welcome_email", "publication_origin"],
+    ["emails", "send_welcome_email"],
+    ["emails", "send_welcome_email"],
     "Substack subscriber import input",
   );
   if (input.send_welcome_email !== false) {
@@ -682,22 +705,16 @@ export function prepareSubstackSubscriberImportInput(value: unknown): SubstackSu
     seen.add(address);
     return address;
   });
-  const publicationOrigin = requestedSubscriberPublicationOrigin(input);
-  if (publicationOrigin === null) {
-    throw new Error("input.publication_origin must name the exact owned publication");
-  }
   return Object.freeze({
     emails: Object.freeze(normalized),
     sendWelcomeEmail: false as const,
-    publicationOrigin,
   });
 }
 
-/** The status read accepts only an optional exact publication origin. */
-export function prepareSubstackSubscriberImportStatusInput(value: unknown): string | null {
+/** The status read accepts exactly one empty object. */
+export function prepareSubstackSubscriberImportStatusInput(value: unknown): void {
   const input = record(value, "Substack subscriber import status input");
-  exactOwnKeys(input, ["publication_origin"], [], "Substack subscriber import status input");
-  return requestedSubscriberPublicationOrigin(input);
+  exactOwnKeys(input, [], [], "Substack subscriber import status input");
 }
 
 /**
@@ -707,20 +724,13 @@ export function prepareSubstackSubscriberImportStatusInput(value: unknown): stri
  */
 export function soleSubstackSubscriberPublication(
   viewer: SubstackWebViewer,
-  requestedOrigin: string | null = null,
 ): Readonly<{ id: number; origin: string; organization: string }> {
-  if (requestedOrigin !== null && !SUBSTACK_PUBLICATION_SUBDOMAIN_ORIGIN.test(requestedOrigin)) {
-    throw new Error("Substack subscriber publication origin is not canonical");
-  }
-  const matches = requestedOrigin === null
-    ? viewer.publications
-    : viewer.publications.filter((publication) => publication.origin === requestedOrigin);
-  if (matches.length !== 1) {
+  if (viewer.publications.length !== 1) {
     throw new Error(
-      "Substack subscriber operations require exactly one matching signed-in viewer-owned publication",
+      "Substack subscriber operations require exactly one signed-in viewer-owned publication",
     );
   }
-  const publication = matches[0]!;
+  const publication = viewer.publications[0]!;
   if (!SUBSTACK_PUBLICATION_SUBDOMAIN_ORIGIN.test(publication.origin)) {
     throw new Error(
       "Substack subscriber operations require the viewer-owned publication's own substack.com origin",
@@ -734,12 +744,26 @@ export function soleSubstackSubscriberPublication(
   });
 }
 
+/** Select exactly the requested dashboard publication; ownership is proved separately. */
+export function selectSubstackSubscriberPublication(
+  viewer: SubstackWebViewer,
+  organization: string,
+): Readonly<{ id: number; origin: string; organization: string }> {
+  if (canonicalSubstackProfileHandle(organization, "input.publication") !== organization || organization.length > 63) {
+    throw new Error("input.publication must be one canonical Substack handle");
+  }
+  const origin = `https://${organization}.substack.com`;
+  const matches = viewer.publications.filter((publication) => publication.origin === origin);
+  if (matches.length !== 1) throw new Error("Substack viewer-owned publication selection is absent or ambiguous");
+  return Object.freeze({ id: matches[0]!.id, origin, organization });
+}
+
 /** Build the exact dashboard subscriber-list body for one bounded page. */
 export function substackSubscriberStatsRequestBody(offset: number, limit: number): Readonly<{
   filters: Readonly<{ order_by_desc_nulls_last: "subscription_created_at" }>;
-  includeTags: true;
   limit: number;
   offset: number;
+  includeTags: true;
 }> {
   if (
     !Number.isSafeInteger(offset)
@@ -751,26 +775,25 @@ export function substackSubscriberStatsRequestBody(offset: number, limit: number
   ) throw new Error("Substack subscriber page request is outside its reviewed bounds");
   return Object.freeze({
     filters: Object.freeze({ order_by_desc_nulls_last: "subscription_created_at" as const }),
-    includeTags: true as const,
     limit,
     offset,
+    includeTags: true,
   });
 }
 
-/** Observed one-address add body; the operation stays gated pending reconciliation. */
+/**
+ * Request-shape candidate for the add-subscribers import. The field names,
+ * including welcome-email suppression, remain unproven until the operation's
+ * authorized first-party capture; the contract stays capture-required.
+ */
 export function substackSubscriberImportRequestBody(
   plan: SubstackSubscriberImportPlan,
-): Readonly<{ email: string; subscription: false; sendEmail: false }> {
+): Readonly<{ emails: readonly string[]; sendWelcomeEmail: false }> {
   const checked = prepareSubstackSubscriberImportInput({
     emails: [...plan.emails],
     send_welcome_email: plan.sendWelcomeEmail,
-    publication_origin: plan.publicationOrigin,
   });
-  return Object.freeze({
-    email: checked.emails[0]!,
-    subscription: false as const,
-    sendEmail: false as const,
-  });
+  return Object.freeze({ emails: checked.emails, sendWelcomeEmail: false as const });
 }
 
 function exactCount(value: unknown, label: string): number {
@@ -804,22 +827,19 @@ function subscriptionType(source: JsonRecord, label: string): SubstackSubscripti
 function subscribedAt(value: unknown, label: string): string | null {
   if (value === undefined || value === null) return null;
   const text = boundedString(value, label, 64);
-  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/u.test(text)) {
-    throw new Error(`${label} must be one ISO-8601 instant`);
-  }
+  const parts = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,9})?(?:Z|[+-](\d{2}):(\d{2}))$/u.exec(text);
+  if (parts === null) throw new Error(`${label} must be one ISO-8601 instant`);
+  const year = Number(parts[1]), month = Number(parts[2]), day = Number(parts[3]);
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  if (
+    month < 1 || month > 12 || day < 1 || day > days[month - 1]!
+    || Number(parts[4]) > 23 || Number(parts[5]) > 59 || Number(parts[6]) > 59
+    || (parts[7] !== undefined && (Number(parts[7]) > 23 || Number(parts[8]) > 59))
+  ) throw new Error(`${label} must be one valid ISO-8601 instant`);
   const time = Date.parse(text);
   if (!Number.isFinite(time)) throw new Error(`${label} must be one ISO-8601 instant`);
   return new Date(time).toISOString();
-}
-
-function subscriberSections(value: unknown, label: string): readonly string[] {
-  if (value === undefined || value === null) return Object.freeze([]);
-  const names = boundedArray(value, label, MAX_SUBSCRIBER_SECTIONS).map((item, index) => {
-    const itemLabel = `${label}[${String(index)}]`;
-    const name = isRecord(item) ? item.name : item;
-    return boundedString(name, itemLabel, MAX_SUBSCRIBER_SECTION_NAME_LENGTH);
-  });
-  return Object.freeze([...new Set(names)].sort());
 }
 
 function projectedSubscriber(value: unknown, label: string): SubstackSubscriberRow {
@@ -834,28 +854,42 @@ function projectedSubscriber(value: unknown, label: string): SubstackSubscriberR
     email,
     subscriptionType: subscriptionType(source, label),
     subscribedAt: subscribedAt(source.subscription_created_at, `${label}.subscription_created_at`),
-    sections: subscriberSections(source.sections, `${label}.sections`),
   });
 }
 
 /**
  * Project one owned-publication subscriber page to the frozen contract fields.
- * The cursor binds the publication, next offset, and the total observed on the
- * first page. Adjacent pages overlap by ten rows to cover the publication's
- * observed unstable ordering among equal subscription timestamps. Consumers
- * must count unique addresses against the reported total before accepting a
- * complete census.
+ * A stable total and duplicate checks detect some changes, but equal-count
+ * membership changes can still omit rows. No page claims snapshot completeness.
  */
 export function normalizeSubstackSubscriberPage(
   value: unknown,
   expected: Readonly<{
     publicationId: number;
+    publicationOrigin: string;
+    viewerId: number;
     offset: number;
     limit: number;
     total: number | null;
+    seenFingerprints?: string;
   }>,
 ): SubstackSubscriberPage {
+  integerId(expected.viewerId, "Substack subscriber viewer");
+  integerId(expected.publicationId, "Substack subscriber publication");
+  if (!SUBSTACK_PUBLICATION_SUBDOMAIN_ORIGIN.test(expected.publicationOrigin)) {
+    throw new Error("Substack subscriber publication origin is invalid");
+  }
+  if (!Number.isSafeInteger(expected.offset) || expected.offset < 0 || expected.offset >= SUBSTACK_SUBSCRIBER_EXPORT_MAX_ROWS) {
+    throw new Error("Substack subscriber export reached its row bound");
+  }
+  substackSubscriberStatsRequestBody(expected.offset, expected.limit);
+  const previousFingerprints = subscriberFingerprints(expected.seenFingerprints ?? "", expected.offset);
   const source = record(value, "Substack subscriber page response");
+  const order = record(source.order, "Substack subscriber page response.order");
+  exactOwnKeys(order, ["by", "direction"], ["by", "direction"], "Substack subscriber page response.order");
+  if (order.by !== "subscription_created_at" || order.direction !== "desc") {
+    throw new Error("Substack subscriber ordering changed; restart the export");
+  }
   const total = exactCount(source.count, "Substack subscriber page response.count");
   if (expected.total !== null && total !== expected.total) {
     throw new Error("Substack subscriber total changed during pagination; restart the export");
@@ -867,34 +901,44 @@ export function normalizeSubstackSubscriberPage(
   );
   const subscribers = rows.map((row, index) =>
     projectedSubscriber(row, `Substack subscriber page response.subscribers[${String(index)}]`));
-  const seen = new Set<string>();
+  const seen = new Set(previousFingerprints);
   for (const subscriber of subscribers) {
-    if (seen.has(subscriber.email)) {
-      throw new Error("Substack subscriber page repeated one address");
+    const fingerprint = subscriberFingerprint(subscriber.email);
+    if (seen.has(fingerprint)) {
+      throw new Error("Substack subscriber export repeated an address; restart the export");
     }
-    seen.add(subscriber.email);
+    seen.add(fingerprint);
   }
   const consumed = expected.offset + subscribers.length;
-  if (consumed > total) {
+  if (consumed > total || consumed > SUBSTACK_SUBSCRIBER_EXPORT_MAX_ROWS) {
     throw new Error("Substack subscriber page exceeded the reported total");
   }
   if (subscribers.length === 0 && expected.offset < total) {
     throw new Error("Substack subscriber page ended before the reported total");
   }
-  if (consumed < total && subscribers.length < expected.limit) {
-    throw new Error("Substack subscriber page ended early before the reported total");
-  }
-  const nextCursor = consumed < total
-    ? encodeSubstackSubscriberCursor({
+  const stopReason = consumed >= total ? "provider-exhausted" : consumed >= SUBSTACK_SUBSCRIBER_EXPORT_MAX_ROWS ? "row-limit" : null;
+  const nextCursor = stopReason === null
+    ? parseSubstackSubscriberCursor({
+        schemaVersion: 2,
+        viewerId: expected.viewerId,
         publicationId: expected.publicationId,
-        offset: expected.offset + Math.max(1, subscribers.length - 10),
+        publicationOrigin: expected.publicationOrigin,
+        offset: consumed,
         total,
+        seenFingerprints: Buffer.from([...seen].sort().join(""), "hex").toString("base64url"),
       })
     : null;
   return Object.freeze({
     subscribers: Object.freeze(subscribers),
     nextCursor,
     total,
+    complete: false,
+    completeness: Object.freeze({
+      kind: "page",
+      reason: "Offset pagination has no verified snapshot; membership or ordering changes can omit rows.",
+    }),
+    continuationSupported: nextCursor !== null,
+    stopReason,
   });
 }
 
@@ -919,44 +963,9 @@ export function normalizeSubstackSubscriberImportStatus(value: unknown): Substac
   });
 }
 
-/** Project only reviewed counts from the publication-scoped import instances response. */
-export function normalizeSubstackSubscriberImportInstances(
-  value: unknown,
-): SubstackSubscriberImportStatus {
-  const source = record(value, "Substack subscriber import instances response");
-  exactOwnKeys(
-    source,
-    ["hasActiveListManagementModerationTask", "latestImportResult", "pubImports"],
-    ["hasActiveListManagementModerationTask", "latestImportResult", "pubImports"],
-    "Substack subscriber import instances response",
-  );
-  if (typeof source.hasActiveListManagementModerationTask !== "boolean") {
-    throw new Error("Substack subscriber import instances response moderation flag is invalid");
-  }
-  if (!Array.isArray(source.pubImports) || source.pubImports.length > 1_000) {
-    throw new Error("Substack subscriber import instances response jobs are invalid");
-  }
-  const latest = record(source.latestImportResult, "Substack subscriber latest import result");
-  exactOwnKeys(
-    latest,
-    ["total", "is_added", "is_skipped", "is_limited", "passImportVerification", "upload_date"],
-    ["total", "is_added", "is_skipped", "is_limited", "passImportVerification", "upload_date"],
-    "Substack subscriber latest import result",
-  );
-  if (typeof latest.upload_date !== "string" || !Number.isFinite(Date.parse(latest.upload_date))) {
-    throw new Error("Substack subscriber latest import result date is invalid");
-  }
-  return normalizeSubstackSubscriberImportStatus({
-    total: latest.total,
-    is_added: latest.is_added,
-    is_skipped: latest.is_skipped,
-    is_limited: latest.is_limited,
-    passImportVerification: latest.passImportVerification,
-  });
-}
-
 export type SubstackSubscriberRequestOperation =
   | "subscribers.export"
+  | "subscribers.export.identity"
   | "subscribers.import"
   | "subscribers.import.status";
 
@@ -975,12 +984,17 @@ export function authorizeSubstackSubscriberRequest(input: {
   }
   const method = input.method.toUpperCase();
   switch (input.operation) {
+    case "subscribers.export.identity":
+      if (method !== "GET" || input.body !== undefined || url.pathname !== "/publish/subscribers") {
+        throw new Error("Substack subscriber owner request changed its reviewed exchange");
+      }
+      return Object.freeze({ operation: input.operation, method: "GET", path: url.pathname });
     case "subscribers.export": {
       if (method !== "POST" || url.pathname !== "/api/v1/subscriber-stats") {
         throw new Error("Substack subscriber page request changed its reviewed exchange");
       }
       const body = record(input.body, "Substack subscriber page request body");
-      exactOwnKeys(body, ["filters", "includeTags", "limit", "offset"], ["filters", "includeTags", "limit", "offset"], "Substack subscriber page request body");
+      exactOwnKeys(body, ["filters", "limit", "offset", "includeTags"], ["filters", "limit", "offset", "includeTags"], "Substack subscriber page request body");
       const expected = substackSubscriberStatsRequestBody(
         body.offset as number,
         body.limit as number,
@@ -991,15 +1005,14 @@ export function authorizeSubstackSubscriberRequest(input: {
       return Object.freeze({ operation: input.operation, method: "POST", path: url.pathname });
     }
     case "subscribers.import": {
-      if (method !== "POST" || url.pathname !== "/api/v1/subscriber/add") {
+      if (method !== "POST" || url.pathname !== "/api/v1/import") {
         throw new Error("Substack subscriber import request changed its reviewed exchange");
       }
       const body = record(input.body, "Substack subscriber import request body");
-      exactOwnKeys(body, ["email", "subscription", "sendEmail"], ["email", "subscription", "sendEmail"], "Substack subscriber import request body");
+      exactOwnKeys(body, ["emails", "sendWelcomeEmail"], ["emails", "sendWelcomeEmail"], "Substack subscriber import request body");
       const checked = prepareSubstackSubscriberImportInput({
-        emails: [body.email],
-        send_welcome_email: body.sendEmail,
-        publication_origin: input.publicationOrigin,
+        emails: body.emails,
+        send_welcome_email: body.sendWelcomeEmail,
       });
       if (JSON.stringify(body) !== JSON.stringify(substackSubscriberImportRequestBody(checked))) {
         throw new Error("Substack subscriber import request body changed its reviewed shape");
@@ -1007,7 +1020,7 @@ export function authorizeSubstackSubscriberRequest(input: {
       return Object.freeze({ operation: input.operation, method: "POST", path: url.pathname });
     }
     case "subscribers.import.status":
-      if (method !== "GET" || input.body !== undefined || url.pathname !== "/api/v1/import/instances") {
+      if (method !== "GET" || input.body !== undefined || url.pathname !== "/api/v1/import") {
         throw new Error("Substack import status request changed its reviewed exchange");
       }
       return Object.freeze({ operation: input.operation, method: "GET", path: url.pathname });
@@ -1555,7 +1568,7 @@ function publicationBinding(value: unknown, label: string): SubstackWebViewer["p
   });
 }
 
-export function parseSubstackPreloadsHtml(html: unknown): SubstackWebViewer {
+function substackPreloads(html: unknown): JsonRecord {
   const source = boundedString(html, "Substack viewer bootstrap", MAX_HTML_BYTES);
   const assignments = [...source.matchAll(/window\._preloads\s*=/gu)];
   if (assignments.length !== 1) {
@@ -1577,7 +1590,11 @@ export function parseSubstackPreloadsHtml(html: unknown): SubstackWebViewer {
   } catch {
     throw new Error("Substack preload payload was not strict JSON");
   }
-  const root = record(preloads, "Substack preloads");
+  return record(preloads, "Substack preloads");
+}
+
+export function parseSubstackPreloadsHtml(html: unknown): SubstackWebViewer {
+  const root = substackPreloads(html);
   const user = record(root.user, "Substack preloads.user");
   const publications = boundedArray(
     user.dashboard_pubs ?? [],
@@ -1593,6 +1610,30 @@ export function parseSubstackPreloadsHtml(html: unknown): SubstackWebViewer {
     name: optionalString(user.name, "Substack preloads.user.name", 512),
     publications: Object.freeze(publications),
   });
+}
+
+/** Verify the legacy author/admin ownership fields observed on the subscriber dashboard. */
+export function requireSubstackSubscriberExportOwner(
+  html: unknown,
+  expected: Readonly<{ viewerId: number; publicationId: number; organization: string }>,
+): void {
+  const root = substackPreloads(html);
+  const user = record(root.user, "Substack subscriber owner user");
+  const publication = record(root.publication, "Substack subscriber owner publication");
+  const pub = record(root.pub, "Substack subscriber owner pub");
+  if (
+    user.id !== expected.viewerId
+    || user.is_admin !== true
+    || user.is_author !== true
+    || user.is_ghost !== false
+    || publication.id !== expected.publicationId
+    || publication.subdomain !== expected.organization
+    || pub.id !== expected.publicationId
+    || pub.subdomain !== expected.organization
+    || pub.author_id !== expected.viewerId
+    || !Object.hasOwn(pub, "primary_user_id")
+    || (pub.primary_user_id !== null && pub.primary_user_id !== expected.viewerId)
+  ) throw new Error("Substack viewer-owned publication author/admin binding did not match the selected account");
 }
 
 function reactions(value: unknown, label: string): Readonly<Record<string, number>> {

@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
 import { describe, expect, test } from "bun:test";
 
 const predecessorDefaultInventorySha256 =
-  "3cb6cdcd15f24b72a1da2695db7bf5ee6ea207e017cbeac99f1dddff7da20ad3";
+  "3aef102dfcf019a2c258a782527f6a652df0127224cd7714339878c8e730eb26";
 const predecessorLegacyInventorySha256 = [
   "4abf50326edbc8c8294a2056a08fc7ab2fd038d2d798708b77e29df98c2a86d0",
   "112cb715f1466ed5eb29cf97116151ae8b6a56aeb8aa9c08ed26ebadd47b86be",
@@ -13,12 +13,12 @@ const predecessorLegacyInventorySha256 = [
   "303ca3ae1b44693bbbdbdcf48665c388eaaa8b677f982a2ebdc0ae9ccb82a8b4",
   "0b7b037e045497f96920c8e751711f767b6358589c39ba0ea9d9db880ddef2ca",
   "ce149cd1d2d695a693b2dac2c16c3b7f18b5ab1adb108a3dee07ae8031414255",
-  "4f447b84ce2c31e6c0089b30afd8eb24d4e232acaac7320a2a4c29904aa3c6d7",
-  "fdf6e30690e7b9ae002b40929cb639f5eb914b8efcfcd7851fc74eee79fa2a37",
-  "580a79c2cf7ad38a348193e8e9e3f7f7e34c6402a31161d7572b51c3ae0889c2",
-  "302b9fa7be77727b6024ebedec702aa5be7b87ae7bde2ba81c17386d4a757263",
-  "184b1485943a0cb8237502ae6dec7a300a7735c16ef960f7e70eaf46c716bbbf",
-  "6f5f0b00da2227b151fb13c6199cc5f0783448af08f25e63afb4857839210dc6",
+  "0496b19acf9cb7d84c8cf335a54081a670e9d20ca7a07fabfb3f2bde69993857",
+  "a8afb05b1e43932893020c4421dad911945e29dd7f7c6deb3b8e4412e5b19038",
+  "adce058620ce1d6b4fe6596da3ca9e58e1e73dc83b699d883eda1e6795cb0f89",
+  "7c3c14073f83c6a18daff16381430e2cce010209c4efe8c966b4a4a197c48b34",
+  "2303c37a7595b44cbb997056d7b7d31e3ef706db9573166427768e738066ad12",
+  "bfafe93552d576c1a52da29ab5a56dfe7cf828b1e7b44bfd546937966c186f95",
   "bf0e56da9f3b3529e59d2aa2c9d4b8c7e3c117be1b666c31288bcc8f90818ce3",
   "58e5e5b27881f30114891f7c266f901e7dda800d3f12309e420c602348816a58",
   "7db7a8a56a969f082a8fb588425d23e2525ee1fec8862d28606df29e2383db4b",
@@ -55,6 +55,21 @@ const predecessorRedditReaders = [
   "05173089ec6d555845fa5fb7b08a70bd0bf810a18882c9ecdd784a437db791c5",
   "16e4e48609c12d5ffdaf47e622764e06cc9b3381c6b8ceb2c9f773fa9d99bdd9",
   "91cc3364ab1ccba66bd2e099f64fcccc187fde94145a8bf1eaa14f0f5533f6d7",
+];
+const predecessorSubstackWriter = "58438f60cf9b2d2db9363cb7dece0c6ca56e60c2178fe4bcbd60c844fc8893ba";
+const predecessorSubstackReaders = [
+  "99fc0287f9445b0e4d692e39201ebb8b9e9bb86308c9619c20e3bff83655243d",
+  "fb58ac6ba745b2dc4dc176e8e3b7f4d3362cd8026d3e00557f72342b76b7c519",
+  "58c2b588db7154883a154d05194cde62ff19b8e14045d10f854aacc9a4433e73",
+  "4fbfe4ae9638728c1ce48c15e0c8b2343a39c372ab01d8b5f6a75665af0df040",
+  "99fc0287f9445b0e4d692e39201ebb8b9e9bb86308c9619c20e3bff83655243d",
+  "fb58ac6ba745b2dc4dc176e8e3b7f4d3362cd8026d3e00557f72342b76b7c519",
+  "58c2b588db7154883a154d05194cde62ff19b8e14045d10f854aacc9a4433e73",
+  "3dfe5b506cef46b6534c7abd195a98df0a825a321bd0690eddae674e4592c041",
+  "d35dda6043e224f4a2d6305a4a6aac9f05bef37ecfbfd087973394cdbe0c6811",
+  "2062f7c39c75ce286f26e7bd513871e5cbc2b62e2408d20df28af906f8ad5012",
+  "e4ba73882eb3f5bf489c88861cdd1fedd790a55af027e03ff5a07b526b8f0f5f",
+  "96a992faae17420dc2ec74c9d22903bb7973f69d3f0de198800d357480651269",
 ];
 let acceptedLegacy = true;
 let rejectedUnknown = true;
@@ -131,9 +146,12 @@ for (const plugin of registry.list()) {
             contractVersion,
           );
           const isPredecessorReddit = binding.surfaceId === "reddit" && !operation.name.startsWith("flair.");
+          const isPredecessorSubstack = binding.surfaceId === "substack" && !operation.name.startsWith("subscribers.");
           const legacyImplementations = isPredecessorReddit
             ? predecessorRedditReaders.map((hash) => Buffer.from(hash, "hex"))
-            : registeredLegacyImplementations;
+            : isPredecessorSubstack
+              ? predecessorSubstackReaders.map((hash) => Buffer.from(hash, "hex"))
+              : registeredLegacyImplementations;
           if (binding.transport === "provider-api") {
           const contract = providerContracts.getProviderContract({
             provider: binding.surfaceId,
@@ -187,7 +205,9 @@ for (const plugin of registry.list()) {
           }, registry);
           const currentHash = isPredecessorReddit
             ? legacyHash(contract, Buffer.from(predecessorRedditWriter, "hex"), true)
-            : webContracts.webSessionContractHash(contract, registry);
+            : isPredecessorSubstack
+              ? legacyHash(contract, Buffer.from(predecessorSubstackWriter, "hex"), true)
+              : webContracts.webSessionContractHash(contract, registry);
           acceptedLegacy &&= webContracts.isCompatibleWebSessionContractHash(contract, currentHash, registry);
           const includePredecessorInventory = appendCurrentRow([binding.transport, binding.surfaceId, operation.name, contractVersion,
             currentHash]);
@@ -300,8 +320,8 @@ describe("durable provider contract inventory", () => {
       expect(inventory).toEqual({
         rows: 324,
         sha256: predecessorDefaultInventorySha256,
-        currentOnlyRows: 83,
-        currentOnlySha256: "819e2cc5d70dfda85183fe9a5555690ad2f2312cfe4caee010a2ff9f1ca3afcd",
+        currentOnlyRows: 84,
+        currentOnlySha256: "82785696154ce4a1f7164bf8bcb303640f0158347ff8b66e5c2aa03ac5f8c685",
         automationRows: [
           ["linked-device", "whatsapp", "messaging.automation.read", 1],
           ["linked-device", "whatsapp", "messaging.automation.send.attachment", 1],
@@ -334,7 +354,7 @@ describe("durable provider contract inventory", () => {
           254,
           228,
           212,
-          191,
+          166,
           146,
           146,
           146,

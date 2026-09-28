@@ -8,6 +8,7 @@ import { renderCookieHeader } from "@hraness/kb/clip/cookies";
 
 import type { GhostgetAuth } from "../auth";
 import type { BrowserFileResolver } from "../browser";
+import { openCursorToken, sealCursorToken } from "../cursor-token";
 import {
   canonicalJson,
   isCanonicalJsonText,
@@ -27,7 +28,6 @@ import type {
   WebSessionOperationDeadline,
   WebSessionProviderAcceptedMutationTargetEvent,
 } from "../web-session-execution";
-import { WebSessionResponseRejectedError } from "../web-session-read-errors";
 import { failedProviderRead } from "./read-failure";
 import { substackMp4Metadata } from "./substack-video-mp4";
 import { hasExactKeys, hasSameKeys } from "../contracts-shape.js";
@@ -36,14 +36,19 @@ import {
   SUBSTACK_WEB_OPERATIONS,
   authorizeSubstackSubscriberRequest,
   authorizeSubstackWebReadRequest,
-  normalizeSubstackSubscriberImportInstances,
+  normalizeSubstackSubscriberImportStatus,
   normalizeSubstackSubscriberPage,
   prepareSubstackSubscriberExportInput,
+  parseSubstackSubscriberCursor,
   prepareSubstackSubscriberImportInput,
   prepareSubstackSubscriberImportStatusInput,
   soleSubstackSubscriberPublication,
+  selectSubstackSubscriberPublication,
+  requireSubstackSubscriberExportOwner,
   substackSubscriberImportRequestBody,
   substackSubscriberStatsRequestBody,
+  SUBSTACK_SUBSCRIBER_EXPORT_MAX_ROWS,
+  type SubstackSubscriberCursor,
   type SubstackSubscriberExportPlan,
   type SubstackSubscriberImportPlan,
   normalizeSubstackArticleResponse,
@@ -108,6 +113,8 @@ export type SubstackWebRuntimeDependencies = Partial<WebSessionNetworkDependenci
   readonly sleep?: SubstackWebSleep;
   /** Injected per-invocation nonce for a frozen subscriber-import identity. */
   readonly operationNonce?: () => string;
+  /** Private cursor state; tests supply a separate state home. */
+  readonly cursorEnvironment?: Readonly<Record<string, string | undefined>>;
 };
 
 function sleepForSubstackReadback(
@@ -2675,6 +2682,7 @@ type SubstackSubscriberOperationName =
   | "subscribers.import.status";
 
 const SUBSTACK_SUBSCRIBER_READ_LABEL = "Substack subscribers";
+const SUBSTACK_SUBSCRIBER_CURSOR_SCOPE = "substack-subscribers-export-v2";
 const MAX_SUBSTACK_IMPORT_RESPONSE_BYTES = 256 * 1024;
 const MAX_SUBSTACK_OPERATION_NONCE_LENGTH = 128;
 
@@ -2689,7 +2697,7 @@ function isSubstackSubscriberOperation(
 type SubstackSubscriberPlan =
   | Readonly<{ kind: "subscribers.export"; plan: SubstackSubscriberExportPlan }>
   | Readonly<{ kind: "subscribers.import"; plan: SubstackSubscriberImportPlan }>
-  | Readonly<{ kind: "subscribers.import.status"; publicationOrigin: string | null }>;
+  | Readonly<{ kind: "subscribers.import.status" }>;
 
 /** Parse the complete subscriber input before any cookie, keychain, or network access. */
 function prepareSubstackSubscriberPlan(
@@ -2702,10 +2710,8 @@ function prepareSubstackSubscriberPlan(
     case "subscribers.import":
       return Object.freeze({ kind: operation, plan: prepareSubstackSubscriberImportInput(input) });
     case "subscribers.import.status":
-      return Object.freeze({
-        kind: operation,
-        publicationOrigin: prepareSubstackSubscriberImportStatusInput(input),
-      });
+      prepareSubstackSubscriberImportStatusInput(input);
+      return Object.freeze({ kind: operation });
   }
 }
 
@@ -2747,7 +2753,6 @@ export function substackSubscriberImportOperationId(input: Readonly<{
   const plan = prepareSubstackSubscriberImportInput({
     emails: [...input.plan.emails],
     send_welcome_email: input.plan.sendWelcomeEmail,
-    publication_origin: input.plan.publicationOrigin,
   });
   return createHash("sha256").update(canonicalJson({
     schemaVersion: 1,
@@ -2763,7 +2768,6 @@ export function substackSubscriberImportOperationId(input: Readonly<{
 type SubstackSubscriberImportFailureStage =
   | "dispatch-admission"
   | "import-transport"
-  | "import-rejected"
   | "import-response"
   | "accepted-target-recording"
   | "verification-recording";
@@ -2791,9 +2795,24 @@ export async function executeSubstackSubscriberOperation(
   if (
     recipe.site !== "substack"
     || !isSubstackSubscriberOperation(recipe.action)
-    || recipe.contractVersion !== 1
+    || recipe.contractVersion !== (recipe.action === "subscribers.export" ? 2 : 1)
   ) throw new Error("Substack subscriber recipe is not installed");
   const selected = prepareSubstackSubscriberPlan(recipe.action, input);
+  const cursorEnvironment = options.dependencies?.cursorEnvironment ?? process.env;
+  const authHash = createHash("sha256").update(canonicalJson(auth)).digest("hex");
+  let exportCursor: SubstackSubscriberCursor | null = null;
+  if (selected.kind === "subscribers.export" && selected.plan.cursor !== null) {
+    exportCursor = parseSubstackSubscriberCursor(openCursorToken(
+      SUBSTACK_SUBSCRIBER_CURSOR_SCOPE,
+      auth.id,
+      authHash,
+      selected.plan.cursor,
+      cursorEnvironment,
+    ));
+    if (webSessionAuthSubject(auth) !== `substack:${String(exportCursor.viewerId)}` || exportCursor.publicationOrigin !== `https://${selected.plan.publication}.substack.com`) {
+      throw new Error("Substack subscriber cursor belongs to another publication or viewer");
+    }
+  }
   const clientOptions = {
     timeoutMs: recipe.timeoutMs,
     ...(options.signal === undefined ? {} : { signal: options.signal }),
@@ -2818,12 +2837,9 @@ export async function executeSubstackSubscriberOperation(
   let publication: ReturnType<typeof soleSubstackSubscriberPublication>;
   try {
     viewer = await requireBoundViewer(client, auth, recipe.maxOutputBytes);
-    publication = soleSubstackSubscriberPublication(
-      viewer,
-      selected.kind === "subscribers.import.status"
-        ? selected.publicationOrigin
-        : selected.plan.publicationOrigin,
-    );
+    publication = selected.kind === "subscribers.export"
+      ? selectSubstackSubscriberPublication(viewer, selected.plan.publication)
+      : soleSubstackSubscriberPublication(viewer);
   } catch (error) {
     if (!read) throw error;
     return failedProviderRead(SUBSTACK_SUBSCRIBER_READ_LABEL, error, null, {
@@ -2852,12 +2868,28 @@ export async function executeSubstackSubscriberOperation(
       );
       let output: unknown;
       if (selected.kind === "subscribers.export") {
-        const cursor = selected.plan.cursor;
-        if (cursor !== null && cursor.publicationId !== publication.id) {
-          throw new Error("Substack subscriber cursor belongs to another publication");
+        const identityUrl = new URL("/publish/subscribers", publication.origin);
+        authorizeSubstackSubscriberRequest({
+          operation: "subscribers.export.identity",
+          url: identityUrl,
+          method: "GET",
+          organization: publication.organization,
+          publicationOrigin: publication.origin,
+        });
+        requireSubstackSubscriberExportOwner(await publicationClient.requestText({
+          url: identityUrl,
+          method: "GET",
+          headers: { accept: "text/html", referer: `${publication.origin}/` },
+          expectedContentTypes: ["text/html"],
+          maxBytes: boundedMaximum(recipe),
+        }), { viewerId: viewer.id, publicationId: publication.id, organization: publication.organization });
+        const cursor = exportCursor;
+        if (cursor !== null && (cursor.publicationId !== publication.id || cursor.publicationOrigin !== publication.origin || cursor.viewerId !== viewer.id)) {
+          throw new Error("Substack subscriber cursor belongs to another publication or viewer");
         }
         const offset = cursor?.offset ?? 0;
-        const body = substackSubscriberStatsRequestBody(offset, selected.plan.limit);
+        const limit = Math.min(selected.plan.limit, SUBSTACK_SUBSCRIBER_EXPORT_MAX_ROWS - offset);
+        const body = substackSubscriberStatsRequestBody(offset, limit);
         const url = new URL("/api/v1/subscriber-stats", publication.origin);
         authorizeSubstackSubscriberRequest({
           operation: "subscribers.export",
@@ -2867,7 +2899,7 @@ export async function executeSubstackSubscriberOperation(
           organization: publication.organization,
           publicationOrigin: publication.origin,
         });
-        output = normalizeSubstackSubscriberPage(await publicationClient.requestJson({
+        const page = normalizeSubstackSubscriberPage(await publicationClient.requestJson({
           url,
           method: "POST",
           headers: postHeaders,
@@ -2877,12 +2909,25 @@ export async function executeSubstackSubscriberOperation(
           maxBytes: boundedMaximum(recipe),
         }), {
           publicationId: publication.id,
+          publicationOrigin: publication.origin,
+          viewerId: viewer.id,
           offset,
-          limit: selected.plan.limit,
+          limit,
           total: cursor?.total ?? null,
+          seenFingerprints: cursor?.seenFingerprints ?? "",
+        });
+        output = Object.freeze({
+          ...page,
+          nextCursor: page.nextCursor === null ? null : sealCursorToken(
+            SUBSTACK_SUBSCRIBER_CURSOR_SCOPE,
+            auth.id,
+            authHash,
+            page.nextCursor,
+            cursorEnvironment,
+          ),
         });
       } else {
-        const url = new URL("/api/v1/import/instances", publication.origin);
+        const url = new URL("/api/v1/import", publication.origin);
         authorizeSubstackSubscriberRequest({
           operation: "subscribers.import.status",
           url,
@@ -2890,7 +2935,7 @@ export async function executeSubstackSubscriberOperation(
           organization: publication.organization,
           publicationOrigin: publication.origin,
         });
-        output = normalizeSubstackSubscriberImportInstances(await publicationClient.requestJson({
+        output = normalizeSubstackSubscriberImportStatus(await publicationClient.requestJson({
           url,
           method: "GET",
           headers: referer,
@@ -2923,7 +2968,7 @@ export async function executeSubstackSubscriberOperation(
     nonce: (options.dependencies?.operationNonce ?? randomUUID)(),
   });
   const body = substackSubscriberImportRequestBody(plan);
-  const url = new URL("/api/v1/subscriber/add", publication.origin);
+  const url = new URL("/api/v1/import", publication.origin);
   authorizeSubstackSubscriberRequest({
     operation: "subscribers.import",
     url,
@@ -2940,7 +2985,7 @@ export async function executeSubstackSubscriberOperation(
   const reboundViewer = await currentViewer(client, boundedMaximum(recipe));
   if (
     viewerSubject(reboundViewer) !== viewerSubject(viewer)
-    || soleSubstackSubscriberPublication(reboundViewer, plan.publicationOrigin).id !== publication.id
+    || soleSubstackSubscriberPublication(reboundViewer).id !== publication.id
   ) {
     throw new Error("Substack current viewer or publication changed before the subscriber import");
   }
@@ -2961,8 +3006,8 @@ export async function executeSubstackSubscriberOperation(
       maxBytes: Math.min(boundedMaximum(recipe), MAX_SUBSTACK_IMPORT_RESPONSE_BYTES),
     });
     failureStage = "import-response";
-    if (!isRecord(response) || Object.keys(response).length !== 0) {
-      throw new Error("Substack subscriber add response changed its reviewed empty-object shape");
+    if (!isRecord(response)) {
+      throw new Error("Substack subscriber import response was not one JSON object");
     }
     failureStage = "accepted-target-recording";
     await options.afterProviderAcceptedMutationTarget?.({
@@ -2987,20 +3032,7 @@ export async function executeSubstackSubscriberOperation(
       dispatchStarted: true,
       dispatch: { planned: 1, started, verified },
     };
-  } catch (error) {
-    // A started dispatch can never finish as failed (run-journal invariant), so
-    // even a 4xx on the add request stays indeterminate. The stage and status
-    // code tell the caller what Substack said without echoing its body.
-    const rejectedStatus = failureStage === "import-transport"
-      && error instanceof WebSessionResponseRejectedError
-      && error.status >= 400
-      && error.status < 500
-      ? error.status
-      : null;
-    if (rejectedStatus !== null) failureStage = "import-rejected";
-    const stage = rejectedStatus === null
-      ? failureStage
-      : `${failureStage}, HTTP ${String(rejectedStatus)}`;
+  } catch {
     return {
       status: started > 0 ? "indeterminate" : "failed",
       output: null,
@@ -3008,8 +3040,8 @@ export async function executeSubstackSubscriberOperation(
       dispatchStarted: started > 0,
       dispatch: { planned: 1, started, verified },
       error: started > 0
-        ? `reconcile-required: Substack may have accepted subscriber import ${operationId}, but acceptance was not verified; read subscribers.export and never retry this import (stage: ${stage})`
-        : `Substack subscriber import failed before submission (stage: ${stage})`,
+        ? `reconcile-required: Substack may have accepted subscriber import ${operationId}, but acceptance was not verified; read subscribers.import.status and never retry this import (stage: ${failureStage})`
+        : `Substack subscriber import failed before submission (stage: ${failureStage})`,
     };
   }
 }
@@ -3034,7 +3066,7 @@ export async function executeSubstackWebOperation(
     recipe.site !== "substack"
     || !isSubstackOperation(recipe.action)
   ) throw new Error("Substack authenticated web recipe is not installed");
-  const expectedContractVersion = recipe.action === "posts.publish" ? 3 : 1;
+  const expectedContractVersion = recipe.action === "posts.publish" ? 3 : recipe.action === "subscribers.export" ? 2 : 1;
   if (recipe.contractVersion !== expectedContractVersion) {
     throw new Error(
       `Substack authenticated web operation ${recipe.action} contract version ${recipe.contractVersion} is not installed`,

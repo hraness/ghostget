@@ -7,13 +7,52 @@ import {
   webSessionContractOperations,
   webImplementationSources,
 } from "../../provider-plugin-builtins";
-import { webSessionContractDefinitions } from "../../web-session-contract-definitions";
+import archivedSubstackWebManifest from "../../assets/adapters/substack/wrench-web-adapter.v1.8.0.json";
+import type { OperationInput } from "../../model";
+import {
+  planWebSessionContractDispatches,
+  reviewedArchivedWebSessionContract,
+  webSessionContractDefinitions,
+} from "../../web-session-contract-definitions";
 import { materializeSubstackMessagingList } from "../../providers/substack-omni";
 
 const substackContracts = webSessionContractDefinitions.substack;
 if (substackContracts === undefined) {
   throw new Error("Substack web-session contracts are not installed");
 }
+
+// Keep the original reservation byte-for-byte compatible with prior receipts.
+// It is a separate disabled route, never an alias to the v2 input schema.
+const archivedExportContract = reviewedArchivedWebSessionContract(
+  archivedSubstackWebManifest,
+  {
+    adapterId: "substack-web",
+    adapterVersion: "1.8.0",
+    site: "substack",
+    operation: "subscribers.export",
+    contractVersion: 1,
+    risk: "R1",
+    state: "capture-required",
+    implementation:
+      "substack subscribers.export requires a fresh reviewed authenticated first-party contract before execution",
+  },
+);
+
+const archivedExportOperation = Object.freeze({
+  name: archivedExportContract.operation,
+  contractVersion: archivedExportContract.contractVersion,
+  risk: archivedExportContract.risk,
+  input: archivedExportContract.input,
+  sideEffect: archivedExportContract.sideEffect,
+  idempotency: archivedExportContract.idempotency,
+  dedupeWindowMs: archivedExportContract.dedupeWindowMs,
+  state: archivedExportContract.state,
+  dispatch: archivedExportContract.dispatch,
+  implementation: archivedExportContract.implementation,
+  planDispatches: (input: OperationInput) =>
+    planWebSessionContractDispatches(archivedExportContract, input),
+  validateInput: () => Object.freeze([]),
+});
 
 export const substackWebPlugin = defineProviderPlugin({
   apiVersion: 1,
@@ -35,9 +74,9 @@ export const substackWebPlugin = defineProviderPlugin({
     origin: "https://substack.com",
     protectedHostnameFamilies: ["substack.com"],
     authKinds: browserSessionAuthKinds,
-    operations: webSessionContractOperations(
+    operations: [...webSessionContractOperations(
       Object.values(substackContracts),
-      "1fa9daa5f26928a0b0c52ae60759df6041e8c59c343c32aa0c2987587826e9ab",
+      "bff781c7c4c908e8d5ec8639c20420f8756ee4d05ce786431cf56a98675e5533",
       {
         "posts.publish": [2],
       },
@@ -73,7 +112,7 @@ export const substackWebPlugin = defineProviderPlugin({
         });
       }
       return operation;
-    }),
+    }), archivedExportOperation],
     subject: {
       format: "substack:<numeric-id>",
       matches: (value) => /^substack:[0-9]{1,32}$/u.test(value),
