@@ -8,7 +8,7 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 246 claims: 227 evidenced, 0 planned, and 19 not verified. It maps 92 guidelines from 5 guides; 70 list claims and 22 are exempt.
+The register holds 246 claims: 227 evidenced, 0 planned, and 19 not verified. It maps 93 guidelines from 5 guides; 70 list claims and 23 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
@@ -75,6 +75,7 @@ These guidelines have no claim in the register, and no automated check covers th
 | `website/AGENTS.md` | Keep the page useful… | Presentation rule for the informational website; it states no safety or integrity property. |
 | `website/AGENTS.md` | Keep every product… | Editorial accuracy rule for website copy; no automated check covers it. |
 | `website/AGENTS.md` | Keep canonical metadata,… | Search-metadata presentation rule; it states no safety or integrity property. |
+| `website/AGENTS.md` | Share images come only… | Social-image presentation rule; it states no safety or integrity property. |
 | `website/AGENTS.md` | Keep ordinary reference… | Presentation rule for website guides and editorial images; it states no safety or integrity property. |
 | `website/AGENTS.md` | The HTML 404 renders… | Presentation rule for the informational website; it states no safety or integrity property. |
 | `website/AGENTS.md` | Preserve semantic headings,… | Accessibility presentation rule; it states no safety or integrity property. |
