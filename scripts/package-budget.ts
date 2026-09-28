@@ -1983,15 +1983,26 @@
 // Retain the same platform projections and portability allowances:
 // 12,099,048 + 12,387 + 4,096 = 12,115,531 packed;
 // 23,798,398 + 353 + 65 = 23,798,816 unpacked.
+//
+// The disabled Substack subscriber export v2 candidate over merged main
+// 9f2dd16 adds the retained 1.8.0 adapter snapshot and updates the bounded
+// parser, account/publication binding, encrypted pagination, contract identity,
+// and reference: one additional packed file. After `bun run build`, a clean
+// npm 11.19.0 pack --ignore-scripts with Node 24.18.1 on darwin arm64 measured
+// 616 entries, 12,104,883 packed bytes and 23,845,115 unpacked bytes; archive
+// SHA-256 90ef33da70559db4674510c401466fe74a240967f8d719a4cfb3f9e012af4227.
+// Retain the same platform projections and portability allowances:
+// 12,104,883 + 12,387 + 4,096 = 12,121,366 packed;
+// 23,845,115 + 353 + 65 = 23,845,533 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Disabled Microsoft Graph contact/calendar candidates over Ghostget 0.18.43 main 93a80a6",
+  scope: "Disabled Substack subscriber export v2 over the Microsoft Graph candidate on main 9f2dd16",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "0f0aa0a6313132ac00477496792563879b902c16b786d86d88ae74843c93afed",
-  packedBytes: 12_099_048,
-  unpackedBytes: 23_798_398,
-  entryCount: 615,
+  archiveSha256: "90ef33da70559db4674510c401466fe74a240967f8d719a4cfb3f9e012af4227",
+  packedBytes: 12_104_883,
+  unpackedBytes: 23_845_115,
+  entryCount: 616,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,
