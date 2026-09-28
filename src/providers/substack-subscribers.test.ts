@@ -4,6 +4,7 @@ import { assertProperty, fc } from "../test-support";
 import {
   authorizeSubstackSubscriberRequest,
   encodeSubstackSubscriberCursor,
+  normalizeSubstackSubscriberImportInstances,
   normalizeSubstackSubscriberImportStatus,
   normalizeSubstackSubscriberPage,
   parseSubstackSubscriberCursor,
@@ -89,7 +90,7 @@ describe("Substack subscriber export projection", () => {
         row(1, {
           user_email_address: "Mixed.Case@Example.COM",
           subscription_interval: "annual",
-          subscription_created_at: "2026-06-05T01:02:03+02:00",
+          subscription_created_at: "2026-06-05T01:02:03.123456789+02:00",
           sections: [{ id: 9, name: "Notes" }, "Audio", "Audio"],
         }),
         row(2, { is_founding: true, subscription_created_at: null }),
@@ -109,7 +110,7 @@ describe("Substack subscriber export projection", () => {
         {
           email: "mixed.case@example.com",
           subscriptionType: "paid",
-          subscribedAt: "2026-06-04T23:02:03.000Z",
+          subscribedAt: "2026-06-04T23:02:03.123Z",
           sections: ["Audio", "Notes"],
         },
         {
@@ -170,7 +171,7 @@ describe("Substack subscriber export projection", () => {
   test("pages completely against the first-page total", () => {
     assertProperty(fc.property(
       fc.integer({ min: 0, max: 2_000 }),
-      fc.integer({ min: 1, max: 500 }),
+      fc.integer({ min: 1, max: 100 }),
       (total, limit) => {
         let cursor: string | null = null;
         let offset = 0;
@@ -233,15 +234,24 @@ describe("Substack subscriber export projection", () => {
   });
 
   test("validates export input exactly", () => {
-    expect(prepareSubstackSubscriberExportInput({ limit: 500 })).toEqual({ cursor: null, limit: 500 });
+    expect(prepareSubstackSubscriberExportInput({ limit: 100 })).toEqual({
+      cursor: null,
+      limit: 100,
+      publicationOrigin: null,
+    });
+    expect(prepareSubstackSubscriberExportInput({
+      limit: 50,
+      publication_origin: ORIGIN,
+    })).toMatchObject({ publicationOrigin: ORIGIN });
     for (const value of [
       {},
       { limit: 0 },
-      { limit: 501 },
+      { limit: 101 },
       { limit: 1.5 },
       { limit: "10" },
       { limit: 10, cursor: "opaque" },
       { limit: 10, offset: 0 },
+      { limit: 10, publication_origin: "https://news.example.com" },
       [],
       null,
     ]) {
@@ -251,11 +261,12 @@ describe("Substack subscriber export projection", () => {
 });
 
 describe("Substack subscriber import validation", () => {
-  test("accepts exactly one to twenty-five unique normalized addresses", () => {
-    const emails = Array.from({ length: 25 }, (_, index) => `reader${String(index)}@example.com`);
+  test("accepts exactly one normalized address with welcome email suppressed", () => {
+    const emails = ["reader@example.com"];
     expect(prepareSubstackSubscriberImportInput({ emails, send_welcome_email: false })).toEqual({
       emails,
       sendWelcomeEmail: false,
+      publicationOrigin: null,
     });
   });
 
@@ -264,7 +275,7 @@ describe("Substack subscriber import validation", () => {
     for (const value of [
       { emails: [], send_welcome_email: false },
       {
-        emails: Array.from({ length: 26 }, (_, index) => `r${String(index)}@example.com`),
+        emails: ["first@example.com", "second@example.com"],
         send_welcome_email: false,
       },
       { emails: ["reader@example.com", "reader@example.com"], send_welcome_email: false },
@@ -294,7 +305,7 @@ describe("Substack subscriber import validation", () => {
       (ids, repeat) => {
         const emails = ids.map((id) => `r${String(id)}@example.com`);
         if (repeat) emails.push(emails[0]!);
-        const valid = emails.length <= 25 && !repeat;
+        const valid = emails.length === 1 && !repeat;
         const attempt = (): unknown => prepareSubstackSubscriberImportInput({
           emails,
           send_welcome_email: false,
@@ -305,14 +316,36 @@ describe("Substack subscriber import validation", () => {
     ));
   });
 
-  test("status input accepts only an empty object", () => {
+  test("status input accepts only an optional bound publication origin", () => {
     expect(() => prepareSubstackSubscriberImportStatusInput({})).not.toThrow();
+    expect(prepareSubstackSubscriberImportStatusInput({ publication_origin: ORIGIN })).toBe(ORIGIN);
+    expect(() => prepareSubstackSubscriberImportStatusInput({ publication_origin: "https://news.example.com" })).toThrow();
     expect(() => prepareSubstackSubscriberImportStatusInput({ job: 1 })).toThrow();
     expect(() => prepareSubstackSubscriberImportStatusInput(null)).toThrow();
   });
 });
 
 describe("Substack import status projection", () => {
+  test("projects only the observed latest import result from the instances envelope", () => {
+    expect(normalizeSubstackSubscriberImportInstances({
+      hasActiveListManagementModerationTask: false,
+      latestImportResult: {
+        total: 25,
+        is_added: 21,
+        is_skipped: 3,
+        is_limited: 1,
+        passImportVerification: true,
+        upload_date: "2026-09-27T00:00:00.000Z",
+      },
+      pubImports: [{ file_name: "private.csv" }],
+    })).toEqual({
+      total: 25,
+      isAdded: 21,
+      isSkipped: 3,
+      isLimited: 1,
+      passImportVerification: true,
+    });
+  });
   test("projects the exact five status fields to camelCase", () => {
     expect(normalizeSubstackSubscriberImportStatus({
       total: 25,
@@ -387,6 +420,14 @@ describe("Substack subscriber publication and request binding", () => {
       publication(),
       publication("https://second.substack.com", 8),
     ]))).toThrow("exactly one");
+    expect(soleSubstackSubscriberPublication(viewer([
+      publication(),
+      publication("https://second.substack.com", 8),
+    ]), ORIGIN)).toMatchObject({ id: PUBLICATION_ID, origin: ORIGIN });
+    expect(() => soleSubstackSubscriberPublication(viewer([
+      publication(),
+      publication("https://second.substack.com", 8),
+    ]), "https://third.substack.com")).toThrow("matching");
     expect(() => soleSubstackSubscriberPublication(viewer([
       publication("https://news.example.com"),
     ]))).toThrow("own substack.com origin");
@@ -405,33 +446,38 @@ describe("Substack subscriber publication and request binding", () => {
     expect(authorizeSubstackSubscriberRequest({
       ...binding,
       operation: "subscribers.import.status",
-      url: `${ORIGIN}/api/v1/import`,
+      url: `${ORIGIN}/api/v1/import/instances`,
       method: "GET",
-    })).toEqual({ operation: "subscribers.import.status", method: "GET", path: "/api/v1/import" });
+    })).toEqual({ operation: "subscribers.import.status", method: "GET", path: "/api/v1/import/instances" });
     const importBody = substackSubscriberImportRequestBody({
       emails: ["reader@example.com"],
       sendWelcomeEmail: false,
+      publicationOrigin: null,
     });
-    expect(importBody).toEqual({ emails: ["reader@example.com"], sendWelcomeEmail: false });
+    expect(importBody).toEqual({
+      email: "reader@example.com",
+      subscription: false,
+      sendEmail: false,
+    });
     expect(authorizeSubstackSubscriberRequest({
       ...binding,
       operation: "subscribers.import",
-      url: `${ORIGIN}/api/v1/import`,
+      url: `${ORIGIN}/api/v1/subscriber/add`,
       method: "POST",
       body: importBody,
-    }).path).toBe("/api/v1/import");
+    }).path).toBe("/api/v1/subscriber/add");
 
     for (const candidate of [
       { operation: "subscribers.export", url: "https://other.substack.com/api/v1/subscriber-stats", method: "POST", body },
       { operation: "subscribers.export", url: `${ORIGIN}/api/v1/subscriber-stats?x=1`, method: "POST", body },
       { operation: "subscribers.export", url: `${ORIGIN}/api/v1/subscriber-stats`, method: "GET", body },
-      { operation: "subscribers.export", url: `${ORIGIN}/api/v1/subscriber-stats`, method: "POST", body: { ...body, limit: 501 } },
+      { operation: "subscribers.export", url: `${ORIGIN}/api/v1/subscriber-stats`, method: "POST", body: { ...body, limit: 101 } },
       { operation: "subscribers.export", url: `${ORIGIN}/api/v1/subscriber-stats`, method: "POST", body: { ...body, extra: true } },
-      { operation: "subscribers.import.status", url: `${ORIGIN}/api/v1/import`, method: "POST" },
-      { operation: "subscribers.import.status", url: `${ORIGIN}/api/v1/import`, method: "GET", body: {} },
-      { operation: "subscribers.import", url: `${ORIGIN}/api/v1/import`, method: "POST", body: { ...importBody, sendWelcomeEmail: true } },
-      { operation: "subscribers.import", url: `${ORIGIN}/api/v1/import`, method: "POST", body: { emails: ["reader@example.com"] } },
-      { operation: "subscribers.import", url: "https://substack.com/api/v1/import", method: "POST", body: importBody },
+      { operation: "subscribers.import.status", url: `${ORIGIN}/api/v1/import/instances`, method: "POST" },
+      { operation: "subscribers.import.status", url: `${ORIGIN}/api/v1/import/instances`, method: "GET", body: {} },
+      { operation: "subscribers.import", url: `${ORIGIN}/api/v1/subscriber/add`, method: "POST", body: { ...importBody, sendEmail: true } },
+      { operation: "subscribers.import", url: `${ORIGIN}/api/v1/subscriber/add`, method: "POST", body: { ...importBody, subscription: true } },
+      { operation: "subscribers.import", url: "https://substack.com/api/v1/subscriber/add", method: "POST", body: importBody },
     ] as const) {
       expect(() => authorizeSubstackSubscriberRequest({ ...binding, ...candidate })).toThrow();
     }

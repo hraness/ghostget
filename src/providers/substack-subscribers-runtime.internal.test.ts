@@ -158,9 +158,15 @@ describe("Substack subscriber runtime", () => {
       expect(request.method).toBe("POST");
       expect(request.headers.get("content-type")).toBe("application/json");
       expect(request.headers.get("referer")).toBe(`${ORIGIN}/publish/subscribers`);
-      const body = JSON.parse(request.body ?? "null") as { filters: unknown; offset: number; limit: number };
+      const body = JSON.parse(request.body ?? "null") as {
+        filters: unknown;
+        includeTags: boolean;
+        offset: number;
+        limit: number;
+      };
       expect(body).toEqual({
         filters: { order_by_desc_nulls_last: "subscription_created_at" },
+        includeTags: true,
         limit: 2,
         offset: body.offset,
       });
@@ -242,13 +248,18 @@ describe("Substack subscriber runtime", () => {
 
   test("projects the exact import status and nothing else", async () => {
     const fixture = harness((request) => {
-      if (request.url.href !== `${ORIGIN}/api/v1/import` || request.method !== "GET") unexpected(request);
+      if (request.url.href !== `${ORIGIN}/api/v1/import/instances` || request.method !== "GET") unexpected(request);
       return json({
-        total: 25,
-        is_added: 21,
-        is_skipped: 3,
-        is_limited: 1,
-        passImportVerification: true,
+        hasActiveListManagementModerationTask: false,
+        latestImportResult: {
+          total: 25,
+          is_added: 21,
+          is_skipped: 3,
+          is_limited: 1,
+          passImportVerification: true,
+          upload_date: "2026-09-27T00:00:00.000Z",
+        },
+        pubImports: [],
       });
     });
     const result = await executeSubstackSubscriberOperation(
@@ -303,13 +314,17 @@ describe("Substack subscriber runtime", () => {
   });
 
   test("imports once with a frozen operation identity and records the accepted target", async () => {
-    const emails = ["a@example.com", "b@example.com"];
+    const emails = ["a@example.com"];
     const events: string[] = [];
     const fixture = harness((request) => {
-      if (request.url.href !== `${ORIGIN}/api/v1/import` || request.method !== "POST") unexpected(request);
+      if (request.url.href !== `${ORIGIN}/api/v1/subscriber/add` || request.method !== "POST") unexpected(request);
       events.push("dispatch");
-      expect(JSON.parse(request.body ?? "null")).toEqual({ emails, sendWelcomeEmail: false });
-      return json({ ok: true });
+      expect(JSON.parse(request.body ?? "null")).toEqual({
+        email: emails[0],
+        subscription: false,
+        sendEmail: false,
+      });
+      return json({});
     });
     const accepted: string[] = [];
     const result = await executeSubstackSubscriberOperation(
@@ -335,7 +350,7 @@ describe("Substack subscriber runtime", () => {
     const operationId = substackSubscriberImportOperationId({
       publicationId: PUBLICATION_ID,
       viewerId: USER_ID,
-      plan: { emails, sendWelcomeEmail: false },
+      plan: { emails, sendWelcomeEmail: false, publicationOrigin: null },
       nonce: NONCE,
     });
     expect(operationId).toMatch(/^[0-9a-f]{64}$/u);
@@ -348,9 +363,9 @@ describe("Substack subscriber runtime", () => {
     });
     expect(events).toEqual(["before:subscribers.import:0", "dispatch", "verified"]);
     expect(accepted).toEqual([
-      JSON.stringify({ emailCount: 2, operationId, publicationId: PUBLICATION_ID }),
+      JSON.stringify({ emailCount: 1, operationId, publicationId: PUBLICATION_ID }),
     ]);
-    expect(fixture.calls.filter((call) => call.url.pathname === "/api/v1/import")).toHaveLength(1);
+    expect(fixture.calls.filter((call) => call.url.pathname === "/api/v1/subscriber/add")).toHaveLength(1);
   });
 
   test("returns reconcile-required and never retries an ambiguous import", async () => {
@@ -364,7 +379,7 @@ describe("Substack subscriber runtime", () => {
     ]) {
       let imports = 0;
       const fixture = harness((request) => {
-        if (request.url.pathname !== "/api/v1/import") unexpected(request);
+        if (request.url.pathname !== "/api/v1/subscriber/add") unexpected(request);
         imports += 1;
         return respond();
       });
@@ -388,7 +403,7 @@ describe("Substack subscriber runtime", () => {
       expect(result.dispatchStarted).toBe(true);
       expect(result.dispatch).toEqual({ planned: 1, started: 1, verified: 0 });
       expect(result.error).toStartWith("reconcile-required:");
-      expect(result.error).toContain("subscribers.import.status");
+      expect(result.error).toContain("subscribers.export");
       expect(result.error).not.toContain("reader@example.com");
       expect(result.readFailure).toBeUndefined();
     }
@@ -410,6 +425,6 @@ describe("Substack subscriber runtime", () => {
       dispatchStarted: false,
       dispatch: { planned: 1, started: 0, verified: 0 },
     });
-    expect(fixture.calls.some((call) => call.url.pathname === "/api/v1/import")).toBe(false);
+    expect(fixture.calls.some((call) => call.url.pathname === "/api/v1/subscriber/add")).toBe(false);
   });
 });
