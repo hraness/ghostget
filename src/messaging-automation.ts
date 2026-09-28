@@ -9,7 +9,7 @@ import {
   sha256,
 } from "./canonical-json";
 import { ensurePrivateStateDirectory, ghostgetStateHome, snapshotPrivateStateDirectory } from "./storage";
-import { AUTOMATION_ACTION_KINDS, automationArray, automationDate, automationDigest, automationId, automationInteger, automationRecord, automationText, parseAutomationAction, parseAutomationActionKind, parseAutomationCoordinate, parseAutomationIdentity, parseAutomationMessage } from "./messaging-automation-validation";
+import { AUTOMATION_ACTION_KINDS, automationArray, automationDate, automationDigest, automationId, automationInteger, automationRecord, automationText, parseAutomationAction, parseAutomationActionKind, parseAutomationCoordinate, parseAutomationIdentity, parseAutomationMessage, automationInstant } from "./messaging-automation-validation";
 import type { AutomationConversation, AutomationEnrollment, AutomationEvent, AutomationGrant, AutomationGrantRequest, AutomationIdentity, AutomationPlan, AutomationPlanRequest, AutomationPollResult, AutomationProviderPage, AutomationProviderSendResult, AutomationProviderStatus, AutomationRun, MessagingAutomationProvider } from "./messaging-automation-types";
 export * from "./messaging-automation-types";
 
@@ -186,6 +186,23 @@ export class MessagingAutomationHost {
     const messages = rows.map(row => parseAutomationMessage(JSON.parse(row.data) as unknown)).reverse();
     if (messages.some(message => !same(message.coordinate, enrollment.conversation.coordinate))) throw new Error("Messaging stored history has another conversation.");
     return Object.freeze({ enrollment, messages: Object.freeze(messages) });
+  }
+  /** A read-only dated page straight from the provider for one ready
+   * enrollment: newest first within [after, before), at most 200 messages. It
+   * never advances the event cursor or writes stored history. */
+  async historyWindow(raw: Readonly<{ enrollmentId: string; limit: number; before: string | null; after: string | null }>, signal?: AbortSignal) {
+    this.ready(); const r = automationRecord(raw, ["enrollmentId", "limit", "before", "after"]);
+    const limit = automationInteger(r.limit, 1, 200);
+    const before = r.before === null ? null : automationInstant(r.before), after = r.after === null ? null : automationInstant(r.after);
+    if (before !== null && after !== null && Date.parse(after) >= Date.parse(before)) throw new Error("Messaging history window is empty.");
+    const enrollment = this.enrollment(this.row(automationId(r.enrollmentId)));
+    if (!enrollment.ready) throw new Error("Messaging enrollment is unavailable.");
+    const provider = this.provider(enrollment.identity.provider); const status = await this.status(provider, signal);
+    if (!same(status.identity, enrollment.identity)) throw new Error("Messaging identity changed.");
+    const coordinate = enrollment.conversation.coordinate;
+    const page = checkedPage(await provider.history({ coordinate, limit, ...(before === null ? {} : { before }), ...(after === null ? {} : { after }) }, signal), enrollment.identity, coordinate); stopped(signal);
+    const messages = page.messages.filter(message => (before === null || Date.parse(message.occurredAt) < Date.parse(before)) && (after === null || Date.parse(message.occurredAt) >= Date.parse(after)));
+    return Object.freeze({ enrollment, messages: Object.freeze(messages.slice(-limit)) });
   }
   async enroll(raw: Readonly<{ provider: string; coordinate: unknown }>, signal?: AbortSignal): Promise<AutomationEnrollment> {
     this.ready(); const request = automationRecord(raw, ["provider", "coordinate"]); const coordinate = parseAutomationCoordinate(request.coordinate);

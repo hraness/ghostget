@@ -385,3 +385,17 @@ test("converted or malformed native attachment metadata fails history without re
   expect(f.calls.find(call => call.method === "messages.history")!.params.convert_attachments).toBe(false);
   await f.close();
 });
+test("a dated history window reaches the helper as start/end, and a malformed instant never reaches it", async () => {
+  const f = fixture();
+  await f.provider.history({ coordinate: target, limit: 20, before: "2026-09-01T00:00:00.000Z", after: "2026-06-01T00:00:00.000Z" });
+  expect(f.calls.find(call => call.method === "messages.history")!.params).toMatchObject({ limit: 20, end: "2026-09-01T00:00:00.000Z", start: "2026-06-01T00:00:00.000Z" });
+  const plain = fixture();
+  await plain.provider.history({ coordinate: target, limit: 20 });
+  const request = plain.calls.find(call => call.method === "messages.history")!.params;
+  expect("start" in request || "end" in request).toBe(false);
+  for (const bad of ["2026-09-01", "2026-09-01T00:00:00Z", "not a date", "2026-13-01T00:00:00.000Z"]) {
+    const refused = fixture();
+    expect(() => refused.provider.history({ coordinate: target, limit: 20, before: bad })).toThrow("Invalid automation instant");
+    expect(refused.calls.some(call => call.method === "messages.history")).toBe(false);
+  }
+});

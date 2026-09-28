@@ -6,6 +6,7 @@ import {
   automationDate,
   automationDigest,
   automationId,
+  automationInstant,
   automationInteger,
   automationRecord,
   automationText,
@@ -14,7 +15,7 @@ import {
   parseAutomationCoordinate,
   parseAutomationIdentity,
   parseAutomationMessage
-} from "./index-70x272r0.js";
+} from "./index-42adge2e.js";
 import {
   ensurePrivateStateDirectory,
   ghostgetStateHome,
@@ -290,6 +291,26 @@ class MessagingAutomationHost {
     if (messages.some((message) => !same(message.coordinate, enrollment.conversation.coordinate)))
       throw new Error("Messaging stored history has another conversation.");
     return Object.freeze({ enrollment, messages: Object.freeze(messages) });
+  }
+  async historyWindow(raw, signal) {
+    this.ready();
+    const r = automationRecord(raw, ["enrollmentId", "limit", "before", "after"]);
+    const limit = automationInteger(r.limit, 1, 200);
+    const before = r.before === null ? null : automationInstant(r.before), after = r.after === null ? null : automationInstant(r.after);
+    if (before !== null && after !== null && Date.parse(after) >= Date.parse(before))
+      throw new Error("Messaging history window is empty.");
+    const enrollment = this.enrollment(this.row(automationId(r.enrollmentId)));
+    if (!enrollment.ready)
+      throw new Error("Messaging enrollment is unavailable.");
+    const provider = this.provider(enrollment.identity.provider);
+    const status = await this.status(provider, signal);
+    if (!same(status.identity, enrollment.identity))
+      throw new Error("Messaging identity changed.");
+    const coordinate = enrollment.conversation.coordinate;
+    const page = checkedPage(await provider.history({ coordinate, limit, ...before === null ? {} : { before }, ...after === null ? {} : { after } }, signal), enrollment.identity, coordinate);
+    stopped(signal);
+    const messages = page.messages.filter((message) => (before === null || Date.parse(message.occurredAt) < Date.parse(before)) && (after === null || Date.parse(message.occurredAt) >= Date.parse(after)));
+    return Object.freeze({ enrollment, messages: Object.freeze(messages.slice(-limit)) });
   }
   async enroll(raw, signal) {
     this.ready();

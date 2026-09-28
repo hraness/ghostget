@@ -308,3 +308,16 @@ test("discovery serializes only authored markers and preserves recovery preceden
   f.host.providerStatus = async () => { throw tagged; };
   expect((await f.request("status", { provider: "whatsapp" })).error?.message).not.toStartWith("ghostget.discovery.v1:");
 });
+test("history.window is an enrollment-scoped read with strict fields", async () => {
+  const f = await fixture();
+  const enrollment = (await f.request("enroll", { provider: "whatsapp", coordinate })).result;
+  const page = await f.request("history.window", { enrollmentId: enrollment.id, limit: 20, before: null, after: null });
+  expect(page).toMatchObject({ ok: true, result: { enrollment: { id: enrollment.id } } });
+  expect(Array.isArray(page.result.messages)).toBe(true);
+  for (const params of [
+    { enrollmentId: enrollment.id, limit: 20, before: null },
+    { enrollmentId: enrollment.id, limit: 20, before: null, after: null, extra: true },
+    { enrollmentId: enrollment.id, limit: 0, before: null, after: null },
+    { enrollmentId: enrollment.id, limit: 20, before: "yesterday", after: null },
+  ]) expect((await f.request("history.window", params)).ok).toBe(false);
+});

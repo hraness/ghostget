@@ -130,3 +130,9 @@ test("WhatsApp receipt parser rejects arbitrary extra fields", () => {
   assertProperty(fc.property(fc.string().filter(key => !Object.hasOwn(valid, key)), fc.jsonValue(), (key, value) => { expect(() => parseWhatsAppPrivateResponse({ ...valid, [key]: value })).toThrow(); }));
   for (const patch of [{ generation: "" }, { to: "15550000002@g.us" }, { messageId: "" }, { connected: 1 }, { state: "delivered" }]) expect(() => parseWhatsAppPrivateResponse({ ...valid, ...patch })).toThrow();
 });
+
+test("WhatsApp refuses dated history windows instead of ignoring them", async () => {
+  const f = fixture(); await f.provider.start();
+  await expect(f.provider.history({ coordinate: target, limit: 10, before: "2026-09-01T00:00:00.000Z" })).rejects.toThrow("unavailable for WhatsApp");
+  await expect(f.provider.history({ coordinate: target, limit: 10, after: "2026-06-01T00:00:00.000Z" })).rejects.toThrow("unavailable for WhatsApp");
+});

@@ -246,3 +246,31 @@ test("iMessage discovery tags host status, identity and response boundaries with
   error = await f.host.conversations({ provider: "imessage", limit: 10 }).catch(error => error);
   expect(discoveryDiagnosticMessage(error)).toBe("ghostget.discovery.v1:host-response:failed");
 });
+test("a dated history window reads the provider read-only and stays inside its bounds", async () => {
+  const f = fixture(); const enrollment = await f.host.enroll({ provider: "whatsapp", coordinate });
+  const dated = (id: string, occurredAt: string) => ({ ...message(id), occurredAt });
+  const seen: unknown[] = [];
+  f.provider.history = async input => {
+    seen.push(input);
+    // A provider that over-returns is clipped to the requested window.
+    return { identity: identity, messages: [dated("old", "2026-05-31T23:59:59.999Z"), dated("in:1", "2026-06-10T00:00:00.000Z"), dated("in:2", "2026-08-31T23:59:59.999Z"), dated("edge", "2026-09-01T00:00:00.000Z")], nextCursor: "0", caughtUp: true, gap: false };
+  };
+  const storedBefore = f.host.history({ enrollmentId: enrollment.id, limit: 200 });
+  const page = await f.host.historyWindow({ enrollmentId: enrollment.id, limit: 50, before: "2026-09-01T00:00:00.000Z", after: "2026-06-01T00:00:00.000Z" });
+  expect(seen).toEqual([{ coordinate, limit: 50, before: "2026-09-01T00:00:00.000Z", after: "2026-06-01T00:00:00.000Z" }]);
+  expect(page.messages.map(item => item.id)).toEqual(["in:1", "in:2"]);
+  expect(page.enrollment.id).toBe(enrollment.id);
+  // Read-only: stored history and the enrollment revision are unchanged.
+  expect(f.host.history({ enrollmentId: enrollment.id, limit: 200 })).toEqual(storedBefore);
+  expect(f.host.enrollments().find(item => item.id === enrollment.id)!.revision).toBe(enrollment.revision);
+  // Open-ended windows forward only the bound that was given.
+  await f.host.historyWindow({ enrollmentId: enrollment.id, limit: 10, before: null, after: null });
+  expect(seen.at(-1)).toEqual({ coordinate, limit: 10 });
+  await expect(f.host.historyWindow({ enrollmentId: enrollment.id, limit: 10, before: "2026-06-01T00:00:00.000Z", after: "2026-06-01T00:00:00.000Z" })).rejects.toThrow("empty");
+  await expect(f.host.historyWindow({ enrollmentId: enrollment.id, limit: 10, before: "2026-06-01", after: null })).rejects.toThrow("instant");
+  await expect(f.host.historyWindow({ enrollmentId: enrollment.id, limit: 201, before: null, after: null })).rejects.toThrow();
+  // An account switch refuses the read before the provider is asked for history.
+  const calls = seen.length; f.replace({ ...identity, accountSubject: "whatsapp:pn:15559999999" });
+  await expect(f.host.historyWindow({ enrollmentId: enrollment.id, limit: 10, before: null, after: null })).rejects.toThrow();
+  expect(seen).toHaveLength(calls);
+});

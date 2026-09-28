@@ -11,7 +11,7 @@ import type { LocalCliExecutionOptions } from "../local-cli-execution";
 import { OperationDeadline } from "../operation-deadline";
 import { discoveryDiagnostic, nativeDiagnostic, type DiscoveryDiagnosticPhase } from "../messaging-automation-diagnostics";
 import type { AutomationAction, AutomationConversation, AutomationCoordinate, AutomationIdentity, AutomationMessage, AutomationProviderStatus, AutomationProviderSendResult, AutomationScopedPage, MessagingAutomationProvider } from "../messaging-automation-types";
-import { AUTOMATION_ACTION_KINDS, automationArray, automationDigest, automationInteger, automationRecord, automationText, parseAutomationAction, parseAutomationCoordinate, parseAutomationIdentity } from "../messaging-automation-validation";
+import { AUTOMATION_ACTION_KINDS, automationArray, automationDigest, automationInteger, automationRecord, automationText, parseAutomationAction, parseAutomationCoordinate, parseAutomationIdentity, automationInstant } from "../messaging-automation-validation";
 import { IMSG_NO_FETCH_RICH_CARDS_AVAILABLE, type ImsgChatCoordinate, type ImsgRpcRequest } from "./imessage-direct";
 import { createImsgAutomationSessions, imsgAutomationProjection as project, type ImsgAutomationSessionContext, type ImsgChatProjection, type ImsgDirectRuntimeDependencies } from "./imessage-direct-runtime";
 
@@ -223,9 +223,10 @@ export function createImsgAutomationProvider(options: ImsgAutomationOptions): Me
     resolve(value, signal) { const selected = coordinate(value); return run("resolve", signal, async (session, identity) => ({ identity, conversation: await exactConversation(session, selected) })); },
     history(input, signal) {
       const selected = coordinate(input.coordinate), limit = automationInteger(input.limit, 1, 200);
+      const window = { ...(input.before === undefined ? {} : { end: automationInstant(input.before) }), ...(input.after === undefined ? {} : { start: automationInstant(input.after) }) };
       return run("history", signal, async (session, identity) => {
         await exactConversation(session, selected);
-        const response = await session.run([request("messages.history", { chat_id: selected.observedChatRowId, limit, attachments: true, convert_attachments: false })]);
+        const response = await session.run([request("messages.history", { chat_id: selected.observedChatRowId, limit, attachments: true, convert_attachments: false, ...window })]);
         const raw = automationArray(automationRecord(response.get("operation"), ["messages"]).messages, limit);
         const messages = raw.map(value => message(value, selected, true));
         if (new Set(messages.map(item => item.id)).size !== messages.length) throw new Error("Repeated history identity");

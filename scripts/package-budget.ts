@@ -2033,14 +2033,24 @@
 // 7a0cc5855e8fbe6a1632195c6b85356df29a0ab4bd8a3719324aae9c70562d71.
 // Carry the same projections and allowances: 12,122,574 + 12,387 + 4,096 =
 // 12,139,057 packed; 23,931,644 + 353 + 65 = 23,932,062 unpacked.
+//
+// The read-only dated messaging history window over main 53a1592 adds the
+// `history.window` host method, iMessage start/end forwarding, and explicit
+// WhatsApp and Beeper refusals without new packed files. After `bun run build`,
+// a clean npm 11.19.0 pack --ignore-scripts with Node 24.18.1 on darwin arm64
+// measured 618 entries, 12,124,686 packed bytes and 23,937,025 unpacked bytes;
+// archive SHA-256
+// 91073eb4b08aa5900ce3d8becc42d4a539fb278dd2fece5da50b7116def2ce3f.
+// Carry the same projections and allowances: 12,124,686 + 12,387 + 4,096 =
+// 12,141,169 packed; 23,937,025 + 353 + 65 = 23,937,443 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget 0.18.44 release over the qualified Substack subscriber operations",
+  scope: "Read-only dated messaging history window over main 53a1592",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "7a0cc5855e8fbe6a1632195c6b85356df29a0ab4bd8a3719324aae9c70562d71",
-  packedBytes: 12_122_574,
-  unpackedBytes: 23_931_644,
+  archiveSha256: "91073eb4b08aa5900ce3d8becc42d4a539fb278dd2fece5da50b7116def2ce3f",
+  packedBytes: 12_124_686,
+  unpackedBytes: 23_937_025,
   entryCount: 618,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

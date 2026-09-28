@@ -413,3 +413,8 @@ describe("Beeper automation provider", () => {
     await expect(f.provider.inspect()).rejects.toThrow();
   });
 });
+
+test("Beeper refuses dated history windows instead of ignoring them", async () => {
+  const f = fixture();
+  await expect(f.provider.history({ coordinate: target, limit: 10, before: "2026-09-01T00:00:00.000Z" })).rejects.toThrow("unavailable for Beeper");
+});
