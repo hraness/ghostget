@@ -2197,6 +2197,7 @@ describe("doctor authenticated API readiness", () => {
           "articles.draft.save",
           "articles.read",
           "comments.read",
+          "contacts.list",
           "content.save",
           "feeds.read",
           "likes.set",

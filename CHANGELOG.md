@@ -7,6 +7,14 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+- X `contacts.list` runs for the signed-in viewer's own following and
+  followers collections through the current first-party GraphQL queries
+  (`Following` over GET, `Followers` over POST). Each page returns user ID,
+  handle, display name, and both relationship directions — whether you follow
+  the listed account and whether it follows you — plus a continuation cursor.
+  Pages are bound to the authenticated viewer, non-user rows are excluded, and
+  a truncated page never exposes an unusable cursor.
+
 ## 0.18.45
 
 This release keeps the shipped type sources compiling under a consumer's

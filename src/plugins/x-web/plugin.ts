@@ -153,7 +153,7 @@ function xArticleDraftV2Dispatches(
 
 const currentOperations = webSessionContractOperations(
   Object.values(webSessionContractDefinitions.x),
-  "c3d649bf6fa94a2f6488fefbafc65e20474993e6c90c99ddf46a82caea6c892d",
+  "fb212bb81002fc447ff2661a9dc77032de66cfc652b595582aa74b262247dbd4",
   {
     "likes.set": [1],
   },
@@ -411,6 +411,7 @@ export const xWebPlugin = defineProviderPlugin({
   sourceKind: "built-in",
   implementationSources: webImplementationSources(import.meta.url, [
     ["providers/read-failure.ts", "../../providers/read-failure.ts"],
+    ["providers/contact-projection.ts", "../../providers/contact-projection.ts"],
     ["kernel/browser.ts", "../../browser.ts"],
     ["kernel/article-draft-document.ts", "../../article-draft-document.ts"],
     ["kernel/article-draft-images.ts", "../../article-draft-images.ts"],

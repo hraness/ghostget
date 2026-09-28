@@ -7,6 +7,10 @@
  */
 
 import { hasExactKeys } from "../contracts-shape.js";
+import {
+  projectContactDirectionStats,
+  type ContactDirectionStatsProjection,
+} from "./contact-projection.js";
 
 export type XWebOperationType = "query" | "mutation";
 
@@ -269,6 +273,8 @@ export const xWebQueryDescriptorEvidenceSnapshot = Object.freeze({
     { operationName: "DeleteTweet", operationType: "mutation", queryId: "nxpZCY2K-I6QoFHAHeojFQ", sourceChunk: "main.52fc4dd0aada586aa.js", observedOn: "2026-09-17" },
     { operationName: "Viewer", operationType: "query", queryId: "9t128XgFic52jPUEkJMf6w", sourceChunk: "main.52fc4dd0aada586aa.js", observedOn: "2026-09-17" },
     { operationName: "UserByScreenName", operationType: "query", queryId: "KybxDj9RrADIITXlGG8kpw", sourceChunk: "main.52fc4dd0aada586aa.js", observedOn: "2026-09-17" },
+    { operationName: "Following", operationType: "query", queryId: "uwmIAx89XrXNuGY-Y7WFLg", sourceChunk: "main.a9c37180a4c75840a.js", observedOn: "2026-09-28" },
+    { operationName: "Followers", operationType: "query", queryId: "mrqxgX8JzwlL6pvYiC5CPA", sourceChunk: "main.a9c37180a4c75840a.js", observedOn: "2026-09-28" },
     { operationName: "ArticleEntityDraftCreate", operationType: "mutation", queryId: "_rbmb_NKLqKVBr5X_MSoMQ", sourceChunk: "bundle.TwitterArticles.b3c21fed7d9db030a.js", observedOn: "2026-09-17" },
     { operationName: "ArticleEntityUpdateContent", operationType: "mutation", queryId: "x4Pz2ifYkOD6uSvzxOIUig", sourceChunk: "bundle.TwitterArticles.b3c21fed7d9db030a.js", observedOn: "2026-09-17" },
     { operationName: "ArticleEntityUpdateTitle", operationType: "mutation", queryId: "brHFCBTXXg8WOqc7BnXfAw", sourceChunk: "bundle.TwitterArticles.b3c21fed7d9db030a.js", observedOn: "2026-09-17" },
@@ -278,7 +284,11 @@ export const xWebQueryDescriptorEvidenceSnapshot = Object.freeze({
 });
 
 type XWebGraphQlReadDefinition = {
-  readonly semanticOperation: "feeds.read" | "posts.read" | "profiles.read";
+  readonly semanticOperation:
+    | "feeds.read"
+    | "posts.read"
+    | "profiles.read"
+    | "contacts.list";
   readonly risk: "R1";
   readonly transport: "graphql-query";
   readonly operationName: string;
@@ -316,6 +326,8 @@ export const xWebSemanticOperationRegistry = Object.freeze({
   "feeds.search": { semanticOperation: "feeds.read", risk: "R1", transport: "graphql-query", operationName: "SearchTimeline", operationType: "query", responseRoot: ["search_by_raw_query", "search_timeline", "timeline"] },
   "feeds.notifications": { semanticOperation: "feeds.read", risk: "R1", transport: "graphql-query", operationName: "NotificationsTimeline", operationType: "query", responseRoot: ["viewer_v2", "user_results", "result", "notification_timeline", "timeline"] },
   "profiles.by-handle": { semanticOperation: "profiles.read", risk: "R1", transport: "graphql-query", operationName: "UserByScreenName", operationType: "query", responseRoot: ["user", "result"] },
+  "contacts.following": { semanticOperation: "contacts.list", risk: "R1", transport: "graphql-query", operationName: "Following", operationType: "query", responseRoot: ["user", "result", "timeline", "timeline"] },
+  "contacts.followers": { semanticOperation: "contacts.list", risk: "R1", transport: "graphql-query", operationName: "Followers", operationType: "query", responseRoot: ["user", "result", "timeline", "timeline"] },
   "posts.detail": { semanticOperation: "posts.read", risk: "R1", transport: "graphql-query", operationName: "TweetDetail", operationType: "query", responseRoot: ["threaded_conversation_with_injections_v2"] },
   "posts.by-id": { semanticOperation: "posts.read", risk: "R1", transport: "graphql-query", operationName: "TweetResultByRestId", operationType: "query", responseRoot: ["tweetResult", "result"] },
   "posts.by-ids": { semanticOperation: "posts.read", risk: "R1", transport: "graphql-query", operationName: "TweetResultsByRestIds", operationType: "query", responseRoot: ["tweetResult"] },
@@ -1343,6 +1355,29 @@ export function assertXWebUserFeedTargetBound(
   }
 }
 
+/**
+ * Bind a viewer-owned Following/Followers collection response to the signed-in
+ * account. The current documents return a bare `User` timeline node with no
+ * echoed identity, so binding is structural: the GraphQL userId variable was
+ * generated from the bound viewer, the response must expose a User node, and
+ * any identity the node does echo must equal the viewer.
+ */
+export function assertXWebContactsTargetBound(
+  response: unknown,
+  expectedUserId: unknown,
+): void {
+  const expected = exactTweetId(expectedUserId, "input.user_id");
+  const data = responseData(response, "X contacts collection response");
+  const user = record(data.user, "X contacts collection response.data.user");
+  const result = unwrapXWebUserResult(user.result, "X contacts collection response.data.user.result");
+  const nodeIds = collectXWebUserIdentities(user, result);
+  for (const id of nodeIds) {
+    if (id !== expected) {
+      throw new Error("X contacts collection response did not bind the requested user");
+    }
+  }
+}
+
 function userFeedRootSegment(
   operationId: XWebSemanticOperationId,
   parent: JsonRecord,
@@ -1361,8 +1396,12 @@ function userFeedRootSegment(
     throw new Error(`X ${operationId} response omitted reviewed root ${root.join(".")}`);
   }
   const next = parent[segment];
-  if (operationId === "feeds.user" && segment === "result") {
-    return unwrapXWebUserResult(next, "X user feed response.data.user.result");
+  const userResultBound =
+    operationId === "feeds.user"
+    || operationId === "contacts.following"
+    || operationId === "contacts.followers";
+  if (userResultBound && segment === "result") {
+    return unwrapXWebUserResult(next, `X ${operationId} response.data.user.result`);
   }
   return next;
 }
@@ -1394,7 +1433,11 @@ export function normalizeXWebGraphQlTimelineResponse(
   const definition = xWebSemanticOperationRegistry[operationId];
   if (
     definition.transport !== "graphql-query"
-    || (definition.semanticOperation !== "feeds.read" && operationId !== "posts.detail")
+    || (
+      definition.semanticOperation !== "feeds.read"
+      && definition.semanticOperation !== "contacts.list"
+      && operationId !== "posts.detail"
+    )
   ) {
     throw new Error(`${operationId} is not an X URT timeline response contract`);
   }
@@ -1610,6 +1653,18 @@ export type XWebNormalizedUnavailable = {
   readonly reason: string | null;
 };
 
+export type XWebNormalizedUser = {
+  readonly kind: "user";
+  readonly entryId: string;
+  readonly moduleEntryId: string | null;
+  readonly sortIndex: string | null;
+  readonly userId: string;
+  readonly username: string | null;
+  readonly name: string | null;
+  readonly followsViewer: boolean | null;
+  readonly followedByViewer: boolean | null;
+};
+
 export type XWebNormalizedOther = {
   readonly kind: "other";
   readonly entryId: string;
@@ -1620,6 +1675,7 @@ export type XWebNormalizedOther = {
 
 export type XWebNormalizedTimelineItem =
   | XWebNormalizedTweet
+  | XWebNormalizedUser
   | XWebNormalizedUnavailable
   | XWebNormalizedOther;
 
@@ -1759,6 +1815,95 @@ function unwrapTweetResult(value: JsonRecord, label: string): {
   return { result: null, typename, reason };
 }
 
+function optionalRelationshipFlag(value: unknown, label: string): boolean | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "boolean") throw new Error(`${label} must be boolean when present`);
+  return value;
+}
+
+function normalizeTimelineUserItem(
+  item: JsonRecord,
+  entryId: string,
+  moduleEntryId: string | null,
+  sortIndex: string | null,
+): XWebNormalizedTimelineItem {
+  const label = `X URT user ${entryId}`;
+  const userResultsValue = item.user_results;
+  if (!isRecord(userResultsValue)) {
+    return Object.freeze({
+      kind: "unavailable",
+      entryId,
+      moduleEntryId,
+      sortIndex,
+      typename: "MissingUserResult",
+      reason: null,
+    });
+  }
+  const resultValue = userResultsValue.result;
+  if (resultValue === null || resultValue === undefined) {
+    return Object.freeze({
+      kind: "unavailable",
+      entryId,
+      moduleEntryId,
+      sortIndex,
+      typename: "MissingUserResult",
+      reason: null,
+    });
+  }
+  const result = record(resultValue, `${label}.user_results.result`);
+  const typename = typeof result.__typename === "string" ? result.__typename : null;
+  if (typename !== "User") {
+    const reason = typeof result.reason === "string" ? result.reason : null;
+    return Object.freeze({
+      kind: "unavailable",
+      entryId,
+      moduleEntryId,
+      sortIndex,
+      typename: typename ?? "UnknownUserResult",
+      reason,
+    });
+  }
+  const userId = exactTweetId(result.rest_id, `${label}.rest_id`);
+  const core = result.core === undefined || result.core === null
+    ? null
+    : record(result.core, `${label}.core`);
+  const legacy = result.legacy === undefined || result.legacy === null
+    ? null
+    : record(result.legacy, `${label}.legacy`);
+  const coreHandle = core === null ? null : optionalAuthorHandle(core.screen_name, `${label}.core.screen_name`);
+  const legacyHandle = legacy === null ? null : optionalAuthorHandle(legacy.screen_name, `${label}.legacy.screen_name`);
+  if (coreHandle !== null && legacyHandle !== null && coreHandle !== legacyHandle) {
+    throw new Error(`${label} handle disagreed across core and legacy`);
+  }
+  const coreName = core === null ? null : optionalAuthorName(core.name, `${label}.core.name`);
+  const legacyName = legacy === null ? null : optionalAuthorName(legacy.name, `${label}.legacy.name`);
+  if (coreName !== null && legacyName !== null && coreName !== legacyName) {
+    throw new Error(`${label} name disagreed across core and legacy`);
+  }
+  const perspectives = result.relationship_perspectives === undefined || result.relationship_perspectives === null
+    ? null
+    : record(result.relationship_perspectives, `${label}.relationship_perspectives`);
+  return Object.freeze({
+    kind: "user",
+    entryId,
+    moduleEntryId,
+    sortIndex,
+    userId,
+    username: coreHandle ?? legacyHandle,
+    name: coreName ?? legacyName,
+    // relationship_perspectives is the viewer's perspective: `following` means
+    // the viewer follows this user, `followed_by` means the viewer is followed
+    // by this user (verified live 2026-09-28: every entry on the viewer's
+    // Following page carries following:true, every Followers entry followed_by).
+    followsViewer: perspectives === null
+      ? null
+      : optionalRelationshipFlag(perspectives.followed_by, `${label}.relationship_perspectives.followed_by`),
+    followedByViewer: perspectives === null
+      ? null
+      : optionalRelationshipFlag(perspectives.following, `${label}.relationship_perspectives.following`),
+  });
+}
+
 function normalizeItemContent(
   itemValue: unknown,
   entryId: string,
@@ -1767,6 +1912,9 @@ function normalizeItemContent(
 ): XWebNormalizedTimelineItem {
   const item = record(itemValue, `X URT item ${entryId}`);
   const itemType = requiredString(item, "itemType", `X URT item ${entryId}`);
+  if (itemType === "TimelineUser") {
+    return normalizeTimelineUserItem(item, entryId, moduleEntryId, sortIndex);
+  }
   if (itemType !== "TimelineTweet") {
     return Object.freeze({ kind: "other", entryId, moduleEntryId, sortIndex, itemType });
   }
@@ -2129,6 +2277,73 @@ export function projectXWebFeedPage(
   );
   return Object.freeze({
     posts: Object.freeze(page.items),
+    cursor: page.truncated ? null : normalized.cursors.bottom?.value ?? null,
+    terminatedDirections: normalized.terminatedDirections,
+  });
+}
+
+const unavailableXContactStats = Object.freeze({
+  count: null,
+  complete: false,
+  lowerBound: false,
+  truncated: false,
+  lastAt: null,
+  lastAtComplete: false,
+  lastAtBasis: "unavailable",
+  incompleteReasons: Object.freeze(["message-history-capture-required"]),
+} as const);
+
+const unavailableXContactStatsProjection = projectContactDirectionStats(
+  unavailableXContactStats,
+  unavailableXContactStats,
+);
+
+export type XWebProjectedUser = ContactDirectionStatsProjection & {
+  readonly providerId: string;
+  readonly handle: string | null;
+  readonly displayName: string | null;
+  readonly followsViewer: boolean | null;
+  readonly followedByViewer: boolean | null;
+};
+
+export type XWebContactPage = {
+  readonly users: readonly XWebProjectedUser[];
+  readonly cursor: string | null;
+  readonly terminatedDirections: readonly string[];
+};
+
+function projectXWebContactUser(
+  item: XWebNormalizedTimelineItem,
+): XWebProjectedUser | null {
+  if (item.kind !== "user") return null;
+  return Object.freeze({
+    providerId: item.userId,
+    handle: item.username,
+    displayName: item.name,
+    followsViewer: item.followsViewer,
+    followedByViewer: item.followedByViewer,
+    ...unavailableXContactStatsProjection,
+  });
+}
+
+/** Project one viewer-bound following/followers page; non-user rows stay out. */
+export function projectXWebContactPage(
+  operationId: XWebSemanticOperationId,
+  response: unknown,
+  limit: number,
+): XWebContactPage {
+  const normalized = normalizeXWebGraphQlTimelineResponse(operationId, response);
+  const users = normalized.items
+    .map(projectXWebContactUser)
+    .filter((row): row is XWebProjectedUser => row !== null);
+  const page = boundXWebProviderPage(
+    users,
+    limit,
+    normalized.cursors.bottom !== null,
+    "X contact collection page",
+  );
+  return Object.freeze({
+    users: Object.freeze(page.items),
     cursor: page.truncated ? null : normalized.cursors.bottom?.value ?? null,
     terminatedDirections: normalized.terminatedDirections,
   });

@@ -19,6 +19,7 @@ import {
   parseXWebBookmarkExportRecord,
   projectXWebBookmarkExportPage,
   projectXWebBookmarkExportRecord,
+  projectXWebContactPage,
   projectXWebFeedPage,
   projectXWebFeedPost,
   projectXWebProfileStats,
@@ -94,6 +95,24 @@ function cursorEntry(entryId: string, cursorType: string, value: string): unknow
     entryId,
     sortIndex: "1",
     content: { entryType: "TimelineTimelineCursor", cursorType, value },
+  };
+}
+
+function timelineUserEntry(
+  id: string,
+  userResult: unknown,
+  options: { readonly sortIndex?: string } = {},
+): unknown {
+  return {
+    entryId: `user-${id}`,
+    sortIndex: options.sortIndex ?? "100",
+    content: {
+      entryType: "TimelineTimelineItem",
+      itemContent: {
+        itemType: "TimelineUser",
+        user_results: userResult,
+      },
+    },
   };
 }
 
@@ -1209,7 +1228,7 @@ describe("URT timeline normalization and cursor extraction", () => {
       "tweet",
       "tweet",
       "unavailable",
-      "other",
+      "unavailable",
       "tweet",
     ]);
     expect(normalized.items.filter((item) => item.kind === "tweet").map((item) => item.tweetId)).toEqual([
@@ -1219,7 +1238,7 @@ describe("URT timeline normalization and cursor extraction", () => {
       "104",
     ]);
     expect(normalized.items[3]).toMatchObject({ kind: "unavailable", typename: "TweetUnavailable", reason: "Protected" });
-    expect(normalized.items[4]).toMatchObject({ kind: "other", itemType: "TimelineUser" });
+    expect(normalized.items[4]).toMatchObject({ kind: "unavailable", typename: "MissingUserResult" });
     expect(normalized.items[5]).toMatchObject({ moduleEntryId: "module-1", entryId: "module-tweet-4" });
     expect(normalized.cursors.top?.value).toBe("top-token");
     expect(normalized.cursors.bottom?.value).toBe("bottom-token");
@@ -1892,6 +1911,173 @@ describe("X bookmark export projection", () => {
       ...page.items[0],
       url: "https://x.com/three/status/31",
     })).toThrow("status permalink");
+  });
+
+  test("projects a viewer-bound contact page and keeps non-user rows out", () => {
+    const contactsResponse = {
+      data: {
+        user: {
+          result: {
+            __typename: "User",
+            rest_id: "1401049881070997506",
+            timeline: {
+              timeline: {
+                instructions: [
+                  {
+                    type: "TimelineAddEntries",
+                    entries: [
+                      timelineUserEntry("41", {
+                        result: {
+                          __typename: "User",
+                          rest_id: "41",
+                          core: { name: "Ana", screen_name: "anahandle" },
+                          legacy: { name: "Ana", screen_name: "anahandle" },
+                          relationship_perspectives: { following: true, followed_by: true },
+                        },
+                      }),
+                      timelineUserEntry("42", {
+                        result: { __typename: "UserUnavailable", reason: "Suspended" },
+                      }),
+                      timelineUserEntry("43", {
+                        result: {
+                          __typename: "User",
+                          rest_id: "43",
+                          legacy: { name: "Legacy Name", screen_name: "legacyhandle" },
+                        },
+                      }),
+                      timelineItemEntry("tweet-44", tweetResult("44", { text: "promoted" })),
+                      cursorEntry("cursor-bottom", "Bottom", "contacts-next"),
+                    ],
+                  },
+                  { type: "TimelineTerminateTimeline", direction: "Top" },
+                ],
+              },
+            },
+          },
+        },
+      },
+    };
+    const page = projectXWebContactPage("contacts.followers", contactsResponse, 10);
+    expect(page.users).toEqual([
+      {
+        providerId: "41",
+        handle: "anahandle",
+        displayName: "Ana",
+        followsViewer: true,
+        followedByViewer: true,
+        sentCount: null,
+        sentCountComplete: false,
+        sentCountLowerBound: false,
+        sentCountTruncated: false,
+        receivedCount: null,
+        receivedCountComplete: false,
+        receivedCountLowerBound: false,
+        receivedCountTruncated: false,
+        lastSentAt: null,
+        lastSentAtComplete: false,
+        lastSentAtBasis: "unavailable",
+        sentStatsIncompleteReasons: ["message-history-capture-required"],
+        lastReceivedAt: null,
+        lastReceivedAtComplete: false,
+        lastReceivedAtBasis: "unavailable",
+        receivedStatsIncompleteReasons: ["message-history-capture-required"],
+      },
+      {
+        providerId: "43",
+        handle: "legacyhandle",
+        displayName: "Legacy Name",
+        followsViewer: null,
+        followedByViewer: null,
+        sentCount: null,
+        sentCountComplete: false,
+        sentCountLowerBound: false,
+        sentCountTruncated: false,
+        receivedCount: null,
+        receivedCountComplete: false,
+        receivedCountLowerBound: false,
+        receivedCountTruncated: false,
+        lastSentAt: null,
+        lastSentAtComplete: false,
+        lastSentAtBasis: "unavailable",
+        sentStatsIncompleteReasons: ["message-history-capture-required"],
+        lastReceivedAt: null,
+        lastReceivedAtComplete: false,
+        lastReceivedAtBasis: "unavailable",
+        receivedStatsIncompleteReasons: ["message-history-capture-required"],
+      },
+    ]);
+    expect(page.cursor).toBe("contacts-next");
+    expect(page.terminatedDirections).toEqual(["Top"]);
+    const followingPage = projectXWebContactPage("contacts.following", contactsResponse, 10);
+    expect(followingPage.users).toEqual(page.users);
+    const truncated = projectXWebContactPage("contacts.followers", contactsResponse, 1);
+    expect(truncated.users.map((user) => user.providerId)).toEqual(["41"]);
+    expect(truncated.cursor).toBeNull();
+    expect(JSON.stringify(truncated)).not.toContain("contacts-next");
+    expect(() => projectXWebContactPage("contacts.followers", {
+      data: {
+        user: {
+          result: {
+            __typename: "User",
+            rest_id: "1401049881070997506",
+            timeline: {
+              timeline: timeline(
+                timelineUserEntry("41", {
+                  result: { __typename: "User", rest_id: "41", core: { screen_name: "a" } },
+                }),
+                timelineUserEntry("42", {
+                  result: { __typename: "User", rest_id: "42", core: { screen_name: "b" } },
+                }),
+              ),
+            },
+          },
+        },
+      },
+    }, 1)).toThrow("no continuation cursor was exposed");
+    expect(() => projectXWebContactPage("contacts.followers", {
+      data: {
+        user: {
+          result: {
+            __typename: "User",
+            rest_id: "1401049881070997506",
+            timeline: {
+              timeline: timeline(
+                timelineUserEntry("45", {
+                  result: {
+                    __typename: "User",
+                    rest_id: "45",
+                    core: { name: "Drifted", screen_name: "one" },
+                    legacy: { name: "Drifted", screen_name: "two" },
+                  },
+                }),
+              ),
+            },
+          },
+        },
+      },
+    }, 10)).toThrow("handle disagreed across core and legacy");
+    expect(() => projectXWebContactPage("contacts.followers", {
+      data: {
+        user: {
+          result: {
+            __typename: "User",
+            rest_id: "1401049881070997506",
+            timeline: {
+              timeline: timeline(
+                timelineUserEntry("46", {
+                  result: {
+                    __typename: "User",
+                    rest_id: "46",
+                    core: { name: "Flag", screen_name: "flag" },
+                    relationship_perspectives: { following: "yes" },
+                  },
+                }),
+              ),
+            },
+          },
+        },
+      },
+    }, 10)).toThrow("relationship_perspectives.following");
   });
 });
 
