@@ -71,7 +71,7 @@ These guidelines have no claim in the register, and no automated check covers th
 | `AGENTS.md` | Treat this repository… | Editorial scope rule for repository prose; no automated check covers it. |
 | `AGENTS.md` | An owner release… | Delegation of owner authority to agents; it governs who acts, while the readback and tag claims cover what must hold. |
 | `website/AGENTS.md` | Keep the homepage's… | Presentation rule for the informational website; it states no safety or integrity property. |
-| `website/AGENTS.md` | Give ordinary HTML… | Presentation rule for the informational website; it states no safety or integrity property. |
+| `website/AGENTS.md` | Ordinary HTML pages… | Presentation rule for the informational website; it states no safety or integrity property. |
 | `website/AGENTS.md` | Keep the page useful… | Presentation rule for the informational website; it states no safety or integrity property. |
 | `website/AGENTS.md` | Keep every product… | Editorial accuracy rule for website copy; no automated check covers it. |
 | `website/AGENTS.md` | Keep canonical metadata,… | Search-metadata presentation rule; it states no safety or integrity property. |

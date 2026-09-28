@@ -793,8 +793,8 @@
     },
     {
       "guide": "website/AGENTS.md",
-      "anchor": "Give ordinary HTML",
-      "digest": "c3da9eac5f0a18427cf042100214fc9151f26fa8f6b42170c960487d10c76018",
+      "anchor": "Ordinary HTML pages",
+      "digest": "9a65ce2e380571249f1599a78038f25946da703bb359fb199a77671af096f7c8",
       "exempt": "Presentation rule for the informational website; it states no safety or integrity property."
     },
     {
