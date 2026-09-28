@@ -95,6 +95,15 @@
       ]
     },
     {
+      "source": "/providers/:site/:path*",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, follow"
+        }
+      ]
+    },
+    {
       "source": "/404.md",
       "headers": [
         {
@@ -162,6 +171,11 @@
     }
   ],
   "redirects": [
+    {
+      "source": "/favicon.ico",
+      "destination": "/icon.png",
+      "permanent": true
+    },
     {
       "source": "/index.html",
       "destination": "/",

@@ -6,27 +6,28 @@
     <meta name="color-scheme" content="light dark">
     <meta name="theme-color" content="#fbf1c7" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">
-    <title>How agents reach the web: browser-use, Playwright MCP, reader services, hosted browsers, and Ghostget</title>
-    <meta name="description" content="Five ways agents reach the web, from browser-driving libraries to reader services and hosted browsers, compared side by side with Ghostget's named actions.">
+    <title>How agents reach the web: browser-use, Playwright MCP, Firecrawl, Composio, and Ghostget</title>
+    <meta name="description" content="Six ways agents reach the web, from browser-driving libraries to reader services and integration platforms, compared with Ghostget's named actions.">
     <meta name="robots" content="max-image-preview:large">
     <link rel="canonical" href="https://ghostget.com/compare/">
-    <link rel="icon" href="/icon.png" type="image/png" sizes="512x512">
+    <link rel="icon" href="/icon.png" type="image/png" sizes="32x32">
+    <link rel="icon" href="/icon-96.png" type="image/png" sizes="96x96">
     <link rel="apple-touch-icon" href="/apple-icon.png" sizes="180x180">
     <link rel="stylesheet" href="{{CSS_ASSET}}">
     <link rel="sitemap" type="application/xml" href="/sitemap.xml">
     {{MARKDOWN_ALTERNATE}}
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Ghostget">
-    <meta property="og:title" content="How agents reach the web: browser-use, Playwright MCP, reader services, hosted browsers, and Ghostget">
-    <meta property="og:description" content="Five ways agents reach the web, from browser-driving libraries to reader services and hosted browsers, compared side by side with Ghostget's named actions.">
+    <meta property="og:title" content="How agents reach the web: browser-use, Playwright MCP, Firecrawl, Composio, and Ghostget">
+    <meta property="og:description" content="Six ways agents reach the web, from browser-driving libraries to reader services and integration platforms, compared with Ghostget's named actions.">
     <meta property="og:url" content="https://ghostget.com/compare/">
     <meta property="og:image" content="https://ghostget.com/og.png">
     <meta property="og:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="How agents reach the web: browser-use, Playwright MCP, reader services, hosted browsers, and Ghostget">
-    <meta name="twitter:description" content="Five ways agents reach the web, from browser-driving libraries to reader services and hosted browsers, compared side by side with Ghostget's named actions.">
+    <meta name="twitter:title" content="How agents reach the web: browser-use, Playwright MCP, Firecrawl, Composio, and Ghostget">
+    <meta name="twitter:description" content="Six ways agents reach the web, from browser-driving libraries to reader services and integration platforms, compared with Ghostget's named actions.">
     <meta name="twitter:image" content="https://ghostget.com/og.png">
     <meta name="twitter:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
     <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
@@ -51,9 +52,9 @@
       <article class="guide-article">
         <header class="guide-hero">
           <p class="eyebrow">Comparison · Ghostget {{GHOSTGET_VERSION}}</p>
-          <h1>Five ways agents reach the web, and where Ghostget fits</h1>
-          <p class="answer-lede">“Browser use for agents” names four of the five approaches below: agent libraries that drive the browser for you, tool servers that give your agent browser controls, browser CLIs that let it steer from the shell, and hosted browsers you rent by the session. The fifth skips your browser entirely: hosted reader services fetch the URL on their own servers and return Markdown. Ghostget works differently. It offers named, reviewed actions that each return one result, and the agent never gets a browser to steer.</p>
-          <p class="review-note">This page describes each project as published in September 2026 and Ghostget {{GHOSTGET_RELEASE}}. Linked pages cover one tool each in more detail.</p>
+          <h1>Six ways agents reach the web, and where Ghostget fits</h1>
+          <p class="answer-lede">“Browser use for agents” names four of the six approaches below: agent libraries that drive the browser for you, tool servers that give your agent browser controls, browser CLIs that let it steer from the shell, and hosted browsers you rent by the session. The fifth skips your browser entirely: reader services fetch the URL and return Markdown. A sixth skips web pages: integration platforms call app APIs with sign-ins they manage. Ghostget offers named, reviewed actions that each return one result, and the agent never gets a browser to steer.</p>
+          <p class="review-note">This page describes each project as published in September 2026, with Crawl4AI, Composio, Arcade, and Pipedream Connect checked on 28 September 2026, and Ghostget {{GHOSTGET_RELEASE}}. Linked pages cover one tool each in more detail.</p>
         </header>
 
         <section aria-labelledby="lane-libraries">
@@ -82,8 +83,13 @@
 
         <section aria-labelledby="lane-readers">
           <h2 id="lane-readers">Reader services fetch the URL for you</h2>
-          <p><a href="https://firecrawl.dev/">Firecrawl</a> and <a href="https://jina.ai/reader">Jina AI Reader</a> remove the steering entirely: you hand them a URL, their servers fetch and render it, and clean Markdown or structured data comes back. Firecrawl grows that one call into a pipeline with crawl, map, search, interact, and agent endpoints, billed in per-page credits. Jina Reader keeps it to a prefix, <code>r.jina.ai</code>, rate-limited without a key and billed by output tokens with one. Neither leaves a file on your machine by default.</p>
+          <p><a href="https://firecrawl.dev/">Firecrawl</a> and <a href="https://jina.ai/reader">Jina AI Reader</a> remove the steering entirely: you hand them a URL, their servers fetch and render it, and clean Markdown or structured data comes back. Firecrawl grows that one call into a pipeline with crawl, map, search, interact, and agent endpoints, billed in per-page credits. Jina Reader keeps it to a prefix, <code>r.jina.ai</code>, rate-limited without a key and billed by output tokens with one. Neither leaves a file on your machine by default. <a href="https://github.com/unclecode/crawl4ai">Crawl4AI</a> is the open-source option you run yourself: a Python crawler on Playwright, built for whole-site crawls and RAG pipelines.</p>
           <p><a href="/compare/firecrawl/">Ghostget vs Firecrawl</a> and <a href="/compare/jina-reader/">Ghostget vs Jina Reader</a> compare hosted fetching with a local read that saves Markdown into a searchable vault.</p>
+        </section>
+
+        <section aria-labelledby="lane-integrations">
+          <h2 id="lane-integrations">Integration platforms act in your apps</h2>
+          <p><a href="https://composio.dev">Composio</a>, <a href="https://www.arcade.dev">Arcade</a>, and <a href="https://pipedream.com/docs/connect">Pipedream Connect</a> skip the browser and call app APIs. They offer large integration catalogs with managed sign-in, built for products whose agents act for many users. Ghostget covers far fewer services, keeps each sign-in on your machine for one person’s agent, and shows a preview before each write.</p>
         </section>
 
         <section aria-labelledby="lane-named">
@@ -134,6 +140,12 @@
                   <td>Clean Markdown or structured data from the service's own fetch and rendering</td>
                   <td>Only pages the hosted service can reach, at a per-page credit or per-token price</td>
                   <td>URL collection and extraction you want someone else's infrastructure to run</td>
+                </tr>
+                <tr>
+                  <th scope="row"><a href="https://composio.dev">Composio</a>, <a href="https://www.arcade.dev">Arcade</a>, and <a href="https://pipedream.com/docs/connect">Pipedream Connect</a></th>
+                  <td>API calls through a hosted integration catalog</td>
+                  <td>Every app in the catalog, through sign-ins the platform manages</td>
+                  <td>Products whose agents act for many users across many apps</td>
                 </tr>
                 <tr>
                   <th scope="row">Ghostget</th>

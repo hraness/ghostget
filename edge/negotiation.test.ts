@@ -239,6 +239,37 @@ describe("document negotiation runtime", () => {
     expect(await headMirror?.text()).toBe("");
   });
 
+  test("markdown for noindex pages carries the same robots directive", async () => {
+    const files = new Map([
+      ["/providers/target.com.md", "# Target\n"],
+      ["/rumour-is-the-exploit.md", "# Rumour\n"],
+      ["/providers.md", "# Providers\n"],
+      ["/404.md", "# Missing\n"],
+    ]);
+    const retrieve = async (url: URL): Promise<Response> => {
+      const body = files.get(url.pathname);
+      return body === undefined
+        ? new Response("missing", { status: 404 })
+        : new Response(body, { status: 200 });
+    };
+
+    // Dotted registry paths are not Accept-negotiated, so their markdown is
+    // reached through the direct sibling URL.
+    for (const response of [
+      await handleDocumentNegotiation(request("/rumour-is-the-exploit/", "text/markdown"), retrieve),
+      await handleDocumentNegotiation(request("/rumour-is-the-exploit.md"), retrieve),
+      await handleDocumentNegotiation(request("/providers/target.com.md"), retrieve),
+    ]) {
+      expect(response?.status).toBe(200);
+      expect(response?.headers.get("x-robots-tag")).toBe("noindex, follow");
+      expect(response?.headers.get("link")).toContain('rel="canonical"');
+    }
+
+    const directory = await handleDocumentNegotiation(request("/providers/", "text/markdown"), retrieve);
+    expect(directory?.status).toBe(200);
+    expect(directory?.headers.get("x-robots-tag")).toBeNull();
+  });
+
   test("D12: direct markdown requests never retrieve off the request origin", async () => {
     const origin = "https://ghostget.com";
     for (const raw of [`${origin}//evil.example/x.md`, `${origin}/\\evil.example/x.md`]) {

@@ -19,5 +19,5 @@
     "noEmit": true,
     "types": []
   },
-  "include": ["./negotiation.ts", "../middleware.ts"]
+  "include": ["./negotiation.ts", "./robots.ts", "../middleware.ts"]
 }
