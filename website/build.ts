@@ -809,13 +809,13 @@ function renderGhostgetContentFooter(): string {
 }
 
 // Every page carries the product's content footer immediately before the
-// shared Hraness network footer; indexable pages keep the Ask AI row between
-// them.
+// shared Hraness network footer so the two read as one band; indexable pages
+// keep the Ask AI row above the pair.
 function renderInFlowFooters(options: RenderOptions, page?: PublicPage): string {
-  const middle = page === undefined
+  const above = page === undefined
     ? ""
     : `${renderAskAiAboutThis(`${SITE_ORIGIN}${page.canonicalPath}`)}\n`;
-  return `${options.ghostgetContentFooter}\n${middle}${options.hranessSiteFooter}`;
+  return `${above}${options.ghostgetContentFooter}\n${options.hranessSiteFooter}`;
 }
 
 function renderTemplate(

@@ -48,9 +48,17 @@ so its quieter ghostget.com also arrives with this release.
   permission, identity, and store check still runs for each operation.
 - Automation status describes all of its action permissions from one
   snapshot, which cuts the helper processes each provider check starts.
+- Messaging automation adds a read-only `history.window` for one enrolled
+  conversation, so an authorized client can page back through older
+  messages by date instead of seeing only the newest page. It returns at
+  most 200 messages inside the requested window and never moves the event
+  cursor. iMessage supports it; WhatsApp and Beeper refuse a dated window
+  instead of returning the newest page.
 - The formal verification checks get more time to finish, so a slow but
   passing proof no longer fails CI. Every model, seed, depth, and check is
   unchanged.
+- The ghostget.com homepage leads with a shorter headline, and the
+  Light/Dark/System menu is gone from every page.
 
 ## 0.18.43
 

@@ -2044,25 +2044,35 @@
 // Carry the same projections and allowances: 12,124,686 + 12,387 + 4,096 =
 // 12,141,169 packed; 23,937,025 + 353 + 65 = 23,937,443 unpacked.
 //
+// The 0.18.44 release notes add the dated history window and the homepage
+// update to the changelog section over main ea6e99b; no source or dist file
+// changes. After `bun run build`, a clean npm 11.19.0 pack --ignore-scripts
+// with Node 24.18.1 on darwin arm64 measured 618 entries, 12,124,890 packed bytes
+// and 23,937,545 unpacked bytes; archive SHA-256
+// 4eb676361817c0088f3f3671999528b9726a8ea6b59145797408c37ebc5ac150.
+// Carry the same projections and allowances: 12,124,890 + 12,387 + 4,096 =
+// 12,141,373 packed; 23,937,545 + 353 + 65 = 23,937,963 unpacked.
+//
 // Moving the runtime dependency from @hraness/kb 0.19.6 to the immutable
-// Wordcell 0.24.0 release archive over main ea6e99b renames every clip
-// import specifier, grows the smoke and registry review pins to cover the
-// dependency's now-split dynamic-resolution modules, and rebuilds the
-// packed dist chunks. After `bun run build`, a clean npm 11.19.0 pack
-// --ignore-scripts with Node 24.18.1 on darwin arm64 measured 618 entries,
-// 12,125,040 packed bytes, and 23,939,008 unpacked bytes; archive SHA-256
-// 952640231319f5f599c7a265ab34040beb3a672d734f24c9a4dc82b83f94d1c1c.
+// Wordcell 0.24.0 release archive over the merged 0.18.44 main renames
+// every clip import specifier, grows the smoke and registry review pins
+// to cover the dependency's now-split dynamic-resolution modules, and
+// rebuilds the packed dist chunks. After `bun run build`, a clean
+// npm 11.19.0 pack --ignore-scripts with Node 24.18.1 on darwin arm64
+// measured 618 entries, 12,125,239 packed bytes, and 23,939,528 unpacked
+// bytes; archive SHA-256
+// 81b82626d55fcc0ef960ac59c3dfc0e90ed6417756d614b00796d5c4122b5072.
 // Retain the same platform projections and allowances:
-// 12,125,040 + 12,387 + 4,096 = 12,141,523 packed;
-// 23,939,008 + 353 + 65 = 23,939,426 unpacked.
+// 12,125,239 + 12,387 + 4,096 = 12,141,722 packed;
+// 23,939,528 + 353 + 65 = 23,939,946 unpacked.
 export const repairPackageMeasurement = Object.freeze({
   scope: "Wordcell 0.24.0 runtime adoption over @hraness/kb 0.19.6 with split dynamic-resolution review pins",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "952640231319f5f599c7a265ab34040beb3a672d734f24c9a4dc82b83f94d1c1c",
-  packedBytes: 12_125_040,
-  unpackedBytes: 23_939_008,
+  archiveSha256: "81b82626d55fcc0ef960ac59c3dfc0e90ed6417756d614b00796d5c4122b5072",
+  packedBytes: 12_125_239,
+  unpackedBytes: 23_939_528,
   entryCount: 618,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
