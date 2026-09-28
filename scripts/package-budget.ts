@@ -2094,23 +2094,35 @@
 // Retain the same platform projections and allowances:
 // 12,125,761 + 12,387 + 4,096 = 12,142,244 packed;
 // 23,940,938 + 353 + 65 = 23,941,356 unpacked.
+//
+// The 0.18.46 release carries the `ghostget` support handoff id (#450),
+// bumps the version pins, adds its changelog section over merged main
+// 95c6a2c, and rebuilds the version chunk; no adapter file changes. After
+// `bun run build`, a clean npm 11.19.0 pack --ignore-scripts with Node
+// 24.18.1 on darwin arm64 measured 618 entries, 12,125,923 packed bytes,
+// and 23,941,366 unpacked bytes; archive SHA-256
+// 25cfe9120e4cf43087a79e5bf302cb0683719a7db8267ed97503e75da5883185.
+// Retain the same platform projections and allowances:
+// 12,125,923 + 12,387 + 4,096 = 12,142,406 packed;
+// 23,941,366 + 353 + 65 = 23,941,784 unpacked.
+//
 // Signed-in `ghostget pdf <url>` downloads add src/pdf-auth.ts to the packed
 // source and a lazy import from cli.ts; no dist chunk changes. After
 // `bun run build`, a clean npm 11.19.0 pack --ignore-scripts with Node
-// 24.20.0 on darwin arm64 measured 619 entries, 12,125,567 packed bytes, and
-// 23,983,384 unpacked bytes; archive SHA-256
-// c3eb265064671b86c2124e88873dd2ad5c31008c84582b5cb7dc908894459b22.
+// 24.20.0 on darwin arm64 over merged main d426704 measured 619 entries,
+// 12,125,726 packed bytes, and 23,983,810 unpacked bytes; archive SHA-256
+// c9ce14702b464a166a1b226b7b7a77b94c5c8dc65afc30c515095f6573e9db5d.
 // Retain the same platform projections and allowances:
-// 12,125,567 + 12,387 + 4,096 = 12,142,050 packed;
-// 23,983,384 + 353 + 65 = 23,983,802 unpacked.
+// 12,125,726 + 12,387 + 4,096 = 12,142,209 packed;
+// 23,983,810 + 353 + 65 = 23,984,228 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget signed-in PDF downloads over merged main 95c6a2c",
+  scope: "Ghostget signed-in PDF downloads over merged main d426704",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "c3eb265064671b86c2124e88873dd2ad5c31008c84582b5cb7dc908894459b22",
-  packedBytes: 12_125_567,
-  unpackedBytes: 23_983_384,
+  archiveSha256: "c9ce14702b464a166a1b226b7b7a77b94c5c8dc65afc30c515095f6573e9db5d",
+  packedBytes: 12_125_726,
+  unpackedBytes: 23_983_810,
   entryCount: 619,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
