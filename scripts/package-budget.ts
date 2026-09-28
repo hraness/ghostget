@@ -1993,15 +1993,36 @@
 // cb84d130337d9f5efb520d78592c0047b67c75de2a1677633bea25064a06e46b.
 // Carry the same projections and allowances: 12,109,347 + 12,387 + 4,096 =
 // 12,125,830 packed; 23,840,831 + 353 + 65 = 23,841,249 unpacked.
+//
+// The disabled Substack subscriber export v2 candidate over merged main
+// 9f2dd16 adds the retained 1.8.0 adapter snapshot and updates the bounded
+// parser, account/publication binding, encrypted pagination, contract identity,
+// and reference: one additional packed file. After `bun run build`, a clean
+// npm 11.19.0 pack --ignore-scripts with Node 24.18.1 on darwin arm64 measured
+// 616 entries, 12,104,883 packed bytes and 23,845,115 unpacked bytes; archive
+// SHA-256 90ef33da70559db4674510c401466fe74a240967f8d719a4cfb3f9e012af4227.
+// Retain the same platform projections and portability allowances:
+// 12,104,883 + 12,387 + 4,096 = 12,121,366 packed;
+// 23,845,115 + 353 + 65 = 23,845,533 unpacked.
+//
+// The disabled Substack subscriber export v2 candidate over merged main
+// 31ef3fd combines the retained 1.8.0 adapter snapshot and export updates with
+// the persistent helper bridge: 617 packed files. After `bun run build`, a
+// clean npm 11.19.0 pack --ignore-scripts with Node 24.18.1 on darwin arm64
+// measured 12,116,353 packed bytes and 23,887,548 unpacked bytes; archive
+// SHA-256 00ead58f3e0268855e0face59da2460faa723c68c18e19542c37fd891cd4431f.
+// Retain the same platform projections and portability allowances:
+// 12,116,353 + 12,387 + 4,096 = 12,132,836 packed;
+// 23,887,548 + 353 + 65 = 23,887,966 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Persistent iMessage automation session and persistent state helpers over main 9f2dd16",
+  scope: "Disabled Substack subscriber export v2 over persistent helpers and formal headroom on main 31ef3fd",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "cb84d130337d9f5efb520d78592c0047b67c75de2a1677633bea25064a06e46b",
-  packedBytes: 12_109_347,
-  unpackedBytes: 23_840_831,
-  entryCount: 616,
+  archiveSha256: "00ead58f3e0268855e0face59da2460faa723c68c18e19542c37fd891cd4431f",
+  packedBytes: 12_116_353,
+  unpackedBytes: 23_887_548,
+  entryCount: 617,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,

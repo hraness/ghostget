@@ -3,7 +3,6 @@ import { describe, expect, test } from "bun:test";
 import { assertProperty, fc } from "../test-support";
 import {
   authorizeSubstackSubscriberRequest,
-  encodeSubstackSubscriberCursor,
   normalizeSubstackSubscriberImportStatus,
   normalizeSubstackSubscriberPage,
   parseSubstackSubscriberCursor,
@@ -14,6 +13,8 @@ import {
   substackSubscriberImportRequestBody,
   substackSubscriberStatsRequestBody,
   SUBSTACK_WEB_OPERATIONS,
+  SUBSTACK_SUBSCRIBER_EXPORT_MAX_ROWS,
+  type SubstackSubscriberCursor,
   type SubstackWebViewer,
 } from "./substack-web";
 
@@ -80,172 +81,115 @@ describe("Substack subscriber contract states", () => {
   });
 });
 
+const exportBinding = { publicationId: PUBLICATION_ID, publicationOrigin: ORIGIN, viewerId: 42 };
+const order = { by: "subscription_created_at", direction: "desc" };
+function page(rows: readonly Record<string, unknown>[], total = rows.length) {
+  return { count: total, subscribers: rows, order };
+}
+
 describe("Substack subscriber export projection", () => {
-  test("projects only the contract fields and drops every other provider field", () => {
-    const page = normalizeSubstackSubscriberPage({
-      count: 3,
-      subscribers: [
-        row(0),
-        row(1, {
-          user_email_address: "Mixed.Case@Example.COM",
-          subscription_interval: "annual",
-          subscription_created_at: "2026-06-05T01:02:03+02:00",
-          sections: [{ id: 9, name: "Notes" }, "Audio", "Audio"],
-        }),
-        row(2, { is_founding: true, subscription_created_at: null }),
-      ],
-      pendingImports: [],
-      chartCounts: { subscribers: 3 },
-      lastSync: "2026-06-23T05:35:09.172Z",
-    }, { publicationId: PUBLICATION_ID, offset: 0, limit: 3, total: null });
-    expect(page).toEqual({
-      subscribers: [
-        {
-          email: "reader0@example.com",
-          subscriptionType: "free",
-          subscribedAt: "2026-06-04T19:51:29.324Z",
-          sections: [],
-        },
-        {
-          email: "mixed.case@example.com",
-          subscriptionType: "paid",
-          subscribedAt: "2026-06-04T23:02:03.000Z",
-          sections: ["Audio", "Notes"],
-        },
-        {
-          email: "reader2@example.com",
-          subscriptionType: "founding",
-          subscribedAt: null,
-          sections: [],
-        },
-      ],
-      nextCursor: null,
-      total: 3,
-    });
-    for (const subscriber of page.subscribers) {
-      expect(Object.keys(subscriber).sort()).toEqual(
-        ["email", "sections", "subscribedAt", "subscriptionType"],
-      );
+  test("projects only email, dashboard type, and signup time without inferring membership or sections", () => {
+    const result = normalizeSubstackSubscriberPage(page([
+      row(0, { is_subscribed: false, subscription_created_at: "2026-06-04T19:51:29.324567890+00:00" }),
+      row(1, { user_email_address: "Mixed.Case@Example.COM", subscription_interval: "annual", sections: [{ name: "Private section" }] }),
+      row(2, { is_founding: true, subscription_created_at: null }),
+    ]), { ...exportBinding, offset: 0, limit: 3, total: null });
+    expect(result.subscribers).toEqual([
+      { email: "reader0@example.com", subscriptionType: "free", subscribedAt: "2026-06-04T19:51:29.324Z" },
+      { email: "mixed.case@example.com", subscriptionType: "paid", subscribedAt: "2026-06-04T19:51:29.324Z" },
+      { email: "reader2@example.com", subscriptionType: "founding", subscribedAt: null },
+    ]);
+    expect(result).toMatchObject({ total: 3, nextCursor: null, complete: false, continuationSupported: false, stopReason: "provider-exhausted", completeness: { kind: "page" } });
+    for (const subscriber of result.subscribers) {
+      expect(Object.keys(subscriber).sort()).toEqual(["email", "subscribedAt", "subscriptionType"]);
     }
-    expect(JSON.stringify(page)).not.toContain("Private Name");
-    expect(JSON.stringify(page)).not.toContain("subscription_id");
+    expect(JSON.stringify(result)).not.toContain("Private");
+    expect(JSON.stringify(result)).not.toContain("subscription_id");
   });
 
   test("maps gift, comp, and unreviewed intervals without guessing", () => {
-    const page = normalizeSubstackSubscriberPage({
-      count: 4,
-      subscribers: [
-        row(0, { is_gift: true, subscription_interval: "monthly" }),
-        row(1, { is_comp: true }),
-        row(2, { subscription_interval: "lifetime" }),
-        row(3, { subscription_interval: null }),
-      ],
-    }, { publicationId: PUBLICATION_ID, offset: 0, limit: 4, total: null });
-    expect(page.subscribers.map((subscriber) => subscriber.subscriptionType))
-      .toEqual(["gift", "comp", "unknown", "unknown"]);
+    const result = normalizeSubstackSubscriberPage(page([
+      row(0, { is_gift: true, subscription_interval: "monthly" }),
+      row(1, { is_comp: true }),
+      row(2, { subscription_interval: "lifetime" }),
+      row(3, { subscription_interval: null }),
+    ]), { ...exportBinding, offset: 0, limit: 4, total: null });
+    expect(result.subscribers.map((subscriber) => subscriber.subscriptionType)).toEqual(["gift", "comp", "unknown", "unknown"]);
   });
 
-  test("rejects malformed rows, oversized pages, and inconsistent totals", () => {
-    const expected = { publicationId: PUBLICATION_ID, offset: 0, limit: 2, total: null };
+  test("rejects malformed rows, unknown ordering, oversized pages, and inconsistent totals", () => {
+    const expected = { ...exportBinding, offset: 0, limit: 2, total: null };
     for (const value of [
-      { count: 1, subscribers: [row(0, { user_email_address: "not-an-email" })] },
-      { count: 1, subscribers: [row(0, { is_gift: "yes" })] },
-      { count: 1, subscribers: [row(0, { subscription_created_at: "yesterday" })] },
-      { count: 3, subscribers: [row(0), row(1), row(2)] },
-      { count: 1, subscribers: [row(0), row(1)] },
-      { count: 2, subscribers: [row(0), row(0)] },
-      { count: 5, subscribers: [] },
-      { count: -1, subscribers: [] },
-      { count: "2", subscribers: [row(0)] },
-      { subscribers: [row(0)] },
-    ]) {
-      expect(() => normalizeSubstackSubscriberPage(value, expected)).toThrow();
-    }
-    expect(() => normalizeSubstackSubscriberPage(
-      { count: 9, subscribers: [row(0)] },
-      { publicationId: PUBLICATION_ID, offset: 2, limit: 2, total: 8 },
-    )).toThrow("total changed during pagination");
+      page([row(0, { user_email_address: "not-an-email" })]),
+      page([row(0, { is_gift: "yes" })]),
+      page([row(0, { subscription_created_at: "yesterday" })]),
+      page([row(0, { subscription_created_at: "2026-02-30T19:51:29.123456789+00:00" })]),
+      page([row(0, { subscription_created_at: "2100-02-29T00:00:00Z" })]),
+      page([row(0, { subscription_created_at: "2026-04-31T00:00:00Z" })]),
+      page([row(0, { subscription_created_at: "2026-06-04T24:00:00Z" })]),
+      page([row(0), row(1), row(2)]),
+      page([row(0), row(1)], 1),
+      page([row(0), row(0)]),
+      page([], 5),
+      page([], -1),
+      { ...page([row(0)]), count: "2" },
+      { subscribers: [row(0)], order },
+      { ...page([row(0)]), order: { by: "user_email_address", direction: "desc" } },
+      { ...page([row(0)]), order: { ...order, direction: "asc" } },
+      { ...page([row(0)]), order: null },
+    ]) expect(() => normalizeSubstackSubscriberPage(value, expected)).toThrow();
+    expect(() => normalizeSubstackSubscriberPage(page([row(0)], 9), { ...expected, total: 8 })).toThrow("total changed during pagination");
+    expect(normalizeSubstackSubscriberPage(page([row(0, { subscription_created_at: "2000-02-29T00:00:00.123456789+01:00" })]), expected).subscribers[0]?.subscribedAt).toBe("2000-02-28T23:00:00.123Z");
   });
 
-  test("pages completely against the first-page total", () => {
-    assertProperty(fc.property(
-      fc.integer({ min: 0, max: 2_000 }),
-      fc.integer({ min: 1, max: 500 }),
-      (total, limit) => {
-        let cursor: string | null = null;
-        let offset = 0;
-        let summed = 0;
-        let pages = 0;
-        const emails = new Set<string>();
-        do {
-          const prepared = prepareSubstackSubscriberExportInput(
-            cursor === null ? { limit } : { cursor, limit },
-          );
-          const start = prepared.cursor?.offset ?? 0;
-          expect(start).toBe(offset);
-          const count = Math.min(limit, total - start);
-          const page = normalizeSubstackSubscriberPage({
-            count: total,
-            subscribers: Array.from({ length: count }, (_, index) => row(start + index)),
-          }, {
-            publicationId: PUBLICATION_ID,
-            offset: start,
-            limit,
-            total: prepared.cursor?.total ?? null,
-          });
-          expect(page.total).toBe(total);
-          for (const subscriber of page.subscribers) emails.add(subscriber.email);
-          summed += page.subscribers.length;
-          offset += page.subscribers.length;
-          cursor = page.nextCursor;
-          pages += 1;
-        } while (cursor !== null);
-        expect(summed).toBe(total);
-        expect(emails.size).toBe(total);
-        expect(pages).toBe(Math.max(1, Math.ceil(total / limit)));
-      },
-    ));
+  test("rejects a repeated email across pages even when count stays unchanged", () => {
+    const first = normalizeSubstackSubscriberPage(page([row(0), row(1)], 4), { ...exportBinding, offset: 0, limit: 2, total: null });
+    const cursor = parseSubstackSubscriberCursor(first.nextCursor);
+    expect(() => normalizeSubstackSubscriberPage(page([row(2), row(0, { user_email_address: "READER0@EXAMPLE.COM" })], 4), { ...cursor, limit: 2 })).toThrow("repeated an address");
   });
 
-  test("round-trips only canonical publication-bound cursors", () => {
-    assertProperty(fc.property(
-      fc.integer({ min: 1, max: Number.MAX_SAFE_INTEGER }),
-      fc.integer({ min: 2, max: 100_000_000 }),
-      fc.integer({ min: 1, max: 99_999_999 }),
-      (publicationId, total, rawOffset) => {
-        const offset = 1 + (rawOffset % (total - 1));
-        const encoded = encodeSubstackSubscriberCursor({ publicationId, offset, total });
-        expect(parseSubstackSubscriberCursor(encoded)).toEqual({ publicationId, offset, total });
-      },
-    ));
+  test("bounds every stable export window without claiming a complete snapshot", () => {
+    assertProperty(fc.property(fc.integer({ min: 0, max: 700 }), fc.integer({ min: 1, max: 50 }), (total, requestedLimit) => {
+      let cursor: SubstackSubscriberCursor | null = null;
+      let summed = 0;
+      const emails = new Set<string>();
+      do {
+        const offset = cursor?.offset ?? 0;
+        const limit = Math.min(requestedLimit, SUBSTACK_SUBSCRIBER_EXPORT_MAX_ROWS - offset);
+        const count = Math.min(limit, total - offset);
+        const result = normalizeSubstackSubscriberPage(page(Array.from({ length: count }, (_, index) => row(offset + index)), total), {
+          ...exportBinding, offset, limit, total: cursor?.total ?? null, seenFingerprints: cursor?.seenFingerprints ?? "",
+        });
+        expect(result.complete).toBe(false);
+        for (const subscriber of result.subscribers) emails.add(subscriber.email);
+        summed += result.subscribers.length;
+        cursor = result.nextCursor;
+        if (cursor === null) expect(result.stopReason).toBe(total <= SUBSTACK_SUBSCRIBER_EXPORT_MAX_ROWS ? "provider-exhausted" : "row-limit");
+      } while (cursor !== null);
+      expect(summed).toBe(Math.min(total, SUBSTACK_SUBSCRIBER_EXPORT_MAX_ROWS));
+      expect(emails.size).toBe(summed);
+    }));
+  });
+
+  test("reconstructs strict authenticated payloads and rejects legacy cursors and inconsistent history", () => {
+    const first = normalizeSubstackSubscriberPage(page([row(0), row(1)], 3), { ...exportBinding, offset: 0, limit: 2, total: null });
+    if (first.nextCursor === null) throw new Error("expected a continuation for the remaining row");
+    expect(parseSubstackSubscriberCursor(first.nextCursor)).toEqual(first.nextCursor);
     for (const value of [
-      "",
-      "ss1.7.0.5",
-      "ss1.7.5.5",
-      "ss1.07.1.5",
-      "ss1.7.01.5",
-      "ss2.7.1.5",
-      "ss1.7.1.5 ",
-      "ss1.0.1.5",
-    ]) {
-      expect(() => parseSubstackSubscriberCursor(value)).toThrow();
-    }
+      "ss1.7.2.3", null, {}, { ...first.nextCursor, schemaVersion: 1 },
+      { ...first.nextCursor, offset: 0 }, { ...first.nextCursor, offset: 500 },
+      { ...first.nextCursor, offset: 1 }, { ...first.nextCursor, total: 2 },
+      { ...first.nextCursor, viewerId: 0 }, { ...first.nextCursor, extra: true },
+      { ...first.nextCursor, publicationOrigin: "https://other.example.com" },
+      { ...first.nextCursor, seenFingerprints: "AA" },
+      { ...first.nextCursor, seenFingerprints: Buffer.alloc(16).toString("base64url") },
+    ]) expect(() => parseSubstackSubscriberCursor(value)).toThrow();
   });
 
   test("validates export input exactly", () => {
-    expect(prepareSubstackSubscriberExportInput({ limit: 500 })).toEqual({ cursor: null, limit: 500 });
-    for (const value of [
-      {},
-      { limit: 0 },
-      { limit: 501 },
-      { limit: 1.5 },
-      { limit: "10" },
-      { limit: 10, cursor: "opaque" },
-      { limit: 10, offset: 0 },
-      [],
-      null,
-    ]) {
-      expect(() => prepareSubstackSubscriberExportInput(value)).toThrow();
+    expect(prepareSubstackSubscriberExportInput({ publication: "wrench-owned", limit: 50 })).toEqual({ publication: "wrench-owned", cursor: null, limit: 50 });
+    for (const value of [{}, { publication: "UPPER", limit: 10 }, { publication: "https://other.substack.com", limit: 10 }, { publication: "x".repeat(64), limit: 10 }, { limit: 0 }, { limit: 51 }, { limit: 1.5 }, { limit: "10" }, { limit: 10, cursor: "ss1.7.2.5" }, { limit: 10, cursor: null }, { limit: 10, offset: 0 }, [], null]) {
+      expect(() => prepareSubstackSubscriberExportInput(typeof value === "object" && value !== null && !Array.isArray(value) ? { publication: "wrench-owned", ...value } : value)).toThrow();
     }
   });
 });
@@ -394,7 +338,7 @@ describe("Substack subscriber publication and request binding", () => {
 
   test("authorizes only the exact owned origin, method, path, and body", () => {
     const binding = { organization: "wrench-owned", publicationOrigin: ORIGIN } as const;
-    const body = substackSubscriberStatsRequestBody(0, 100);
+    const body = substackSubscriberStatsRequestBody(0, 50);
     expect(authorizeSubstackSubscriberRequest({
       ...binding,
       operation: "subscribers.export",
