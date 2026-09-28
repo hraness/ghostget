@@ -989,7 +989,11 @@ void [
   parseMessagingRoutesV2,
 ];
 `);
-  await writeFile(join(consumer, "tsconfig.bundler.json"), "{\n  \"compilerOptions\": {\n    \"target\": \"ES2023\",\n    \"lib\": [\n      \"ES2023\",\n      \"DOM\",\n      \"DOM.Iterable\"\n    ],\n    \"types\": [\n      \"bun\",\n      \"node\"\n    ],\n    \"strict\": true,\n    \"noEmit\": true,\n    \"skipLibCheck\": false,\n    \"module\": \"Preserve\",\n    \"moduleResolution\": \"Bundler\"\n  },\n  \"include\": [\n    \"index.ts\"\n  ]\n}");
+  // Strict consumers narrow NodeJS.ProcessEnv.NODE_ENV to the literal union
+  // (for example a Next.js ambient declaration), so packaged sources must keep
+  // NODE_ENV assignments literal instead of widening to string.
+  await writeFile(join(consumer, "process-env.d.ts"), "declare global {\n  namespace NodeJS {\n    interface ProcessEnv {\n      readonly NODE_ENV: \"development\" | \"test\" | \"production\";\n    }\n  }\n}\n\nexport {};\n");
+  await writeFile(join(consumer, "tsconfig.bundler.json"), "{\n  \"compilerOptions\": {\n    \"target\": \"ES2023\",\n    \"lib\": [\n      \"ES2023\",\n      \"DOM\",\n      \"DOM.Iterable\"\n    ],\n    \"types\": [\n      \"bun\",\n      \"node\"\n    ],\n    \"strict\": true,\n    \"noUncheckedIndexedAccess\": true,\n    \"exactOptionalPropertyTypes\": true,\n    \"noImplicitOverride\": true,\n    \"noImplicitReturns\": true,\n    \"noFallthroughCasesInSwitch\": true,\n    \"useUnknownInCatchVariables\": true,\n    \"erasableSyntaxOnly\": true,\n    \"verbatimModuleSyntax\": true,\n    \"isolatedModules\": true,\n    \"moduleDetection\": \"force\",\n    \"allowImportingTsExtensions\": true,\n    \"noEmit\": true,\n    \"skipLibCheck\": false,\n    \"module\": \"Preserve\",\n    \"moduleResolution\": \"Bundler\"\n  },\n  \"include\": [\n    \"index.ts\",\n    \"process-env.d.ts\"\n  ]\n}");
   await logConsumerToolchain(consumer);
   await run([process.execPath, "x", "tsc", "-p", "./tsconfig.bundler.json"], consumer);
 

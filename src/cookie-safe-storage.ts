@@ -107,12 +107,14 @@ const APP_RESULT_FRAME_BYTES = 64 * 1024;
 
 export class LocalAppError extends Error {
   override readonly name = "LocalAppError";
+  readonly code: "identity-unavailable" | "assemble-failed" | "helper-mismatch" | "runner-failed";
   constructor(
-    readonly code: "identity-unavailable" | "assemble-failed" | "helper-mismatch" | "runner-failed",
+    code: "identity-unavailable" | "assemble-failed" | "helper-mismatch" | "runner-failed",
     message: string,
     options?: { readonly cause?: unknown },
   ) {
     super(message, options?.cause === undefined ? undefined : { cause: options.cause });
+    this.code = code;
   }
 }
 
