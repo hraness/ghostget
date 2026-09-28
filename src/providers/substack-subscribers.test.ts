@@ -61,7 +61,7 @@ function publication(origin = ORIGIN, id = PUBLICATION_ID): SubstackWebViewer["p
 }
 
 describe("Substack subscriber contract states", () => {
-  test("runs the live-qualified reads and keeps the unreconciled add gated", () => {
+  test("runs all three live-qualified subscriber operations with their frozen risks", () => {
     expect(SUBSTACK_WEB_OPERATIONS["subscribers.export"]).toMatchObject({
       effect: "read",
       risk: "R1",
@@ -71,8 +71,8 @@ describe("Substack subscriber contract states", () => {
     expect(SUBSTACK_WEB_OPERATIONS["subscribers.import"]).toMatchObject({
       effect: "write",
       risk: "R3",
-      state: "capture-required",
-      evidence: "none",
+      state: "observed",
+      evidence: "live-direct",
     });
     expect(SUBSTACK_WEB_OPERATIONS["subscribers.import.status"]).toMatchObject({
       effect: "read",

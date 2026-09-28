@@ -20,7 +20,7 @@ describe("Substack web provider plugin", () => {
     expect(substackWebPlugin.version).toBe("1.6.0");
     for (const [name, risk, currentState] of [
       ["subscribers.export", "R1", "observed"],
-      ["subscribers.import", "R3", "capture-required"],
+      ["subscribers.import", "R3", "observed"],
       ["subscribers.import.status", "R1", "observed"],
     ] as const) {
       const routes = binding.operations.filter((operation) => operation.name === name);

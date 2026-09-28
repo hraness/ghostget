@@ -431,6 +431,7 @@ const SUBSTACK_WEB_OPERATIONS = operationPolicies("substack", [
   "posts.read",
   "profiles.read",
   "subscribers.export",
+  "subscribers.import",
   "subscribers.import.status",
 ], {
   "posts.publish": 3,

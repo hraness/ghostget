@@ -545,6 +545,7 @@ const operationTitleOverrides: Readonly<Record<string, string>> = Object.freeze(
   "sites.get": "Read one registry site",
   "sites.search": "Search registry sites",
   "subscribers.export": "Export subscribers",
+  "subscribers.import": "Add one subscriber",
   "subscribers.import.status": "Read subscriber import status",
   "tools.call": "Call a read-only site tool",
 });

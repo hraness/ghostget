@@ -207,16 +207,32 @@ function unexpected(request: CapturedRequest): never {
 }
 
 describe("Substack subscriber runtime", () => {
-  test("public dispatcher refuses the capture-required import before cookies or network", async () => {
-    const fixture = harness(unexpected);
-    await expect(executeSubstackWebOperation(
+  test("public dispatcher adds through the observed import only after owner binding", async () => {
+    const fixture = harness((request) => {
+      if (request.url.href !== `${ORIGIN}/api/v1/subscriber/add`) unexpected(request);
+      return json({});
+    });
+    const result = await executeSubstackWebOperation(
       recipe("subscribers.import"),
       importInput(),
       boundAuth,
       { dependencies: fixture.dependencies },
-    )).rejects.toThrow("capture-required");
-    expect(fixture.acquisitions()).toBe(0);
-    expect(fixture.calls).toEqual([]);
+    );
+    expect(result).toMatchObject({ status: "succeeded", output: { accepted: true }, dispatch: { planned: 1, started: 1, verified: 1 } });
+    expect(fixture.calls.filter((call) => call.url.pathname === "/api/v1/subscriber/add")).toHaveLength(1);
+  });
+
+  test("public dispatcher still refuses the archived v1 subscriber routes", async () => {
+    for (const action of ["subscribers.export", "subscribers.import", "subscribers.import.status"] as const) {
+      const fixture = harness(unexpected);
+      await expect(executeSubstackWebOperation(
+        { ...recipe(action), contractVersion: 1 },
+        {} as OperationInput,
+        boundAuth,
+        { dependencies: fixture.dependencies },
+      )).rejects.toThrow("contract version 1 is not installed");
+      expect(fixture.calls).toEqual([]);
+    }
   });
 
   test("public dispatcher runs the observed export and import-status reads", async () => {

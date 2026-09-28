@@ -196,10 +196,11 @@ describe("Substack internal-web operation registry", () => {
       "posts.read",
       "profiles.read",
       "subscribers.export",
+      "subscribers.import",
       "subscribers.import.status",
     ]);
     expect(SUBSTACK_WEB_OPERATIONS["messaging.read"].state).toBe("capture-required");
-    expect(SUBSTACK_WEB_OPERATIONS["subscribers.import"]).toMatchObject({ state: "capture-required", risk: "R3" });
+    expect(SUBSTACK_WEB_OPERATIONS["subscribers.import"]).toMatchObject({ state: "observed", risk: "R3", effect: "write" });
     expect(SUBSTACK_WEB_OPERATIONS["organizations.read"]).toMatchObject({
       state: "observed",
       risk: "R1",

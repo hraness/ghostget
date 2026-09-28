@@ -1,9 +1,8 @@
 # Substack subscriber operations
 
 `substack-web` can export the subscribers of a publication the signed-in
-owner runs and read that publication's latest import counts. Adding a
-subscriber is still `capture-required`: Ghostget refuses it before reading
-cookies or opening a connection.
+owner runs, read that publication's latest import counts, and add one
+subscriber at a time without a welcome email.
 
 The auth locator binds one exact `substack:<user-id>` subject. Every
 subscriber operation names one `publication` handle from that viewer's
@@ -62,8 +61,10 @@ printf '%s' '{"publication":"hraness"}' \
 
 ## `subscribers.import` (R3)
 
-Ghostget refuses this operation until a new-address add is confirmed by a
-later census. The implementation behind the gate:
+```sh
+printf '%s' '{"publication":"hraness","emails":["reader@example.com"],"send_welcome_email":false}' \
+  | ghostget invoke substack-web subscribers.import --input - --auth substack-chrome --json
+```
 
 - Input: `publication`, `emails` with exactly one address that is already
   lowercase and trimmed, and the literal `send_welcome_email: false`. Anything
@@ -76,7 +77,9 @@ later census. The implementation behind the gate:
   never retries it.
 - HTTP 200 with `{}` returns `{"accepted": true, "operationId": "<sha256>"}`.
   That only means Substack acknowledged the request; confirm the address with
-  a fresh export census.
+  a fresh export census. The added address took between 8 and 18 minutes to
+  appear in the export, so keep checking later censuses before treating it as
+  missing.
 - Anything else after sending, including a 4xx, a 5xx, a network failure, a
   non-JSON body, or a body other than `{}`, returns `status: "indeterminate"`
   with an error beginning `reconcile-required:`. A 4xx names its status in the
@@ -95,7 +98,7 @@ returned the five-count projection.
 One authorized qualification add sent a confirmed, eligible Hraness opt-in
 that the fresh census did not contain. Substack answered HTTP 200 with `{}`,
 and the latest import job changed from one skipped address to one added
-address. Censuses taken right after the add and about eight minutes later
-still reported 373 addresses without the new one. The add therefore remains
-unreconciled, and import stays `capture-required`. Do not repeat the add;
-check later censuses for the address before any further qualification.
+address. Censuses right after the add and four and eight minutes later still
+reported 373 addresses. A complete census 18 minutes after the add reported
+374 unique addresses of 374, including the new one, which reconciled the
+add.

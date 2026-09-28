@@ -61,7 +61,7 @@ automation.
 - Diagnose state: `ghostget operator doctor --json`.
 - Invoke a supported semantic operation: `ghostget invoke <adapter> <operation>` or its printed shorthand.
 - Collect exact daily social-account statistics into a checked consumer snapshot: follow [social profile statistics](references/social-profile-stats.md).
-- Export subscribers or read import status for a Substack publication the signed-in owner runs: follow [Substack subscriber operations](references/substack-subscribers.md). Adding a subscriber stays reserved until a test add appears in an export.
+- Export subscribers, add one subscriber, or read import status for a Substack publication the signed-in owner runs: follow [Substack subscriber operations](references/substack-subscribers.md).
 - Export the signed-in X account's bookmarks as a bounded JSON page keyed by `post_id`: follow [X authenticated web API adapter](references/x-adapter.md#export-bookmarks).
 - Read a previously validated exact query without a provider roundtrip: repeat the subject-bound R1 invocation with `--cache-only`; omit that flag to revalidate it explicitly.
 - Read a normalized cross-provider inbox without a provider roundtrip: `ghostget omni read --input <json|@file|-> --cache-only --json`; use `--from-exact-cache` to rebuild from exact ciphertext or omit the mode to revalidate supported sources.

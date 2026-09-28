@@ -2015,24 +2015,24 @@
 // 12,116,353 + 12,387 + 4,096 = 12,132,836 packed;
 // 23,887,548 + 353 + 65 = 23,887,966 unpacked.
 //
-// The qualified Substack subscriber reads and gated one-address import over
+// The qualified Substack subscriber reads and one-address import over
 // main 4084ff5 add the retained 1.9.0 adapter snapshot as one new packed file
 // and grow the subscriber parser, runtime, adapter, plugin, and reference.
 // After `bun run build`, a clean npm 11.19.0 pack --ignore-scripts with Node
-// 24.18.1 on darwin arm64 measured 618 entries, 12,122,078 packed bytes and
-// 23,930,172 unpacked bytes; archive SHA-256
-// 5fb81a44ad8c1701e89962a3bc4f50b3203a7fd2e457bc2be5af92cc3053b1d1.
+// 24.18.1 on darwin arm64 measured 618 entries, 12,122,080 packed bytes and
+// 23,930,250 unpacked bytes; archive SHA-256
+// a3aed9af22331dba7333d6705ca83ac4d4cd2343ab084267086f7ce53d5d258e.
 // Retain the same platform projections and portability allowances:
-// 12,122,078 + 12,387 + 4,096 = 12,138,561 packed;
-// 23,930,172 + 353 + 65 = 23,930,590 unpacked.
+// 12,122,080 + 12,387 + 4,096 = 12,138,563 packed;
+// 23,930,250 + 353 + 65 = 23,930,668 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Qualified Substack subscriber reads and gated one-address import over main 4084ff5",
+  scope: "Qualified Substack subscriber export, import status, and one-address import over main 4084ff5",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "5fb81a44ad8c1701e89962a3bc4f50b3203a7fd2e457bc2be5af92cc3053b1d1",
-  packedBytes: 12_122_078,
-  unpackedBytes: 23_930_172,
+  archiveSha256: "a3aed9af22331dba7333d6705ca83ac4d4cd2343ab084267086f7ce53d5d258e",
+  packedBytes: 12_122_080,
+  unpackedBytes: 23_930_250,
   entryCount: 618,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

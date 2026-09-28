@@ -431,7 +431,7 @@ const identities = Object.freeze({
   "substack-web": {
     schemaVersion: 1,
     pluginVersion: "1.6.0",
-    implementationSha256: "9d0f72f8ba10c94d75f864dce4cbb497389e974e4c9e5f1ccaf9dd243922f738",
+    implementationSha256: "62507025edf4836d122027832fc2f49d04e6331487c40e10dbe5f8a1fa6ae797",
     legacyCurrentReadImplementationSha256: [],
     // 1.5.0 read every route below plus subscribers.export@2, whose paging,
     // cursor, and completeness semantics changed in place before any release.

@@ -17,10 +17,10 @@ Historical entries retain their original delivery coordinates.
   reports `complete: true` when the addresses you received equal `total`;
   otherwise `stopReason` says whether the list outgrew the 500-row limit or
   the counts didn't match.
-- `subscribers.import` still refuses to run. It now takes one address, a
-  `publication`, and `send_welcome_email: false`, and sends the request
-  Substack's dashboard uses. A test add was acknowledged but has not appeared
-  in the subscriber list yet, so it stays off until a later export shows it.
+- `subscribers.import` now adds one address to a publication you run, with
+  `send_welcome_email: false`, using the same request as Substack's
+  dashboard. A success means Substack accepted the request; check a later
+  export for the address, which took up to 18 minutes to appear in testing.
   Any unclear result after sending is reported as needing a check, never as
   a failure, and is never retried.
 

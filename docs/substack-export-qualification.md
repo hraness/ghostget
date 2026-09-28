@@ -1,10 +1,10 @@
 # Substack subscriber qualification
 
-Export v2 and import-status v2 are observed contracts, qualified through the
-checkout's installed CLI path on 2026-09-28. Import v2 remains
-`capture-required` because its one qualification add has not been reconciled.
-The sections below keep the original export capture evidence, then record the
-installed-path qualification and the import attempt.
+Export v2, import-status v2, and import v2 are observed contracts. The reads
+were qualified through the checkout's installed CLI path on 2026-09-28, and
+import through one authorized add reconciled by a later complete census. The
+sections below keep the original export capture evidence, then record the
+installed-path qualification and the import qualification.
 
 ## Observed request and response
 
@@ -102,7 +102,7 @@ row had exactly `email`, `subscriptionType`, and `subscribedAt`.
 five-count projection from `GET /api/v1/import/instances`. No address, cookie,
 or response body was recorded.
 
-## Import qualification attempt
+## Import qualification
 
 Import v2 sends the dashboard's observed add request: one
 `POST /api/v1/subscriber/add` with `{"email", "subscription": false,
@@ -116,18 +116,16 @@ public dispatcher, at 2026-09-28T02:47:36Z. It used the oldest confirmed,
 unsuppressed, Substack-eligible Hraness opt-in absent from a fresh complete
 census. Substack returned HTTP 200 with `{}`.
 The latest import job changed from one skipped address to one added address.
-Complete censuses right after the add and about eight minutes later still
-reported 373 addresses without it. The add is unreconciled, so import stays
-`capture-required`. Do not retry that or any other address. A later census
-that contains that address with a one-address increase and every earlier
-address preserved would be the reconciliation evidence for promotion.
+Complete censuses right after the add and four and eight minutes later still
+reported 373 addresses without it. A complete census 18 minutes after the
+add reported 374 unique addresses of 374, including the added address. That
+presence plus the one-address unique increase is the reconciliation evidence
+for promoting import to `observed`. The address was never retried.
 
-## Evidence required before import activation
-
-A fresh complete census must contain the qualification address, report one
-more unique address than the pre-add census, and preserve every earlier
-address. Only then can a reviewed change mark import `observed`.
-Import-status counts cannot confirm a specific address.
+Callers must treat an accepted add as pending until a later complete census
+contains the address. Import-status counts cannot confirm a specific
+address, and the observed delay means an early census without the address
+is not evidence of failure.
 
 Authored by Devin. Keep approved raw evidence private and publish only
 structural findings, counts, request shapes, and digests.

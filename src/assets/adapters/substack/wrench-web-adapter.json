@@ -973,7 +973,7 @@
       }
     },
     "subscribers.import": {
-      "description": "Capture-required contract reservation: add exactly one normalized address to the selected viewer-owned Substack publication after an author/admin binding check, with no paid subscription and no welcome email, through one at-most-once dispatch whose acknowledgement must be reconciled by a fresh subscribers.export census.",
+      "description": "Observed contract: add exactly one normalized address to the selected viewer-owned Substack publication after an author/admin check, with no paid subscription and no welcome email, through one at-most-once dispatch. The empty-object acknowledgement must be reconciled by a later subscribers.export census.",
       "risk": "R3",
       "sideEffect": "Adds one explicitly listed email address as a free subscriber of the selected viewer-owned Substack publication without sending a welcome email.",
       "idempotency": "local-at-most-once",

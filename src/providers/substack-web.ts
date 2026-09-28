@@ -194,10 +194,8 @@ export const SUBSTACK_WEB_OPERATIONS = Object.freeze({
   "subscribers.export": observedRead(
     "installed-CLI census of the owner's publication through POST /api/v1/subscriber-stats with author/admin binding, 100-row pages, a ten-row overlap, and a complete unique census equal to the reported total",
   ),
-  "subscribers.import": captureRequired(
-    "R3",
-    "none",
-    "one gated qualification add through POST /api/v1/subscriber/add with sendEmail: false was acknowledged with an empty object, but the address has not appeared in a fresh census; import stays gated until census reconciliation",
+  "subscribers.import": observedWrite(
+    "one authorized qualification add of an absent, eligible address through POST /api/v1/subscriber/add with subscription: false and sendEmail: false, acknowledged with an empty object and reconciled by a later complete census that contained the address with a one-address unique increase",
   ),
   "subscribers.import.status": observedRead(
     "installed-CLI read of the owner's publication through GET /api/v1/import/instances with author/admin binding and nested latestImportResult counts",
