@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import fc from "fast-check";
+import { assertProperty } from "./test-support";
 
 import type { StrictCookie } from "@hraness/wordcell/clip/cookies";
 
@@ -116,7 +117,7 @@ describe("splitPdfSignInArguments", () => {
   test("property: stripping never leaves a sign-in option and keeps every other argument", () => {
     const plain = fc.constantFrom("--json", "--quiet", "--root", "/notes", "https://e.org/a.pdf", "--slug", "x");
     const auth = fc.constantFrom(["--cookie-source", "chrome"], ["--cookie-profile", "Default"]);
-    fc.assert(fc.property(fc.array(plain, { maxLength: 8 }), auth, fc.nat(8), (others, pair, at) => {
+    assertProperty(fc.property(fc.array(plain, { maxLength: 8 }), auth, fc.nat(8), (others, pair, at) => {
       const position = Math.min(at, others.length);
       const argv = [...others.slice(0, position), ...pair, ...others.slice(position)];
       const withSource = pair[0] === "--cookie-profile" ? [...argv, "--cookie-source", "chrome"] : argv;
@@ -394,7 +395,7 @@ describe("pdfFilename", () => {
   });
 
   test("property: never contains a path separator and always ends in .pdf", () => {
-    fc.assert(fc.property(fc.string({ maxLength: 60 }), (segment) => {
+    assertProperty(fc.property(fc.string({ maxLength: 60 }), (segment) => {
       const name = pdfFilename(new URL(`https://e.org/${encodeURIComponent(segment)}`));
       expect(name.endsWith(".pdf")).toBe(true);
       expect(name.includes("/")).toBe(false);
