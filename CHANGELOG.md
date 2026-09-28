@@ -7,22 +7,44 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
-- Substack `subscribers.export` and `subscribers.import.status` now run for a
+## 0.18.44
+
+This release turns on Substack subscriber export, import status, and
+one-address import for publications you run, and makes messaging automation
+and release checks steadier. Version 0.18.43 was prepared but never tagged,
+so its quieter ghostget.com also arrives with this release.
+
+- Substack `subscribers.export` and `subscribers.import.status` run for a
   publication the signed-in owner runs. Name it with `publication`, such as
   `hraness`. Ghostget first checks that you are its author and an
   administrator. Export pages hold up to 100 subscribers with email,
-  subscription type, and signup time. Each request overlaps the previous page
-  by up to ten rows, because Substack can reorder subscribers who share a
-  signup time, and Ghostget returns only addresses you haven't seen yet. The last page
-  reports `complete: true` when the addresses you received equal `total`;
-  otherwise `stopReason` says whether the list outgrew the 500-row limit or
-  the counts didn't match.
-- `subscribers.import` now adds one address to a publication you run, with
+  subscription type, and signup time; section membership isn't returned.
+  Each request overlaps the previous page by up to ten rows, because
+  Substack can reorder subscribers who share a signup time, and Ghostget
+  returns only addresses you haven't seen yet. Continuation cursors are
+  encrypted and work only for the same account and publication. The last
+  page reports `complete: true` when the addresses you received equal
+  `total`; otherwise `stopReason` says whether the list outgrew the 500-row
+  limit or the counts didn't match.
+- `subscribers.import` adds one address to a publication you run, with
   `send_welcome_email: false`, using the same request as Substack's
   dashboard. A success means Substack accepted the request; check a later
   export for the address, which took up to 18 minutes to appear in testing.
   Any unclear result after sending is reported as needing a check, never as
   a failure, and is never retried.
+- Microsoft Graph gains disabled `contacts.list` and
+  `calendar.attendees.list` candidates for the default contact folder and
+  calendar. They refuse to run before reading credentials or contacting
+  Microsoft until an authorized account test confirms them.
+- Messaging automation keeps one verified iMessage helper and one state
+  helper running across operations instead of starting new processes for
+  each one, and a dispatch reuses the status its own poll just read. Every
+  permission, identity, and store check still runs for each operation.
+- Automation status describes all of its action permissions from one
+  snapshot, which cuts the helper processes each provider check starts.
+- The formal verification checks get more time to finish, so a slow but
+  passing proof no longer fails CI. Every model, seed, depth, and check is
+  unchanged.
 
 ## 0.18.43
 
