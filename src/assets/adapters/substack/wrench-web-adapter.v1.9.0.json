@@ -1,7 +1,7 @@
 {
   "schemaVersion": 4,
   "id": "substack-web",
-  "version": "1.10.0",
+  "version": "1.9.0",
   "displayName": "Substack (Authenticated Web API)",
   "surfaceId": "substack",
   "origins": [
@@ -933,7 +933,7 @@
       }
     },
     "subscribers.export": {
-      "description": "Observed contract: read up to 100 subscribers of the selected viewer-owned Substack publication after an author/admin check, projected to email, subscription type, and subscribed time. An encrypted account- and publication-bound cursor overlaps pages by up to ten rows, returns only new addresses, and covers 500 rows. complete is true only when the last page's unique count equals total; stopReason names exhaustion, the row limit, or a census mismatch.",
+      "description": "Capture-required contract reservation: read one page of up to 50 subscribers from the selected viewer-owned Substack publication, projected to email, subscription type, and subscribed time. An encrypted account- and publication-bound cursor limits each chain to 500 rows; complete is always false, and stopReason distinguishes page exhaustion from the row limit.",
       "risk": "R1",
       "sideEffect": "none",
       "idempotency": "none",
@@ -950,7 +950,7 @@
             "type": "number",
             "description": "Maximum subscribers on this page",
             "minimum": 1,
-            "maximum": 100
+            "maximum": 50
           },
           "publication": {
             "type": "string",
@@ -973,16 +973,16 @@
       }
     },
     "subscribers.import": {
-      "description": "Capture-required contract reservation: add exactly one normalized address to the selected viewer-owned Substack publication after an author/admin binding check, with no paid subscription and no welcome email, through one at-most-once dispatch whose acknowledgement must be reconciled by a fresh subscribers.export census.",
+      "description": "Capture-required contract reservation: import 1 to 25 unique normalized email addresses into the bootstrap-bound sole viewer-owned Substack publication with the welcome email disabled, freezing one operation identity before a single at-most-once dispatch.",
       "risk": "R3",
-      "sideEffect": "Adds one explicitly listed email address as a free subscriber of the selected viewer-owned Substack publication without sending a welcome email.",
+      "sideEffect": "Adds up to 25 explicitly listed email addresses as subscribers of the exact bound viewer-owned Substack publication without sending a welcome email.",
       "idempotency": "local-at-most-once",
       "dedupeWindowMs": 86400000,
       "input": {
         "properties": {
           "emails": {
             "type": "array",
-            "description": "Exactly one normalized lowercase email address to add",
+            "description": "Unique normalized lowercase email addresses to import",
             "items": {
               "type": "string",
               "description": "One normalized lowercase email address",
@@ -990,13 +990,7 @@
               "maxLength": 254
             },
             "minItems": 1,
-            "maxItems": 1
-          },
-          "publication": {
-            "type": "string",
-            "description": "Canonical lowercase Substack publication handle to select from the bound viewer dashboard",
-            "minLength": 1,
-            "maxLength": 63
+            "maxItems": 25
           },
           "send_welcome_email": {
             "type": "boolean",
@@ -1007,7 +1001,6 @@
           }
         },
         "required": [
-          "publication",
           "emails",
           "send_welcome_email"
         ]
@@ -1015,34 +1008,25 @@
       "webSession": {
         "site": "substack",
         "action": "subscribers.import",
-        "contractVersion": 2,
+        "contractVersion": 1,
         "timeoutMs": 60000,
         "maxOutputBytes": 8388608
       }
     },
     "subscribers.import.status": {
-      "description": "Observed contract: read the latest file-import status counts of the selected viewer-owned Substack publication after an author/admin binding check.",
+      "description": "Capture-required contract reservation: read the exact latest subscriber-import status counts of the bootstrap-bound sole viewer-owned Substack publication.",
       "risk": "R1",
       "sideEffect": "none",
       "idempotency": "none",
       "dedupeWindowMs": 0,
       "input": {
-        "properties": {
-          "publication": {
-            "type": "string",
-            "description": "Canonical lowercase Substack publication handle to select from the bound viewer dashboard",
-            "minLength": 1,
-            "maxLength": 63
-          }
-        },
-        "required": [
-          "publication"
-        ]
+        "properties": {},
+        "required": []
       },
       "webSession": {
         "site": "substack",
         "action": "subscribers.import.status",
-        "contractVersion": 2,
+        "contractVersion": 1,
         "timeoutMs": 60000,
         "maxOutputBytes": 8388608
       }

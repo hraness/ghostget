@@ -1,82 +1,101 @@
 # Substack subscriber operations
 
-`substack-web` reserves three operations for the signed-in owner's own
-publication. All three are `capture-required` in this release: Ghostget
-refuses them before reading cookies or opening a connection. They become
-executable only after an authorized live capture proves each exchange and a
-reviewed change marks the contract `observed`.
+`substack-web` can export the subscribers of a publication the signed-in
+owner runs and read that publication's latest import counts. Adding a
+subscriber is still `capture-required`: Ghostget refuses it before reading
+cookies or opening a connection.
 
-The auth locator binds one exact `substack:<user-id>` subject. Export names
-one publication from that viewer's dashboard and checks its subscriber page
-for matching author and administrator ownership. The disabled import and
-import-status candidates require a single dashboard publication.
+The auth locator binds one exact `substack:<user-id>` subject. Every
+subscriber operation names one `publication` handle from that viewer's
+dashboard, such as `hraness`. Before any subscriber request, Ghostget reads
+that publication's subscriber page and requires the viewer to be its author
+and an administrator. A missing, ambiguous, or unowned publication fails as
+an account mismatch.
 
 ## `subscribers.export` (R1)
 
-The source candidate uses export version 2. It reads the named owner's
-publication directory in pages of at most 50 rows, with at most 500 rows in
-one continuation chain. The published version 1 reservation does not accept
-this format.
-
 ```sh
-printf '%s' '{"publication":"your-publication","limit":50}' \
-  | bun run ./src/cli.ts invoke substack-web subscribers.export --input - --auth substack-main --json
+printf '%s' '{"publication":"hraness","limit":100}' \
+  | ghostget invoke substack-web subscribers.export --input - --auth substack-chrome --json
 ```
 
-- Input: `publication` is the exact lowercase Substack handle, and `limit`
-  is from 1 to 50. Omit `cursor` for the first page, then pass only
-  the encrypted `nextCursor` returned by the previous page. Cursors bind the
-  account, viewer, publication, ordering, first-page total, and rows already
-  returned. Old unsigned cursors are rejected.
-- Output: `subscribers` rows contain lowercase `email`, `subscriptionType`
-  (`free`, `paid`, `comp`, `founding`, `gift`, or `unknown`), and `subscribedAt`
-  (UTC ISO-8601 with millisecond precision, or `null`). The classification
-  reflects the dashboard fields; it does not establish active delivery or
-  consent. Section membership is unavailable and is omitted.
-- `total` is the provider's directory count. A changed count or a repeated
-  address stops the chain; restart from the first page. Duplicate detection
-  uses encrypted fingerprints and may conservatively reject a collision.
-- `complete` is always `false`, and `completeness.kind` is `page`. Offset
-  pagination cannot prove a consistent snapshot: equal-count membership
-  changes or reordered rows can omit addresses even when no repeat is found.
-- `continuationSupported` is true only when another cursor is returned.
-  A null `nextCursor` has `stopReason: "provider-exhausted"` when the returned
-  count reaches the reported total, or `stopReason: "row-limit"` when the
-  500-row limit stops the chain. Neither means a complete snapshot.
-
-## `subscribers.import` (R3)
-
-```sh
-printf '%s' '{"emails":["reader@example.com"],"send_welcome_email":false}' \
-  | ghostget invoke substack-web subscribers.import --input - --auth substack-main --json
-```
-
-- Input: `emails`, 1 to 25 unique addresses that are already lowercase and
-  trimmed, and the literal `send_welcome_email: false`. Ghostget rejects any
-  other value, a duplicate, an unnormalized or malformed address, or a 26th
-  address before any cookie, keychain, or network access.
-- The operation freezes one `operationId` before its single dispatch and
-  follows the normal R3 preview and one-use confirmation.
-- Output on success: `{"accepted": true, "operationId": "<sha256>"}`.
-- Any failure after dispatch starts returns `status: "indeterminate"` with an
-  error beginning `reconcile-required:`. Never retry that batch. Read
-  `subscribers.import.status` and reconcile from its counts.
+- Input: `publication`, `limit` from 1 to 100, and `cursor` only when
+  continuing. Omit `cursor` for the first page, then pass the encrypted
+  `nextCursor` from the previous page unchanged. A cursor works only for the
+  same auth locator, viewer, and publication.
+- Output: `subscribers`, `nextCursor`, `total`, `complete`, `completeness`,
+  `continuationSupported`, and `stopReason`. Each row has exactly `email`
+  (lowercase), `subscriptionType` (`free`, `paid`, `comp`, `founding`, `gift`,
+  or `unknown`), and `subscribedAt` (UTC ISO-8601 with millisecond precision,
+  or `null`; Substack sends nine fractional digits). Section membership is not
+  returned.
+- Each page after the first starts up to ten rows before the end of the
+  previous one. Substack can reorder subscribers who share a signup time
+  between requests, and a plain 100-row stride once missed one of 373
+  addresses. Ghostget drops rows the chain already returned, so each page
+  lists only new addresses.
+- Keep paging until `nextCursor` is `null`. The last page has
+  `complete: true` and `stopReason: "provider-exhausted"` only when the
+  chain returned exactly `total` unique addresses. Otherwise `complete` is
+  `false` and `stopReason` is `"census-mismatch"` (start over) or
+  `"row-limit"` (one chain covers 500 rows, so larger lists can't be
+  exported completely yet). Intermediate pages have `complete: false` and
+  `stopReason: null`.
+- A changed `total`, a repeated address within one page, a short page
+  before the end, or changed ordering stops the chain; start over from the
+  first page. `complete` compares counts, so a subscriber swap that keeps
+  `total` the same can go unnoticed. Compare two censuses when you need a
+  snapshot.
 
 ## `subscribers.import.status` (R1)
 
-- Input: `{}`.
+```sh
+printf '%s' '{"publication":"hraness"}' \
+  | ghostget invoke substack-web subscribers.import.status --input - --auth substack-chrome --json
+```
+
+- Input: `publication`.
 - Output: exactly `total`, `isAdded`, `isSkipped`, `isLimited`, and
-  `passImportVerification`, projected from the publication's latest import
-  job. A response with any other key set fails as contract drift.
+  `passImportVerification` from the publication's latest import job. A
+  one-address add also replaces that latest job, so these counts cannot
+  confirm a specific address. Use a fresh export census for that.
 
-## Remaining live qualification
+## `subscribers.import` (R3)
 
-Export is evaluated independently from import. Before export can run, an
-authorized account test must confirm the selected publication and owner, the subscriber
-request and response, 50-row pagination, and the observed end-of-data behavior.
-Only the demonstrated read may be enabled.
+Ghostget refuses this operation until a new-address add is confirmed by a
+later census. The implementation behind the gate:
 
-Import and import-status require separate evidence. Import needs the exact
-request, welcome-email suppression field, acceptance response, and effect on
-the import status. Import-status needs its own response evidence. Both remain
-`capture-required`; export evidence cannot enable either operation.
+- Input: `publication`, `emails` with exactly one address that is already
+  lowercase and trimmed, and the literal `send_welcome_email: false`. Anything
+  else fails before any cookie, keychain, or network access.
+- Before sending, Ghostget checks author and administrator ownership and
+  freezes one `operationId`. The operation follows the normal R3 preview and
+  one-use confirmation.
+- It sends one `POST <publication>/api/v1/subscriber/add` with
+  `{"email": "<address>", "subscription": false, "sendEmail": false}` and
+  never retries it.
+- HTTP 200 with `{}` returns `{"accepted": true, "operationId": "<sha256>"}`.
+  That only means Substack acknowledged the request; confirm the address with
+  a fresh export census.
+- Anything else after sending, including a 4xx, a 5xx, a network failure, a
+  non-JSON body, or a body other than `{}`, returns `status: "indeterminate"`
+  with an error beginning `reconcile-required:`. A 4xx names its status in the
+  error stage, for example `import-rejected, HTTP 400`. Ghostget never records
+  a sent request as `failed`. Never retry that address; check a fresh census
+  first.
+
+## Evidence
+
+On 2026-09-28 the checkout's CLI, using an isolated development state and
+the `substack-chrome` locator, exported the Hraness publication in five
+pages (100, 90, 90, 90, and 3 new rows) and returned 373 unique addresses
+for a reported total of 373, with `complete: true`. The import-status read
+returned the five-count projection.
+
+One authorized qualification add sent a confirmed, eligible Hraness opt-in
+that the fresh census did not contain. Substack answered HTTP 200 with `{}`,
+and the latest import job changed from one skipped address to one added
+address. Censuses taken right after the add and about eight minutes later
+still reported 373 addresses without the new one. The add therefore remains
+unreconciled, and import stays `capture-required`. Do not repeat the add;
+check later censuses for the address before any further qualification.

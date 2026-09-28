@@ -570,9 +570,9 @@ describe("provider plugin definition and registry", () => {
       {
         id: "substack-web",
         surface: "substack",
-        version: "1.5.0",
-        current: "7e12bbfffb9629b9195b98fc42394d6c5163ae3e2efa8063a1086ff1cc3dde1b",
-        prior: "58438f60cf9b2d2db9363cb7dece0c6ca56e60c2178fe4bcbd60c844fc8893ba",
+        version: "1.6.0",
+        current: "9d0f72f8ba10c94d75f864dce4cbb497389e974e4c9e5f1ccaf9dd243922f738",
+        prior: "7e12bbfffb9629b9195b98fc42394d6c5163ae3e2efa8063a1086ff1cc3dde1b",
         operation: "profiles.read",
         contractVersion: 1,
       },

@@ -7,15 +7,22 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
-- Prepare Substack subscriber export v2 from an authorized dashboard capture:
-  select one publication explicitly, verify its author/admin binding, request
-  at most 50 rows, and use encrypted account-bound continuation with duplicate
-  detection and a 500-row ceiling. Export projects email, dashboard type, and
-  signup time; it omits unobserved section membership and never claims a
-  complete snapshot. The exact v1 adapter and receipt identities are retained.
-  Export remains disabled while login-probe, installed-transport, and terminal
-  pagination qualification are incomplete. Import and import-status remain
-  separate disabled candidates.
+- Substack `subscribers.export` and `subscribers.import.status` now run for a
+  publication the signed-in owner runs. Name it with `publication`, such as
+  `hraness`. Ghostget first checks that you are its author and an
+  administrator. Export pages hold up to 100 subscribers with email,
+  subscription type, and signup time. Each request overlaps the previous page
+  by up to ten rows, because Substack can reorder subscribers who share a
+  signup time, and Ghostget returns only addresses you haven't seen yet. The last page
+  reports `complete: true` when the addresses you received equal `total`;
+  otherwise `stopReason` says whether the list outgrew the 500-row limit or
+  the counts didn't match.
+- `subscribers.import` still refuses to run. It now takes one address, a
+  `publication`, and `send_welcome_email: false`, and sends the request
+  Substack's dashboard uses. A test add was acknowledged but has not appeared
+  in the subscriber list yet, so it stays off until a later export shows it.
+  Any unclear result after sending is reported as needing a check, never as
+  a failure, and is never retried.
 
 ## 0.18.43
 

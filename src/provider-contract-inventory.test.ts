@@ -320,8 +320,8 @@ describe("durable provider contract inventory", () => {
       expect(inventory).toEqual({
         rows: 324,
         sha256: predecessorDefaultInventorySha256,
-        currentOnlyRows: 84,
-        currentOnlySha256: "82785696154ce4a1f7164bf8bcb303640f0158347ff8b66e5c2aa03ac5f8c685",
+        currentOnlyRows: 86,
+        currentOnlySha256: "cf7ec881dfd7a9f8fe454b140bd978b267ba25e71c2adceac93d1a289ecdaaf6",
         automationRows: [
           ["linked-device", "whatsapp", "messaging.automation.read", 1],
           ["linked-device", "whatsapp", "messaging.automation.send.attachment", 1],
