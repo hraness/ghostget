@@ -614,7 +614,7 @@ async function exerciseCli(
   const offer = requireJsonObject(`${target.label} support`, JSON.parse(support.stdout) as unknown);
   const supportProduct = requireJsonObject(`${target.label} support.product`, offer.product);
   if (support.stderr !== "" || offer.schemaVersion !== "hraness-support-offer-v1"
-    || offer.optional !== true || supportProduct.id !== "wrench"
+    || offer.optional !== true || supportProduct.id !== "ghostget"
     || Object.hasOwn(offer, "emailSuggestion")
     || !Array.isArray(offer.actions) || offer.actions.length !== 2) {
     throw new Error(`${target.label} support offer is malformed`);
