@@ -1,4 +1,4 @@
-import type { CookieRecordReader } from "@hraness/kb/clip/acquire";
+import type { CookieRecordReader } from "@hraness/wordcell/clip/acquire";
 
 import type { GhostgetAuth } from "../auth";
 import {

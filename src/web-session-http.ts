@@ -1,9 +1,9 @@
 import {
   type CookieRecordReader,
   type CookieSelection,
-} from "@hraness/kb/clip/acquire";
+} from "@hraness/wordcell/clip/acquire";
 import { acquireCookieRecords } from "./cookie-access";
-import { renderCookieHeader, type StrictCookie } from "@hraness/kb/clip/cookies";
+import { renderCookieHeader, type StrictCookie } from "@hraness/wordcell/clip/cookies";
 import type { GhostgetAuth } from "./auth";
 import type { OperationInput } from "./model";
 import { pinnedHttpsFetch } from "./pinned-https";

@@ -15,8 +15,8 @@ import {
   parseCaptureArguments,
   type CaptureArguments,
   type CaptureOutcome,
-} from "@hraness/kb/capture";
-import type { AcquiredPage } from "@hraness/kb/clip/acquire";
+} from "@hraness/wordcell/capture";
+import type { AcquiredPage } from "@hraness/wordcell/clip/acquire";
 
 import {
   BROWSER_ADMISSION_STATE_DIRECTORY,
@@ -1113,7 +1113,7 @@ describe("browser admission wiring", () => {
     ]);
   });
 
-  test("injects the admitted browser seam into @hraness/kb runCapture", async () => {
+  test("injects the admitted browser seam into @hraness/wordcell runCapture", async () => {
     const events: string[] = [];
     const outcome = await runCaptureWithBrowserAdmission(
       captureArguments(),

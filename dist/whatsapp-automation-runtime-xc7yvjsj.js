@@ -11,7 +11,7 @@ import {
   ghostgetStateHome,
   processOwnerStatus
 } from "./index-s52dfzqt.js";
-import"./index-dw20pbkj.js";
+import"./index-6fv50zce.js";
 import {
   startProviderPluginCleanupTrackedOperation
 } from "./index-n4szk3nw.js";
@@ -291,7 +291,7 @@ import {
   unlink
 } from "fs/promises";
 import { dirname as dirname2, isAbsolute as isAbsolute2, join as join2, resolve as resolve2 } from "path";
-import { BoundedByteBuffer } from "@hraness/kb/clip/bounded-byte-buffer";
+import { BoundedByteBuffer } from "@hraness/wordcell/clip/bounded-byte-buffer";
 var MAX_STDERR_BYTES = 64 * 1024;
 var MAX_STORE_ENTRIES = 1e4;
 var MAX_CONTACT_PROJECTION_STDERR_BYTES = 16 * 1024;

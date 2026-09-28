@@ -11,8 +11,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runInNewContext } from "node:vm";
 
-import type { CookieRecordReader } from "@hraness/kb/clip/acquire";
-import type { StrictCookie } from "@hraness/kb/clip/cookies";
+import type { CookieRecordReader } from "@hraness/wordcell/clip/acquire";
+import type { StrictCookie } from "@hraness/wordcell/clip/cookies";
 import type { GhostgetAuth } from "../auth";
 import { canonicalJson } from "../canonical-json";
 import type { OperationInput, WebSessionRecipe } from "../model";

@@ -1,7 +1,7 @@
 import { constants } from "node:fs";
 import { open } from "node:fs/promises";
 
-import { BoundedByteBuffer } from "@hraness/kb/clip/bounded-byte-buffer";
+import { BoundedByteBuffer } from "@hraness/wordcell/clip/bounded-byte-buffer";
 
 import type { GhostgetAuth } from "../auth";
 import {

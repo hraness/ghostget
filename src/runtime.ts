@@ -17,7 +17,7 @@ import {
 } from "node:crypto";
 import { basename, dirname, join, relative, sep } from "node:path";
 
-import { redactSensitiveText } from "@hraness/kb/clip/persist";
+import { redactSensitiveText } from "@hraness/wordcell/clip/persist";
 import {
   loadAuth,
   parseAuth,

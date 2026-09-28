@@ -16,9 +16,9 @@ import {
   browserCookieCommands,
   browserProxyArguments,
   type CookieRecordReader,
-} from "@hraness/kb/clip/acquire";
+} from "@hraness/wordcell/clip/acquire";
 import { acquireCookieRecords } from "./cookie-access";
-import { BoundedByteBuffer } from "@hraness/kb/clip/bounded-byte-buffer";
+import { BoundedByteBuffer } from "@hraness/wordcell/clip/bounded-byte-buffer";
 import {
   cloneBrowserProfile,
   cloneProfile,
@@ -26,10 +26,10 @@ import {
   isSafeNamedProfile,
   profilePath,
   type ClonedBrowserProfile,
-} from "@hraness/kb/browser-profiles";
-import { startNetworkProxy, type LocalNetworkProxy } from "@hraness/kb/clip/network-proxy";
-import { redactSensitiveText } from "@hraness/kb/clip/persist";
-import { sanitizeTerminalLine } from "@hraness/kb/clip/terminal";
+} from "@hraness/wordcell/browser-profiles";
+import { startNetworkProxy, type LocalNetworkProxy } from "@hraness/wordcell/clip/network-proxy";
+import { redactSensitiveText } from "@hraness/wordcell/clip/persist";
+import { sanitizeTerminalLine } from "@hraness/wordcell/clip/terminal";
 import type { GhostgetAuth } from "./auth";
 import type { OperationDeadline } from "./operation-deadline";
 import type {

@@ -8,8 +8,8 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { CookieRecordReader } from "@hraness/kb/clip/acquire";
-import type { StrictCookie } from "@hraness/kb/clip/cookies";
+import type { CookieRecordReader } from "@hraness/wordcell/clip/acquire";
+import type { StrictCookie } from "@hraness/wordcell/clip/cookies";
 import type { GhostgetAuth } from "../auth";
 import { PreservedBrowserArtifactsError } from "../browser";
 import { sealCursorToken } from "../cursor-token";

@@ -4,8 +4,8 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { CookieRecordReader } from "@hraness/kb/clip/acquire";
-import type { StrictCookie } from "@hraness/kb/clip/cookies";
+import type { CookieRecordReader } from "@hraness/wordcell/clip/acquire";
+import type { StrictCookie } from "@hraness/wordcell/clip/cookies";
 import type { GhostgetAuth } from "../auth";
 import type { OperationInput, WebSessionRecipe } from "../model";
 import {

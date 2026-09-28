@@ -1,7 +1,7 @@
-import { type CookieSelection } from "@hraness/kb/clip/acquire";
+import { type CookieSelection } from "@hraness/wordcell/clip/acquire";
 import { acquireCookieRecords } from "./cookie-access";
 import { findCookieAccessError, type CookieAccessError } from "./cookie-access-error";
-import { filterCookies, renderCookieHeader } from "@hraness/kb/clip/cookies";
+import { filterCookies, renderCookieHeader } from "@hraness/wordcell/clip/cookies";
 import { createHash, randomUUID } from "node:crypto";
 import {
   chmodSync,

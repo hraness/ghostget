@@ -53,7 +53,7 @@ const defaultOutput: GhostgetCatalogOutput = {
 
 const loadGhostgetProcess = (): Promise<GhostgetProcessModule> => import("./ghostget");
 const loadGhostgetCatalog = (): Promise<GhostgetCatalogModule> => import("./catalog-cli");
-const loadPublicKbCli = (): Promise<PublicKbCliModule> => import("@hraness/kb/cli");
+const loadPublicKbCli = (): Promise<PublicKbCliModule> => import("@hraness/wordcell/cli");
 const loadGhostgetSupport = (): Promise<GhostgetSupportModule> => import("./support");
 
 /** An inherited marker belongs only to the real executable entrypoint. */

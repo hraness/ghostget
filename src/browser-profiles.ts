@@ -2,7 +2,7 @@ import { lstatSync, readFileSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-import { cookieSources, type CookieSource } from "@hraness/kb/clip/args";
+import { cookieSources, type CookieSource } from "@hraness/wordcell/clip/args";
 
 /**
  * Local browser profile discovery for cookie selection. Reading a profile's

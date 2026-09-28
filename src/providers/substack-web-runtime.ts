@@ -4,7 +4,7 @@ import { constants } from "node:fs";
 import { open } from "node:fs/promises";
 import { types as nodeTypes } from "node:util";
 
-import { renderCookieHeader } from "@hraness/kb/clip/cookies";
+import { renderCookieHeader } from "@hraness/wordcell/clip/cookies";
 
 import type { GhostgetAuth } from "../auth";
 import type { BrowserFileResolver } from "../browser";

@@ -3,8 +3,8 @@ import { chmodSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { CookieRecordReader } from "@hraness/kb/clip/acquire";
-import type { StrictCookie } from "@hraness/kb/clip/cookies";
+import type { CookieRecordReader } from "@hraness/wordcell/clip/acquire";
+import type { StrictCookie } from "@hraness/wordcell/clip/cookies";
 import {
   parseArticleDraftDocument,
   parseArticleDraftDocumentV2,

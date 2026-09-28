@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { parseCaptureArguments } from "@hraness/kb/capture";
+import { parseCaptureArguments } from "@hraness/wordcell/capture";
 import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -42,7 +42,7 @@ import {
   type GhostgetClipEnvironmentInspection,
   type GhostgetDependencies,
 } from "./ghostget";
-import { hasUnsafeTerminalCharacters } from "@hraness/kb/clip/terminal";
+import { hasUnsafeTerminalCharacters } from "@hraness/wordcell/clip/terminal";
 import {
   acquireWebSessionCleanupAdmission,
 } from "./web-session-cleanup-admission";
@@ -290,7 +290,7 @@ function clipEnvironmentInspection(
   };
   return {
     report,
-    renderReport: () => `Opaque KB environment report at ${generatedAt}\n`,
+    renderReport: () => `Opaque Wordcell environment report at ${generatedAt}\n`,
     browserCaptureBootstrapReady: browserCaptureReady,
   };
 }
@@ -1923,7 +1923,7 @@ describe("Ghostget media routing", () => {
     expect(wrench.stderr()).toBe("");
   });
 
-  test("keeps the KB inspection opaque while preserving JSON, terminal rendering, and readiness", async () => {
+  test("keeps the Wordcell inspection opaque while preserving JSON, terminal rendering, and readiness", async () => {
     const testState = state();
     const report = {
       fixtureSchema: "independent-from-kb-doctor-versions",
@@ -1934,7 +1934,7 @@ describe("Ghostget media routing", () => {
       report,
       renderReport: () => {
         renderCalls += 1;
-        return "Opaque KB environment report\n";
+        return "Opaque Wordcell environment report\n";
       },
       browserCaptureBootstrapReady: true,
     };
@@ -1963,7 +1963,7 @@ describe("Ghostget media routing", () => {
         text.output,
         dependencies,
       )).toBe(3);
-      expect(text.stdout()).toContain("Opaque KB environment report");
+      expect(text.stdout()).toContain("Opaque Wordcell environment report");
       expect(text.stdout()).toContain("Browser capture/bootstrap: ready");
       expect(renderCalls).toBe(1);
     } finally {

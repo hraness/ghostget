@@ -18,7 +18,7 @@ import { join } from "node:path";
 
 import { Database } from "bun:sqlite";
 
-import type { CookieRecordReader } from "@hraness/kb/clip/acquire";
+import type { CookieRecordReader } from "@hraness/wordcell/clip/acquire";
 
 import type { GhostgetAuth } from "./auth";
 import { sha256 } from "./canonical-json";

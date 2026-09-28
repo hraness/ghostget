@@ -1,7 +1,7 @@
 import { constants } from "node:fs";
 import { open } from "node:fs/promises";
 
-import { acquireCookieRecords } from "@hraness/kb/clip/acquire";
+import { acquireCookieRecords } from "@hraness/wordcell/clip/acquire";
 
 import type { GhostgetAuth } from "../auth";
 import {

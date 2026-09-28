@@ -1,6 +1,6 @@
 import { isIP } from "node:net";
 
-import { isPrivateAddress, isPrivateHostname } from "@hraness/kb/clip/network";
+import { isPrivateAddress, isPrivateHostname } from "@hraness/wordcell/clip/network";
 import {
   canonicalJson,
   canonicalJsonSha256Variants,

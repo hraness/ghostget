@@ -12,16 +12,16 @@ import { browserProfilesResult } from "./browser-profiles-cli";
 import { existsSync, lstatSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-import { BoundedByteBuffer } from "@hraness/kb/clip/bounded-byte-buffer";
+import { BoundedByteBuffer } from "@hraness/wordcell/clip/bounded-byte-buffer";
 import {
   clipMain,
   inspectClipEnvironment,
   parseCaptureArguments,
   renderDoctorReport,
   type ClipRuntimeOptions,
-} from "@hraness/kb/capture";
-import { redactSensitiveText } from "@hraness/kb/clip/persist";
-import { sanitizeTerminalLine, sanitizeTerminalText } from "@hraness/kb/clip/terminal";
+} from "@hraness/wordcell/capture";
+import { redactSensitiveText } from "@hraness/wordcell/clip/persist";
+import { sanitizeTerminalLine, sanitizeTerminalText } from "@hraness/wordcell/clip/terminal";
 import {
   createAuth,
   listAuth,
@@ -287,9 +287,9 @@ type ImsgDirectInstallRuntime =
   typeof import("./providers/imessage-direct-install");
 
 /**
- * Ghostget's stable boundary around the independently versioned KB doctor.
+ * Ghostget's stable boundary around the independently versioned Wordcell doctor.
  *
- * The default adapter preserves the complete KB report for JSON output while
+ * The default adapter preserves the complete Wordcell report for JSON output while
  * keeping its concrete schema and terminal renderer out of Ghostget's dependency
  * and test contracts.
  */

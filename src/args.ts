@@ -1,4 +1,4 @@
-import { cookieSources, type CookieSource } from "@hraness/kb/clip/args";
+import { cookieSources, type CookieSource } from "@hraness/wordcell/clip/args";
 import { isAbsolute, resolve } from "node:path";
 import {
   normalizeAuthSubject,

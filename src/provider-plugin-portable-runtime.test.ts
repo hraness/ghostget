@@ -18,7 +18,7 @@ import {
   test,
 } from "bun:test";
 
-import type { StrictCookie } from "@hraness/kb/clip/cookies";
+import type { StrictCookie } from "@hraness/wordcell/clip/cookies";
 import { assertAsyncProperty, fc } from "./test-support";
 import { CookieAccessError, findCookieAccessError } from "./cookie-access-error";
 import { loadAuth, saveAuth, type GhostgetAuth } from "./auth";

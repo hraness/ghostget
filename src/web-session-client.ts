@@ -2,14 +2,14 @@ import { WebSessionAuthStateError, WebSessionResponseRejectedError, WebSessionRe
 import {
   type CookieRecordReader,
   type CookieSelection,
-} from "@hraness/kb/clip/acquire";
+} from "@hraness/wordcell/clip/acquire";
 import { acquireCookieRecords } from "./cookie-access";
-import { BoundedByteBuffer } from "@hraness/kb/clip/bounded-byte-buffer";
+import { BoundedByteBuffer } from "@hraness/wordcell/clip/bounded-byte-buffer";
 import {
   filterCookies,
   renderCookieHeader,
   type StrictCookie,
-} from "@hraness/kb/clip/cookies";
+} from "@hraness/wordcell/clip/cookies";
 
 import type { GhostgetAuth } from "./auth";
 import { OperationDeadline, OperationDeadlineError } from "./operation-deadline";

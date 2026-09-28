@@ -6,7 +6,7 @@ import {
   type PinnedNetworkConnectionPool,
   type PinnedNetworkRequest,
   type PinnedNetworkResponse,
-} from "@hraness/kb/clip/network";
+} from "@hraness/wordcell/clip/network";
 import { isPublicUnicastAddress } from "./public-address";
 
 export type PinnedHttpsRequest = PinnedNetworkRequest;

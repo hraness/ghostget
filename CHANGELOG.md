@@ -7,6 +7,12 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+- Move the shared clip, capture, and URL-intelligence runtime from
+  `@hraness/kb` 0.19.6 to the immutable `@hraness/wordcell` 0.24.0 release.
+  The reviewed dynamic-resolution boundary now pins the two bundled modules
+  Wordcell splits it into, and `ghostget url-metadata` delegates to the
+  `wordcell` command surface.
+
 ## 0.18.44
 
 This release turns on Substack subscriber export, import status, and

@@ -26,7 +26,7 @@ import { authContextSha256, providerIdentitySha256, sourceAssetKey } from "../sr
 import { revisionContentSha256 } from "../src/media/revision.js";
 import { computeRuntimeClosureSha256 } from "../src/media/runtime-closure.js";
 import { compareUtf8 } from "../src/media/utf8-order.js";
-import { isPrivateAddress } from "@hraness/kb/clip/network";
+import { isPrivateAddress } from "@hraness/wordcell/clip/network";
 import {
   isPublicUnicastAddress,
   parseIpv4,
@@ -311,7 +311,7 @@ describe("public unicast address vectors", () => {
     }
   });
 
-  test("seeded defect: the kb resolver's private-address check misses vectors", () => {
+  test("seeded defect: the Wordcell resolver's private-address check misses vectors", () => {
     // This is the classifier the pinned transport relied on before it checked
     // every answer itself.
     const misses = addressMisses((address) => !isPrivateAddress(address));

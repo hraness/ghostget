@@ -4,7 +4,7 @@ import { GENERIC_EXECUTOR_TERMINATION, type BoundedExecution, type ConfirmedWrit
 import type { PreparedInvocation, StoredPlan, InvocationPlan, InvocationDuplicateRiskV1, InvocationResult, RunReceipt, ConfirmationClaimSnapshot, ConfirmationClaimRepairReport, RunJournalRepairReport, confirmInvocation } from "./runtime";
 import { ConfirmedWriteFailure, confirmedWriteAttempt, type ConfirmedWritePhase } from "./confirmed-write-failure";
 
-import { redactSensitiveText } from "@hraness/kb/clip/persist";
+import { redactSensitiveText } from "@hraness/wordcell/clip/persist";
 
 import { executeBrowserRecipe, PreservedBrowserArtifactsError, type BrowserDispatchEvent } from "./browser";
 import { assertOperationPermission, checkOperationPermission, readOperationPolicy } from "./operation-permission";

@@ -15,7 +15,7 @@ import { open } from "node:fs/promises";
 
 import {
   filterCookies,
-} from "@hraness/kb/clip/cookies";
+} from "@hraness/wordcell/clip/cookies";
 
 import type { GhostgetAuth } from "../auth";
 import {

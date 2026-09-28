@@ -20,8 +20,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { describe, expect, test } from "bun:test";
-import { parseCaptureArguments, type CaptureArguments } from "@hraness/kb/capture";
-import type { AcquiredPage } from "@hraness/kb/clip/acquire";
+import { parseCaptureArguments, type CaptureArguments } from "@hraness/wordcell/capture";
+import type { AcquiredPage } from "@hraness/wordcell/clip/acquire";
 
 import {
   BROWSER_ADMISSION_STATE_DIRECTORY,
