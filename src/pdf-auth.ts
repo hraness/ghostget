@@ -15,9 +15,9 @@
  * fetch before any request is sent.
  */
 
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { chmodSync, closeSync, existsSync, mkdtempSync, openSync, rmSync, statSync, writeSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
+import { basename, isAbsolute, join, resolve } from "node:path";
 
 import { cookieSources, type CookieSource } from "@hraness/wordcell/clip/args";
 import type { StrictCookie } from "@hraness/wordcell/clip/cookies";
@@ -55,10 +55,17 @@ export type PdfAuthSplit = {
   readonly remaining: readonly string[];
 };
 
+/**
+ * `access`: the sign-in reached the site but it refused the PDF.
+ * `no-sign-in`: no cookie at all went to the site that refused, so the chosen
+ * browser or profile most likely has no sign-in for it.
+ */
+export type PdfAuthErrorCode = "usage" | "access" | "no-sign-in" | "download";
+
 /** A problem the person can fix; `code` picks the exit status. */
 export class PdfAuthError extends Error {
-  readonly code: "usage" | "access" | "download";
-  constructor(code: "usage" | "access" | "download", message: string, options?: { readonly cause?: unknown }) {
+  readonly code: PdfAuthErrorCode;
+  constructor(code: PdfAuthErrorCode, message: string, options?: { readonly cause?: unknown }) {
     super(message, options);
     this.name = "PdfAuthError";
     this.code = code;
@@ -81,6 +88,9 @@ function isCookieSource(value: string): value is CookieSource {
 export function splitPdfSignInArguments(pdfArguments: readonly string[]): PdfAuthSplit {
   const remaining: string[] = [];
   const values = new Map<string, string>();
+  // `read` options that mean nothing for a PDF download. They are dropped only
+  // when a sign-in option is present; otherwise Wordcell rejects them as before.
+  const readOnly: string[] = [];
   for (let index = 0; index < pdfArguments.length; index += 1) {
     const argument = pdfArguments[index] ?? "";
     if (argument === "--") {
@@ -89,6 +99,16 @@ export function splitPdfSignInArguments(pdfArguments: readonly string[]): PdfAut
     }
     const equals = argument.indexOf("=");
     const name = argument.startsWith("--") && equals !== -1 ? argument.slice(0, equals) : argument;
+    if (argument === "--trust-profile-egress") {
+      readOnly.push(argument);
+      continue;
+    }
+    if (name === "--mode") {
+      const mode = name !== argument ? argument.slice(equals + 1) : pdfArguments[index + 1];
+      if (name === argument) index += 1;
+      readOnly.push(name, mode ?? "");
+      continue;
+    }
     if (!PDF_SIGN_IN_OPTIONS.has(name)) {
       remaining.push(argument);
       continue;
@@ -106,7 +126,18 @@ export function splitPdfSignInArguments(pdfArguments: readonly string[]): PdfAut
     if (values.has(name)) throw usage(`${name} can be given only once`);
     values.set(name, value);
   }
-  if (values.size === 0) return { signIn: null, remaining };
+  if (values.size === 0) {
+    if (readOnly.length === 0) return { signIn: null, remaining };
+    // Put them back in place so Wordcell reports them exactly as before.
+    return { signIn: null, remaining: [...pdfArguments] };
+  }
+  for (let index = 0; index < readOnly.length; index += 1) {
+    if (readOnly[index] !== "--mode") continue;
+    const mode = readOnly[index + 1];
+    if (mode !== "browser" && mode !== "http") {
+      throw usage("--mode must be browser or http; a signed-in PDF download needs neither, so you can leave it out");
+    }
+  }
 
   const authId = values.get("--auth");
   const browserProfile = values.get("--browser-profile");
@@ -149,7 +180,8 @@ export function splitPdfSignInArguments(pdfArguments: readonly string[]): PdfAut
   };
 }
 
-export type PdfCookieReader = (url: URL) => Promise<{
+/** Reads the cookies for one URL, within `timeoutMs`. */
+export type PdfCookieReader = (url: URL, timeoutMs: number) => Promise<{
   readonly cookies: readonly StrictCookie[];
   readonly warnings: readonly string[];
 }>;
@@ -157,7 +189,9 @@ export type PdfCookieReader = (url: URL) => Promise<{
 export type PdfFetch = (url: URL, init: RequestInit, timeoutMs: number) => Promise<Response>;
 
 export type PdfDownload = {
-  readonly bytes: Uint8Array;
+  /** Owner-only file holding the PDF, inside the download directory. */
+  readonly path: string;
+  readonly byteLength: number;
   readonly finalUrl: URL;
   /** Distinct hosts that received at least one cookie, for tests and notices. */
   readonly cookieHosts: readonly string[];
@@ -195,6 +229,18 @@ function noAccessMessage(browser: string): string {
     + `Open the link in ${browser}, sign in through your library or university if it asks, check that the PDF opens there, then run this again`;
 }
 
+function noSignInMessage(browser: string, host: string): string {
+  return `no ${browser} sign-in was found for ${host}, so the site sent a sign-in page instead of the PDF. `
+    + `Check that you chose the browser and profile you use for this site (ghostget browsers lists them), `
+    + `or open the link in ${browser}, sign in, then run this again`;
+}
+
+function refused(browser: string, host: string, signedIn: boolean): PdfAuthError {
+  return signedIn
+    ? new PdfAuthError("access", noAccessMessage(browser))
+    : new PdfAuthError("no-sign-in", noSignInMessage(browser, host));
+}
+
 function readableSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
   const value = bytes / (1024 * 1024);
@@ -228,31 +274,14 @@ function isPdfSignature(bytes: Uint8Array): boolean {
     && bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46 && bytes[4] === 0x2d;
 }
 
-async function readBounded(response: Response, maxBytes: number, signal: AbortSignal): Promise<Uint8Array> {
-  const declared = Number(response.headers.get("content-length") ?? "");
-  if (Number.isFinite(declared) && declared > maxBytes) {
-    await response.body?.cancel().catch(() => undefined);
-    throw tooLarge(maxBytes);
-  }
-  if (response.body === null) return new Uint8Array();
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  try {
-    for (;;) {
-      signal.throwIfAborted();
-      const next = await reader.read();
-      if (next.done) break;
-      total += next.value.byteLength;
-      if (total > maxBytes) {
-        throw tooLarge(maxBytes);
-      }
-      chunks.push(next.value);
-    }
-  } catch (error) {
-    await reader.cancel().catch(() => undefined);
-    throw error;
-  }
+/** Enough of the body to tell a PDF from an HTML page. */
+const SNIFF_BYTES = 512;
+
+type StreamResult =
+  | { readonly pdf: true; readonly byteLength: number }
+  | { readonly pdf: false; readonly head: Uint8Array };
+
+function concat(chunks: readonly Uint8Array[], total: number): Uint8Array {
   const bytes = new Uint8Array(total);
   let offset = 0;
   for (const chunk of chunks) {
@@ -260,6 +289,112 @@ async function readBounded(response: Response, maxBytes: number, signal: AbortSi
     offset += chunk.byteLength;
   }
   return bytes;
+}
+
+function writeAll(descriptor: number, bytes: Uint8Array): void {
+  let offset = 0;
+  while (offset < bytes.byteLength) {
+    offset += writeSync(descriptor, bytes, offset, bytes.byteLength - offset);
+  }
+}
+
+/**
+ * Stream a response into an owner-only file created only once the first bytes
+ * show a PDF signature. At most `maxBytes` are read, and only the sniffed head
+ * is ever held in memory as a whole.
+ */
+async function streamPdf(
+  response: Response,
+  maxBytes: number,
+  signal: AbortSignal,
+  openPath: () => string,
+): Promise<StreamResult> {
+  const declared = Number(response.headers.get("content-length") ?? "");
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    await response.body?.cancel().catch(() => undefined);
+    throw tooLarge(maxBytes);
+  }
+  if (response.body === null) return { pdf: false, head: new Uint8Array() };
+  const reader = response.body.getReader();
+  const pending: Uint8Array[] = [];
+  let total = 0;
+  let path: string | undefined;
+  let descriptor: number | undefined;
+  try {
+    for (;;) {
+      signal.throwIfAborted();
+      const next = await reader.read();
+      if (!next.done) {
+        total += next.value.byteLength;
+        if (total > maxBytes) throw tooLarge(maxBytes);
+      }
+      if (descriptor === undefined) {
+        if (!next.done) pending.push(next.value);
+        const buffered = pending.reduce((sum, chunk) => sum + chunk.byteLength, 0);
+        if (!next.done && buffered < SNIFF_BYTES) continue;
+        const head = concat(pending, buffered);
+        pending.length = 0;
+        if (!isPdfSignature(head)) {
+          if (!next.done) await reader.cancel().catch(() => undefined);
+          return { pdf: false, head: head.subarray(0, SNIFF_BYTES) };
+        }
+        path = openPath();
+        descriptor = openSync(path, "wx", 0o600);
+        writeAll(descriptor, head);
+      } else if (!next.done) {
+        writeAll(descriptor, next.value);
+      }
+      if (next.done) break;
+    }
+    closeSync(descriptor);
+    descriptor = undefined;
+    return { pdf: true, byteLength: total };
+  } catch (error) {
+    await reader.cancel().catch(() => undefined);
+    if (descriptor !== undefined) closeSync(descriptor);
+    if (path !== undefined) rmSync(path, { force: true });
+    throw error;
+  }
+}
+
+/**
+ * Resolve with `work`, or reject with the deadline's reason as soon as
+ * `signal` aborts, so a slow cookie read cannot outlast `--timeout-ms`.
+ */
+function withinDeadline<T>(signal: AbortSignal, work: Promise<T>): Promise<T> {
+  signal.throwIfAborted();
+  return new Promise<T>((resolvePromise, reject) => {
+    const onAbort = (): void => reject(signal.reason);
+    signal.addEventListener("abort", onAbort, { once: true });
+    work.then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolvePromise(value);
+      },
+      (error: unknown) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      },
+    );
+  });
+}
+
+function bareHost(hostname: string): string {
+  return hostname.toLowerCase().replace(/^\[|\]$/gu, "").replace(/\.$/u, "");
+}
+
+/**
+ * True when a redirect hop stays on the link's own site: the same host, or a
+ * parent or subdomain of it. Anything else, including a sibling subdomain, is
+ * treated as another site, which only ever holds back more cookies than a
+ * browser would.
+ */
+export function isSameSiteHop(linkHost: string, hopHost: string): boolean {
+  const link = bareHost(linkHost);
+  const hop = bareHost(hopHost);
+  if (link === hop) return true;
+  if (parseIpv4(link) !== null || parseIpv6(link) !== null || parseIpv4(hop) !== null || parseIpv6(hop) !== null) return false;
+  return link.endsWith(`.${hop}`) || hop.endsWith(`.${link}`);
 }
 
 /**
@@ -275,9 +410,13 @@ function isLocalOnlyHost(hostname: string): boolean {
     || [".localhost", ".local", ".internal", ".home.arpa", ".lan", ".intranet"].some((suffix) => host.endsWith(suffix));
 }
 
-function checkedHttpsUrl(url: URL): URL {
+function checkedHttpsUrl(url: URL, first: boolean): URL {
   if (url.protocol !== "https:") {
-    throw new PdfAuthError("download", "signed-in PDF downloads only use https links, so your sign-in is never sent unencrypted");
+    throw new PdfAuthError("download", first
+      ? "signed-in PDF downloads only use https links, so your sign-in is never sent unencrypted. "
+        + "Change the start of the link from http:// to https:// and run it again"
+      : `signed-in PDF downloads only use https links, but ${url.hostname} redirected to an unencrypted http link, `
+        + "so the download stopped to keep your sign-in private");
   }
   if (url.username !== "" || url.password !== "") {
     throw new PdfAuthError("download", "the PDF link must not contain a user name or password");
@@ -300,6 +439,10 @@ function checkedHttpsUrl(url: URL): URL {
  * https URL. Cookies for every hop come from `readCookies(hopUrl)`, which
  * returns only cookies whose domain and path match that URL; results are cached
  * per origin and path, so one host's cookies can never be replayed to another.
+ * A hop on a different site from the link holds back `SameSite=Strict`
+ * cookies, as a browser does after a redirect. Cookie reads count against the
+ * same deadline as the download. The PDF is streamed into an owner-only file
+ * in `directory` (a new private temporary folder when omitted).
  */
 export async function downloadSignedInPdf(
   input: URL,
@@ -307,6 +450,7 @@ export async function downloadSignedInPdf(
     readonly readCookies: PdfCookieReader;
     readonly fetch: PdfFetch;
     readonly browser: string;
+    readonly directory?: string;
     readonly timeoutMs?: number;
     readonly maxPdfBytes?: number;
     readonly maxRedirects?: number;
@@ -323,19 +467,32 @@ export async function downloadSignedInPdf(
   const deadline = Date.now() + timeoutMs;
   const cookiesByOrigin = new Map<string, string>();
   const cookieHosts = new Set<string>();
+  const rethrowDeadline = (error: unknown): never => {
+    if (controller.signal.aborted && controller.signal.reason instanceof PdfAuthError) throw controller.signal.reason;
+    throw error;
+  };
   try {
-    let url = checkedHttpsUrl(input);
+    const link = checkedHttpsUrl(input, true);
+    let url = link;
     for (let hop = 0; ; hop += 1) {
-      const cookieKey = `${url.origin}${url.pathname}`;
+      const sameSite = isSameSiteHop(link.hostname, url.hostname);
+      const cookieKey = `${sameSite ? "same" : "cross"} ${url.origin}${url.pathname}`;
       let header = cookiesByOrigin.get(cookieKey);
       if (header === undefined) {
         let cookies: readonly StrictCookie[] = [];
         try {
-          cookies = (await options.readCookies(url)).cookies;
+          cookies = (await withinDeadline(
+            controller.signal,
+            options.readCookies(url, Math.max(1, deadline - Date.now())),
+          )).cookies;
         } catch (error) {
+          if (controller.signal.aborted) rethrowDeadline(error);
           if (!isNoMatchingCookies(error)) throw error;
         }
-        header = cookies.map(({ name, value }) => `${name}=${value}`).join("; ");
+        header = cookies
+          .filter((cookie) => sameSite || cookie.sameSite !== "Strict")
+          .map(({ name, value }) => `${name}=${value}`)
+          .join("; ");
         cookiesByOrigin.set(cookieKey, header);
       }
       if (header !== "") cookieHosts.add(url.hostname);
@@ -374,32 +531,51 @@ export async function downloadSignedInPdf(
         } catch {
           throw new PdfAuthError("download", `${url.hostname} sent an invalid redirect`);
         }
-        url = checkedHttpsUrl(next);
+        url = checkedHttpsUrl(next, false);
         continue;
       }
+      const signedIn = cookieHosts.has(url.hostname);
       if (response.status === 401 || response.status === 403) {
         await response.body?.cancel().catch(() => undefined);
-        throw new PdfAuthError("access", noAccessMessage(options.browser));
+        throw refused(options.browser, url.hostname, signedIn);
       }
       if (response.status !== 200) {
         await response.body?.cancel().catch(() => undefined);
         throw new PdfAuthError("download", `${url.hostname} answered with HTTP ${response.status} instead of the PDF`);
       }
       const contentType = contentTypeEssence(response);
-      let bytes: Uint8Array;
+      const finalUrl = url;
+      let directory = options.directory;
+      let result: StreamResult;
       try {
-        bytes = await readBounded(response, maxBytes, controller.signal);
+        result = await streamPdf(response, maxBytes, controller.signal, () => {
+          directory ??= privateDirectory();
+          return join(directory, pdfFilename(finalUrl));
+        });
       } catch (error) {
-        if (controller.signal.aborted && controller.signal.reason instanceof PdfAuthError) throw controller.signal.reason;
-        throw error;
+        return rethrowDeadline(error);
       }
-      if (isPdfSignature(bytes)) return { bytes, finalUrl: url, cookieHosts: [...cookieHosts] };
-      if (looksLikeHtml(bytes, contentType)) throw new PdfAuthError("access", noAccessMessage(options.browser));
+      if (result.pdf) {
+        return {
+          path: join(directory ?? "", pdfFilename(finalUrl)),
+          byteLength: result.byteLength,
+          finalUrl,
+          cookieHosts: [...cookieHosts],
+        };
+      }
+      if (looksLikeHtml(result.head, contentType)) throw refused(options.browser, url.hostname, signedIn);
       throw new PdfAuthError("download", "the link did not return a PDF file");
     }
   } finally {
     clearTimeout(timer);
   }
+}
+
+/** A new owner-only temporary folder. */
+function privateDirectory(): string {
+  const directory = mkdtempSync(join(tmpdir(), "ghostget-pdf-"));
+  chmodSync(directory, 0o700);
+  return directory;
 }
 
 /** A filesystem-safe `.pdf` name from the final URL, like Wordcell's own download. */
@@ -610,43 +786,74 @@ export async function runSignedInPdf(
   } catch {
     throw usage("the PDF link is not a valid web address");
   }
-  checkedHttpsUrl(url);
+  checkedHttpsUrl(url, true);
+  const signInResolved = resolveProfilePath(signIn);
   const loadAuthRecord = dependencies.loadAuth ?? ((id: string) => {
     throw new Error(`auth locator ${id} cannot be loaded`);
   });
-  const auth = authForSignIn(signIn, loadAuthRecord);
-  const browser = browserLabel(signIn, auth);
+  const auth = authForSignIn(signInResolved, loadAuthRecord);
+  const browser = browserLabel(signInResolved, auth);
   const timeoutMs = validated.timeoutMs ?? PDF_AUTH_DEFAULTS.timeoutMs;
   const readCookies = dependencies.readCookies ?? defaultReadCookies;
-  const cookiesFile = cookieFilePath(signIn, auth);
+  const cookiesFile = cookieFilePath(signInResolved, auth);
   if (cookiesFile !== undefined && dependencies.readCookies === undefined) {
-    await checkCookieFile(cookiesFile, url, signIn.kind === "cookies-file");
+    await checkCookieFile(cookiesFile, url, signInResolved.kind === "cookies-file");
   }
   dependencies.beforeCookieRead?.();
-  const download = await downloadSignedInPdf(url, {
-    readCookies: (hop) => readCookies(signIn, auth, hop, timeoutMs),
-    fetch: dependencies.fetch ?? defaultFetch,
-    browser,
-    timeoutMs,
-    ...(validated.maxPdfBytes === undefined ? {} : { maxPdfBytes: validated.maxPdfBytes }),
-  });
 
-  const directory = (dependencies.makeTemporaryDirectory
-    ?? (() => mkdtempSync(join(tmpdir(), "ghostget-pdf-"))))();
+  const directory = (dependencies.makeTemporaryDirectory ?? privateDirectory)();
   const remove = dependencies.removeDirectory
     ?? ((path: string) => rmSync(path, { recursive: true, force: true }));
   try {
     chmodSync(directory, 0o700);
-    const inputPath = join(directory, pdfFilename(download.finalUrl));
-    writeFileSync(inputPath, download.bytes, { flag: "wx", mode: 0o600 });
+    const download = await downloadSignedInPdf(url, {
+      readCookies: (hop, hopTimeoutMs) => readCookies(signInResolved, auth, hop, hopTimeoutMs),
+      fetch: dependencies.fetch ?? defaultFetch,
+      browser,
+      directory,
+      timeoutMs,
+      ...(validated.maxPdfBytes === undefined ? {} : { maxPdfBytes: validated.maxPdfBytes }),
+    });
     return await dependencies.runWordcellPdf(remaining, {
-      inputPath,
+      inputPath: download.path,
       requestedUrl: await redactedUrl(url),
       finalUrl: await redactedUrl(download.finalUrl),
     });
   } finally {
     remove(directory);
   }
+}
+
+const CHROMIUM_SOURCES: ReadonlySet<string> = new Set(["chrome", "arc", "brave", "chromium", "edge"]);
+
+function hasCookieStore(directory: string): boolean {
+  return existsSync(join(directory, "Cookies")) || existsSync(join(directory, "Network", "Cookies"));
+}
+
+/**
+ * `read --browser-profile <path>` and `auth add --browser-profile <path>` take
+ * a browser data folder whose sign-in lives in its `Default` profile. The
+ * cookie reader wants the profile folder itself, so a data folder is resolved
+ * to its `Default` profile, and a folder with no saved sign-in at all is a
+ * plain error instead of a silent anonymous download.
+ */
+export function resolveProfilePath(signIn: PdfSignIn, home: string = homedir()): PdfSignIn {
+  if (signIn.kind !== "browser" || signIn.profile === undefined || !CHROMIUM_SOURCES.has(signIn.source)) return signIn;
+  const profile = signIn.profile;
+  if (!profile.includes("/") && !profile.includes("\\")) return signIn;
+  const expanded = profile.startsWith("~/")
+    ? join(home, profile.slice(2))
+    : isAbsolute(profile) ? profile : resolve(profile);
+  let isFile = false;
+  try {
+    isFile = statSync(expanded).isFile();
+  } catch {
+    isFile = false;
+  }
+  if (isFile || hasCookieStore(expanded)) return { ...signIn, profile: expanded };
+  const inner = join(expanded, "Default");
+  if (hasCookieStore(inner)) return { ...signIn, profile: inner };
+  throw usage(`the browser profile folder ${profile} has no saved sign-in; give a profile name instead (ghostget browsers lists them)`);
 }
 
 function terminalSafe(value: string): string {
@@ -734,6 +941,7 @@ export async function runSignedInPdfCommand(
         return fail("usage", error.message, next, 2);
       }
       if (error.code === "access") return fail("no-access", error.message, openFirst, 1);
+      if (error.code === "no-sign-in") return fail("no-sign-in", error.message, "ghostget browsers", 1);
       return fail("download-failed", error.message, "ghostget pdf --help", 1);
     }
     const message = error instanceof Error ? error.message : "the signed-in PDF download failed";

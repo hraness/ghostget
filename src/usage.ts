@@ -558,10 +558,6 @@ function resolveTopic(name: string, next: string | undefined): GhostgetHelpReque
 }
 
 /**
- * Classify a help request without loading any command. Returns null when the
- * arguments are not a help request, so the command runs normally.
- */
-/**
  * Browser sign-in options `ghostget pdf` handles itself instead of passing to
  * Wordcell. Kept here, in a module the CLI already loads, so an ordinary
  * `pdf` run never imports the signed-in download code.
@@ -581,6 +577,10 @@ export function hasPdfSignInOptions(pdfArguments: readonly string[]): boolean {
   return scanned.some((argument) => PDF_SIGN_IN_OPTIONS.has(argument.split("=", 1)[0] ?? ""));
 }
 
+/**
+ * Classify a help request without loading any command. Returns null when the
+ * arguments are not a help request, so the command runs normally.
+ */
 export function ghostgetHelpRequest(raw: readonly string[]): GhostgetHelpRequest | null {
   if (raw.length === 0) return { kind: "bare" };
   const first = raw[0] ?? "";

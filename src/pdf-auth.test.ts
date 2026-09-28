@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import fc from "fast-check";
 import { assertProperty } from "./test-support";
 
@@ -11,7 +11,9 @@ import {
   PdfAuthError,
   downloadSignedInPdf,
   hasPdfSignInOptions,
+  isSameSiteHop,
   pdfFilename,
+  resolveProfilePath,
   runSignedInPdf,
   runSignedInPdfCommand,
   runWordcellPdfWithDownload,
@@ -24,8 +26,13 @@ import { createClassifiedCookieRecordReader } from "./cookie-access";
 const PDF = new TextEncoder().encode("%PDF-1.7\n1 0 obj\n<<>>\nendobj\n%%EOF\n");
 const LOGIN = new TextEncoder().encode("<!DOCTYPE html><html><body>Sign in through your institution</body></html>");
 
-function cookie(name: string, value: string, domain: string): StrictCookie {
-  return { name, value, domain, path: "/", secure: true, httpOnly: true } as unknown as StrictCookie;
+function cookie(name: string, value: string, domain: string, sameSite: StrictCookie["sameSite"] = null): StrictCookie {
+  return { name, value, domain, path: "/", secure: true, httpOnly: true, sameSite } as unknown as StrictCookie;
+}
+
+/** A jar where the only host with a sign-in is `host`. */
+function signedIn(host: string) {
+  return jar({ [host]: [cookie("sid", "1", host)] });
 }
 
 /** Cookie jar that behaves like the shared filter: only exact host matches. */
@@ -91,6 +98,18 @@ describe("splitPdfSignInArguments", () => {
       .toEqual({ kind: "cookies-file", path: "/c.json" });
   });
 
+  test("read's --trust-profile-egress and --mode are accepted and dropped next to a sign-in option", () => {
+    expect(splitPdfSignInArguments(["u", "--browser-profile", "Default", "--trust-profile-egress", "--json"]))
+      .toEqual({ signIn: { kind: "browser", source: "chrome", profile: "Default" }, remaining: ["u", "--json"] });
+    expect(splitPdfSignInArguments(["u", "--cookie-source", "chrome", "--mode", "browser"]))
+      .toEqual({ signIn: { kind: "browser", source: "chrome", profile: undefined }, remaining: ["u"] });
+    expect(splitPdfSignInArguments(["u", "--cookie-source", "chrome", "--mode=http"]).remaining).toEqual(["u"]);
+    expect(() => splitPdfSignInArguments(["u", "--cookie-source", "chrome", "--mode", "fast"]))
+      .toThrow("a signed-in PDF download needs neither");
+    const without = ["u", "--trust-profile-egress", "--mode", "fast"];
+    expect(splitPdfSignInArguments(without)).toEqual({ signIn: null, remaining: without });
+  });
+
   test("without sign-in options nothing changes", () => {
     const argv = ["https://example.org/a.pdf", "--root", "/n", "--json"];
     expect(splitPdfSignInArguments(argv)).toEqual({ signIn: null, remaining: argv });
@@ -147,7 +166,11 @@ describe("downloadSignedInPdf", () => {
       browser: "Chrome",
     });
     expect(result.finalUrl.href).toBe("https://publisher.example.com/pdf/x.pdf");
-    expect(Buffer.from(result.bytes).equals(Buffer.from(PDF))).toBe(true);
+    expect(readFileSync(result.path).equals(Buffer.from(PDF))).toBe(true);
+    expect(statSync(result.path).mode & 0o777).toBe(0o600);
+    expect(statSync(dirname(result.path)).mode & 0o777).toBe(0o700);
+    expect(result.byteLength).toBe(PDF.byteLength);
+    rmSync(dirname(result.path), { recursive: true, force: true });
     expect(web.requests.map((request) => [request.url, request.cookie])).toEqual([
       ["https://doi.example.org/10.1/x", "doi=d1"],
       ["https://publisher.example.com/pdf/x.pdf", "session=p1"],
@@ -167,6 +190,7 @@ describe("downloadSignedInPdf", () => {
     });
     expect(web.requests[1]?.cookie).toBeNull();
     expect(result.cookieHosts).toEqual(["a.example.org"]);
+    rmSync(dirname(result.path), { recursive: true, force: true });
   });
 
   test("refuses to follow a redirect to plain http", async () => {
@@ -175,8 +199,14 @@ describe("downloadSignedInPdf", () => {
     });
     await expect(downloadSignedInPdf(new URL("https://a.example.org/x"), {
       readCookies: jar({}).read, fetch: web.fetch, browser: "Chrome",
-    })).rejects.toThrow("only use https");
+    })).rejects.toThrow("a.example.org redirected to an unencrypted http link");
     expect(web.requests).toHaveLength(1);
+  });
+
+  test("a plain http link says how to fix it", async () => {
+    await expect(downloadSignedInPdf(new URL("http://dx.doi.org/10.1/x"), {
+      readCookies: jar({}).read, fetch: server({}).fetch, browser: "Chrome",
+    })).rejects.toThrow("Change the start of the link from http:// to https://");
   });
 
   test("stops after the redirect limit", async () => {
@@ -192,7 +222,7 @@ describe("downloadSignedInPdf", () => {
   test("an HTML login page becomes a plain-language access error", async () => {
     const web = server({ "https://a.example.org/x.pdf": () => pdfResponse(LOGIN, { "content-type": "text/html; charset=utf-8" }) });
     const error = await downloadSignedInPdf(new URL("https://a.example.org/x.pdf"), {
-      readCookies: jar({}).read, fetch: web.fetch, browser: "Chrome",
+      readCookies: signedIn("a.example.org").read, fetch: web.fetch, browser: "Chrome",
     }).catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(PdfAuthError);
     expect((error as PdfAuthError).code).toBe("access");
@@ -202,14 +232,14 @@ describe("downloadSignedInPdf", () => {
   test("an HTML page mislabelled as a PDF is still caught", async () => {
     const web = server({ "https://a.example.org/x.pdf": () => pdfResponse(LOGIN) });
     await expect(downloadSignedInPdf(new URL("https://a.example.org/x.pdf"), {
-      readCookies: jar({}).read, fetch: web.fetch, browser: "Chrome",
+      readCookies: signedIn("a.example.org").read, fetch: web.fetch, browser: "Chrome",
     })).rejects.toThrow("does not seem to have access");
   });
 
   test("403 is an access error", async () => {
     const web = server({ "https://a.example.org/x.pdf": () => new Response("no", { status: 403 }) });
     await expect(downloadSignedInPdf(new URL("https://a.example.org/x.pdf"), {
-      readCookies: jar({}).read, fetch: web.fetch, browser: "Safari",
+      readCookies: signedIn("a.example.org").read, fetch: web.fetch, browser: "Safari",
     })).rejects.toThrow("your Safari sign-in does not seem to have access");
   });
 
@@ -249,6 +279,127 @@ describe("downloadSignedInPdf", () => {
     await expect(downloadSignedInPdf(new URL("https://a.example.org/x.pdf"), {
       readCookies: jar({}).read, fetch, browser: "Chrome", timeoutMs: 20,
     })).rejects.toThrow("did not finish within");
+  });
+
+  test("no sign-in anywhere and a login page is reported as a missing sign-in, not missing access", async () => {
+    const cookies = jar({});
+    const web = server({
+      "https://doi.example.org/10.1/x": () => new Response(null, { status: 302, headers: { location: "https://pub.example.com/x" } }),
+      "https://pub.example.com/x": () => pdfResponse(LOGIN, { "content-type": "text/html" }),
+    });
+    const error = await downloadSignedInPdf(new URL("https://doi.example.org/10.1/x"), {
+      readCookies: cookies.read, fetch: web.fetch, browser: "Chrome",
+    }).catch((caught: unknown) => caught);
+    expect(cookies.reads).toEqual(["doi.example.org", "pub.example.com"]);
+    expect(web.requests.map((request) => request.cookie)).toEqual([null, null]);
+    expect((error as PdfAuthError).code).toBe("no-sign-in");
+    expect((error as PdfAuthError).message).toContain("no Chrome sign-in was found for pub.example.com");
+    expect((error as PdfAuthError).message).toContain("ghostget browsers");
+    expect((error as PdfAuthError).message).not.toContain("does not seem to have access");
+  });
+
+  test("a sign-in only for the DOI host still counts as missing for the publisher that refused", async () => {
+    const web = server({
+      "https://doi.example.org/10.1/x": () => new Response(null, { status: 302, headers: { location: "https://pub.example.com/x" } }),
+      "https://pub.example.com/x": () => new Response("no", { status: 401 }),
+    });
+    await expect(downloadSignedInPdf(new URL("https://doi.example.org/10.1/x"), {
+      readCookies: signedIn("doi.example.org").read, fetch: web.fetch, browser: "Chrome",
+    })).rejects.toThrow("no Chrome sign-in was found for pub.example.com");
+  });
+
+  test("a redirect to another site holds back SameSite=Strict cookies; the link's own site keeps them", async () => {
+    const cookies = jar({
+      "www.uni.example.edu": [cookie("strict", "s0", "www.uni.example.edu", "Strict")],
+      "uni.example.edu": [cookie("strict", "s1", "uni.example.edu", "Strict"), cookie("lax", "l1", "uni.example.edu", "Lax")],
+      "bank.example.com": [
+        cookie("strict", "s2", "bank.example.com", "Strict"),
+        cookie("lax", "l2", "bank.example.com", "Lax"),
+        cookie("none", "n2", "bank.example.com", "None"),
+        cookie("unset", "u2", "bank.example.com"),
+      ],
+    });
+    const web = server({
+      "https://www.uni.example.edu/a": () => new Response(null, { status: 302, headers: { location: "https://uni.example.edu/b" } }),
+      "https://uni.example.edu/b": () => new Response(null, { status: 302, headers: { location: "https://bank.example.com/statement.pdf" } }),
+      "https://bank.example.com/statement.pdf": () => pdfResponse(),
+    });
+    const result = await downloadSignedInPdf(new URL("https://www.uni.example.edu/a"), {
+      readCookies: cookies.read, fetch: web.fetch, browser: "Chrome",
+    });
+    expect(web.requests.map((request) => request.cookie)).toEqual([
+      "strict=s0",
+      "strict=s1; lax=l1",
+      "lax=l2; none=n2; unset=u2",
+    ]);
+    rmSync(dirname(result.path), { recursive: true, force: true });
+  });
+
+  test("property: same-site hops are symmetric and never join unrelated hosts", () => {
+    expect(isSameSiteHop("doi.org", "doi.org")).toBe(true);
+    expect(isSameSiteHop("www.pub.example", "pub.example")).toBe(true);
+    expect(isSameSiteHop("a.pub.example", "b.pub.example")).toBe(false);
+    expect(isSameSiteHop("evilpub.example", "pub.example")).toBe(false);
+    expect(isSameSiteHop("1.2.3.4", "2.3.4")).toBe(false);
+    const label = fc.stringMatching(/^[a-z][a-z0-9]{0,8}$/u);
+    assertProperty(fc.property(label, label, label, (a, b, tld) => {
+      const x = `${a}.${tld}`;
+      const y = `${b}.${tld}`;
+      expect(isSameSiteHop(x, y)).toBe(isSameSiteHop(y, x));
+      expect(isSameSiteHop(x, y)).toBe(a === b);
+      expect(isSameSiteHop(`www.${x}`, x)).toBe(true);
+    }));
+  });
+
+  test("a slow cookie read counts against the download deadline", async () => {
+    const timeouts: number[] = [];
+    const started = Date.now();
+    await expect(downloadSignedInPdf(new URL("https://a.example.org/x.pdf"), {
+      readCookies: (_url, timeoutMs) => {
+        timeouts.push(timeoutMs);
+        return new Promise(() => undefined);
+      },
+      fetch: server({}).fetch,
+      browser: "Chrome",
+      timeoutMs: 30,
+    })).rejects.toThrow("did not finish within");
+    expect(Date.now() - started).toBeLessThan(5_000);
+    expect(timeouts).toHaveLength(1);
+    expect(timeouts[0]).toBeLessThanOrEqual(30);
+  });
+
+  test("a body that is not a PDF never creates a file", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "ghostget-pdf-test-"));
+    try {
+      const web = server({ "https://a.example.org/x.pdf": () => pdfResponse(LOGIN, { "content-type": "text/html" }) });
+      await expect(downloadSignedInPdf(new URL("https://a.example.org/x.pdf"), {
+        readCookies: signedIn("a.example.org").read, fetch: web.fetch, browser: "Chrome", directory,
+      })).rejects.toThrow("does not seem to have access");
+      expect(readdirSync(directory)).toEqual([]);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("an oversize body that started as a PDF leaves no partial file", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "ghostget-pdf-test-"));
+    try {
+      const big = new Uint8Array(4096);
+      big.set(PDF);
+      const web = server({ "https://a.example.org/x.pdf": () => new Response(new ReadableStream({
+        start(controller) {
+          controller.enqueue(big);
+          controller.enqueue(big);
+          controller.close();
+        },
+      }), { status: 200 }) });
+      await expect(downloadSignedInPdf(new URL("https://a.example.org/x.pdf"), {
+        readCookies: jar({}).read, fetch: web.fetch, browser: "Chrome", maxPdfBytes: 6000, directory,
+      })).rejects.toThrow("larger than");
+      expect(readdirSync(directory)).toEqual([]);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 
   test("a failure other than 'no cookies' from the cookie reader stops the download", async () => {
@@ -448,6 +599,28 @@ describe("runSignedInPdf", () => {
     await expect(runSignedInPdf(["http://a.example.org/a.pdf", "--cookie-source", "chrome"], base)).rejects.toThrow("only use https");
   });
 
+  test("a browser data folder resolves to its Default profile; a folder without a sign-in is refused", () => {
+    const root = mkdtempSync(join(tmpdir(), "ghostget-pdf-profile-"));
+    try {
+      const data = join(root, "data");
+      mkdirSync(join(data, "Default", "Network"), { recursive: true });
+      writeFileSync(join(data, "Default", "Network", "Cookies"), "");
+      const profile = join(root, "profile");
+      mkdirSync(profile);
+      writeFileSync(join(profile, "Cookies"), "");
+      const browser = (value: string) => ({ kind: "browser", source: "chrome", profile: value }) as const;
+      expect(resolveProfilePath(browser(data))).toEqual(browser(join(data, "Default")));
+      expect(resolveProfilePath(browser(profile))).toEqual(browser(profile));
+      expect(resolveProfilePath(browser("~/data"), root)).toEqual(browser(join(data, "Default")));
+      expect(resolveProfilePath(browser("Work"))).toEqual(browser("Work"));
+      expect(() => resolveProfilePath(browser(join(root, "empty")))).toThrow("has no saved sign-in");
+      const firefox = { kind: "browser", source: "firefox", profile: join(root, "empty") } as const;
+      expect(resolveProfilePath(firefox)).toEqual(firefox);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   test("a stored account without a browser cookie store is refused", async () => {
     await expect(runSignedInPdf(["https://a.example.org/x.pdf", "--auth", "p"], {
       environment: {},
@@ -541,13 +714,35 @@ describe("runSignedInPdfCommand", () => {
       environment: { NO_COLOR: "1" },
       stderrIsTTY: false,
       runWordcellPdf: async () => 0,
-      overrides: { fetch: web.fetch, readCookies: async () => ({ cookies: [], warnings: [] }) },
+      overrides: { fetch: web.fetch, readCookies: async () => ({ cookies: [cookie("s", "1", "a.example.org")], warnings: [] }) },
     });
     expect(code).toBe(1);
     const text = errors.join("");
     expect(text).toContain("your Chrome sign-in does not seem to have access");
     expect(text).toContain("Open the link in your browser first");
     expect(text).not.toContain("<html");
+  });
+
+  test("a wrong browser or profile is reported as a missing sign-in with the command that lists profiles", async () => {
+    const lines: string[] = [];
+    const web = server({ "https://a.example.org/x.pdf": () => pdfResponse(LOGIN, { "content-type": "text/html" }) });
+    const code = await runSignedInPdfCommand(["https://a.example.org/x.pdf", "--browser-profile", "Work", "--json"], {
+      stdout: (text) => lines.push(text),
+      stderr: () => undefined,
+    }, {
+      environment: {},
+      stderrIsTTY: false,
+      runWordcellPdf: async () => 0,
+      overrides: {
+        fetch: web.fetch,
+        readCookies: async () => { throw new Error("no matching cookies were found in the selected browser store"); },
+      },
+    });
+    expect(code).toBe(1);
+    const parsed = JSON.parse(lines.join("")) as { error: { code: string; message: string; next: string } };
+    expect(parsed.error.code).toBe("no-sign-in");
+    expect(parsed.error.message).toContain("No Chrome sign-in was found for a.example.org");
+    expect(parsed.error.next).toBe("ghostget browsers");
   });
 
   test("--json reports errors as one JSON line", async () => {

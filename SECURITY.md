@@ -126,11 +126,19 @@ local names such as `.local` or single-label hosts before any cookie is read
 for that host. A public name that resolves to a private address is refused
 before any request is sent. It reads cookies separately for each host it visits
 through the same cookie filter as `read`, so a site receives only the cookies
-that belong to it, never another host's. It does not launch the browser
-profile, so no profile egress consent applies. The response is bounded by
-`--max-pdf-bytes` and `--timeout-ms`, must start with a PDF signature, and is
-written to an owner-only temporary file that is removed after the import.
-Cookie values are not printed, logged, or stored.
+that belong to it, never another host's. When a redirect leaves the link's own
+site (any host other than the link's host or a parent or subdomain of it), the
+new site does not receive its `SameSite=Strict` cookies, as a browser would
+hold them back after a redirect started elsewhere. It does not launch the
+browser profile, so no profile egress consent applies, and
+`--trust-profile-egress` or `--mode` copied from `read` are ignored. The whole
+download, including every cookie read, is bounded by `--timeout-ms`; the
+response is bounded by `--max-pdf-bytes`, must start with a PDF signature, and
+is streamed into an owner-only file in an owner-only temporary folder that is
+removed after the import. If the site refuses and none of the selected
+browser's cookies went to it, the error says no sign-in was found rather than
+that the sign-in lacks access. Cookie values are not printed, logged, or
+stored.
 
 The unauthenticated direct-media adapter intentionally permits loopback and
 private-network HTTP(S) targets because its URL is supplied by the local user.
