@@ -2043,14 +2043,23 @@
 // 91073eb4b08aa5900ce3d8becc42d4a539fb278dd2fece5da50b7116def2ce3f.
 // Carry the same projections and allowances: 12,124,686 + 12,387 + 4,096 =
 // 12,141,169 packed; 23,937,025 + 353 + 65 = 23,937,443 unpacked.
+//
+// The 0.18.44 release notes add the dated history window and the homepage
+// update to the changelog section over main ea6e99b; no source or dist file
+// changes. After `bun run build`, a clean npm 11.19.0 pack --ignore-scripts
+// with Node 24.18.1 on darwin arm64 measured 618 entries, 12,124,890 packed bytes
+// and 23,937,545 unpacked bytes; archive SHA-256
+// 4eb676361817c0088f3f3671999528b9726a8ea6b59145797408c37ebc5ac150.
+// Carry the same projections and allowances: 12,124,890 + 12,387 + 4,096 =
+// 12,141,373 packed; 23,937,545 + 353 + 65 = 23,937,963 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Read-only dated messaging history window over main 53a1592",
+  scope: "Ghostget 0.18.44 release notes over main ea6e99b",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "91073eb4b08aa5900ce3d8becc42d4a539fb278dd2fece5da50b7116def2ce3f",
-  packedBytes: 12_124_686,
-  unpackedBytes: 23_937_025,
+  archiveSha256: "4eb676361817c0088f3f3671999528b9726a8ea6b59145797408c37ebc5ac150",
+  packedBytes: 12_124_890,
+  unpackedBytes: 23_937_545,
   entryCount: 618,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
