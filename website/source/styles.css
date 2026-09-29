@@ -103,6 +103,10 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+.hraness-site-shell > main {
+  inline-size: 100%;
+}
+
 :where(h1, h2, h3, p, dd, dt, li, summary, code) {
   overflow-wrap: anywhere;
 }
