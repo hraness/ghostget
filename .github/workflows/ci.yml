@@ -408,11 +408,14 @@ jobs:
       - name: Record exact source CI identity
         run: bun run ./scripts/release-source-ci.ts record
       - run: bun install --frozen-lockfile --ignore-scripts
-      # On a pull request whose diff against its base names no path in
-      # QUINT_APALACHE_SCOPE (the models, checker scripts, Quint pin, and this
-      # workflow), this step sets GHOSTGET_QUINT_SKIP_APALACHE=1: the shard
-      # still typechecks, simulates, and replays every model, and skips only
-      # the Apalache checks. Push CI on main and the nightly run always check
+      # On a pull request, this step reads the diff against the base parent
+      # (scripts/verification-quint-scope.ts). When nothing in it can change an
+      # Apalache verdict (no model, manifest, checker script, or workflow, and
+      # no Quint pin or lockfile-closure change in package.json or bun.lock),
+      # it sets GHOSTGET_QUINT_SKIP_APALACHE=1; when only listed model files
+      # change, it sets GHOSTGET_QUINT_APALACHE_MODELS to those files. The shard
+      # still typechecks, simulates, and replays every model. Any error runs
+      # every Apalache check. Push CI on main and the nightly run always check
       # every model with Apalache, and release admission reads main push CI.
       - name: Scope Apalache to model changes
         run: bun run ./scripts/verification-quint-scope.ts

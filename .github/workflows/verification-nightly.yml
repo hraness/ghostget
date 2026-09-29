@@ -17,9 +17,11 @@ concurrency:
   group: verification-nightly
   cancel-in-progress: false
 
-# Deeper checks that do not fit the PR verification budget. This workflow is
-# read-only and never part of `Required`: a failure here blocks no merge or
-# release, and is triaged through docs/claims-review.md.
+# Deeper checks that do not fit the PR verification budget. Every check job is
+# read-only and none is part of `Required`: a failure here blocks no merge or
+# release. It still turns the run red, and the `report` job then opens or
+# comments on the one open `nightly-verification` issue, the only write this
+# workflow makes; triage follows docs/claims-review.md.
 jobs:
   quint-nightly:
     name: quint nightly bounds
@@ -143,3 +145,32 @@ jobs:
       # builds an arm64 Mach-O, recorded honestly.
       - run: bun run ./scripts/messaging-runtime-provenance.ts nightly
         timeout-minutes: 50
+
+  # Runs only when a check job failed or timed out. It holds `issues: write`
+  # and nothing else, checks out nothing, and reads no dispatch input.
+  report:
+    name: nightly failure issue
+    needs: [quint-nightly, property-soak, mutants, provenance]
+    if: ${{ failure() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      issues: write
+    steps:
+      - name: Open or update the nightly failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          label="nightly-verification"
+          gh label create "$label" --color B60205 --description "Nightly verification failed" 2>/dev/null || true
+          body="Nightly verification failed on ${HEAD_SHA}: ${RUN_URL}. Triage it through docs/claims-review.md."
+          number="$(gh issue list --state open --label "$label" --limit 1 --json number --jq '.[0].number // empty')"
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "$body"
+          else
+            gh issue create --title "Nightly verification is failing" --label "$label" --body "$body"
+          fi
