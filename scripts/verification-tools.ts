@@ -1804,21 +1804,32 @@ export function quintWorkForShard(models: readonly QuintModel[], shard: QuintSha
 // ---------------------------------------------------------------------------
 
 /**
- * The environment variable that lets one pull-request `quint` shard skip its
- * Apalache checks. Only the CI workflow sets it, only on a `pull_request`
- * event, and only when `quintApalacheScopeChanged` finds no changed path in
- * `QUINT_APALACHE_SCOPE`. Push CI on `main` and the nightly run never set it,
- * so release admission, which reads the exact main commit's push CI, still
- * sees every Apalache verdict.
+ * The environment variable that lets one pull-request `quint` shard skip every
+ * Apalache check. Only the CI workflow's scope step sets it, only on a
+ * `pull_request` event, and only when `decideApalacheScope` in
+ * `scripts/verification-quint-scope.ts` finds no change that can alter an
+ * Apalache verdict. Push CI on `main` and the nightly run never set it, so
+ * release admission, which reads the exact main commit's push CI, still sees
+ * every Apalache verdict.
  */
 export const QUINT_SKIP_APALACHE_VARIABLE = "GHOSTGET_QUINT_SKIP_APALACHE";
 
 /**
- * Every path an Apalache verdict depends on: the models and their manifest,
+ * The environment variable that limits one pull-request `quint` shard's
+ * Apalache checks to the comma-separated model files it names. The scope step
+ * sets it, under the same conditions as `QUINT_SKIP_APALACHE_VARIABLE`, when a
+ * pull request's only verdict-relevant changes are to those model files.
+ */
+export const QUINT_APALACHE_MODELS_VARIABLE = "GHOSTGET_QUINT_APALACHE_MODELS";
+
+/**
+ * Every path an Apalache verdict may depend on: the models and their manifest,
  * the checker pins, bounds, invocation, and counterexample parsing in the
- * `scripts/verification-*` files (the scope script among them), the Quint
- * pin in the package manifest and lockfile, and the CI workflow. Each entry
- * is a path prefix, so the scope errs toward running Apalache.
+ * `scripts/verification-*` files (the scope script among them), the Quint pin
+ * in the package manifest and lockfile, and the CI workflows. Each entry is a
+ * path prefix, so the scope errs toward running Apalache. `package.json` and
+ * `bun.lock` count only when `quintPackagePins` or `quintLockClosure` differ,
+ * and a change to one listed model file checks only that model.
  */
 export const QUINT_APALACHE_SCOPE = Object.freeze([
   "verification/quint/",
@@ -1829,16 +1840,183 @@ export const QUINT_APALACHE_SCOPE = Object.freeze([
   ".github/workflows/verification-nightly.yml",
 ]);
 
-/** Whether a change to these repository paths can change an Apalache verdict. */
+/** Whether a change to these repository paths may change an Apalache verdict. */
 export function quintApalacheScopeChanged(paths: readonly string[]): boolean {
   return paths.some((path) => QUINT_APALACHE_SCOPE.some((entry) => path.startsWith(entry)));
 }
 
-/** Parse the skip variable strictly: unset or empty runs Apalache, `1` skips it, and anything else is an error. */
-export function parseSkipApalache(value: string | undefined): boolean {
-  if (value === undefined || value === "") return false;
-  if (value === "1") return true;
-  throw new Error(`${QUINT_SKIP_APALACHE_VARIABLE} must be unset or 1`);
+/**
+ * Which Apalache checks one `quint` run performs: every model's (`all`), none
+ * (`none`), or only the listed model files' (`models`, never empty).
+ */
+export type ApalacheSelection =
+  | Readonly<{ kind: "all" }>
+  | Readonly<{ kind: "none" }>
+  | Readonly<{ kind: "models"; files: readonly string[] }>;
+
+export const APALACHE_ALL: ApalacheSelection = Object.freeze({ kind: "all" });
+
+const QUINT_MODEL_FILE = /^[a-z0-9][a-z0-9-]*\.qnt$/u;
+
+/**
+ * Parse the two scope variables strictly. Both unset or empty checks every
+ * model; `QUINT_SKIP_APALACHE_VARIABLE=1` alone checks none; a non-empty,
+ * duplicate-free, comma-separated list of model file names in
+ * `QUINT_APALACHE_MODELS_VARIABLE` alone checks only those. Anything else,
+ * including both set at once, is an error.
+ */
+export function parseApalacheSelection(skip: string | undefined, models: string | undefined): ApalacheSelection {
+  const skipSet = skip !== undefined && skip !== "";
+  const modelsSet = models !== undefined && models !== "";
+  if (skipSet && modelsSet) {
+    throw new Error(`set at most one of ${QUINT_SKIP_APALACHE_VARIABLE} and ${QUINT_APALACHE_MODELS_VARIABLE}`);
+  }
+  if (skipSet) {
+    if (skip !== "1") throw new Error(`${QUINT_SKIP_APALACHE_VARIABLE} must be unset or 1`);
+    return Object.freeze({ kind: "none" });
+  }
+  if (!modelsSet) return APALACHE_ALL;
+  const files = models.split(",");
+  if (files.some((file) => !QUINT_MODEL_FILE.test(file)) || new Set(files).size !== files.length) {
+    throw new Error(`${QUINT_APALACHE_MODELS_VARIABLE} must be a comma-separated list of distinct model files`);
+  }
+  return Object.freeze({ kind: "models", files: Object.freeze(files) });
+}
+
+/** Encode a selection as the one `$GITHUB_ENV` line that carries it, or `null` for `all`. */
+export function apalacheSelectionEnvironmentLine(selection: ApalacheSelection): string | null {
+  if (selection.kind === "all") return null;
+  if (selection.kind === "none") return `${QUINT_SKIP_APALACHE_VARIABLE}=1`;
+  if (selection.files.length === 0) throw new Error("a models selection names at least one model");
+  const line = `${QUINT_APALACHE_MODELS_VARIABLE}=${selection.files.join(",")}`;
+  parseApalacheSelection(undefined, line.slice(QUINT_APALACHE_MODELS_VARIABLE.length + 1));
+  return line;
+}
+
+/** The Quint package name whose pin and lockfile closure Apalache verdicts depend on. */
+export const QUINT_PACKAGE = "@informalsystems/quint";
+
+const PACKAGE_DEPENDENCY_FIELDS = Object.freeze([
+  "dependencies",
+  "devDependencies",
+  "optionalDependencies",
+  "peerDependencies",
+]);
+const PACKAGE_WHOLE_FIELDS = Object.freeze([
+  "overrides",
+  "resolutions",
+  "trustedDependencies",
+  "packageManager",
+  "engines",
+  "type",
+  "workspaces",
+]);
+
+/**
+ * The canonical projection of `package.json` that a Quint or Apalache verdict
+ * can depend on: the Quint entry of every dependency map, the whole override,
+ * resolution, trust, package-manager, engine, module-type, and workspace
+ * fields, and every script whose name starts with `verify`. A version bump,
+ * a new unrelated dependency, or an unrelated script leaves it unchanged.
+ * Malformed input throws, so the caller runs every Apalache check.
+ */
+export function quintPackagePins(text: string): string {
+  const parsed = JSON.parse(text) as unknown;
+  if (!isPlainObject(parsed)) throw new Error("package.json must be an object");
+  const projection: Record<string, unknown> = {};
+  for (const field of PACKAGE_DEPENDENCY_FIELDS) {
+    const map = parsed[field];
+    if (map === undefined) continue;
+    if (!isPlainObject(map)) throw new Error(`package.json ${field} must be an object`);
+    projection[field] = Object.hasOwn(map, QUINT_PACKAGE) ? map[QUINT_PACKAGE] : null;
+  }
+  for (const field of PACKAGE_WHOLE_FIELDS) {
+    if (Object.hasOwn(parsed, field)) projection[field] = parsed[field];
+  }
+  const scripts = parsed.scripts;
+  if (scripts !== undefined) {
+    if (!isPlainObject(scripts)) throw new Error("package.json scripts must be an object");
+    projection.scripts = Object.fromEntries(Object.keys(scripts).filter((name) => name.startsWith("verify")).sort().map((name) => [name, scripts[name]]));
+  }
+  return canonicalJson(projection);
+}
+
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (isPlainObject(value)) {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "null";
+}
+
+/** Split a `bun.lock` package key such as `a/@scope/b/c` into its package names. */
+function lockKeyNames(key: string): string[] {
+  const parts = key.split("/");
+  const names: string[] = [];
+  for (let index = 0; index < parts.length; index += 1) {
+    const part = parts[index]!;
+    if (part.startsWith("@")) {
+      const name = parts[index + 1];
+      if (name === undefined || name === "") throw new Error(`bun.lock package key ${key} is malformed`);
+      names.push(`${part}/${name}`);
+      index += 1;
+    } else {
+      if (part === "") throw new Error(`bun.lock package key ${key} is malformed`);
+      names.push(part);
+    }
+  }
+  return names;
+}
+
+/**
+ * The canonical projection of `bun.lock` that a Quint verdict can depend on:
+ * every package entry reachable from the Quint package through its
+ * dependencies and its optional and peer dependencies that the lockfile
+ * lists, resolved the way Node resolves
+ * nested `node_modules`. An update to a package outside that closure leaves
+ * it unchanged. A missing Quint entry, an unresolvable required dependency,
+ * or malformed input throws, so the caller runs every Apalache check.
+ */
+export function quintLockClosure(text: string): string {
+  // bun.lock is JSON with trailing commas.
+  const parsed = JSON.parse(text.replace(/,(\s*[\]}])/gu, "$1")) as unknown;
+  if (!isPlainObject(parsed) || !isPlainObject(parsed.packages)) throw new Error("bun.lock must list its packages");
+  const packages = parsed.packages;
+  const resolve = (from: readonly string[], name: string): string | null => {
+    for (let depth = from.length; depth >= 0; depth -= 1) {
+      const key = [...from.slice(0, depth), name].join("/");
+      if (Object.hasOwn(packages, key)) return key;
+    }
+    return null;
+  };
+  const closure = new Map<string, unknown>();
+  const pending: string[] = [];
+  const root = resolve([], QUINT_PACKAGE);
+  if (root === null) throw new Error(`bun.lock does not list ${QUINT_PACKAGE}`);
+  pending.push(root);
+  while (pending.length > 0) {
+    const key = pending.pop()!;
+    if (closure.has(key)) continue;
+    const entry = packages[key];
+    if (!Array.isArray(entry)) throw new Error(`bun.lock package ${key} must be an array`);
+    closure.set(key, entry);
+    const metadata = entry.find(isPlainObject) ?? {};
+    const from = lockKeyNames(key);
+    for (const [field, required] of [["dependencies", true], ["optionalDependencies", false], ["peerDependencies", false]] as const) {
+      const map = metadata[field];
+      if (map === undefined) continue;
+      if (!isPlainObject(map)) throw new Error(`bun.lock package ${key} ${field} must be an object`);
+      for (const name of Object.keys(map)) {
+        const resolved = resolve(from, name);
+        if (resolved === null) {
+          if (required) throw new Error(`bun.lock package ${key} depends on ${name}, which it does not list`);
+          continue;
+        }
+        pending.push(resolved);
+      }
+    }
+  }
+  return canonicalJson(Object.fromEntries([...closure.entries()].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)));
 }
 
 /**
@@ -1846,32 +2024,47 @@ export function parseSkipApalache(value: string | undefined): boolean {
  * pass seeded simulation and bounded Apalache checking, require both checkers
  * to find every mutant, and run every selected model's replay test. Each unit
  * forms one job and the replay run forms another; at most `QUINT_CONCURRENCY`
- * jobs run at once. With `skipApalache`, which only a pull-request shard
- * outside `QUINT_APALACHE_SCOPE` sets, the typecheck, simulations, and replay
- * still run and every Apalache check is skipped and recorded as skipped.
+ * jobs run at once. A pull-request shard's `apalache` selection, which only
+ * the CI scope step narrows, limits Apalache to the selected models; the
+ * typecheck, simulations, and replay of every model still run, and each
+ * skipped Apalache check is recorded as skipped.
  */
 export async function verifyQuint(
   context: RunContext,
   shard: QuintShard | null = null,
-  skipApalache = false,
+  apalache: ApalacheSelection = APALACHE_ALL,
 ): Promise<void> {
   const manifest = await readQuintModels(context.root);
+  if (apalache.kind === "models") {
+    const known = new Set(manifest.map((model) => model.file));
+    for (const file of apalache.files) {
+      if (!known.has(file)) throw new Error(`${QUINT_APALACHE_MODELS_VARIABLE} names ${file}, which the model inventory does not list`);
+    }
+  }
+  const checksApalache = (model: QuintModel): boolean =>
+    apalache.kind === "all" || (apalache.kind === "models" && apalache.files.includes(model.file));
   const units = shard === null ? quintWorkUnits(manifest) : quintWorkForShard(manifest, shard);
   if (shard !== null) {
     context.log(`quint shard ${String(shard.shard)}/${String(shard.shardCount)}: ${units.map(describeQuintWork).join(", ")}`);
   }
   const nightly = context.profile === "nightly";
-  if (skipApalache && nightly) throw new Error(`the nightly profile never skips Apalache; unset ${QUINT_SKIP_APALACHE_VARIABLE}`);
-  if (skipApalache) {
+  if (apalache.kind !== "all" && nightly) {
+    throw new Error(`the nightly profile never skips Apalache; unset ${QUINT_SKIP_APALACHE_VARIABLE} and ${QUINT_APALACHE_MODELS_VARIABLE}`);
+  }
+  if (apalache.kind === "none") {
     context.log(
-      `${QUINT_SKIP_APALACHE_VARIABLE}=1: this pull request changes no path in the Apalache scope, so this shard skips every Apalache check; push CI on main runs them all`,
+      `${QUINT_SKIP_APALACHE_VARIABLE}=1: this pull request changes nothing an Apalache verdict depends on, so this shard skips every Apalache check; push CI on main runs them all`,
+    );
+  } else if (apalache.kind === "models") {
+    context.log(
+      `${QUINT_APALACHE_MODELS_VARIABLE}=${apalache.files.join(",")}: this pull request changes only these models, so this shard checks only their Apalache work; push CI on main runs them all`,
     );
   }
   const node = requireExecutable("node");
   const quint = join(context.root, QUINT.cli);
   const quintDirectory = join(context.root, "verification", "quint");
   const version = await quintVersion(context, node);
-  const runsApalache = !skipApalache && units.some((unit) => unit.core || unit.mutants.length > 0);
+  const runsApalache = units.some((unit) => checksApalache(unit.model) && (unit.core || unit.mutants.length > 0));
   let apalacheJar = "";
   let jdk: Awaited<ReturnType<typeof prepareJdk>> | null = null;
   if (runsApalache) {
@@ -1969,7 +2162,7 @@ export async function verifyQuint(
         context.log(`${step}: the seeded defect violates ${mutant.invariant}, as required`);
       }
     }
-    if (!skipApalache) {
+    if (checksApalache(model)) {
       if (unit.core || unit.mutants.length > 0) {
         const irPath = await compileModel(model);
         if (unit.core) {
@@ -2001,12 +2194,12 @@ export async function verifyQuint(
       mutants: unit.mutants.map((mutant) => mutant.step),
       profile: context.profile,
       simulation: unit.core ? bounds.simulation : null,
-      apalache: skipApalache ? "skipped" : bounds.apalache,
+      apalache: checksApalache(model) ? bounds.apalache : "skipped",
       replay: unit.replay ? { test: model.replay.test, target: model.replay.target } : null,
     };
   };
   const replayModels = units.filter((unit) => unit.replay).map((unit) => unit.model);
-  const checkedUnits = units.filter((unit) => unit.core || (!skipApalache && unit.mutants.length > 0));
+  const checkedUnits = units.filter((unit) => unit.core || (checksApalache(unit.model) && unit.mutants.length > 0));
   const summary: Record<string, unknown>[] = [];
   await runAtMost([
     ...(replayModels.length > 0 ? [() => runQuintReplays(context, replayModels)] : []),
@@ -2410,8 +2603,10 @@ export async function runVerification(
   shard: QuintShard | null = null,
 ): Promise<void> {
   if (shard !== null && mode !== "quint") throw new Error(`verify:${mode} does not shard`);
-  const skipApalache = parseSkipApalache(process.env[QUINT_SKIP_APALACHE_VARIABLE]);
-  if (skipApalache && mode !== "quint") throw new Error(`verify:${mode} never skips Apalache; unset ${QUINT_SKIP_APALACHE_VARIABLE}`);
+  const apalache = parseApalacheSelection(process.env[QUINT_SKIP_APALACHE_VARIABLE], process.env[QUINT_APALACHE_MODELS_VARIABLE]);
+  if (apalache.kind !== "all" && mode !== "quint") {
+    throw new Error(`verify:${mode} never skips Apalache; unset ${QUINT_SKIP_APALACHE_VARIABLE} and ${QUINT_APALACHE_MODELS_VARIABLE}`);
+  }
   const platform = platformKey();
   const cacheDirectory = verificationCacheDirectory();
   const artifacts = join(root, VERIFICATION_ARTIFACTS, mode);
@@ -2445,7 +2640,7 @@ export async function runVerification(
       log: (line) => console.log(sanitizeCheckerOutput(line, replacements)),
     };
     try {
-      if (mode === "quint" || mode === "quint-nightly") await verifyQuint(context, shard, skipApalache);
+      if (mode === "quint" || mode === "quint-nightly") await verifyQuint(context, shard, apalache);
       else await verifyLean(context);
     } catch (error) {
       throw new Error(sanitizeCheckerOutput(errorMessage(error), replacements));

@@ -2,7 +2,7 @@
 
 Use this workflow for a scheduled, read-only collection of exact counters from
 explicitly selected social profiles, owned publications, and organization
-pages. Ghostget owns acquisition, invocation authority, and target binding. The consumer
+pages. GhostGet owns acquisition, invocation authority, and target binding. The consumer
 owns history, public field selection, presentation, and delivery.
 
 ## Preconditions
@@ -26,7 +26,7 @@ The authoritative ordered collection contract is the strict
 [Hraness social-profile manifest](hraness-social-profile-stats.json). Load it
 as foreign JSON, reject unknown fields and duplicate account keys, then flatten
 each account's ordered `reads` array without changing order. Its auth IDs are
-local Ghostget locators, not credentials.
+local GhostGet locators, not credentials.
 
 Before invoking any read, run
 `ghostget contracts check --plan <path-to-hraness-social-profile-stats.json> --json`.
@@ -42,14 +42,14 @@ The current X accounts are `x-hraness` and `x-aichartsio`.
 The second exact handle is `aichartsio`.
 
 Bluesky and GitHub profile and organization statistics come from public target-bound APIs.
-Invoke these rows without `--auth`. Ghostget assigns each reviewed operation a
+Invoke these rows without `--auth`. GhostGet assigns each reviewed operation a
 deterministic public authority for receipts and exact R1 caching. Supplying an
 auth locator is an error.
 
 The Twitch row targets exactly
 `https://www.twitch.tv/hranessdotcom`. Invoke the installed observed
 `twitch-web profiles.read` capability with `{"profile":"hranessdotcom"}` and
-the `twitch-chrome` realm. Ghostget binds the authenticated current viewer before
+the `twitch-chrome` realm. GhostGet binds the authenticated current viewer before
 it binds the fixed login-parameterized channel response to that viewer's
 immutable identity, then accepts followers only as an exact nonnegative
 integer. A missing, changed, or mismatched realm, an ambiguous target, or
@@ -200,4 +200,4 @@ JSON. Remove the temporary document after installation.
 Review that the task diff contains only the checked social snapshot. Commit and
 deliver it through the repository's current-main workflow, then verify the
 Hraness production deployment. Never commit an empty or synthetic observation,
-raw Ghostget output, capture evidence, or local state.
+raw GhostGet output, capture evidence, or local state.

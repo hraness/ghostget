@@ -1,4 +1,4 @@
-Ghostget advanced commands
+GhostGet advanced commands
 
   ghostget tui --snapshot            Print the control panel as plain text
   ghostget vault --help              Import an X token from 1Password

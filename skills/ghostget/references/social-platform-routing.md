@@ -33,7 +33,7 @@ independently says otherwise.
 - Re-check capabilities before every new preview. A plan or run remains governed by its bound contract identity when installed support later changes.
 - A provider may reject an otherwise valid image for dimensions, animation, color profile, or account entitlement. Report that provider-owned failure without converting the file unless the user asks for a derivative.
 - For user-supplied cross-post copy, never mark the package as AI-generated. Follow [X AI disclosure](x-ai-disclosure.md). Leave official `x` `made_with_ai` unset or `false`. `x-web` `posts.publish` has no such input field.
-- Prefer a Ghostget transport over the X composer. If the user explicitly requested a composer fallback, require Content disclosure Made with AI OFF before Post, then open the live permalink. A sparkle label means that target failed.
+- Prefer a GhostGet transport over the X composer. If the user explicitly requested a composer fallback, require Content disclosure Made with AI OFF before Post, then open the live permalink. A sparkle label means that target failed.
 
 ## Common invocation shape
 

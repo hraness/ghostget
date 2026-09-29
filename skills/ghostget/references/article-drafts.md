@@ -23,7 +23,7 @@ publication.
 ## Own the editorial translation
 
 Capture or read source material separately. The caller decides how to
-translate, abridge, retitle, attribute, link, and place images. Ghostget does not
+translate, abridge, retitle, attribute, link, and place images. GhostGet does not
 turn source HTML, Markdown, or a URL into provider copy and does not infer
 attribution or alternative text. Pass only the final reviewed title, canonical
 document, and exact local image files to the mutation.
@@ -56,7 +56,7 @@ is optional. Platform metadata differs:
   optional.
 
 Both current web adapters accept 1–20 ordered JPEG, PNG, or WebP files, at most
-5 MiB each. Ghostget sniffs the bytes, copies them into the encrypted preview's
+5 MiB each. GhostGet sniffs the bytes, copies them into the encrypted preview's
 plan-asset bundle, hashes them, removes source paths and filenames from the
 preview, and reverifies the exact bytes before dispatch. Do not pass a URL,
 provider asset ID, expiring CDN source, cover, video, embed, HTML, Markdown, or
@@ -71,7 +71,7 @@ implicitly create a document `image` block or appear in `input.inline_images`.
 For a cover-only source asset, keep it out of the body; include the same bytes
 as an inline image only when the reviewed article intentionally shows them in
 both places.
-Ghostget registers it as `PUBLISHING_COVER_IMAGE`, transfers the exact bytes,
+GhostGet registers it as `PUBLISHING_COVER_IMAGE`, transfers the exact bytes,
 binds the returned asset only through LinkedIn's `coverMediaV2Union.coverImage`
 autosave, and independently verifies both saved cover projections. The current
 contract writes an empty cover caption. `x-web` cover saving remains
@@ -131,7 +131,7 @@ invocation input file:
 For LinkedIn, add `"altText":"A descriptive account of the image"` before
 `caption` in the canonical image block. If the final block is an image, do not
 add an empty paragraph after it; LinkedIn owns that editor-only trailing block
-and Ghostget removes exactly that provider-added value during readback.
+and GhostGet removes exactly that provider-added value during readback.
 Also add a sibling `"cover_image":"/absolute/private/banner.jpg"` to the
 outer invocation object when creating or replacing the banner; keep the banner
 out of the document blocks and out of `inline_images`. For a replacement that
@@ -159,9 +159,9 @@ Use the same sequence with `linkedin-web` and its bound LinkedIn cookie realm;
 never switch adapter or auth realm after preview. LinkedIn executes its fixed
 reviewed current single-upload registration, signed byte-transfer, autosave,
 and editor-response readback contract inside contained headed Chrome. The reviewed editor proceeds
-from the transfer's `201` response directly to autosave; Ghostget does not invent
+from the transfer's `201` response directly to autosave; GhostGet does not invent
 a processing poll that the editor does not perform. The window may appear, but
-Ghostget does not type into or read the editor DOM, and callers cannot supply a
+GhostGet does not type into or read the editor DOM, and callers cannot supply a
 URL, header, script, or selector.
 
 Review the account, title, canonical document, separate cover hash, ordered inline attachment hashes,

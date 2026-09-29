@@ -32,13 +32,13 @@ or ask Photos to materialize an asset.
 
 ## Exact evidence boundary
 
-Ghostget accepts only owned real directories and owned single-link regular
+GhostGet accepts only owned real directories and owned single-link regular
 SQLite files within reviewed byte and count bounds. It opens each source
 read-only with trusted schemas disabled and uses SQLite `VACUUM INTO` to create
 one mode-`0600` database in a mode-`0700` operation-owned temporary directory.
 The source's device, inode, birth time, owner, type, link count, and permission
 mode must agree before and after capture. Live size and modification-time churn
-is allowed. Apple Contacts databases use the same boundary. Ghostget runs
+is allowed. Apple Contacts databases use the same boundary. GhostGet runs
 `quick_check`, then opens only the captured databases read-only and query-only.
 
 Relevant Core Data tables and columns have a strict schema fingerprint. Schema
@@ -59,7 +59,7 @@ The exact relationship is:
 ZPERSON.ZPERSONURI = ZABCDRECORD.ZUNIQUEID
 ```
 
-Ghostget does not parse `ZCONTACTMATCHINGDICTIONARY` or infer a match from a
+GhostGet does not parse `ZCONTACTMATCHINGDICTIONARY` or infer a match from a
 name. Unmatched Photos people are excluded.
 
 ## Output and completeness
@@ -84,7 +84,7 @@ interval. The export does not claim an atomic instant across Photos and
 Contacts or completed iCloud and Contacts synchronization. Absence is not
 deletion evidence.
 
-Ghostget does not open, copy, or ask Photos to materialize referenced photo or
+GhostGet does not open, copy, or ask Photos to materialize referenced photo or
 video asset files. A `VACUUM INTO` capture is nevertheless a full private
 Photos or Contacts SQLite database copy and can include unselected columns and
 raw blobs. The privacy exclusions apply only to the returned JSON: names,
@@ -96,7 +96,7 @@ the artifact outside Git and shared output paths.
 
 ## Typed client
 
-Local Bun applications can invoke the installed Ghostget boundary without
+Local Bun applications can invoke the installed GhostGet boundary without
 duplicating SQLite custody:
 
 ```ts

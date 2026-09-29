@@ -278,14 +278,14 @@ describe("ghostget.com static site", () => {
       version: "9.8.7",
     };
     expect(() => parsePackageIdentity({ ...base, homepage: "https://hraness.com/ghostget" }))
-      .toThrow("canonical Ghostget origin");
+      .toThrow("canonical GhostGet origin");
     expect(() => parsePackageIdentity({ ...base, version: "9.8.7-beta.1" }))
       .toThrow("stable semantic version");
     expect(() => parsePackageIdentity({ ...base, description: "drift" }))
       .toThrow("descriptions must stay identical");
   });
 
-  test("binds signup to Ghostget in production only", () => {
+  test("binds signup to GhostGet in production only", () => {
     expect(ghostgetMailingListConfig({
       VERCEL_ENV: "production",
     })).toEqual({
@@ -512,7 +512,7 @@ describe("ghostget.com static site", () => {
     expect(sourceCss).toContain('--hraness-foil-mask: url("/marks/wrench.svg")');
     for (const page of pages) {
       const brand = page.html.match(
-        /<a[^>]*aria-label="Ghostget home"[^>]*>[\s\S]*?<\/a>/u,
+        /<a[^>]*aria-label="GhostGet home"[^>]*>[\s\S]*?<\/a>/u,
       )?.[0];
       expect(brand).toBeDefined();
       expect(brand).toContain('data-foil=""');
@@ -544,11 +544,11 @@ describe("ghostget.com static site", () => {
     expect(html).toContain('<meta name="robots" content="max-image-preview:large">');
     expect(html).not.toContain('<meta name="keywords"');
     expect(html).toContain(`hraness-ghostget-${packageIdentity.version}.tgz`);
-    expect(html).toContain(`Install Ghostget ${packageIdentity.release}`);
+    expect(html).toContain(`Install GhostGet ${packageIdentity.release}`);
     expect(html).toContain(`>${skillInstallCommands.npx}</code>`);
     expect(html).toContain(`<code>${skillInstallCommands.bunx}</code>`);
     expect(html).toContain(
-      `<a href="${SKILLS_URL}">View the Ghostget Agent Skill on skills.sh.</a>`,
+      `<a href="${SKILLS_URL}">View the GhostGet Agent Skill on skills.sh.</a>`,
     );
     expect(html).toContain(
       `<a href="${npmPackageUrl}"><code>@hraness/ghostget</code> release archive</a>`,
@@ -631,7 +631,7 @@ describe("ghostget.com static site", () => {
     // The limit on uncertain writes: never resent, and unsettled until
     // separate evidence arrives. Home page and README state it in the same words.
     const indeterminateWriteBoundary =
-      "If a write went out and its result is unknown, Ghostget won't send it again. It stays marked unsettled until separate evidence shows what happened.";
+      "If a write went out and its result is unknown, GhostGet won't send it again. It stays marked unsettled until separate evidence shows what happened.";
     for (const surface of [html.replaceAll("’", "'"), readme]) {
       expect(surface.replaceAll(/\s+/gu, " ")).toContain(indeterminateWriteBoundary);
       expect(surface).not.toContain("An indeterminate write is reconciled");
@@ -649,7 +649,7 @@ describe("ghostget.com static site", () => {
     expect(makerSection).not.toContain("hraness-attribution");
     expect(makerSection).not.toMatch(/Built by\b/u);
     expect(html).toContain('clipped: "2026-09-05"');
-    expect(html).toContain("Public-page read recorded on September 5, 2026; command updated for Ghostget.");
+    expect(html).toContain("Public-page read recorded on September 5, 2026; command updated for GhostGet.");
     expect(html).toContain('<a href="https://hraness.com">hraness.com</a>');
     expect(html).toContain('<a href="https://x.com/hraness">@hraness</a>');
     expect(html).not.toMatch(/\bstyle="/u);
@@ -673,19 +673,19 @@ describe("ghostget.com static site", () => {
     expect(html).toContain('data-align="start"');
     expect(html).not.toContain('class="hraness-marketing-hero__example"');
     expect(html).toContain('id="providers-title"');
-    expect(html).toContain('aria-label="Ghostget home" class="hraness-marketing-header__brand" data-foil="" href="/"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span> Ghostget</a>');
+    expect(html).toContain('aria-label="GhostGet home" class="hraness-marketing-header__brand" data-foil="" href="/"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span> GhostGet</a>');
     expect(html).not.toMatch(/hero-field|hero-orbit|hero-glyph/u);
     expect(html).not.toMatch(/observed provider operations|capture-required|unavailable reservations/iu);
     expect(html).not.toContain("🔧");
     expect(html).toContain(`href="${PUBLISHER_URL}">Hraness GitHub organization</a>`);
-    expect(preview).toContain("<title>Ghostget preview</title>");
+    expect(preview).toContain("<title>GhostGet preview</title>");
     expect(preview).toContain('<meta name="robots" content="noindex, nofollow">');
     expect(preview).toContain('<link rel="canonical" href="https://ghostget.com/">');
     expect(preview).toContain(`<link rel="stylesheet" href="${cssAsset}">`);
     expect(preview).toContain('<body class="preview-body">');
     expect(preview).toContain("wget for the ghost in the machine.");
     expect(preview).not.toContain("Give your coding agent bounded access to the web.");
-    expect(preview).toContain('class="preview-wordmark">Ghostget</p>');
+    expect(preview).toContain('class="preview-wordmark">GhostGet</p>');
     expect(preview).not.toMatch(/preview-field|preview-orbit|src="\/favicon\.svg"/u);
     expect(preview.match(/<h1\b/gu)).toHaveLength(1);
     expect(preview).not.toContain("{{");
@@ -708,11 +708,11 @@ describe("ghostget.com static site", () => {
     // next links, one quiet agent line, and known pages for "Did you mean".
     expect(notFound).toContain('<div class="hraness-status-page" data-hraness-status-routes="');
     expect(notFound).toContain('<h1 class="hraness-status-page__title">We can’t find that page</h1>');
-    expect(notFound).toContain('data-emphasis="primary" data-foil="" href="/#start">Install Ghostget</a>');
+    expect(notFound).toContain('data-emphasis="primary" data-foil="" href="/#start">Install GhostGet</a>');
     expect(notFound.match(/class="hraness-status-page__next-link"/gu)).toHaveLength(3);
     expect(notFound).toContain('<p class="hraness-status-page__agent">');
     expect(notFound).toContain('href="/llms.txt"');
-    expect(notFound).toContain("[&quot;/docs/tutorials/getting-started/&quot;,&quot;Get started with Ghostget&quot;]");
+    expect(notFound).toContain("[&quot;/docs/tutorials/getting-started/&quot;,&quot;Get started with GhostGet&quot;]");
     expect(notFound).not.toContain('href="/sitemap.xml"');
     expect(notFound).toMatch(/<script type="module" src="\/assets\/status-page-[a-f0-9]+\.js"><\/script>/u);
     expect(notFound.match(/<header\b[^>]*class="topbar guide-topbar"/gu)).toHaveLength(1);
@@ -721,14 +721,14 @@ describe("ghostget.com static site", () => {
     expect(notFound).not.toContain(`<meta name="description" content="${SITE_DESCRIPTION}">`);
     expect(notFoundMarkdown).toContain("https://ghostget.com/llms.txt");
     expect(notFoundMarkdown).toContain("https://ghostget.com/sitemap.xml");
-    expect(llms).toContain("# Ghostget");
+    expect(llms).toContain("# GhostGet");
     expect(llms).toContain(`> ${SITE_DESCRIPTION}`);
     expect(llms).not.toContain("—");
     expect(llms).toContain("nine public entrypoints");
     expect(llms).toContain("`@hraness/ghostget/contracts`");
-    expect(llms).toContain("## When to use Ghostget");
-    expect(llms).toContain("## Ghostget developer resources");
-    expect(llms).toContain("Do not use Ghostget as an AI agent");
+    expect(llms).toContain("## When to use GhostGet");
+    expect(llms).toContain("## GhostGet developer resources");
+    expect(llms).toContain("Do not use GhostGet as an AI agent");
     expect(llms).toContain(`${SITE_ORIGIN}/docs/tutorials/getting-started/`);
     expect(llms).toContain(`${SITE_ORIGIN}/compare/personal-agents-browser-use/`);
     for (const path of NOINDEX_ESSAY_PATHS) expect(llms).not.toContain(`${SITE_ORIGIN}${path}`);
@@ -910,8 +910,8 @@ describe("ghostget.com static site", () => {
         .map((match) => match[0]);
       expect(footers).toHaveLength(2);
       const [contentFooter, footer] = footers;
-      expect(contentFooter).toContain('aria-label="Ghostget" class="hraness-marketing-footer" data-hraness-marketing="footer"');
-      expect(contentFooter).toContain('<a class="hraness-marketing-footer__brand" data-foil="" href="/" aria-label="Ghostget home"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span><span class="hraness-marketing-footer__name">Ghostget</span></a>');
+      expect(contentFooter).toContain('aria-label="GhostGet" class="hraness-marketing-footer" data-hraness-marketing="footer"');
+      expect(contentFooter).toContain('<a class="hraness-marketing-footer__brand" data-foil="" href="/" aria-label="GhostGet home"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span><span class="hraness-marketing-footer__name">GhostGet</span></a>');
       expect(contentFooter).not.toContain('src="/icon.png"');
       expect(contentFooter).toContain('<nav aria-label="Footer navigation" class="hraness-marketing-footer__nav">');
       expect(contentFooter).toContain('class="hraness-marketing-footer__link" href="/docs/"');
@@ -1149,7 +1149,7 @@ describe("ghostget.com static site", () => {
       const canonicalUrl = `${SITE_ORIGIN}${definition.canonicalPath}`;
       expect(pageHtml).toContain(`<title>${definition.title}</title>`);
       expect(pageHtml).toContain(`<meta name="description" content="${definition.description}">`);
-      expect(pageHtml).toMatch(/aria-label="Ghostget home" class="(?:hraness-marketing-header__brand|wordmark hraness-foil-text)" data-foil="" href="\/"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="\/marks\/wrench\.svg" width="20" \/><span aria-hidden="true" class="hraness-foil-mark__paint"><\/span><\/span> Ghostget<\/a>/u);
+      expect(pageHtml).toMatch(/aria-label="GhostGet home" class="(?:hraness-marketing-header__brand|wordmark hraness-foil-text)" data-foil="" href="\/"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="\/marks\/wrench\.svg" width="20" \/><span aria-hidden="true" class="hraness-foil-mark__paint"><\/span><\/span> GhostGet<\/a>/u);
       expect(pageHtml).not.toContain('class="wordmark" href="/">GHOSTGET</a>');
       expect(pageHtml).toContain(`<link rel="canonical" href="${canonicalUrl}">`);
       expect(pageHtml).toContain(`<meta property="og:title" content="${definition.title}">`);
@@ -1183,7 +1183,7 @@ describe("ghostget.com static site", () => {
         "utf8",
       );
       expect(markdown.startsWith("# ")).toBe(true);
-      expect(markdown).toContain("Ghostget");
+      expect(markdown).toContain("GhostGet");
       expect(markdown).not.toMatch(/<\/[a-z]+>/i);
       expect(markdown.length).toBeGreaterThan(400);
 
@@ -1231,7 +1231,7 @@ describe("ghostget.com static site", () => {
     expect(html).toContain(`<meta property="og:image:alt" content="${SOCIAL_IMAGE_ALT}">`);
     expect(html).toContain(`<meta name="twitter:image:alt" content="${SOCIAL_IMAGE_ALT}">`);
     for (const { html: pageHtml } of pages) {
-      expect(pageHtml).not.toContain('image:alt" content="Ghostget: precise web capabilities for AI agents"');
+      expect(pageHtml).not.toContain('image:alt" content="GhostGet: precise web capabilities for AI agents"');
     }
 
     const homepageMarkdown = await readFile(
@@ -1291,7 +1291,7 @@ describe("ghostget.com static site", () => {
       expect(page?.html).toContain(image.caption);
       expect(page?.html).toContain(image.credit);
       expect(image.credit).toMatch(
-        /^Editorial illustration generated with (?:Atet|Slopcamera)\.$/u,
+        /^Editorial illustration generated with (?:Atet|SlopCamera)\.$/u,
       );
       expect(page?.html).not.toContain("editorial-provenance/");
       expect(page?.html).not.toContain("gateway_");
@@ -1382,7 +1382,7 @@ describe("ghostget.com static site", () => {
       canonicalPath === ("/omarchy-root-escalation/" as never))).toBe(false);
 
     expect(html).toContain(
-      '<h2 class="hraness-marketing-section__heading" id="comparison-title">How Ghostget compares with other ways agents reach the web.</h2>',
+      '<h2 class="hraness-marketing-section__heading" id="comparison-title">How GhostGet compares with other ways agents reach the web.</h2>',
     );
     expect(html).toContain("<th scope=\"row\">Your agent’s built-in web fetch</th>");
     expect(html).toContain('<a href="/compare/firecrawl/">Firecrawl</a> and <a href="/compare/jina-reader/">Jina Reader</a></th>');
@@ -1396,12 +1396,12 @@ describe("ghostget.com static site", () => {
     );
 
     const gettingStarted = pages.find((page) => page.definition.canonicalPath === "/docs/tutorials/getting-started/");
-    expect(gettingStarted?.html).toContain("Ghostget developer resources");
+    expect(gettingStarted?.html).toContain("GhostGet developer resources");
     expect(gettingStarted?.html).toContain(
       `<a href="${npmPackageUrl}">Install the <code>@hraness/ghostget</code> CLI and TypeScript SDK from GitHub Releases</a>`,
     );
     expect(gettingStarted?.html).toContain(
-      `<a href="${SKILLS_URL}">Install the Ghostget Agent Skill from skills.sh</a>`,
+      `<a href="${SKILLS_URL}">Install the GhostGet Agent Skill from skills.sh</a>`,
     );
     expect(gettingStarted?.html).toContain(`<code>${skillInstallCommands.npx}</code>`);
     expect(gettingStarted?.html).toContain("does not publish a hosted API");
@@ -1413,13 +1413,13 @@ describe("ghostget.com static site", () => {
     expect(gettingStarted?.html).toContain('href="/wrench-first-capture.gif"');
     expect(gettingStarted?.html).not.toContain('class="editorial-figure"');
     expect(gettingStarted?.html).toContain("successful Wrench 0.13.5 run on August 25, 2026");
-    expect(gettingStarted?.html).toContain("before the project became Ghostget");
+    expect(gettingStarted?.html).toContain("before the project became GhostGet");
     expect(gettingStarted?.html).toContain("The terminal text is actual CLI output");
 
     const privacy = pages.find((page) => page.definition.canonicalPath === "/privacy/");
     expect(privacy?.html).toContain("The CLI stores state on the operator's machine");
     expect(privacy?.html).toContain("Local custody does not mean that every stored byte is encrypted");
-    expect(privacy?.html).toContain("Ghostget-managed Gmail OAuth JSON file");
+    expect(privacy?.html).toContain("GhostGet-managed Gmail OAuth JSON file");
     expect(privacy?.html).toContain("The CLI and SDK do not send ghostget.com analytics");
     expect(privacy?.html).toContain("ghostget auth remove ID --yes");
     expect(privacy?.html).toContain("it is not a hostile native-code sandbox");
@@ -1437,7 +1437,7 @@ describe("ghostget.com static site", () => {
     );
     const mailingHtml = /<section aria-labelledby="website-mailing-list">[\s\S]*?<\/section>/u
       .exec(privacy?.html ?? "")?.[0];
-    const mailingMarkdown = /## Ghostget mailing-list subscriptions are separate[\s\S]*?(?=\n\n## )/u
+    const mailingMarkdown = /## GhostGet mailing-list subscriptions are separate[\s\S]*?(?=\n\n## )/u
       .exec(privacyMarkdown)?.[0];
     const normalizeMailingCopy = (value: string | undefined): string =>
       (value ?? "")
@@ -1447,18 +1447,18 @@ describe("ghostget.com static site", () => {
         .replaceAll(/\s+([,.;:!?])/gu, "$1")
         .trim();
     const expectedMailingCopy = [
-      "Ghostget mailing-list subscriptions are separate",
-      "The optional footer form submits to Hraness Accounts, which processes the email address at https://account.hraness.com/api/mailing/subscribe. Each request uses the fixed wrench audience and source=hraness-site-footer. An eligible request records a pending Ghostget membership. Resend processes the email address to deliver a confirmation message from newsletter@news.hraness.com. The emailed link opens the Hraness Accounts confirmation page. Only the page's explicit Confirm subscription POST records consent and changes the membership to subscribed.",
-      "Subscribed members can receive later Ghostget mail through Resend from news.hraness.com. Unsubscribing retains the Ghostget membership and consent history, changes only that membership to unsubscribed, and leaves every other Hraness audience unchanged. The mailing list is optional: using the Ghostget CLI, SDK, or ghostget.com does not require a subscription, and a Ghostget subscription does not enroll the address in another Hraness audience.",
+      "GhostGet mailing-list subscriptions are separate",
+      "The optional footer form submits to Hraness Accounts, which processes the email address at https://account.hraness.com/api/mailing/subscribe. Each request uses the fixed wrench audience and source=hraness-site-footer. An eligible request records a pending GhostGet membership. Resend processes the email address to deliver a confirmation message from newsletter@news.hraness.com. The emailed link opens the Hraness Accounts confirmation page. Only the page's explicit Confirm subscription POST records consent and changes the membership to subscribed.",
+      "Subscribed members can receive later GhostGet mail through Resend from news.hraness.com. Unsubscribing retains the GhostGet membership and consent history, changes only that membership to unsubscribed, and leaves every other Hraness audience unchanged. The mailing list is optional: using the GhostGet CLI, SDK, or ghostget.com does not require a subscription, and a GhostGet subscription does not enroll the address in another Hraness audience.",
     ].join(" ");
     const normalizedMailingCopies = [mailingHtml, mailingMarkdown].map(normalizeMailingCopy);
     expect(normalizedMailingCopies).toEqual([expectedMailingCopy, expectedMailingCopy]);
     const lifecycleStages = [
-      "pending Ghostget membership",
+      "pending GhostGet membership",
       "emailed link opens the Hraness Accounts confirmation page",
       "explicit Confirm subscription POST records consent",
       "membership to subscribed",
-      "retains the Ghostget membership and consent history",
+      "retains the GhostGet membership and consent history",
       "membership to unsubscribed",
       "leaves every other Hraness audience unchanged",
     ];
@@ -1489,10 +1489,10 @@ describe("ghostget.com static site", () => {
     expect(html.match(/class="provider-feature-copy"/gu)).toHaveLength(1);
     expect(providerCapabilities?.html.match(/class="provider-feature-copy"/gu)).toHaveLength(1);
     expect(html).toContain(
-      `${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.cliBackedOperationCount)} actions run through a pinned version of Beeper's official CLI, and ${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.desktopLoopbackOperationCount)} are fixed reads from Beeper Desktop. Writes need a preview first, and Ghostget never resends a write whose outcome is unknown.`,
+      `${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.cliBackedOperationCount)} actions run through a pinned version of Beeper's official CLI, and ${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.desktopLoopbackOperationCount)} are fixed reads from Beeper Desktop. Writes need a preview first, and GhostGet never resends a write whose outcome is unknown.`,
     );
     expect(providerCapabilities?.html).toContain(
-      `${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.cliBackedOperationCount)} actions run through a pinned version of Beeper's official CLI, and ${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.desktopLoopbackOperationCount)} are fixed reads from Beeper Desktop. Writes need a preview first, and Ghostget never resends a write whose outcome is unknown.`,
+      `${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.cliBackedOperationCount)} actions run through a pinned version of Beeper's official CLI, and ${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.desktopLoopbackOperationCount)} are fixed reads from Beeper Desktop. Writes need a preview first, and GhostGet never resends a write whose outcome is unknown.`,
     );
     const providerHeading = html.match(/<h2 id="providers-title">([^<]+)<\/h2>/u)?.[1];
     expect(Number(providerHeading?.match(/\d+/u)?.[0])).toBe(providerDirectory.providerCount);
@@ -1551,7 +1551,7 @@ describe("ghostget.com static site", () => {
     const claimsRegister = parseClaimsRegister(JSON.parse(claimsRegisterSource) as unknown);
     const claimsByStatus = (status: Status): number =>
       claimsRegister.claims.filter((claim) => claim.status === status).length;
-    expect(claimsPage?.html).toContain("<h1>The Ghostget claims register</h1>");
+    expect(claimsPage?.html).toContain("<h1>The GhostGet claims register</h1>");
     expect(claimsPage?.html).toContain(
       `The register holds ${claimsRegister.claims.length} claims: ${claimsByStatus("evidenced")} evidenced, ${claimsByStatus("planned")} planned, and ${claimsByStatus("not-verified")} not verified.`,
     );
@@ -1583,7 +1583,7 @@ describe("ghostget.com static site", () => {
       join(websiteRoot, "dist", markdownSiblingPath("/claims/").slice(1)),
       "utf8",
     );
-    expect(claimsMarkdown).toContain("# The Ghostget claims register");
+    expect(claimsMarkdown).toContain("# The GhostGet claims register");
     expect(claimsMarkdown).toContain("not verified.");
     const claimsJson = await readFile(join(websiteRoot, "dist/claims.json"), "utf8");
     expect(claimsJson).toBe(claimsRegisterSource);
@@ -1690,7 +1690,7 @@ describe("ghostget.com static site", () => {
     expect(beeperBreadcrumb).toMatchObject({
       "@type": "BreadcrumbList",
       itemListElement: [
-        { name: "Ghostget", position: 1, item: `${SITE_ORIGIN}/` },
+        { name: "GhostGet", position: 1, item: `${SITE_ORIGIN}/` },
         { name: "Documentation", position: 2, item: `${SITE_ORIGIN}/docs/` },
         { name: beeperFacts.pageTitle, position: 3, item: `${SITE_ORIGIN}/docs/how-to/connect-beeper/` },
       ],
@@ -1727,10 +1727,10 @@ describe("ghostget.com static site", () => {
       `<meta name="description" content="${whatsappFacts.pageDescription}">`,
     );
     expect(whatsapp?.html).toContain(
-      "<h1>Export WhatsApp history for Textbutler</h1>",
+      "<h1>Export WhatsApp history for TextButler</h1>",
     );
     expect(whatsapp?.html).toContain(
-      "one private bundle for Textbutler (formerly Message Like Me) in the Message Like Me schema-2 format",
+      "one private bundle for TextButler (formerly Message Like Me) in the Message Like Me schema-2 format",
     );
     expect(whatsapp?.html).toContain("six NDJSON files plus <code>manifest.json</code>");
     expect(whatsapp?.html).toContain("local-message schema <code>2</code>");
@@ -1760,7 +1760,7 @@ describe("ghostget.com static site", () => {
     expect(whatsappBreadcrumb).toMatchObject({
       "@type": "BreadcrumbList",
       itemListElement: [
-        { name: "Ghostget", position: 1, item: `${SITE_ORIGIN}/` },
+        { name: "GhostGet", position: 1, item: `${SITE_ORIGIN}/` },
         { name: "Documentation", position: 2, item: `${SITE_ORIGIN}/docs/` },
         { name: whatsappFacts.pageTitle, position: 3, item: `${SITE_ORIGIN}/docs/how-to/export-whatsapp/` },
       ],
@@ -1769,7 +1769,7 @@ describe("ghostget.com static site", () => {
     const personalAgents = pages.find((page) =>
       page.definition.canonicalPath === "/compare/personal-agents-browser-use/");
     expect(personalAgents?.html).toContain(
-      "<h1>Browser-using personal agents and Ghostget’s named web actions</h1>",
+      "<h1>Browser-using personal agents and GhostGet’s named web actions</h1>",
     );
     expect(personalAgents?.html).toContain(
       "https://hraness.com/reading/personal-agents-notes-instinct-grok-bots-chatgpt-work",
@@ -1984,7 +1984,7 @@ describe("ghostget.com static site", () => {
     const docsIndex = pages.find((page) =>
       page.definition.canonicalPath === "/docs/");
     expect(docsIndex?.html).toContain(
-      "<h1>Ghostget documentation</h1>",
+      "<h1>GhostGet documentation</h1>",
     );
     for (const quadrant of ["Tutorials", "How-to guides", "Explanation", "Reference"]) {
       expect(docsIndex?.html).toContain(`<h2 id="${quadrant === "How-to guides" ? "how-to" : quadrant.toLowerCase()}">${quadrant}</h2>`);
@@ -2013,7 +2013,7 @@ describe("ghostget.com static site", () => {
         { itemListElement?: ReadonlyArray<Readonly<Record<string, unknown>>> } | undefined;
       expect(movedBreadcrumb?.itemListElement).toHaveLength(3);
       expect(movedBreadcrumb?.itemListElement?.slice(0, 2)).toEqual([
-        { "@type": "ListItem", item: `${SITE_ORIGIN}/`, name: "Ghostget", position: 1 },
+        { "@type": "ListItem", item: `${SITE_ORIGIN}/`, name: "GhostGet", position: 1 },
         { "@type": "ListItem", item: `${SITE_ORIGIN}/docs/`, name: "Documentation", position: 2 },
       ]);
       expect(movedBreadcrumb?.itemListElement?.[2]).toMatchObject({
@@ -2060,7 +2060,7 @@ describe("ghostget.com static site", () => {
     const compareIndex = pages.find((page) =>
       page.definition.canonicalPath === "/compare/");
     expect(compareIndex?.html).toContain(
-      "<h1>Six ways agents reach the web, and where Ghostget fits</h1>",
+      "<h1>Six ways agents reach the web, and where GhostGet fits</h1>",
     );
     expect(compareIndex?.html).toContain('<h2 id="lane-integrations">Integration platforms act in your apps</h2>');
     expect(compareIndex?.html).toContain("checked on 28 September 2026");
@@ -2097,7 +2097,7 @@ describe("ghostget.com static site", () => {
         { itemListElement?: ReadonlyArray<Readonly<Record<string, unknown>>> } | undefined;
       expect(compareBreadcrumb?.itemListElement).toHaveLength(3);
       expect(compareBreadcrumb?.itemListElement?.slice(0, 2)).toEqual([
-        { "@type": "ListItem", item: `${SITE_ORIGIN}/`, name: "Ghostget", position: 1 },
+        { "@type": "ListItem", item: `${SITE_ORIGIN}/`, name: "GhostGet", position: 1 },
         { "@type": "ListItem", item: `${SITE_ORIGIN}/compare/`, name: "Comparisons", position: 2 },
       ]);
       expect(compareBreadcrumb?.itemListElement?.[2]).toMatchObject({
@@ -2178,7 +2178,7 @@ describe("ghostget.com static site", () => {
     expect(negotiated?.headers.get("link")).toBe(
       '<https://ghostget.com/docs/tutorials/getting-started/>; rel="canonical", </docs/tutorials/getting-started.md>; rel="alternate"; type="text/markdown"',
     );
-    expect(await negotiated?.text()).toContain("# Install Ghostget and read your first page");
+    expect(await negotiated?.text()).toContain("# Install GhostGet and read your first page");
 
     const direct = await handleDocumentNegotiation(
       new Request(`${SITE_ORIGIN}/docs/tutorials/getting-started.md`),
@@ -2186,7 +2186,7 @@ describe("ghostget.com static site", () => {
     );
     expect(direct?.status).toBe(200);
     expect(direct?.headers.get("link")).toBe(negotiated?.headers.get("link"));
-    expect(await direct?.text()).toContain("# Install Ghostget and read your first page");
+    expect(await direct?.text()).toContain("# Install GhostGet and read your first page");
   });
 
   test("keeps every README release reference aligned with package identity", async () => {
@@ -2225,7 +2225,7 @@ describe("ghostget.com static site", () => {
   });
 
   test("declares one social-image site for the shared template", async () => {
-    expect(socialSite.name).toBe("Ghostget");
+    expect(socialSite.name).toBe("GhostGet");
     expect(socialSite.domain).toBe(new URL(SITE_ORIGIN).host);
     expect(socialSite.description).toBe(product("wrench").oneLiner);
     expect(socialSite.icon?.kind).toBe("mark");

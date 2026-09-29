@@ -177,7 +177,7 @@
     {
       "guide": "AGENTS.md",
       "anchor": "CI covers the complete",
-      "digest": "7d4d31d38dc45eba65c7cd60d42060ec9cfec99948c079c1d02c19c7df67d530",
+      "digest": "b3b5c6eedd590bb7f8187d6bfc5beb3018c4f865fa2ea00a9e403e20eac0481e",
       "claims": [
         "ci-source-coverage-contract"
       ]

@@ -1,6 +1,6 @@
 Usage: ghostget adapter <command> [options]
 
-Adapters are Ghostget's reviewed support for one site.
+Adapters are GhostGet's reviewed support for one site.
 
 Commands
   adapter sync-bundled [--json]      Install or update the bundled adapters

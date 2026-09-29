@@ -24,11 +24,11 @@ verifies an independent exact-share readback.
 Every other consumer-web capability remains `capture-required` and inert.
 
 A browser may record a managed HAR, bootstrap the private session, or resolve
-current session material. Runtime draft saving executes only Ghostget's fixed
+current session material. Runtime draft saving executes only GhostGet's fixed
 reviewed first-party API/write and editor-response readback contract inside a contained headed Chrome session;
 LinkedIn rejects the same editor exchange from a standalone HTTP client after
 its initial authenticated probe. It never types into or reads the Article
-editor DOM. Callers cannot choose a URL, header, script, or selector. Ghostget
+editor DOM. Callers cannot choose a URL, header, script, or selector. GhostGet
 never lists an inbox, opens a conversation, sends a message, or performs
 another semantic action through LinkedIn's DOM.
 
@@ -81,7 +81,7 @@ ghostget auth list --json
 The profile path grants its contained page scripts unfiltered public-host
 egress and may contain every signed-in session in that browser profile. Keep it
 private, outside the repository, and use it only with the user's informed
-authority. Ghostget refuses to clone an active Chromium user-data root. For a
+authority. GhostGet refuses to clone an active Chromium user-data root. For a
 scheduled realm, first load LinkedIn normally in the selected source profile
 and confirm that its first-party session is current. Fully quit Chrome, take
 one private snapshot, then point the auth locator at that dormant snapshot and
@@ -203,7 +203,7 @@ Page URL. It binds the requested company record and its matching following
 state before projecting the exact follower count. Viewing a Page does not
 confer Page-actor authority.
 
-For a path-backed auth realm, Ghostget starts a task-private contained clone and
+For a path-backed auth realm, GhostGet starts a task-private contained clone and
 uses the browser path before any standalone cookie preflight. One code-owned
 evaluation derives the reviewed CSRF header from the unique `JSESSIONID` and
 performs exact `GET /voyager/api/me`. After binding that response to the auth
@@ -212,7 +212,7 @@ requested, the private connections response in order. The organization branch
 instead reads only the exact requested Page after the same member binding.
 Every response is bounded, same-origin, exact-route, status- and media-type
 checked before projection. Login, checkpoint, redirect, network, cookie,
-identity, target, or response drift fails closed. Ghostget does not click or
+identity, target, or response drift fails closed. GhostGet does not click or
 inspect LinkedIn DOM, expose a caller-selected selector or script, follow a
 redirect, or retry after an arbitrary browser failure. It closes the contained
 browser and verifies cleanup after success or failure.
@@ -568,12 +568,12 @@ registration, a signed transfer returning `201`, stable asset-URN projection,
 ordered image blocks, required accessibility text, optional captions,
 provider-restored CDN sources, and persistence after reopening. The editor
 proceeded directly from transfer to Article autosave and made no processing
-status poll, so Ghostget follows that exact sequence and gates success on the
+status poll, so GhostGet follows that exact sequence and gates success on the
 later private Article response and independent readback.
 
 An August 18 recapture after registration drift proved the current
 `PUBLISHING_INLINE_IMAGE` response uses LinkedIn's bounded single-upload
-variant. Ghostget accepts that exact known-field family and the prior vector
+variant. GhostGet accepts that exact known-field family and the prior vector
 variant, but still rejects multipart mechanisms, unknown response fields,
 unreviewed headers, and upload targets outside the fixed LinkedIn origin and
 path. File selection in the editor's preview dialog was not upload completion:
@@ -588,13 +588,13 @@ empty caption. Independent editor-response readback exposes matching legacy
 and V2 cover projections bound to the same stable asset URN. The current draft
 contract therefore requires one outer `cover_image` on create and plans a
 supplied replacement cover as `articles.cover` before body images. When an
-exact replacement omits it, Ghostget preserves and verifies the current banner
+exact replacement omits it, GhostGet preserves and verifies the current banner
 asset without registering or transferring another cover. In either case, the
 banner stays out of the document and `inline_images`.
 
 An August 19 recovery exercise also proved why this distinction matters: a
 cover dispatch can become indeterminate after LinkedIn has retained the banner
-but before Ghostget verifies that dispatch. Never retry that cover upload. After
+but before GhostGet verifies that dispatch. Never retry that cover upload. After
 separate inspection establishes that an exact replacement draft already has
 the intended banner, a new confirmed replacement may omit `cover_image` and
 preserve that independently read asset while repairing only its body. That is

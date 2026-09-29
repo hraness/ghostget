@@ -28,11 +28,11 @@ import {
 
 const websiteRoot = dirname(fileURLToPath(import.meta.url));
 const site: BlogSite = {
-  description: "Ghostget test site.",
-  name: "Ghostget",
+  description: "GhostGet test site.",
+  name: "GhostGet",
   origin: "https://ghostget.com",
-  socialImageAlt: "Ghostget social card",
-  title: "Ghostget",
+  socialImageAlt: "GhostGet social card",
+  title: "GhostGet",
 };
 
 function quarantine(post: BlogPost): BlogPost {
@@ -40,7 +40,7 @@ function quarantine(post: BlogPost): BlogPost {
   return { ...post, admission };
 }
 
-describe("Ghostget blog admission", () => {
+describe("GhostGet blog admission", () => {
   test("every post carries a valid admission record for its own route", () => {
     const admissions = BLOG_POSTS.map((post) => post.admission);
     expect(() => assertArticleAdmissions(admissions)).not.toThrow();
@@ -86,7 +86,7 @@ describe("Ghostget blog admission", () => {
   });
 });
 
-describe("Ghostget blog discovery", () => {
+describe("GhostGet blog discovery", () => {
   test("a quarantined post leaves the index, sitemap, feed, and llms.txt and renders noindex", async () => {
     const [first, ...rest] = BLOG_POSTS;
     const posts = [quarantine(first!), ...rest];
@@ -138,7 +138,7 @@ describe("Ghostget blog discovery", () => {
   });
 });
 
-describe("Built on Ghostget hub", () => {
+describe("Built on GhostGet hub", () => {
   test("renders every registered relation from the portfolio registry", () => {
     const relations = ghostgetRelations();
     expect(relations.length).toBeGreaterThan(0);
@@ -159,8 +159,8 @@ describe("Built on Ghostget hub", () => {
       name: "Example",
       productId: "example" as never,
       relationId: "runtime:example:wrench:unreviewed",
-      relationship: "Example uses Ghostget.",
+      relationship: "Example uses GhostGet.",
       role: "Example product.",
-    }])).toThrow(/Review the new Ghostget relation/u);
+    }])).toThrow(/Review the new GhostGet relation/u);
   });
 });

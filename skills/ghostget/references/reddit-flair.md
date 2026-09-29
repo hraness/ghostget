@@ -23,7 +23,7 @@ account drift, redirects, oversized responses, and unreviewed provider shapes
 fail closed. Empty text is valid for an icon-only flair.
 
 `flair.user.select` and `flair.post.select` remain **capture-required**. Their
-schemas are reserved, but they perform no mutation. Do not report that Ghostget
+schemas are reserved, but they perform no mutation. Do not report that GhostGet
 can apply flair until the relevant selection contract is observed and an
 independent same-account readback passes.
 
@@ -41,7 +41,7 @@ or a role supported by the user's stated facts. Do not invent an occupation,
 credential, diagnosis, housing status, or moderator role. Skip a destination
 with no truthful choice. Flair does not make a prohibited contribution eligible.
 
-The caller owns this decision. Ghostget supplies account-bound options and a
+The caller owns this decision. GhostGet supplies account-bound options and a
 separate exact mutation boundary; it does not infer personal facts or run a
 growth loop.
 
@@ -64,7 +64,7 @@ freshly read choices and reject a missing, changed, or non-self-selectable
 template. Preserve an already selected matching flair without a mutation.
 User selection is R2; changing flair on an existing public post is R3.
 
-Keep the exact five-minute Ghostget preview and durable dispatch boundary.
+Keep the exact five-minute GhostGet preview and durable dispatch boundary.
 Standing user authority lets the calling agent review and confirm its eligible
 plan without requesting redundant approval. Confirm once and verify exact
 account, community, post when relevant, template ID, and visible label through
