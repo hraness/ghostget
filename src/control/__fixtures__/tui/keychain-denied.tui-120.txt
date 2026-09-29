@@ -1,0 +1,12 @@
+exit 0
+Ghostget 0.18.40 · Local controls
+Account: x-main
+Accounts: 2 · capabilities: 2 · approvals: 0 · interfaces: 0
+Managed permissions: on
+
+First read: ghostget read https://example.com
+Interactive controls: ghostget tui
+1Password X-token import: ghostget vault --help
+
+Account @runner: verified · x
+Account runner-person: verified · linkedin

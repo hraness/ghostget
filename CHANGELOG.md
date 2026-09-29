@@ -17,6 +17,8 @@ Historical entries retain their original delivery coordinates.
   without a window; nothing starts at login unless you run `control install`.
 - `ghostget tui --json`, and `tui --snapshot` for agents, print the
   `ghostget.status/1` envelope. The TUI reuses a running control owner.
+  For a person, `tui --snapshot` wraps its text to the terminal width (80
+  without a terminal); `--width <40-200>` sets it.
 - The signed cookie reader is assembled by desktop-foundation 0.9.0's
   `hraness-helper` (falling back to `hraness-companion`). `GHOSTGET_HELPER`
   overrides it; `GHOSTGET_MENUBAR` still works as an alias.
