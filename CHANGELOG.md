@@ -7,6 +7,11 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.55
+
+This release makes long X reads survive x.com home pages served without
+feature settings.
+
 - X reads no longer fail now and then with "X initial state.featureSwitch must
   be an object". When x.com serves its home page without feature settings,
   Ghostget reloads it once. If the second load is missing them too, the read
