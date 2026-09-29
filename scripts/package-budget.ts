@@ -2240,14 +2240,22 @@
 // Preserve the projections and allowances:
 // 12,152,476 + 12,387 + 4,096 = 12,168,959 packed;
 // 24,093,450 + 353 + 65 = 24,093,868 unpacked.
+// Release 0.18.53 over main dbbd1a5 changes release pins and the changelog.
+// After `bun run build`, a clean npm 11.19.0 pack --ignore-scripts with
+// Node 24.20.0 (zlib 1.2.12) on darwin arm64 measured 625 entries,
+// 12,152,562 packed bytes, and 24,093,786 unpacked bytes; archive SHA-256
+// 0a73250d6047e0ed5dca98bceefdeec458828c784fa9355716312afbf88242bd,
+// reproduced by a second pack. Preserve the projections and allowances:
+// 12,152,562 + 12,387 + 4,096 = 12,169,045 packed;
+// 24,093,786 + 353 + 65 = 24,094,204 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget menu-bar retirement release-N control surface with tui --snapshot --width over main 6622835",
+  scope: "Ghostget 0.18.53 release over main dbbd1a5",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "53163e785e34ab363fdf7e936f5b1cd9a61ca838700dfdd5d1b888ca6e9ce0dd",
-  packedBytes: 12_152_476,
-  unpackedBytes: 24_093_450,
+  archiveSha256: "0a73250d6047e0ed5dca98bceefdeec458828c784fa9355716312afbf88242bd",
+  packedBytes: 12_152_562,
+  unpackedBytes: 24_093_786,
   entryCount: 625,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

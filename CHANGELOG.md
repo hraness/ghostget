@@ -7,6 +7,11 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.53
+
+This release adds command-line equivalents for every menu-bar control and
+delivers the 0.18.52 share card using the current release controls.
+
 - Every menu-bar control has a command with `--json` output: `status`,
   `approvals list|show|decide`, `permissions list|set|enable`,
   `connections begin|verify|commit|cancel|disconnect`, `interface activate`,
@@ -23,6 +28,9 @@ Historical entries retain their original delivery coordinates.
   `hraness-helper` (falling back to `hraness-companion`). `GHOSTGET_HELPER`
   overrides it; `GHOSTGET_MENUBAR` still works as an alias.
 - The menu bar still works in this release and is removed in the next one.
+- Retain the unpublished v0.18.52 tag: its Release stopped at identity
+  verification, before any asset was built, because a later main change
+  updated protected release controls.
 
 ## 0.18.52
 
