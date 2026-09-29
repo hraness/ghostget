@@ -2195,14 +2195,23 @@
 // 25865a89245a4d5663f4d4a4de18d0214ddb23e8d63db98fc6da15e8e497801b.
 // Preserve allowances: 12,134,057 + 12,387 + 4,096 = 12,150,540 packed;
 // 24,025,465 + 353 + 65 = 24,025,883 unpacked.
+// Release 0.18.52 over main 6cb5711 changes release pins and the changelog;
+// the web-discovery share-card upgrade stays outside the published package.
+// A clean npm 11.19.0 pack --ignore-scripts with Node 24.20.0 (zlib 1.2.12)
+// on darwin arm64 measured 620 files, 12,134,122 packed bytes and
+// 24,025,660 unpacked bytes. Archive SHA-256
+// 8c64bb2ed2c949f60b9b3c9887eb172de0b4a5076cc0d95e379aa873b436b5a6.
+// Preserve all platform projections and portability allowances:
+// 12,134,122 + 12,387 + 4,096 = 12,150,605 packed;
+// 24,025,660 + 353 + 65 = 24,026,078 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget 0.18.51 release over main d1d89b8",
+  scope: "Ghostget 0.18.52 release over main 6cb5711",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "25865a89245a4d5663f4d4a4de18d0214ddb23e8d63db98fc6da15e8e497801b",
-  packedBytes: 12_134_057,
-  unpackedBytes: 24_025_465,
+  archiveSha256: "8c64bb2ed2c949f60b9b3c9887eb172de0b4a5076cc0d95e379aa873b436b5a6",
+  packedBytes: 12_134_122,
+  unpackedBytes: 24_025_660,
   entryCount: 620,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
