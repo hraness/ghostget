@@ -24,6 +24,13 @@ Historical entries retain their original delivery coordinates.
   overrides it; `GHOSTGET_MENUBAR` still works as an alias.
 - The menu bar still works in this release and is removed in the next one.
 
+## 0.18.52
+
+This release updates the website share card.
+
+- The share card renders with web-discovery v0.11.0, keeps the whole
+  one-line description, and uses the site's amber background tint.
+
 ## 0.18.51
 
 This release keeps website action labels readable in forced-colors mode.

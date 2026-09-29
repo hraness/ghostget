@@ -47,8 +47,13 @@ import {
   type UiStylesheetImport,
 } from "./build";
 import webmcpRegistrySource from "./source/webmcp-registry.json";
-import { socialImageAlt } from "@hraness/web-discovery/social-image/card";
-import { socialSite } from "./social-image";
+import {
+  createSocialImageCard,
+  socialImageAlt,
+  socialImageFit,
+  socialImageSiteDetails,
+} from "@hraness/web-discovery/social-image/card";
+import { SOCIAL_IMAGE_DESCRIPTION, socialSite } from "./social-image";
 import { BLOG_POSTS, blogPostPath, blogSitemapPaths } from "./blog";
 import {
   parseWebmcpRegistrySnapshot,
@@ -2227,13 +2232,27 @@ describe("ghostget.com static site", () => {
   test("declares one social-image site for the shared template", async () => {
     expect(socialSite.name).toBe("GhostGet");
     expect(socialSite.domain).toBe(new URL(SITE_ORIGIN).host);
-    expect(socialSite.description).toBe(product("wrench").oneLiner);
+    expect(socialSite.description).toBe(SOCIAL_IMAGE_DESCRIPTION);
+    expect(product("wrench").oneLiner).toBe(
+      SOCIAL_IMAGE_DESCRIPTION.replace("use accounts", "use connected accounts"),
+    );
     expect(socialSite.icon?.kind).toBe("mark");
     const markSvg = await readFile(join(websiteRoot, "public/marks/wrench.svg"), "utf8");
     expect(socialSite.icon?.src).toBe(`data:image/svg+xml;base64,${Buffer.from(markSvg, "utf8").toString("base64")}`);
-    expect(socialSite.theme).toEqual({ accent: "#2474d4", background: "#fbf1c7", foreground: "#393533", muted: "#584f48" });
+    expect(socialSite.theme).toEqual({ accent: "#2474d4", background: "#fbf1c7", foreground: "#393533", muted: "#584f48", wash: "#d99a4a" });
     const generator = await readFile(join(websiteRoot, "../scripts/generate-og.tsx"), "utf8");
     expect(generator).toContain("createSocialImageCard(socialImageSiteDetails(socialSite))");
     expect(generator).not.toMatch(/<svg|<div|theme:/u);
+  });
+
+  test("fits the home social card's copy as written", () => {
+    const details = socialImageSiteDetails(socialSite);
+    const fit = socialImageFit(details);
+    expect(fit.issues).toEqual([]);
+    expect(fit.layout).toBe("product");
+    expect(fit.removed).toEqual([]);
+    expect(fit.description?.cut).toBe("none");
+    expect(fit.headline.reduced).toBe(false);
+    expect(() => createSocialImageCard({ ...details, strict: true })).not.toThrow();
   });
 });

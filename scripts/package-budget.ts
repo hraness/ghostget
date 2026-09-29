@@ -2195,6 +2195,15 @@
 // 25865a89245a4d5663f4d4a4de18d0214ddb23e8d63db98fc6da15e8e497801b.
 // Preserve allowances: 12,134,057 + 12,387 + 4,096 = 12,150,540 packed;
 // 24,025,465 + 353 + 65 = 24,025,883 unpacked.
+// Release 0.18.52 over main 6cb5711 changes release pins and the changelog;
+// the web-discovery share-card upgrade stays outside the published package.
+// A clean npm 11.19.0 pack --ignore-scripts with Node 24.20.0 (zlib 1.2.12)
+// on darwin arm64 measured 620 files, 12,134,122 packed bytes and
+// 24,025,660 unpacked bytes. Archive SHA-256
+// 8c64bb2ed2c949f60b9b3c9887eb172de0b4a5076cc0d95e379aa873b436b5a6.
+// Preserve all platform projections and portability allowances:
+// 12,134,122 + 12,387 + 4,096 = 12,150,605 packed;
+// 24,025,660 + 353 + 65 = 24,026,078 unpacked.
 // The menu-bar retirement's release-N control surface over main 460bdf0 adds
 // src/control/admin-socket.ts, outputs.ts, registry.ts, registry-words.ts
 // and status-view.ts to the shipped control sources and grows the CLI,
@@ -2223,14 +2232,22 @@
 // Preserve the projections and allowances:
 // 12,152,401 + 12,387 + 4,096 = 12,168,884 packed;
 // 24,093,255 + 353 + 65 = 24,093,673 unpacked.
+// Integrating main 6622835 (0.18.52, web-discovery v0.11.0 share card) into
+// the same release N. After `bun run build`, npm 11.19.0 pack --ignore-scripts
+// with Node 24.20.0 on darwin arm64 measured 625 entries, 12,152,476 packed
+// bytes, and 24,093,450 unpacked bytes; archive SHA-256
+// 53163e785e34ab363fdf7e936f5b1cd9a61ca838700dfdd5d1b888ca6e9ce0dd.
+// Preserve the projections and allowances:
+// 12,152,476 + 12,387 + 4,096 = 12,168,959 packed;
+// 24,093,450 + 353 + 65 = 24,093,868 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget menu-bar retirement release-N control surface with tui --snapshot --width over main 7cca3ef",
+  scope: "Ghostget menu-bar retirement release-N control surface with tui --snapshot --width over main 6622835",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "59c8473107b13026150b8d8dd02b0b05831ccdf95d65d6f13a662d7c0a79e125",
-  packedBytes: 12_152_401,
-  unpackedBytes: 24_093_255,
+  archiveSha256: "53163e785e34ab363fdf7e936f5b1cd9a61ca838700dfdd5d1b888ca6e9ce0dd",
+  packedBytes: 12_152_476,
+  unpackedBytes: 24_093_450,
   entryCount: 625,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
