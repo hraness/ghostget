@@ -5,6 +5,8 @@ import {
   captureInstallCommandCopied,
   captureProjectLink,
   createBrowserConfig,
+  doNotTrackEnabled,
+  liveCaptureTarget,
   LEGACY_SITE_IDS,
   sanitizeCapture,
   SITE_ID,
@@ -248,5 +250,40 @@ describe("Ghostget browser analytics", () => {
       event: "install command copied",
       properties: { token: "phc_public_project_token" },
     }, evidence)).toBeNull();
+  });
+
+  test("interaction captures reach the loaded SDK, not the replaced snippet stub", () => {
+    const stubCalls: unknown[][] = [];
+    const liveCalls: unknown[][] = [];
+    const stub = { capture: (...args: unknown[]) => { stubCalls.push(args); } };
+    const windowValue: { posthog?: { capture: (...args: unknown[]) => void } } = { posthog: stub };
+    const target = liveCaptureTarget(windowValue, stub);
+
+    captureCta(target, "hero-install");
+    expect(stubCalls).toHaveLength(1);
+
+    windowValue.posthog = { capture: (...args: unknown[]) => { liveCalls.push(args); } };
+    captureCta(target, "final-install");
+    captureInstallCommandCopied(target, "cli");
+    captureProjectLink(target, { target_id: "ghostget" });
+    expect(stubCalls).toHaveLength(1);
+    expect(liveCalls.map((call) => call[0])).toEqual(["cta clicked", "install command copied", "project link opened"]);
+    expect(liveCalls[1]).toEqual(["install command copied", { install_command: "cli" }]);
+
+    delete windowValue.posthog;
+    captureCta(target, "header-install");
+    expect(stubCalls).toHaveLength(2);
+  });
+
+  test("Do Not Track stops the bootstrap because cookieless mode ignores respect_dnt", () => {
+    for (const value of ["1", "yes", " YES ", "true"]) {
+      expect(doNotTrackEnabled({ doNotTrack: value }, {})).toBe(true);
+      expect(doNotTrackEnabled({ msDoNotTrack: value }, {})).toBe(true);
+      expect(doNotTrackEnabled({}, { doNotTrack: value })).toBe(true);
+    }
+    for (const value of [null, undefined, "0", "no", "unspecified", ""]) {
+      expect(doNotTrackEnabled({ doNotTrack: value, msDoNotTrack: value }, { doNotTrack: value })).toBe(false);
+    }
+    expect(doNotTrackEnabled(undefined, undefined)).toBe(false);
   });
 });
