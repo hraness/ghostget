@@ -10,7 +10,8 @@
     <meta name="description" content="Capture public URLs as Markdown and preserve one authorized media item with manifests, transcripts, provenance, and SHA-256 verification.">
     <meta name="robots" content="max-image-preview:large">
     <link rel="canonical" href="https://ghostget.com/docs/how-to/capture-and-archive/">
-    <link rel="icon" href="/icon.png" type="image/png" sizes="512x512">
+    <link rel="icon" href="/icon.png" type="image/png" sizes="32x32">
+    <link rel="icon" href="/icon-96.png" type="image/png" sizes="96x96">
     <link rel="apple-touch-icon" href="/apple-icon.png" sizes="180x180">
     <link rel="stylesheet" href="{{CSS_ASSET}}">
     <link rel="sitemap" type="application/xml" href="/sitemap.xml">
@@ -89,6 +90,7 @@ ghostget search "Example Domain" --root ./ghostget-notes --mode exact</code></pr
 ghostget verify path/to/archive-item</code></pre></div>
           <p>A completed media item retains the acquired encoded media, privacy-projected provider metadata, requested derivatives and transcripts, a versioned manifest, and SHA-256 integrity records. <code>ghostget verify</code> recomputes every recorded artifact hash so the archive can be checked independently after capture.</p>
           <p>The unit of work is exactly one accessible, finite item. Ghostget rejects playlists, live streams, affirmative DRM, and unsupported authentication rather than silently weakening the boundary. It does not bypass authentication, payment, access controls, or DRM.</p>
+          <p>Ghostget runs <a href="https://github.com/yt-dlp/yt-dlp">yt-dlp</a> to fetch the media. Use yt-dlp directly for playlists, channels, or bulk downloads. Use <code>ghostget archive</code> when you want one item with its transcript, manifest, and SHA-256 records.</p>
         </section>
 
         <section aria-labelledby="browser-admission">

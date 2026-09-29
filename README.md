@@ -1,6 +1,6 @@
 # Ghostget
 
-[![The title “Ghostget: Your agent calls web actions by name and holds no password.” and the Ghostget ghost mark on a light card](https://ghostget.com/og.png)](https://ghostget.com)
+[![The title “Ghostget: Your agent gets the result without clicking around.” and the Ghostget ghost mark on a light card](https://ghostget.com/og.png)](https://ghostget.com)
 
 [![skills.sh](https://skills.sh/b/hraness/ghostget)](https://www.skills.sh/hraness/ghostget/ghostget)
 
@@ -57,6 +57,19 @@ bunx skills add hraness/ghostget#v0.18.46
 Start a new agent session, then ask: “Use Ghostget to read https://example.com
 and summarize it.” The skill is instructions for your agent; the CLI install
 above supplies the executable.
+
+## When to use something else
+
+| Tool | Use it instead of Ghostget when |
+| --- | --- |
+| Your agent’s built-in web fetch | A quick lookup is enough and you want nothing to install. |
+| [Firecrawl](https://firecrawl.dev), [Jina Reader](https://jina.ai/reader), [Crawl4AI](https://github.com/unclecode/crawl4ai) | You need to crawl whole sites, search, or run a scraping pipeline. Ghostget reads one URL at a time. |
+| [browser-use](https://github.com/browser-use/browser-use), [Playwright MCP](https://github.com/microsoft/playwright-mcp) | The task is open-ended and the model should drive a browser step by step. |
+| [Browserbase](https://www.browserbase.com) | You need many cloud browsers, proxies, or session replay. |
+| [Composio](https://composio.dev), [Arcade](https://www.arcade.dev) | You build a product whose agents act for many users across many apps. |
+
+[How agents reach the web](https://ghostget.com/compare/) compares browser tools,
+reader services, and integration platforms with Ghostget in more detail.
 
 ## Choose your next task
 
