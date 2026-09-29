@@ -348,6 +348,25 @@ describe("public production outcome transport", () => {
     expect(timed.calls).toHaveLength(1);
   });
 
+  test("accepts current and legacy canonical brand headings without widening identity", async () => {
+    for (const heading of ["# GhostGet\n", "# Ghostget\n"]) {
+      const valid = siteWithFetch((url) => responseAt(url, `${heading}Provider documentation.\n`, {
+        headers: { "content-type": "text/plain; charset=utf-8" },
+      }));
+      await expect(valid.site.readHealthRoute("/llms.txt", tag, sourceSha, {
+        timeoutMilliseconds: 10_000,
+      })).resolves.toMatchObject({ path: "/llms.txt", status: 200 });
+    }
+    for (const heading of ["# Other\n", "# ghostget\n", "# GhostGet Other\n", "# GhostGet"]) {
+      const invalid = siteWithFetch((url) => responseAt(url, heading, {
+        headers: { "content-type": "text/plain; charset=utf-8" },
+      }));
+      await expect(invalid.site.readHealthRoute("/llms.txt", tag, sourceSha, {
+        timeoutMilliseconds: 10_000,
+      })).rejects.toThrow("not the canonical Ghostget text document");
+    }
+  });
+
   test("bounds and validates each exact canonical health route", async () => {
     const canonicalBodies = new Map([
       ["/", '<!doctype html>\n<link rel="canonical" href="https://ghostget.com/">\n'],

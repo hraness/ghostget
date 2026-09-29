@@ -2244,15 +2244,34 @@
 // Preserve the projections and allowances:
 // 12,152,476 + 12,387 + 4,096 = 12,168,959 packed;
 // 24,093,450 + 353 + 65 = 24,093,868 unpacked.
+// Release 0.18.53 over main dbbd1a5 changes release pins and the changelog.
+// After `bun run build`, a clean npm 11.19.0 pack --ignore-scripts with
+// Node 24.20.0 (zlib 1.2.12) on darwin arm64 measured 625 entries,
+// 12,152,562 packed bytes, and 24,093,786 unpacked bytes; archive SHA-256
+// 0a73250d6047e0ed5dca98bceefdeec458828c784fa9355716312afbf88242bd,
+// reproduced by a second pack. Preserve the projections and allowances:
+// 12,152,562 + 12,387 + 4,096 = 12,169,045 packed;
+// 24,093,786 + 353 + 65 = 24,094,204 unpacked.
+// Release N+1 of the menu-bar retirement over main 58e7abc (0.18.53) drops
+// src/control/menubar-cli.ts and menubar-icon.ts from the shipped control
+// sources, adds src/control/retire-tray.ts, and rewrites the menu bar copy in
+// the CLI, TUI, skill and changelog payloads. After `bun run build`, npm
+// 11.19.0 pack --ignore-scripts with Node 24.20.0 on darwin arm64 measured
+// 624 entries, 12,138,305 packed bytes, and 24,040,509 unpacked bytes;
+// archive SHA-256
+// 1638bc653d9fa0cf5cc071e502227244f26feadf9003e6cf4e4ada80275025a0,
+// reproduced by a second pack. Preserve the projections and allowances:
+// 12,138,305 + 12,387 + 4,096 = 12,154,788 packed;
+// 24,040,509 + 353 + 65 = 24,040,927 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget menu-bar retirement release-N control surface with tui --snapshot --width over main 6622835",
+  scope: "Ghostget menu-bar retirement release-N+1 menu bar removal over main 58e7abc",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "53163e785e34ab363fdf7e936f5b1cd9a61ca838700dfdd5d1b888ca6e9ce0dd",
-  packedBytes: 12_152_476,
-  unpackedBytes: 24_093_450,
-  entryCount: 625,
+  archiveSha256: "1638bc653d9fa0cf5cc071e502227244f26feadf9003e6cf4e4ada80275025a0",
+  packedBytes: 12_138_305,
+  unpackedBytes: 24_040_509,
+  entryCount: 624,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,
