@@ -2300,14 +2300,23 @@
 // reproduced by a second pack. Preserve the projections and allowances:
 // 12,151,480 + 12,387 + 4,096 = 12,167,963 packed;
 // 24,042,836 + 353 + 65 = 24,043,254 unpacked.
+// Release 0.18.56 over main 53b3a60 (X contact display-name controls) moves
+// the active version pins, the changelog and the renamed version chunk.
+// After `bun run build`, npm 11.19.0 pack --ignore-scripts with Node 24.20.0
+// on darwin arm64 measured 624 entries, 12,151,508 packed bytes, and
+// 24,042,944 unpacked bytes; archive SHA-256
+// 87dde01c4794277c1bb69cf8fb835015f2cf662873fcb048d8e0fd96c219989d,
+// reproduced by a second pack. Preserve the projections and allowances:
+// 12,151,508 + 12,387 + 4,096 = 12,167,991 packed;
+// 24,042,944 + 353 + 65 = 24,043,362 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget X contact display-name controls over main 05563e5",
+  scope: "Ghostget 0.18.56 release over main 53b3a60",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "97f7a9d3d3aef4a16a39a84676c2efa6b54a80d65adf6e9fb5e66f1806a2ea8c",
-  packedBytes: 12_151_480,
-  unpackedBytes: 24_042_836,
+  archiveSha256: "87dde01c4794277c1bb69cf8fb835015f2cf662873fcb048d8e0fd96c219989d",
+  packedBytes: 12_151_508,
+  unpackedBytes: 24_042_944,
   entryCount: 624,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

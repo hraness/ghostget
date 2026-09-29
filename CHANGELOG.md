@@ -7,6 +7,11 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.56
+
+This release lets X follow-graph reads finish when a display name contains
+control characters.
+
 - X following and follower reads no longer fail when someone's display name
   contains a control character. That person comes through with their ID and
   handle and no display name; empty, oversized or non-text names still fail.
