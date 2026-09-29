@@ -900,7 +900,8 @@ describe("ghostget.com static site", () => {
       expect(footers).toHaveLength(2);
       const [contentFooter, footer] = footers;
       expect(contentFooter).toContain('aria-label="Ghostget" class="hraness-marketing-footer" data-hraness-marketing="footer"');
-      expect(contentFooter).toContain('<a class="hraness-marketing-footer__brand" href="/" aria-label="Ghostget home"><img alt="" height="20" src="/icon.png" width="20" /><span class="hraness-marketing-footer__name">Ghostget</span></a>');
+      expect(contentFooter).toContain('<a class="hraness-marketing-footer__brand" data-foil="" href="/" aria-label="Ghostget home"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span><span class="hraness-marketing-footer__name">Ghostget</span></a>');
+      expect(contentFooter).not.toContain('src="/icon.png"');
       expect(contentFooter).toContain('<nav aria-label="Footer navigation" class="hraness-marketing-footer__nav">');
       expect(contentFooter).toContain('class="hraness-marketing-footer__link" href="/docs/"');
       expect(contentFooter).toContain('class="hraness-marketing-footer__link" href="/docs/reference/provider-capabilities/"');
