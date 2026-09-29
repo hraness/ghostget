@@ -31,6 +31,23 @@ export function renderPlatformIcon(id: PlatformId): string {
   return `<svg aria-hidden="true" class="hraness-platform-icon" fill="currentColor" focusable="false" viewBox="${mark.viewBox}"><path d="${mark.path}"></path></svg>`;
 }
 
+/**
+ * Each listed platform's mark is defined once per block as an id-scoped
+ * `<symbol>` and drawn by reference in the tab and the no-script panel label,
+ * matching the kit's PlatformInstall (the Tux path alone is several KB).
+ */
+function renderPlatformMarkSymbols(ids: readonly PlatformId[], symbolId: (id: PlatformId) => string): string {
+  const symbols = ids.map((id) => {
+    const mark = platformMark(id);
+    return `<symbol id="${symbolId(id)}" viewBox="${mark.viewBox}"><path d="${mark.path}"></path></symbol>`;
+  }).join("");
+  return `<svg aria-hidden="true" class="hraness-platform-install__marks" focusable="false" xmlns="http://www.w3.org/2000/svg">${symbols}</svg>`;
+}
+
+function renderPlatformMarkUse(id: PlatformId, symbolId: string): string {
+  return `<svg aria-hidden="true" class="hraness-platform-icon" data-platform="${id}" fill="currentColor" focusable="false" viewBox="${platformMark(id).viewBox}"><use href="#${symbolId}"></use></svg>`;
+}
+
 const copyGlyph = '<svg aria-hidden="true" class="hraness-platform-install__copy-icon" fill="none" focusable="false" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24"><rect height="12" rx="2" width="12" x="8" y="8"></rect><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"></path></svg>';
 
 export function renderPlatformInstall(
@@ -47,9 +64,10 @@ export function renderPlatformInstall(
     }
   }
   const base = options.id;
+  const symbolId = (id: PlatformId) => `${base}-mark-${id}`;
   const tabs = options.platforms.map((target) => {
     const selected = target.id === first.id;
-    return `<button aria-controls="${base}-panel-${target.id}" aria-selected="${selected}" class="hraness-platform-install__tab" data-availability="${target.unavailable === true ? "unavailable" : "available"}" data-platform="${target.id}" id="${base}-tab-${target.id}" role="tab" tabindex="${selected ? 0 : -1}" type="button">${renderPlatformIcon(target.id)}<span>${escapeHtml(platformLabel(target.id))}</span></button>`;
+    return `<button aria-controls="${base}-panel-${target.id}" aria-selected="${selected}" class="hraness-platform-install__tab" data-availability="${target.unavailable === true ? "unavailable" : "available"}" data-platform="${target.id}" id="${base}-tab-${target.id}" role="tab" tabindex="${selected ? 0 : -1}" type="button">${renderPlatformMarkUse(target.id, symbolId(target.id))}<span class="hraness-platform-install__tab-label">${escapeHtml(platformLabel(target.id))}</span></button>`;
   }).join("");
   const panels = options.platforms.map((target) => {
     const name = platformLabel(target.id);
@@ -59,10 +77,10 @@ export function renderPlatformInstall(
       : "";
     const command = target.command === undefined ? "" : `<div class="hraness-platform-install__command" data-copy-state="idle"><div class="hraness-platform-install__command-bar"><span class="hraness-platform-install__shell">${escapeHtml(target.shell ?? "")}</span><button class="hraness-platform-install__copy" data-copy-state="idle" data-platform-install-copy hidden type="button">${copyGlyph}<span data-platform-install-copy-label>Copy</span><span class="hraness-platform-install__status"> ${escapeHtml(subject)}</span></button></div><pre aria-label="${escapeHtml(subject)}" class="hraness-platform-install__pre" tabindex="0"><code class="hraness-platform-install__code">${escapeHtml(target.command)}</code></pre></div>`;
     const note = target.noteHtml === undefined ? "" : `<div class="hraness-platform-install__note">${target.noteHtml}</div>`;
-    return `<div aria-labelledby="${base}-tab-${target.id}" class="hraness-platform-install__panel" data-availability="${target.unavailable === true ? "unavailable" : "available"}" data-platform="${target.id}" id="${base}-panel-${target.id}" role="tabpanel"><div class="hraness-platform-install__panel-body"><p class="hraness-platform-install__panel-label">${renderPlatformIcon(target.id)}<span>${escapeHtml(name)}</span></p>${unavailable}${command}${note}</div></div>`;
+    return `<div aria-labelledby="${base}-tab-${target.id}" class="hraness-platform-install__panel" data-availability="${target.unavailable === true ? "unavailable" : "available"}" data-platform="${target.id}" id="${base}-panel-${target.id}" role="tabpanel"><div class="hraness-platform-install__panel-body"><p class="hraness-platform-install__panel-label">${renderPlatformMarkUse(target.id, symbolId(target.id))}<span>${escapeHtml(name)}</span></p>${unavailable}${command}${note}</div></div>`;
   }).join("");
   const analytics = options.analyticsCommand === undefined ? "" : ` data-install-command="${escapeHtml(options.analyticsCommand)}"`;
-  return `<div class="hraness-platform-install" data-hraness-platform-install="" data-selected-platform="${first.id}" data-selection-source="default" id="${base}"${analytics}><div aria-label="${escapeHtml(options.label ?? "Platform")}" class="hraness-platform-install__tabs" hidden role="tablist">${tabs}</div>${panels}<p aria-live="polite" class="hraness-platform-install__status" role="status"></p></div>`;
+  return `<div class="hraness-platform-install" data-hraness-platform-install="" data-selected-platform="${first.id}" data-selection-source="default" id="${base}"${analytics}>${renderPlatformMarkSymbols(options.platforms.map((target) => target.id), symbolId)}<div aria-label="${escapeHtml(options.label ?? "Platform")}" class="hraness-platform-install__tabs" hidden role="tablist">${tabs}</div>${panels}<p aria-live="polite" class="hraness-platform-install__status" role="status"></p></div>`;
 }
 
 export function renderPlatformBadges(
