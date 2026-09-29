@@ -6,10 +6,10 @@ Posts go out from the @hraness account. Each post matches one section of https:/
 
 ## X thread
 
-Post 1 of 10, 189 characters
+Post 1 of 10, 196 characters
 
 ```text
-GhostGet gives the AI agent on your computer named web actions. It can read a page, save a media item, or use an account you connected, and it never holds your password or steers a browser.
+GhostGet is wget for the ghost in the machine. It gives the AI agent on your computer named web actions: read a page, save a media item, or use an account you connected, all without your password.
 ```
 
 Post 2 of 10, 183 characters
@@ -54,10 +54,10 @@ Post 8 of 10, 192 characters
 The plan is for GhostGet to stay small. Your agent does the thinking, and GhostGet runs only actions someone has reviewed. Each new service arrives as reviewed actions with their own previews.
 ```
 
-Post 9 of 10, 213 characters
+Post 9 of 10, 219 characters
 
 ```text
-It does not get past sign-in, payment, access controls, or DRM. Some services need their own setup first, and not everything it stores is encrypted. Its claims register lists 19 claims with no automated check yet.
+GhostGet does not get past sign-in, payment, access controls, or DRM. Some services need their own setup first, and not everything it stores is encrypted. Its claims register lists 19 claims with no automated check yet.
 ```
 
 Post 10 of 10, 192 characters
@@ -70,10 +70,10 @@ https://ghostget.com/blog/introducing-ghostget/
 
 ## Bluesky thread
 
-Post 1 of 10, 189 characters
+Post 1 of 10, 196 characters
 
 ```text
-GhostGet gives the AI agent on your computer named web actions. It can read a page, save a media item, or use an account you connected, and it never holds your password or steers a browser.
+GhostGet is wget for the ghost in the machine. It gives the AI agent on your computer named web actions: read a page, save a media item, or use an account you connected, all without your password.
 ```
 
 Post 2 of 10, 183 characters
@@ -118,10 +118,10 @@ Post 8 of 10, 192 characters
 The plan is for GhostGet to stay small. Your agent does the thinking, and GhostGet runs only actions someone has reviewed. Each new service arrives as reviewed actions with their own previews.
 ```
 
-Post 9 of 10, 213 characters
+Post 9 of 10, 219 characters
 
 ```text
-It does not get past sign-in, payment, access controls, or DRM. Some services need their own setup first, and not everything it stores is encrypted. Its claims register lists 19 claims with no automated check yet.
+GhostGet does not get past sign-in, payment, access controls, or DRM. Some services need their own setup first, and not everything it stores is encrypted. Its claims register lists 19 claims with no automated check yet.
 ```
 
 Post 10 of 10, 192 characters
@@ -134,10 +134,10 @@ https://ghostget.com/blog/introducing-ghostget/
 
 ## Threads thread
 
-Post 1 of 10, 189 characters
+Post 1 of 10, 196 characters
 
 ```text
-GhostGet gives the AI agent on your computer named web actions. It can read a page, save a media item, or use an account you connected, and it never holds your password or steers a browser.
+GhostGet is wget for the ghost in the machine. It gives the AI agent on your computer named web actions: read a page, save a media item, or use an account you connected, all without your password.
 ```
 
 Post 2 of 10, 183 characters
@@ -182,10 +182,10 @@ Post 8 of 10, 192 characters
 The plan is for GhostGet to stay small. Your agent does the thinking, and GhostGet runs only actions someone has reviewed. Each new service arrives as reviewed actions with their own previews.
 ```
 
-Post 9 of 10, 213 characters
+Post 9 of 10, 219 characters
 
 ```text
-It does not get past sign-in, payment, access controls, or DRM. Some services need their own setup first, and not everything it stores is encrypted. Its claims register lists 19 claims with no automated check yet.
+GhostGet does not get past sign-in, payment, access controls, or DRM. Some services need their own setup first, and not everything it stores is encrypted. Its claims register lists 19 claims with no automated check yet.
 ```
 
 Post 10 of 10, 192 characters
@@ -199,7 +199,7 @@ https://ghostget.com/blog/introducing-ghostget/
 ## LinkedIn post
 
 ```text
-GhostGet gives the AI agent on your computer named web actions. It can read a page, save a media item, or use an account you connected, and it never holds your password or steers a browser.
+GhostGet is wget for the ghost in the machine. It gives the AI agent on your computer named web actions: read a page, save a media item, or use an account you connected, all without your password.
 
 Ask for a page and your agent gets Markdown with its source attached. A Wikipedia article came back as 15,021 bytes where the raw page served 145,617 bytes of HTML, 9.7 times smaller.
 
@@ -215,7 +215,7 @@ GhostGet is for Claude Code, Codex, Cursor, and other agents that run commands o
 
 The plan is for GhostGet to stay small. Your agent does the thinking, and GhostGet runs only actions someone has reviewed. Each new service arrives as reviewed actions with their own previews.
 
-It does not get past sign-in, payment, access controls, or DRM. Some services need their own setup first, and not everything it stores is encrypted. Its claims register lists 19 claims with no automated check yet.
+GhostGet does not get past sign-in, payment, access controls, or DRM. Some services need their own setup first, and not everything it stores is encrypted. Its claims register lists 19 claims with no automated check yet.
 
 GhostGet is free, MIT licensed, and runs on macOS and Linux. The first step reads a public page and needs no account. Latest release: v0.18.55.
 
@@ -237,14 +237,14 @@ Topics: Developer Tools, Artificial Intelligence, Open Source
 ## Show HN and first comment fact sheet
 
 - wget for the ghost in the machine
-- GhostGet gives the AI agent on your computer named web actions. It can read a page, save a media item, or use an account you connected, and it never holds your password or steers a browser.
+- GhostGet is wget for the ghost in the machine. It gives the AI agent on your computer named web actions: read a page, save a media item, or use an account you connected, all without your password.
 - Ask for a page and your agent gets Markdown with its source attached. A Wikipedia article came back as 15,021 bytes where the raw page served 145,617 bytes of HTML, 9.7 times smaller.
 - A signed-in browser lets an agent click anything you can. With GhostGet it asks for one named action, like listing your Gmail contacts, and gets the result. It never sees a cookie, token, or login.
 - GhostGet has actions for 21 services, including Gmail, Beeper, WhatsApp, LinkedIn, X, Reddit, GitHub, and YouTube. You connect each account yourself, on the service's own sign-in page.
 - Sometimes a post goes through but the answer gets lost on the way back. GhostGet writes down every send before it leaves and will not send it again until it knows what happened.
 - Anything beyond a read starts as a preview that shows the account, the recipient, and the exact text. Your agent can prepare it. Nothing is sent until someone confirms that exact preview.
 - GhostGet is for Claude Code, Codex, Cursor, and other agents that run commands on your Mac or Linux machine. If you need an agent to click through any site or fill in any form, use browser automation.
-- It does not get past sign-in, payment, access controls, or DRM. Some services need their own setup first, and not everything it stores is encrypted. Its claims register lists 19 claims with no automated check yet.
+- GhostGet does not get past sign-in, payment, access controls, or DRM. Some services need their own setup first, and not everything it stores is encrypted. Its claims register lists 19 claims with no automated check yet.
 - GhostGet is free, MIT licensed, and runs on macOS and Linux. The first step reads a public page and needs no account. Latest release: v0.18.55.
 - Latest release: v0.18.55. https://ghostget.com/blog/introducing-ghostget/
 
