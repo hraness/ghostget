@@ -11,7 +11,7 @@ Use this after every confirmation and before any possible repost or deletion.
 5. Treat an absent or inconclusive read as unresolved, not as proof that the write never happened. Repeat only the bounded read/reconciliation when supported; never repeat the mutation.
 6. For pre-dispatch `failed`, create a new preview only while the exact original action remains authorized.
 
-If a current legacy reconciler explicitly requests original input, supply only the exact confirmed input that Ghostget verifies against the receipt. Never reconstruct or alter it to force a match.
+If a current legacy reconciler explicitly requests original input, supply only the exact confirmed input that GhostGet verifies against the receipt. Never reconstruct or alter it to force a match.
 
 ## Keep an exact duplicate ledger
 
@@ -40,13 +40,13 @@ ghostget invoke <adapter> posts.publish \
   --preview --json
 ```
 
-Version 1 accepts exactly one source run and only a one-dispatch R3 `posts.publish` operation on the `web-session-api` or the portable plugin transport. An official OAuth or other `provider-api` attempt is ineligible. Ghostget must prove that the source is an unclaimed, retained, terminal `indeterminate` run with the exact same adapter, auth realm, operation, risk, input, contract, receipt, journal, ledger, recovery capsule, and retained attachment bytes. The auth realm must keep the source's locator ID and kind; after a reconnect, the new auth record must name the provider subject that the source's recovery capsule recorded, and a source whose capsule recorded no subject needs its exact auth record. A historical attempt under another contract or adapter remains in the task ledger but is not a valid source. Review the warning and successor fingerprint in the new preview, then confirm its digest once; never put `--duplicate-risk-of` on `ghostget confirm`.
+Version 1 accepts exactly one source run and only a one-dispatch R3 `posts.publish` operation on the `web-session-api` or the portable plugin transport. An official OAuth or other `provider-api` attempt is ineligible. GhostGet must prove that the source is an unclaimed, retained, terminal `indeterminate` run with the exact same adapter, auth realm, operation, risk, input, contract, receipt, journal, ledger, recovery capsule, and retained attachment bytes. The auth realm must keep the source's locator ID and kind; after a reconnect, the new auth record must name the provider subject that the source's recovery capsule recorded, and a source whose capsule recorded no subject needs its exact auth record. A historical attempt under another contract or adapter remains in the task ledger but is not a valid source. Review the warning and successor fingerprint in the new preview, then confirm its digest once; never put `--duplicate-risk-of` on `ghostget confirm`.
 
-Ghostget permanently elects only one successor for the source and keeps successful successor idempotency evidence from expiring. If the source changes, reconciles, lacks exact retained evidence, already elected a successor, or fails any binding check, stop and report the refusal. Do not select a looser source, add a nonce, clear state, or bypass the check.
+GhostGet permanently elects only one successor for the source and keeps successful successor idempotency evidence from expiring. If the source changes, reconciles, lacks exact retained evidence, already elected a successor, or fails any binding check, stop and report the refusal. Do not select a looser source, add a nonce, clear state, or bypass the check.
 
 If a duplicate-intent child fails before successor election, its dispatch remains at zero and the source can remain eligible; re-check both runs, then re-preview that same source to derive the same successor intent. If the source was elected but a later local journal step failed, the lineage is intentionally stranded and must not be retried. If a child becomes `indeterminate` after dispatch and another possible duplicate is freshly authorized, cite that eligible child—not any ancestor—to extend one linear chain. Never branch or reuse an already claimed source.
 
-This does not settle or replace an older run. Keep its Ghostget ledger and recovery material intact, and reconcile it separately when exact evidence becomes available. Once the elected successor settles after its dispatch, Ghostget marks the source `supersededBy` that successor: the source's recovery capsule and retained assets are released, so a portable source stops blocking its plugin bundle, but its indeterminate ledger stays and the intent fence still counts its possible effect.
+This does not settle or replace an older run. Keep its GhostGet ledger and recovery material intact, and reconcile it separately when exact evidence becomes available. Once the elected successor settles after its dispatch, GhostGet marks the source `supersededBy` that successor: the source's recovery capsule and retained assets are released, so a portable source stops blocking its plugin bundle, but its indeterminate ledger stays and the intent fence still counts its possible effect.
 
 ## Delete a proven duplicate
 
@@ -72,7 +72,7 @@ platform attempt is uncertain.
 Keep these times distinct:
 
 - plan creation/confirmation: local authorization, not publication;
-- dispatch start/finish: Ghostget transport timing, not external availability;
+- dispatch start/finish: GhostGet transport timing, not external availability;
 - provider-created time: a provider-authored value, when strictly bound;
 - first observed time: when exact independent readback saw the object.
 

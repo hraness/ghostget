@@ -6,8 +6,8 @@
     <meta name="color-scheme" content="light dark">
     <meta name="theme-color" content="#fbf1c7" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">
-    <title>Ghostget vs agent-browser: a browser the agent can never steer</title>
-    <meta name="description" content="agent-browser lets an agent open, click, type in, and snapshot a real browser. Ghostget runs it internally for page capture, where the agent can't steer it.">
+    <title>GhostGet vs agent-browser: a browser the agent can never steer</title>
+    <meta name="description" content="agent-browser lets an agent open, click, type in, and snapshot a real browser. GhostGet runs it internally for page capture, where the agent can't steer it.">
     <meta name="robots" content="max-image-preview:large">
     <link rel="canonical" href="https://ghostget.com/compare/agent-browser/">
     <link rel="icon" href="/icon.png" type="image/png" sizes="32x32">
@@ -17,17 +17,17 @@
     <link rel="sitemap" type="application/xml" href="/sitemap.xml">
     {{MARKDOWN_ALTERNATE}}
     <meta property="og:type" content="article">
-    <meta property="og:site_name" content="Ghostget">
-    <meta property="og:title" content="Ghostget vs agent-browser: a browser the agent can never steer">
-    <meta property="og:description" content="agent-browser lets an agent open, click, type in, and snapshot a real browser. Ghostget runs it internally for page capture, where the agent can't steer it.">
+    <meta property="og:site_name" content="GhostGet">
+    <meta property="og:title" content="GhostGet vs agent-browser: a browser the agent can never steer">
+    <meta property="og:description" content="agent-browser lets an agent open, click, type in, and snapshot a real browser. GhostGet runs it internally for page capture, where the agent can't steer it.">
     <meta property="og:url" content="https://ghostget.com/compare/agent-browser/">
     <meta property="og:image" content="https://ghostget.com/og.png">
     <meta property="og:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Ghostget vs agent-browser: a browser the agent can never steer">
-    <meta name="twitter:description" content="agent-browser lets an agent open, click, type in, and snapshot a real browser. Ghostget runs it internally for page capture, where the agent can't steer it.">
+    <meta name="twitter:title" content="GhostGet vs agent-browser: a browser the agent can never steer">
+    <meta name="twitter:description" content="agent-browser lets an agent open, click, type in, and snapshot a real browser. GhostGet runs it internally for page capture, where the agent can't steer it.">
     <meta name="twitter:image" content="https://ghostget.com/og.png">
     <meta name="twitter:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
     <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
@@ -39,7 +39,7 @@
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
     <header class="topbar guide-topbar">
-      <a aria-label="Ghostget home" class="wordmark hraness-foil-text" data-foil="" href="/"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span> Ghostget</a>
+      <a aria-label="GhostGet home" class="wordmark hraness-foil-text" data-foil="" href="/"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span> GhostGet</a>
       <nav aria-label="Primary">
         <a href="/docs/tutorials/getting-started/">Install</a>
         <a href="/docs/reference/provider-capabilities/">Providers</a>
@@ -48,19 +48,19 @@
       </nav>
     </header>
     <main class="guide-main" id="main" tabindex="-1">
-      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">Ghostget</a></li><li><a href="/compare/">Comparisons</a></li><li aria-current="page">agent-browser</li></ol></nav>
+      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">GhostGet</a></li><li><a href="/compare/">Comparisons</a></li><li aria-current="page">agent-browser</li></ol></nav>
       <article class="guide-article">
         <header class="guide-hero">
-          <p class="eyebrow">Comparison · Ghostget {{GHOSTGET_VERSION}}</p>
-          <h1>Ghostget runs agent-browser internally, where your agent can’t steer it</h1>
-          <p class="answer-lede"><a href="https://github.com/vercel-labs/agent-browser">agent-browser</a> is Vercel Labs' Rust CLI for agent-driven browsing: <code>open</code>, <code>click</code>, <code>type</code>, <code>fill</code>, <code>snapshot</code>, <code>screenshot</code>, and <code>eval</code>, with sessions and profiles your agent composes as shell commands. Ghostget itself pins agent-browser 0.32.3 as an internal dependency for page captures that need rendering, and no Ghostget command lets the caller choose a selector, keystroke, or script.</p>
-          <p class="review-note">This page describes agent-browser as published in September 2026 and Ghostget {{GHOSTGET_RELEASE}}. The pin is visible in Ghostget's <a href="{{GHOSTGET_REPOSITORY}}/blob/{{GHOSTGET_RELEASE}}/package.json">release manifest</a>.</p>
+          <p class="eyebrow">Comparison · GhostGet {{GHOSTGET_VERSION}}</p>
+          <h1>GhostGet runs agent-browser internally, where your agent can’t steer it</h1>
+          <p class="answer-lede"><a href="https://github.com/vercel-labs/agent-browser">agent-browser</a> is Vercel Labs' Rust CLI for agent-driven browsing: <code>open</code>, <code>click</code>, <code>type</code>, <code>fill</code>, <code>snapshot</code>, <code>screenshot</code>, and <code>eval</code>, with sessions and profiles your agent composes as shell commands. GhostGet itself pins agent-browser 0.32.3 as an internal dependency for page captures that need rendering, and no GhostGet command lets the caller choose a selector, keystroke, or script.</p>
+          <p class="review-note">This page describes agent-browser as published in September 2026 and GhostGet {{GHOSTGET_RELEASE}}. The pin is visible in GhostGet's <a href="{{GHOSTGET_REPOSITORY}}/blob/{{GHOSTGET_RELEASE}}/package.json">release manifest</a>.</p>
         </header>
 
         <section aria-labelledby="ab-model">
           <h2 id="ab-model">Who controls the browser</h2>
           <p>Used directly, agent-browser is a steering surface: the agent decides which URL to open, which selector to click, what to type, and what JavaScript to evaluate. Disk-first snapshots keep the token cost lower than streamed MCP state, but the authority model is unchanged. Every reachable page is a place the agent can act, and every action is one the caller chose.</p>
-          <p>Ghostget uses the same class of engine inside a bounded capture path. When an HTTP fetch cannot produce the requested result, an internal browser acquisition may render the page under an admission cap of two across all Ghostget processes sharing a state home. The caller supplies a URL and a result contract; it cannot supply a selector, a coordinate, a keystroke, or a script. The agent can’t reach the engine.</p>
+          <p>GhostGet uses the same class of engine inside a bounded capture path. When an HTTP fetch cannot produce the requested result, an internal browser acquisition may render the page under an admission cap of two across all GhostGet processes sharing a state home. The caller supplies a URL and a result contract; it cannot supply a selector, a coordinate, a keystroke, or a script. The agent can’t reach the engine.</p>
         </section>
 
         <section aria-labelledby="ab-table">
@@ -71,7 +71,7 @@
                 <tr>
                   <th scope="col">Decision</th>
                   <th scope="col">agent-browser, used directly</th>
-                  <th scope="col">Ghostget</th>
+                  <th scope="col">GhostGet</th>
                 </tr>
               </thead>
               <tbody>
@@ -107,8 +107,8 @@
 
         <section aria-labelledby="ab-choose">
           <h2 id="ab-choose">When to pick which</h2>
-          <p>Pick agent-browser directly when your agent needs to compose its own browsing: exploratory sessions, form experiments, or flows where the steps are the deliverable. It is a well-shaped tool for that job, which is part of why Ghostget builds on it rather than reinventing the engine.</p>
-          <p>Pick Ghostget when the deliverable is the result, not the session. A page read returns bounded Markdown; an account action returns a typed receipt; and the agent cannot turn the capture engine into a navigation surface because no command, selector, or script channel reaches it. If your threat model is "the agent must not click around the web," that closure is the product.</p>
+          <p>Pick agent-browser directly when your agent needs to compose its own browsing: exploratory sessions, form experiments, or flows where the steps are the deliverable. It is a well-shaped tool for that job, which is part of why GhostGet builds on it rather than reinventing the engine.</p>
+          <p>Pick GhostGet when the deliverable is the result, not the session. A page read returns bounded Markdown; an account action returns a typed receipt; and the agent cannot turn the capture engine into a navigation surface because no command, selector, or script channel reaches it. If your threat model is "the agent must not click around the web," that closure is the product.</p>
         </section>
 
         <aside class="guide-callout" aria-labelledby="ab-next">
@@ -117,8 +117,8 @@
         </aside>
       </article>
     </main>
-    <aside aria-label="Ghostget project information" class="site-disclosure">
-      <p>Ghostget {{GHOSTGET_VERSION}} · MIT · <a href="{{GHOSTGET_REPOSITORY}}">Source on GitHub</a> · <a href="/about/">About</a> · <a href="/contact/">Contact</a> · <a href="/privacy/">Privacy</a> · <a href="/llms.txt">llms.txt</a></p>
+    <aside aria-label="GhostGet project information" class="site-disclosure">
+      <p>GhostGet {{GHOSTGET_VERSION}} · MIT · <a href="{{GHOSTGET_REPOSITORY}}">Source on GitHub</a> · <a href="/about/">About</a> · <a href="/contact/">Contact</a> · <a href="/privacy/">Privacy</a> · <a href="/llms.txt">llms.txt</a></p>
       <p class="privacy-note">Privacy: cookieless PostHog analytics measure page lifecycle and Core Web Vitals. No person profiles, replay, broad autocapture, or URL queries; Do Not Track is honored.</p>
     </aside>
     {{HRANESS_SITE_FOOTER}}

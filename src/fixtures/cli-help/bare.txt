@@ -1,4 +1,4 @@
-Ghostget gives your AI agent named web actions: read a page, archive one
+GhostGet gives your AI agent named web actions: read a page, archive one
 media item, or use a connected account, without credentials or a browser to
 steer.
 
@@ -8,7 +8,7 @@ Start here
   ghostget auth add x-main --cookie-source chrome
                                       Connect an account from that browser
   ghostget capabilities               See the actions you can run
-  ghostget menubar                    Show Ghostget in the menu bar
+  ghostget menubar                    Show GhostGet in the menu bar
 
 Everyday
   ghostget clip <url>                 Save a page as a Markdown note

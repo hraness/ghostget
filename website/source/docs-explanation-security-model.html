@@ -6,8 +6,8 @@
     <meta name="color-scheme" content="light dark">
     <meta name="theme-color" content="#fbf1c7" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">
-    <title>Ghostget security model: accounts, credentials, and writes</title>
-    <meta name="description" content="How Ghostget keeps sign-ins on your machine, ties each action to one account, and handles a write whose outcome is unknown.">
+    <title>GhostGet security model: accounts, credentials, and writes</title>
+    <meta name="description" content="How GhostGet keeps sign-ins on your machine, ties each action to one account, and handles a write whose outcome is unknown.">
     <meta name="robots" content="max-image-preview:large">
     <link rel="canonical" href="https://ghostget.com/docs/explanation/security-model/">
     <link rel="icon" href="/icon.png" type="image/png" sizes="32x32">
@@ -17,17 +17,17 @@
     <link rel="sitemap" type="application/xml" href="/sitemap.xml">
     {{MARKDOWN_ALTERNATE}}
     <meta property="og:type" content="article">
-    <meta property="og:site_name" content="Ghostget">
-    <meta property="og:title" content="Ghostget security model: accounts, credentials, and writes">
-    <meta property="og:description" content="How Ghostget keeps sign-ins on your machine, ties each action to one account, and handles a write whose outcome is unknown.">
+    <meta property="og:site_name" content="GhostGet">
+    <meta property="og:title" content="GhostGet security model: accounts, credentials, and writes">
+    <meta property="og:description" content="How GhostGet keeps sign-ins on your machine, ties each action to one account, and handles a write whose outcome is unknown.">
     <meta property="og:url" content="https://ghostget.com/docs/explanation/security-model/">
     <meta property="og:image" content="https://ghostget.com/og.png">
     <meta property="og:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Ghostget security model: accounts, credentials, and writes">
-    <meta name="twitter:description" content="How Ghostget keeps sign-ins on your machine, ties each action to one account, and handles a write whose outcome is unknown.">
+    <meta name="twitter:title" content="GhostGet security model: accounts, credentials, and writes">
+    <meta name="twitter:description" content="How GhostGet keeps sign-ins on your machine, ties each action to one account, and handles a write whose outcome is unknown.">
     <meta name="twitter:image" content="https://ghostget.com/og.png">
     <meta name="twitter:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
     <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
@@ -39,7 +39,7 @@
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
     <header class="topbar guide-topbar">
-      <a aria-label="Ghostget home" class="wordmark hraness-foil-text" data-foil="" href="/"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span> Ghostget</a>
+      <a aria-label="GhostGet home" class="wordmark hraness-foil-text" data-foil="" href="/"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span> GhostGet</a>
       <nav aria-label="Primary">
         <a href="/docs/tutorials/getting-started/">Install</a>
         <a href="/docs/reference/provider-capabilities/">Providers</a>
@@ -48,25 +48,25 @@
       </nav>
     </header>
     <main class="guide-main" id="main" tabindex="-1">
-      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">Ghostget</a></li><li><a href="/docs/">Docs</a></li><li aria-current="page">Security</li></ol></nav>
+      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">GhostGet</a></li><li><a href="/docs/">Docs</a></li><li aria-current="page">Security</li></ol></nav>
       <article class="guide-article">
         <header class="guide-hero">
-          <p class="eyebrow">Explanation · security model · Ghostget {{GHOSTGET_VERSION}}</p>
-          <h1>How Ghostget limits what an agent can do on the web</h1>
-          <p class="answer-lede">An authenticated Ghostget operation binds one named outcome to an exact provider, transport, account realm, contract version, implementation, input, and risk. Credentials stay opaque to the caller. When those facts drift, the operation stops instead of changing transports or falling back to general browser control.</p>
-          <p class="review-note">This guide describes Ghostget {{GHOSTGET_RELEASE}}. Report vulnerabilities through <a href="https://github.com/hraness/ghostget/security/advisories/new">GitHub private vulnerability reporting</a>, never a public issue containing private material.</p>
+          <p class="eyebrow">Explanation · security model · GhostGet {{GHOSTGET_VERSION}}</p>
+          <h1>How GhostGet limits what an agent can do on the web</h1>
+          <p class="answer-lede">An authenticated GhostGet operation binds one named outcome to an exact provider, transport, account realm, contract version, implementation, input, and risk. Credentials stay opaque to the caller. When those facts drift, the operation stops instead of changing transports or falling back to general browser control.</p>
+          <p class="review-note">This guide describes GhostGet {{GHOSTGET_RELEASE}}. Report vulnerabilities through <a href="https://github.com/hraness/ghostget/security/advisories/new">GitHub private vulnerability reporting</a>, never a public issue containing private material.</p>
         </header>
 
         <section aria-labelledby="threat-boundary">
           <h2 id="threat-boundary">Foreign data is parsed; authority is selected separately</h2>
-          <p>Ghostget treats CLI input, URLs, manifests, packages, plugin messages, provider responses, browser output, files, durable state, and subprocess diagnostics as untrusted. Foreign values are strictly parsed and bounded, and sensitive values are redacted from terminal output, receipts, and diagnostics.</p>
-          <p>Operations expose semantic jobs such as <code>messaging.list</code>, not raw cookies, selectors, scripts, arbitrary HTTP, native command arguments, or every signed-in tab. The exact auth locator is bound to one provider account and transport. Ghostget does not silently move between an official API, browser session, linked-device store, pinned local CLI, or portable plugin.</p>
+          <p>GhostGet treats CLI input, URLs, manifests, packages, plugin messages, provider responses, browser output, files, durable state, and subprocess diagnostics as untrusted. Foreign values are strictly parsed and bounded, and sensitive values are redacted from terminal output, receipts, and diagnostics.</p>
+          <p>Operations expose semantic jobs such as <code>messaging.list</code>, not raw cookies, selectors, scripts, arbitrary HTTP, native command arguments, or every signed-in tab. The exact auth locator is bound to one provider account and transport. GhostGet does not silently move between an official API, browser session, linked-device store, pinned local CLI, or portable plugin.</p>
         </section>
 
         <section aria-labelledby="custody">
           <h2 id="custody">Account-bound reads stay under local custody</h2>
           <p>A successful R1 provider read with a verified account subject can publish an encrypted snapshot of the exact validated query and bounded provider output. The same query can later load from local ciphertext without contacting the provider. Within those snapshots, inputs, account subjects, cursors, private identifiers, and provider output remain inside authenticated local encryption. The separate owner messaging host retains private plaintext history and journals; see the <a href="/privacy/">privacy guide</a> for storage and retention boundaries.</p>
-          <p>A failed refresh or publication does not erase the last verified snapshot. Replacing or removing an auth locator rotates its local lifetime identity, so ciphertext from an earlier account incarnation cannot become current after recreation. Ghostget reports the provider’s own paging and completeness as they are and never claims a result is more complete than the provider reported.</p>
+          <p>A failed refresh or publication does not erase the last verified snapshot. Replacing or removing an auth locator rotates its local lifetime identity, so ciphertext from an earlier account incarnation cannot become current after recreation. GhostGet reports the provider’s own paging and completeness as they are and never claims a result is more complete than the provider reported.</p>
         </section>
 
         <section aria-labelledby="risk">
@@ -78,7 +78,7 @@
             <div><dt>R4</dt><dd>Blocked.</dd></div>
           </dl>
           <p>Generic R2 and R3 operations create an exact, short-lived preview. The confirmation binds the adapter, transport, account realm, input, attachment hashes, side effect, contract hash, and dispatch schedule. The separate owner messaging host can submit an exact prepared plan under explicit managed permissions and a revocable conversation grant with action, expiry, interval, and capacity limits. Its <code>messaging.automation.*</code> catalog entries are permission ceilings, not commands available through generic <code>invoke</code> or <code>confirm</code>; current account and runtime capabilities must also admit the action.</p>
-          <p>If a request left the machine but its response was lost, Ghostget retains the indeterminate result and does not retry or switch transport. A separate reconciliation needs exact external evidence. Cancellation or revocation stops remaining work but does not prove an already-started action was unsent. Provider acceptance is distinct from delivery or read status.</p>
+          <p>If a request left the machine but its response was lost, GhostGet retains the indeterminate result and does not retry or switch transport. A separate reconciliation needs exact external evidence. Cancellation or revocation stops remaining work but does not prove an already-started action was unsent. Provider acceptance is distinct from delivery or read status.</p>
         </section>
 
         <section aria-labelledby="drift">
@@ -90,19 +90,19 @@
         <section aria-labelledby="native-cli">
           <h2 id="native-cli">A provider CLI is pinned bytes behind a semantic contract</h2>
           <p>A source plugin can use the <code>local-cli</code> transport only when it records the exact executable SHA-256 for every supported platform and binds every upstream archive or release-manifest artifact that the provider publishes. Each operation owns a fixed argument template and strict projection. Callers cannot select a command, flag, endpoint, target, environment variable, plugin, or output path.</p>
-          <p>Ghostget starts the exact executable without a shell under private config, data, cache, and temporary roots. It strips ambient credentials and defaults, enforces its own deadline and byte bounds, and treats a lost or malformed post-dispatch response as indeterminate. A version range, package-manager channel, tag, launcher, or reported version cannot replace executable-byte identity.</p>
+          <p>GhostGet starts the exact executable without a shell under private config, data, cache, and temporary roots. It strips ambient credentials and defaults, enforces its own deadline and byte bounds, and treats a lost or malformed post-dispatch response as indeterminate. A version range, package-manager channel, tag, launcher, or reported version cannot replace executable-byte identity.</p>
         </section>
 
         <section aria-labelledby="plugins-boundary">
           <h2 id="plugins-boundary">Portable plugins are contained, not treated as hostile code</h2>
           <p>Source plugins ship as trusted in-process code. A portable plugin requires an explicit trust decision for one verified, content-addressed bundle and runs through a denied-by-default child-process protocol. The protocol limits the services a well-behaved plugin can request and contains ordinary crashes.</p>
-          <p>It is not a hostile native-code sandbox. Plugin code still runs with the ambient operating-system authority of the current account. Review code before trusting it, keep Ghostget state on a trusted local filesystem protected for that account, and follow the <a href="/docs/how-to/author-provider-plugin/">plugin verification workflow</a>.</p>
+          <p>It is not a hostile native-code sandbox. Plugin code still runs with the ambient operating-system authority of the current account. Review code before trusting it, keep GhostGet state on a trusted local filesystem protected for that account, and follow the <a href="/docs/how-to/author-provider-plugin/">plugin verification workflow</a>.</p>
         </section>
 
         <section aria-labelledby="media-security">
           <h2 id="media-security">Archive integrity is verifiable, but local same-user processes remain trusted</h2>
-          <p>Completed media archives use versioned manifests and SHA-256 records that <code>ghostget verify</code> recomputes. Ghostget invokes media tools without a shell and does not persist cookies, request headers, signed media URLs, raw yt-dlp metadata, or transport fragments.</p>
-          <p>Archive locks and atomic same-volume publication coordinate Ghostget processes. They are not a boundary against another process running as the same user. Keep archive roots and transcription configuration on a trusted local filesystem, obtain selected native tools and models from trusted sources, and use verification to detect later changes.</p>
+          <p>Completed media archives use versioned manifests and SHA-256 records that <code>ghostget verify</code> recomputes. GhostGet invokes media tools without a shell and does not persist cookies, request headers, signed media URLs, raw yt-dlp metadata, or transport fragments.</p>
+          <p>Archive locks and atomic same-volume publication coordinate GhostGet processes. They are not a boundary against another process running as the same user. Keep archive roots and transcription configuration on a trusted local filesystem, obtain selected native tools and models from trusted sources, and use verification to detect later changes.</p>
         </section>
 
         <aside class="guide-callout" aria-labelledby="security-next">
@@ -111,8 +111,8 @@
         </aside>
       </article>
     </main>
-    <aside aria-label="Ghostget project information" class="site-disclosure">
-      <p>Ghostget {{GHOSTGET_VERSION}} · MIT · <a href="{{GHOSTGET_REPOSITORY}}">Source on GitHub</a> · <a href="/about/">About</a> · <a href="/contact/">Contact</a> · <a href="/privacy/">Privacy</a> · <a href="/llms.txt">llms.txt</a></p>
+    <aside aria-label="GhostGet project information" class="site-disclosure">
+      <p>GhostGet {{GHOSTGET_VERSION}} · MIT · <a href="{{GHOSTGET_REPOSITORY}}">Source on GitHub</a> · <a href="/about/">About</a> · <a href="/contact/">Contact</a> · <a href="/privacy/">Privacy</a> · <a href="/llms.txt">llms.txt</a></p>
       <p class="privacy-note">Privacy: cookieless PostHog analytics measure page lifecycle and Core Web Vitals. No person profiles, replay, broad autocapture, or URL queries; Do Not Track is honored.</p>
     </aside>
     {{HRANESS_SITE_FOOTER}}

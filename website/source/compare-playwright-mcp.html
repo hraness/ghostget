@@ -6,8 +6,8 @@
     <meta name="color-scheme" content="light dark">
     <meta name="theme-color" content="#fbf1c7" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">
-    <title>Ghostget vs Playwright MCP: one result per action instead of streamed page state</title>
-    <meta name="description" content="Playwright MCP sends a page's accessibility tree into your agent's context on every step. Ghostget returns one result per named action.">
+    <title>GhostGet vs Playwright MCP: one result per action instead of streamed page state</title>
+    <meta name="description" content="Playwright MCP sends a page's accessibility tree into your agent's context on every step. GhostGet returns one result per named action.">
     <meta name="robots" content="max-image-preview:large">
     <link rel="canonical" href="https://ghostget.com/compare/playwright-mcp/">
     <link rel="icon" href="/icon.png" type="image/png" sizes="32x32">
@@ -17,17 +17,17 @@
     <link rel="sitemap" type="application/xml" href="/sitemap.xml">
     {{MARKDOWN_ALTERNATE}}
     <meta property="og:type" content="article">
-    <meta property="og:site_name" content="Ghostget">
-    <meta property="og:title" content="Ghostget vs Playwright MCP: one result per action instead of streamed page state">
-    <meta property="og:description" content="Playwright MCP sends a page's accessibility tree into your agent's context on every step. Ghostget returns one result per named action.">
+    <meta property="og:site_name" content="GhostGet">
+    <meta property="og:title" content="GhostGet vs Playwright MCP: one result per action instead of streamed page state">
+    <meta property="og:description" content="Playwright MCP sends a page's accessibility tree into your agent's context on every step. GhostGet returns one result per named action.">
     <meta property="og:url" content="https://ghostget.com/compare/playwright-mcp/">
     <meta property="og:image" content="https://ghostget.com/og.png">
     <meta property="og:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Ghostget vs Playwright MCP: one result per action instead of streamed page state">
-    <meta name="twitter:description" content="Playwright MCP sends a page's accessibility tree into your agent's context on every step. Ghostget returns one result per named action.">
+    <meta name="twitter:title" content="GhostGet vs Playwright MCP: one result per action instead of streamed page state">
+    <meta name="twitter:description" content="Playwright MCP sends a page's accessibility tree into your agent's context on every step. GhostGet returns one result per named action.">
     <meta name="twitter:image" content="https://ghostget.com/og.png">
     <meta name="twitter:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
     <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
@@ -39,7 +39,7 @@
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
     <header class="topbar guide-topbar">
-      <a aria-label="Ghostget home" class="wordmark hraness-foil-text" data-foil="" href="/"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span> Ghostget</a>
+      <a aria-label="GhostGet home" class="wordmark hraness-foil-text" data-foil="" href="/"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span> GhostGet</a>
       <nav aria-label="Primary">
         <a href="/docs/tutorials/getting-started/">Install</a>
         <a href="/docs/reference/provider-capabilities/">Providers</a>
@@ -48,25 +48,25 @@
       </nav>
     </header>
     <main class="guide-main" id="main" tabindex="-1">
-      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">Ghostget</a></li><li><a href="/compare/">Comparisons</a></li><li aria-current="page">Playwright MCP</li></ol></nav>
+      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">GhostGet</a></li><li><a href="/compare/">Comparisons</a></li><li aria-current="page">Playwright MCP</li></ol></nav>
       <article class="guide-article">
         <header class="guide-hero">
-          <p class="eyebrow">Comparison · Ghostget {{GHOSTGET_VERSION}}</p>
-          <h1>Ghostget returns one result per call instead of the page after every step</h1>
-          <p class="answer-lede"><a href="https://github.com/microsoft/playwright-mcp">Playwright MCP</a> is Microsoft's tool server that gives any MCP-capable agent browser controls: <code>browser_navigate</code>, <code>browser_snapshot</code>, <code>browser_click</code>, <code>browser_type</code>, and more, backed by the same engine as Playwright. Ghostget publishes no MCP server. It is a local CLI and SDK where the agent calls a named action and gets back one result.</p>
-          <p class="review-note">This page describes Playwright MCP as published in September 2026 and Ghostget {{GHOSTGET_RELEASE}}.</p>
+          <p class="eyebrow">Comparison · GhostGet {{GHOSTGET_VERSION}}</p>
+          <h1>GhostGet returns one result per call instead of the page after every step</h1>
+          <p class="answer-lede"><a href="https://github.com/microsoft/playwright-mcp">Playwright MCP</a> is Microsoft's tool server that gives any MCP-capable agent browser controls: <code>browser_navigate</code>, <code>browser_snapshot</code>, <code>browser_click</code>, <code>browser_type</code>, and more, backed by the same engine as Playwright. GhostGet publishes no MCP server. It is a local CLI and SDK where the agent calls a named action and gets back one result.</p>
+          <p class="review-note">This page describes Playwright MCP as published in September 2026 and GhostGet {{GHOSTGET_RELEASE}}.</p>
         </header>
 
         <section aria-labelledby="pm-model">
           <h2 id="pm-model">Two contracts with the model's context</h2>
           <p>Playwright MCP's contract is per-step: each tool call returns the page's accessibility tree, so the agent re-reads the world after every action. That keeps the model oriented inside a live page, and it is the direct price of generality. Microsoft-reported figures cited in a July 2026 <a href="https://modernqacourse.com/docs/en/01-agent-skills-browser-automation/07-competitive-landscape/01-tool-comparison-matrix">comparison matrix</a> put a typical Playwright MCP task near 114,000 tokens versus about 27,000 for its disk-first CLI path; treat any single figure as an estimate. The direction holds because page state re-enters context on every step.</p>
-          <p>Ghostget's contract is per-operation: the agent sends one typed request and receives one typed result. A public-page read returns the page as bounded Markdown and nothing else; a provider action returns its contract's fields and nothing else. No accessibility tree, screenshot, or intermediate page state enters context because no steering surface exists to report on.</p>
+          <p>GhostGet's contract is per-operation: the agent sends one typed request and receives one typed result. A public-page read returns the page as bounded Markdown and nothing else; a provider action returns its contract's fields and nothing else. No accessibility tree, screenshot, or intermediate page state enters context because no steering surface exists to report on.</p>
         </section>
 
         <section aria-labelledby="pm-authority">
           <h2 id="pm-authority">The guardrail question</h2>
           <p>With Playwright MCP, the guardrail is the harness: whatever permission prompts your agent runtime implements stand between the model and every action the tool server exposes, on every page the session can reach. The capability set is the whole browser; the allowlist is conversation policy.</p>
-          <p>With Ghostget, the guardrail is the contract set. The agent can only request operations reviewed into the installed release, each bound to one account realm, provider target, transport, and risk level. Writes require an exact preview and a fresh confirmation; an indeterminate dispatch is never blindly retried. A page that drifts out of contract fails closed rather than improvising a workaround.</p>
+          <p>With GhostGet, the guardrail is the contract set. The agent can only request operations reviewed into the installed release, each bound to one account realm, provider target, transport, and risk level. Writes require an exact preview and a fresh confirmation; an indeterminate dispatch is never blindly retried. A page that drifts out of contract fails closed rather than improvising a workaround.</p>
         </section>
 
         <section aria-labelledby="pm-table">
@@ -77,7 +77,7 @@
                 <tr>
                   <th scope="col">Decision</th>
                   <th scope="col">Playwright MCP</th>
-                  <th scope="col">Ghostget</th>
+                  <th scope="col">GhostGet</th>
                 </tr>
               </thead>
               <tbody>
@@ -114,7 +114,7 @@
         <section aria-labelledby="pm-choose">
           <h2 id="pm-choose">When to pick which</h2>
           <p>Pick Playwright MCP when your agent needs to navigate the open web itself: exploratory browsing, sites without a stable operation contract, or flows the tool server must improvise through. Microsoft's engine, auto-wait behavior, and MCP transport are the strengths.</p>
-          <p>Pick Ghostget when the task decomposes into named operations and per-step page state is context you would rather not pay for or firewall around. If your agent runtime speaks MCP, it can still wrap Ghostget commands; Ghostget never gives it a browser to steer.</p>
+          <p>Pick GhostGet when the task decomposes into named operations and per-step page state is context you would rather not pay for or firewall around. If your agent runtime speaks MCP, it can still wrap GhostGet commands; GhostGet never gives it a browser to steer.</p>
         </section>
 
         <aside class="guide-callout" aria-labelledby="pm-next">
@@ -123,8 +123,8 @@
         </aside>
       </article>
     </main>
-    <aside aria-label="Ghostget project information" class="site-disclosure">
-      <p>Ghostget {{GHOSTGET_VERSION}} · MIT · <a href="{{GHOSTGET_REPOSITORY}}">Source on GitHub</a> · <a href="/about/">About</a> · <a href="/contact/">Contact</a> · <a href="/privacy/">Privacy</a> · <a href="/llms.txt">llms.txt</a></p>
+    <aside aria-label="GhostGet project information" class="site-disclosure">
+      <p>GhostGet {{GHOSTGET_VERSION}} · MIT · <a href="{{GHOSTGET_REPOSITORY}}">Source on GitHub</a> · <a href="/about/">About</a> · <a href="/contact/">Contact</a> · <a href="/privacy/">Privacy</a> · <a href="/llms.txt">llms.txt</a></p>
       <p class="privacy-note">Privacy: cookieless PostHog analytics measure page lifecycle and Core Web Vitals. No person profiles, replay, broad autocapture, or URL queries; Do Not Track is honored.</p>
     </aside>
     {{HRANESS_SITE_FOOTER}}

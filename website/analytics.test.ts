@@ -17,7 +17,7 @@ const evidence = {
   referrer: "https://chatgpt.com/private/thread?token=private",
 } as const;
 
-describe("Ghostget browser analytics", () => {
+describe("GhostGet browser analytics", () => {
   test("sends repository interest immediately with an unload-safe transport", () => {
     const captures: unknown[][] = [];
     const properties = {

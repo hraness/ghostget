@@ -85,7 +85,7 @@ a new realm with `ghostget auth bind <id> --site <surface> --json` before any
 preview.
 
 If support is missing and the user asked to develop it, use the packaged
-Ghostget derivation workflow with one expressly authorized low-stakes
+GhostGet derivation workflow with one expressly authorized low-stakes
 fixture. Keep the operation `capture-required` until its contracts pass.
 
 ## Preview the complete batch

@@ -1,6 +1,6 @@
 Usage: ghostget capabilities [adapter] [--json]
 
-List the actions installed adapters offer. An adapter is Ghostget's support
+List the actions installed adapters offer. An adapter is GhostGet's support
 for one site, such as x-web.
 
 Options

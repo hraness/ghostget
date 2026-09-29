@@ -6,7 +6,7 @@
     <meta name="color-scheme" content="light dark">
     <meta name="theme-color" content="#fbf1c7" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">
-    <title>Ghostget vs Jina Reader: a local Jina Reader alternative</title>
+    <title>GhostGet vs Jina Reader: a local Jina Reader alternative</title>
     <meta name="description" content="A Jina Reader alternative that turns a URL into Markdown on your machine with no key or rate limit. Jina's hosted r.jina.ai prefix needs no install.">
     <meta name="robots" content="max-image-preview:large">
     <link rel="canonical" href="https://ghostget.com/compare/jina-reader/">
@@ -17,8 +17,8 @@
     <link rel="sitemap" type="application/xml" href="/sitemap.xml">
     {{MARKDOWN_ALTERNATE}}
     <meta property="og:type" content="article">
-    <meta property="og:site_name" content="Ghostget">
-    <meta property="og:title" content="Ghostget vs Jina Reader: a local Jina Reader alternative">
+    <meta property="og:site_name" content="GhostGet">
+    <meta property="og:title" content="GhostGet vs Jina Reader: a local Jina Reader alternative">
     <meta property="og:description" content="A Jina Reader alternative that turns a URL into Markdown on your machine with no key or rate limit. Jina's hosted r.jina.ai prefix needs no install.">
     <meta property="og:url" content="https://ghostget.com/compare/jina-reader/">
     <meta property="og:image" content="https://ghostget.com/og.png">
@@ -26,7 +26,7 @@
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Ghostget vs Jina Reader: a local Jina Reader alternative">
+    <meta name="twitter:title" content="GhostGet vs Jina Reader: a local Jina Reader alternative">
     <meta name="twitter:description" content="A Jina Reader alternative that turns a URL into Markdown on your machine with no key or rate limit. Jina's hosted r.jina.ai prefix needs no install.">
     <meta name="twitter:image" content="https://ghostget.com/og.png">
     <meta name="twitter:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
@@ -39,7 +39,7 @@
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
     <header class="topbar guide-topbar">
-      <a aria-label="Ghostget home" class="wordmark hraness-foil-text" data-foil="" href="/"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span> Ghostget</a>
+      <a aria-label="GhostGet home" class="wordmark hraness-foil-text" data-foil="" href="/"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span> GhostGet</a>
       <nav aria-label="Primary">
         <a href="/docs/tutorials/getting-started/">Install</a>
         <a href="/docs/reference/provider-capabilities/">Providers</a>
@@ -48,42 +48,42 @@
       </nav>
     </header>
     <main class="guide-main" id="main" tabindex="-1">
-      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">Ghostget</a></li><li><a href="/compare/">Comparisons</a></li><li aria-current="page">Jina Reader</li></ol></nav>
+      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">GhostGet</a></li><li><a href="/compare/">Comparisons</a></li><li aria-current="page">Jina Reader</li></ol></nav>
       <article class="guide-article">
         <header class="guide-hero">
-          <p class="eyebrow">Comparison · Ghostget {{GHOSTGET_VERSION}}</p>
-          <h1>Jina Reader turns a URL into Markdown on its servers; Ghostget does it on your machine</h1>
-          <p class="answer-lede"><a href="https://jina.ai/reader">Jina AI Reader</a> converts a URL to LLM-friendly Markdown when you prepend <code>https://r.jina.ai/</code>: its servers fetch the page, render it in headless Chrome when a lightweight fetch is not enough, and return clean text. Ghostget’s <code>read</code> command does the same job as a local CLI: the request leaves your machine directly, and the Markdown lands on your disk if you ask it to.</p>
-          <p class="review-note">This page describes Jina AI Reader from its <a href="https://jina.ai/reader">product and pricing page</a> and the <a href="https://github.com/jina-ai/reader">jina-ai/reader open-source repository</a>, both checked September 26, 2026, and Ghostget {{GHOSTGET_RELEASE}}.</p>
+          <p class="eyebrow">Comparison · GhostGet {{GHOSTGET_VERSION}}</p>
+          <h1>Jina Reader turns a URL into Markdown on its servers; GhostGet does it on your machine</h1>
+          <p class="answer-lede"><a href="https://jina.ai/reader">Jina AI Reader</a> converts a URL to LLM-friendly Markdown when you prepend <code>https://r.jina.ai/</code>: its servers fetch the page, render it in headless Chrome when a lightweight fetch is not enough, and return clean text. GhostGet’s <code>read</code> command does the same job as a local CLI: the request leaves your machine directly, and the Markdown lands on your disk if you ask it to.</p>
+          <p class="review-note">This page describes Jina AI Reader from its <a href="https://jina.ai/reader">product and pricing page</a> and the <a href="https://github.com/jina-ai/reader">jina-ai/reader open-source repository</a>, both checked September 26, 2026, and GhostGet {{GHOSTGET_RELEASE}}.</p>
         </header>
 
         <section aria-labelledby="jr-job">
-          <h2 id="jr-job">Jina Reader is a URL prefix; Ghostget is a local command</h2>
+          <h2 id="jr-job">Jina Reader is a URL prefix; GhostGet is a local command</h2>
           <p>Reader’s interface is a URL prefix: <code>https://r.jina.ai/https://example.com</code> returns the page as Markdown from any client that can open a link. Request headers tune the fetch: a browser-engine choice between a lightweight fetcher and headless Chrome, CSS selectors that target or remove elements, cache bypass and tolerance, hosted proxy options, image captioning, PDF and Office-document parsing, and custom JavaScript run before extraction. A sibling prefix, <code>s.jina.ai</code>, turns a search query into Markdown results, and <code>mcp.jina.ai</code> exposes the same tools as an MCP server.</p>
-          <p>Ghostget’s interface is a command: <code>ghostget read &lt;url&gt;</code> prints the page as Markdown to stdout, and <code>ghostget &lt;url&gt; --output &lt;dir&gt;</code> saves it with its capture record into a local vault that <code>ghostget search</code> can query without an embedding model. There is no hosted step and no prefix to route through, and a saved result is a file on your disk.</p>
+          <p>GhostGet’s interface is a command: <code>ghostget read &lt;url&gt;</code> prints the page as Markdown to stdout, and <code>ghostget &lt;url&gt; --output &lt;dir&gt;</code> saves it with its capture record into a local vault that <code>ghostget search</code> can query without an embedding model. There is no hosted step and no prefix to route through, and a saved result is a file on your disk.</p>
         </section>
 
         <section aria-labelledby="jr-limits">
-          <h2 id="jr-limits">Jina Reader meters requests and tokens; Ghostget has no key or meter</h2>
+          <h2 id="jr-limits">Jina Reader meters requests and tokens; GhostGet has no key or meter</h2>
           <p>Reader meters by request count and output tokens. Anonymous use runs at 20 requests per minute per IP. A free or paid API key raises the cap to 500 per minute, premium keys reach 5,000, and keyed reads count the tokens in each response against a balance that starts at 10 million free tokens. The <code>s.jina.ai</code> search endpoint bills a fixed token count per request and requires a key, and the hosted proxy pool that routes around bot challenges is keyed too.</p>
-          <p>Ghostget has no key and no meter. One read is one HTTP request from your network, or a capped internal render at two browsers at a time when the page needs JavaScript.</p>
+          <p>GhostGet has no key and no meter. One read is one HTTP request from your network, or a capped internal render at two browsers at a time when the page needs JavaScript.</p>
         </section>
 
         <section aria-labelledby="jr-oss">
           <h2 id="jr-oss">Jina Reader’s engine is open source, and the hosted service adds keys and proxies</h2>
           <p>The <a href="https://github.com/jina-ai/reader">jina-ai/reader</a> repository is the Apache-2.0 open-source branch of the code behind <code>r.jina.ai</code> and <code>s.jina.ai</code>. It runs stateless or with bucket caching, and the MongoDB-backed storage layer of the hosted service is not included. A published Docker image bundles headless Chrome and LibreOffice, so you can run the engine on your own servers; the keys, rate tiers, and proxy pool belong to the hosted service.</p>
-          <p>Ghostget is MIT licensed and runs locally. It has no hosted tier, and the CLI on your machine is the whole product. The same install also covers media archiving and connected-account actions, which Reader’s URL-in, text-out shape does not.</p>
+          <p>GhostGet is MIT licensed and runs locally. It has no hosted tier, and the CLI on your machine is the whole product. The same install also covers media archiving and connected-account actions, which Reader’s URL-in, text-out shape does not.</p>
         </section>
 
         <section aria-labelledby="jr-table">
-          <h2 id="jr-table">Jina Reader and Ghostget side by side</h2>
+          <h2 id="jr-table">Jina Reader and GhostGet side by side</h2>
           <div class="table-scroll" role="region" aria-labelledby="jr-table" tabindex="0">
             <table>
               <thead>
                 <tr>
                   <th scope="col">Decision</th>
                   <th scope="col">Jina AI Reader</th>
-                  <th scope="col">Ghostget</th>
+                  <th scope="col">GhostGet</th>
                 </tr>
               </thead>
               <tbody>
@@ -115,7 +115,7 @@
                 <tr>
                   <th scope="row">Data path</th>
                   <td>The URL and its content pass through Jina’s infrastructure and cache</td>
-                  <td>The request goes from your machine to the site; no Ghostget service sits in between</td>
+                  <td>The request goes from your machine to the site; no GhostGet service sits in between</td>
                 </tr>
               </tbody>
             </table>
@@ -123,9 +123,9 @@
         </section>
 
         <section aria-labelledby="jr-choose">
-          <h2 id="jr-choose">When to pick Jina Reader, and when to pick Ghostget</h2>
+          <h2 id="jr-choose">When to pick Jina Reader, and when to pick GhostGet</h2>
           <p>Pick Jina Reader when zero install is the point: a prefix that works from a browser bar, a curl one-liner, or an app that cannot run a local CLI, plus a hosted proxy, document parsing, and a search endpoint when a plain fetch is not enough. Its open-source image also gives you a self-hostable engine if you want the same pipeline on your own servers.</p>
-          <p>Pick Ghostget when the agent already runs commands on your machine and the read should stay local: no key or rate ceiling, Markdown saved into a searchable vault, and one tool that also covers media archiving and reviewed account actions.</p>
+          <p>Pick GhostGet when the agent already runs commands on your machine and the read should stay local: no key or rate ceiling, Markdown saved into a searchable vault, and one tool that also covers media archiving and reviewed account actions.</p>
         </section>
 
         <aside class="guide-callout" aria-labelledby="jr-next">
@@ -134,8 +134,8 @@
         </aside>
       </article>
     </main>
-    <aside aria-label="Ghostget project information" class="site-disclosure">
-      <p>Ghostget {{GHOSTGET_VERSION}} · MIT · <a href="{{GHOSTGET_REPOSITORY}}">Source on GitHub</a> · <a href="/about/">About</a> · <a href="/contact/">Contact</a> · <a href="/privacy/">Privacy</a> · <a href="/llms.txt">llms.txt</a></p>
+    <aside aria-label="GhostGet project information" class="site-disclosure">
+      <p>GhostGet {{GHOSTGET_VERSION}} · MIT · <a href="{{GHOSTGET_REPOSITORY}}">Source on GitHub</a> · <a href="/about/">About</a> · <a href="/contact/">Contact</a> · <a href="/privacy/">Privacy</a> · <a href="/llms.txt">llms.txt</a></p>
       <p class="privacy-note">Privacy: cookieless PostHog analytics measure page lifecycle and Core Web Vitals. No person profiles, replay, broad autocapture, or URL queries; Do Not Track is honored.</p>
     </aside>
     {{HRANESS_SITE_FOOTER}}

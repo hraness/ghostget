@@ -1,6 +1,6 @@
 Usage: ghostget auth <list|add|bind|remove|login|pair|sync> [options]
 
-Connect accounts you're already signed in to. Ghostget reads the sign-in
+Connect accounts you're already signed in to. GhostGet reads the sign-in
 from your browser when it needs it and never stores your password.
 
 Commands
@@ -19,7 +19,7 @@ Commands
                                      Connect Google with your own OAuth app
   auth pair <id> [--phone <number>]  Pair a linked device
   auth sync <id> --once              Refresh a linked device's local copy
-  auth remove <id> --yes             Remove an account from Ghostget
+  auth remove <id> --yes             Remove an account from GhostGet
 
 Options
   --subject <account-id>             Expect this account
