@@ -138,3 +138,5 @@ One maintainer or agent owns each review and opens one PR.
    `bun run ./scripts/verification-claims.ts render`, then run the check
    again.
 8. Open the PR with the findings and claim changes.
+
+<!-- throwaway CI scope probe, not for merge -->
