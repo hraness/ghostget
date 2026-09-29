@@ -7,6 +7,12 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.55
+
+- Public pages and the 404 page use the shared Design Kit document shell.
+  Short-page footers reach the viewport bottom, while long-page footers
+  follow the content. Native-control previews retain their existing layout.
+
 ## 0.18.54
 
 This release removes the menu bar. Its controls are `ghostget` commands and

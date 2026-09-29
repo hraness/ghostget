@@ -2272,14 +2272,23 @@
 // reproduced by a second pack. Preserve the projections and allowances:
 // 12,138,342 + 12,387 + 4,096 = 12,154,825 packed;
 // 24,040,623 + 353 + 65 = 24,041,041 unpacked.
+// Release 0.18.55 over main 64151f9d delivers the shared public-page footer
+// shell and updates active version pins, notes and generated dist. The website
+// is not packed. A clean npm 11.19.0 pack --ignore-scripts using official Node
+// 24.20.0 (zlib 1.3.2.1-motley-42c2f19) on darwin arm64 measured 624 entries,
+// 12,150,890 packed bytes and 24,040,858 unpacked bytes; archive SHA-256
+// 0ef3fd43bdffb39aa1be7c05e68755bc0cbf826af21dec0ab68fc478cb53e7ce.
+// Preserve the existing platform projections and portability allowances:
+// 12,150,890 + 12,387 + 4,096 = 12,167,373 packed;
+// 24,040,858 + 353 + 65 = 24,041,276 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget 0.18.54 release over main 632e2ab",
+  scope: "Ghostget 0.18.55 shared-footer release over main 64151f9d",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "270ac51b72d07f797fd84c028c57d49857da135402187de6e893f61063c43c40",
-  packedBytes: 12_138_342,
-  unpackedBytes: 24_040_623,
+  archiveSha256: "0ef3fd43bdffb39aa1be7c05e68755bc0cbf826af21dec0ab68fc478cb53e7ce",
+  packedBytes: 12_150_890,
+  unpackedBytes: 24_040_858,
   entryCount: 624,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
