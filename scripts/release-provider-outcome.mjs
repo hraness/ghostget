@@ -80,7 +80,7 @@ const PUBLIC_HTML_ROUTES = Object.freeze([
   Object.freeze({ canonical: "https://ghostget.com/docs/how-to/connect-beeper/", path: "/docs/how-to/connect-beeper/" }),
 ]);
 const PUBLIC_TEXT_ROUTES = Object.freeze([
-  Object.freeze({ prefix: "# Ghostget\n", path: "/llms.txt" }),
+  Object.freeze({ prefixes: Object.freeze(["# GhostGet\n", "# Ghostget\n"]), path: "/llms.txt" }),
 ]);
 const STABLE_TAG = /^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u;
 const MAXIMUM_SAFE_SEMVER_COMPONENT = BigInt(Number.MAX_SAFE_INTEGER);
@@ -544,7 +544,7 @@ export class GhostgetPublicSite {
       ) {
         fail(`${label} is not the canonical Ghostget document`);
       }
-    } else if (!body.startsWith(text.prefix)) {
+    } else if (!text.prefixes.some((prefix) => body.startsWith(prefix))) {
       fail(`${label} is not the canonical Ghostget text document`);
     }
     return Object.freeze({
