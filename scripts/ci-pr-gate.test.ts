@@ -642,15 +642,17 @@ describe("nightly verification workflow", () => {
     if (!isDeepStrictEqual(candidate.permissions, { contents: "read" })) {
       throw new Error("the nightly workflow must hold only contents: read");
     }
-    if (!isDeepStrictEqual(Object.keys(candidate.jobs).sort(), Object.keys(COMMANDS).sort())) {
+    if (!isDeepStrictEqual(Object.keys(candidate.jobs).sort(), [...Object.keys(COMMANDS), "report"].sort())) {
       throw new Error("the nightly job inventory changed");
     }
+    validateNightlyReport(candidate.jobs.report!);
     const ciVerification = ci.jobs.verification;
     const ciRequired = ci.jobs.required;
     if (ciVerification === undefined || ciRequired === undefined) throw new Error("ci.yml lost its verification or Required job");
     const ciStep = (prefix: string): Step | undefined => ciVerification.steps.find((step) => step.uses?.startsWith(prefix) === true);
     const needs = Array.isArray(ciRequired.needs) ? ciRequired.needs as unknown[] : [];
     for (const [id, job] of Object.entries(candidate.jobs)) {
+      if (id === "report") continue;
       if (job.permissions !== undefined || job.environment !== undefined || job.if !== undefined
         || job["continue-on-error"] !== undefined || job.needs !== undefined) {
         throw new Error(`nightly job ${id} widens permissions, selects an environment, or changes its execution boundary`);
@@ -708,6 +710,35 @@ describe("nightly verification workflow", () => {
     }
   }
 
+  /**
+   * Throw unless the failure reporter runs only after a check job fails, needs
+   * every check job, holds only `issues: write`, checks out and uses no
+   * action, and reads no expression inside its shell command.
+   */
+  function validateNightlyReport(job: Job): void {
+    if (!isDeepStrictEqual(Array.isArray(job.needs) ? [...job.needs as unknown[]].sort() : job.needs, Object.keys(COMMANDS).sort())) {
+      throw new Error("the nightly failure reporter must need every check job");
+    }
+    if (job.if !== "${{ failure() }}") throw new Error("the nightly failure reporter must run only on failure");
+    if (!isDeepStrictEqual(job.permissions, { issues: "write" })) {
+      throw new Error("the nightly failure reporter must hold only issues: write");
+    }
+    if (job.environment !== undefined || job["continue-on-error"] !== undefined || job.strategy !== undefined) {
+      throw new Error("the nightly failure reporter changes its execution boundary");
+    }
+    if (typeof job["timeout-minutes"] !== "number" || job["timeout-minutes"] > 15) {
+      throw new Error("the nightly failure reporter has no short timeout");
+    }
+    if (job.steps.length !== 1) throw new Error("the nightly failure reporter must run one step");
+    const step = job.steps[0]!;
+    if (step.uses !== undefined || typeof step.run !== "string" || step.run.includes("${{") || step.if !== undefined) {
+      throw new Error("the nightly failure reporter must run one plain shell step without expressions or actions");
+    }
+    if (step.env?.GH_TOKEN !== "${{ github.token }}" || !/\bgh issue (?:create|comment)\b/u.test(step.run)) {
+      throw new Error("the nightly failure reporter must open or update the issue with the job token");
+    }
+  }
+
   const load = async (): Promise<{ nightly: Workflow; ci: Workflow; source: string }> => {
     const source = await readFile(nightlyWorkflowUrl, "utf8");
     return {
@@ -750,6 +781,18 @@ describe("nightly verification workflow", () => {
       candidate => { candidate.jobs["property-soak"]!.strategy = { "fail-fast": false, matrix: { shard: [1, 2, 3] } }; },
       candidate => { candidate.jobs["property-soak"]!.steps.find(step => step.run === COMMANDS["property-soak"])!.env = {}; },
       candidate => { candidate.jobs["property-soak"]!.steps.push({ run: "echo ${{ inputs.property_runs }}" }); },
+      candidate => { delete candidate.jobs.report; },
+      candidate => { candidate.jobs.report!.permissions = { issues: "write", contents: "write" }; },
+      candidate => { candidate.jobs.report!.permissions = { issues: "write", actions: "write" }; },
+      candidate => { candidate.jobs.report!.if = "${{ always() }}"; },
+      candidate => { delete candidate.jobs.report!.if; },
+      candidate => { candidate.jobs.report!.needs = ["quint-nightly", "property-soak", "mutants"]; },
+      candidate => { candidate.jobs.report!.environment = "npm-release"; },
+      candidate => { delete candidate.jobs.report!["timeout-minutes"]; },
+      candidate => { candidate.jobs.report!.steps.unshift(structuredClone(candidate.jobs.mutants!.steps[0]!)); },
+      candidate => { candidate.jobs.report!.steps[0]!.run += "\necho ${{ github.event.inputs.property_runs }}"; },
+      candidate => { candidate.jobs.report!.steps[0]!.env = { ...candidate.jobs.report!.steps[0]!.env, GH_TOKEN: "${{ secrets.PAT }}" }; },
+      candidate => { candidate.jobs.mutants!.permissions = { issues: "write" }; },
     ];
     for (const mutate of mutations) {
       const changed = structuredClone(nightly);
@@ -840,7 +883,8 @@ describe("CI run scheduling and caches", () => {
     expect(quint.steps.indexOf(scope[0]!)).toBeLessThan(quint.steps.findIndex((step) => step.run?.includes("verification-tools.ts quint") === true));
     expect(quint.steps[0]!.with).toEqual({ "persist-credentials": false, "fetch-depth": 2 });
     const source = await readFile(ciWorkflowUrl, "utf8");
-    // Only the scope script sets the skip variable; no workflow env sets it.
+    // Only the scope script sets the scope variables; no workflow env sets them.
     expect(source).not.toMatch(/GHOSTGET_QUINT_SKIP_APALACHE\s*:/u);
+    expect(source).not.toMatch(/GHOSTGET_QUINT_APALACHE_MODELS\s*:/u);
   });
 });

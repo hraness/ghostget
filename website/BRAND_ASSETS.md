@@ -1,4 +1,4 @@
-# Ghostget website identity
+# GhostGet website identity
 
 The header uses the owner’s 👻 identity. The supplied browser and Apple touch PNGs are checked by the hashes below. `icon-96.png` is `apple-icon.png` downscaled with `sips -z 96 96`, because search engines prefer a favicon whose size is a multiple of 48 pixels.
 

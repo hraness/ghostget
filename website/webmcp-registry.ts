@@ -275,8 +275,8 @@ export function webmcpSiteCanonicalPath(domain: string): string {
 export function webmcpSiteTitle(site: WebmcpSnapshotSite): string {
   const name = webmcpDisplayName(site);
   return site.readOnlyToolCount > 0
-    ? `Use ${name} with your agent through Ghostget`
-    : `${name} in the WebMCP Registry, read through Ghostget`;
+    ? `Use ${name} with your agent through GhostGet`
+    : `${name} in the WebMCP Registry, read through GhostGet`;
 }
 
 /** The page's H1: a promise of use only when the agent can call a tool. */
@@ -291,9 +291,9 @@ export function webmcpSiteDescription(site: WebmcpSnapshotSite): string {
   const callable = site.readOnlyToolCount;
   const base = `${webmcpDisplayName(site)} (${site.domain}) registers ${countNoun(site.toolCount, "WebMCP tool", "WebMCP tools")}.`;
   if (callable < 1) {
-    return `${base} None is declared read-only, so Ghostget can read the tool schema from the registry but can't call a tool.`;
+    return `${base} None is declared read-only, so GhostGet can read the tool schema from the registry but can't call a tool.`;
   }
-  return `${base} Ghostget can call ${countNoun(callable, "read-only tool", "read-only tools")} through the WebMCP Registry, using the schema from its latest check.`;
+  return `${base} GhostGet can call ${countNoun(callable, "read-only tool", "read-only tools")} through the WebMCP Registry, using the schema from its latest check.`;
 }
 
 export function webmcpProviderPages(snapshot: WebmcpRegistrySnapshot): readonly PublicPage[] {
@@ -334,7 +334,7 @@ export function renderWebmcpToolsTable(site: WebmcpSnapshotSite): string {
     "<thead><tr>",
     '<th scope="col">Tool</th>',
     `<th scope="col">Description from ${escapeHtml(webmcpDisplayName(site))}</th>`,
-    '<th scope="col">Callable through Ghostget</th>',
+    '<th scope="col">Callable through GhostGet</th>',
     "</tr></thead>",
     `<tbody>${rows}</tbody>`,
     "</table>",

@@ -18,7 +18,7 @@ Commands
 Most commands take --root <directory> to pick the notes folder.
 
 Paywalled PDFs
-  Add the browser you use to open the paper, and Ghostget downloads it
+  Add the browser you use to open the paper, and GhostGet downloads it
   with that sign-in:
     ghostget pdf <url> --cookie-source chrome
   Also: --browser-profile <name|path>, --cookie-profile <name>,

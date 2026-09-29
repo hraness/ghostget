@@ -2,10 +2,10 @@
 
 Use a provider plugin when a reviewed official API, first-party web API,
 linked-device protocol, or exact provider CLI needs provider-specific contracts
-and execution. Ghostget has two distributions over one logical registry:
+and execution. GhostGet has two distributions over one logical registry:
 
-- a source plugin is reviewed repository code statically assembled into Ghostget;
-- a portable plugin is a self-contained immutable package that Ghostget verifies,
+- a source plugin is reviewed repository code statically assembled into GhostGet;
+- a portable plugin is a self-contained immutable package that GhostGet verifies,
   explicitly trusts, and runs through a bounded child-process protocol.
 
 Neither kind is an installed adapter manifest. Source-plugin adapters remain
@@ -14,7 +14,7 @@ the kernel projects from its verified package.
 
 ## Inspect the registry
 
-Ghostget uses the `ghostget` command:
+GhostGet uses the `ghostget` command:
 
 ```sh
 ghostget plugin list
@@ -30,7 +30,7 @@ ghostget plugins list --json
 ghostget plugins show <plugin-id> --json
 ```
 
-Use `plugin list` to discover source code available in the current Ghostget build and
+Use `plugin list` to discover source code available in the current GhostGet build and
 portable packages enabled in the current `GHOSTGET_STATE_HOME`. Use `plugin show` to
 inspect one plugin's version, source kind, immutable identity or implementation
 files, transport bindings, exact surfaces and origins, auth kinds, capability
@@ -49,14 +49,14 @@ reconciliation cannot disagree about an enabled portable plugin.
 
 ## Treat source plugins as trusted code
 
-Source plugins run in Ghostget's Bun process. They have the operating-system
+Source plugins run in GhostGet's Bun process. They have the operating-system
 authority of that process. TypeScript types, registry validation, and a
 `capture-required` contract constrain how the kernel calls a plugin; they do
 not isolate the plugin from the filesystem, network, environment, or process.
 Review plugin code and every owned implementation file as trusted executable
 code.
 
-When `plugin.ts` defines a source plugin, Ghostget snapshots every eagerly imported
+When `plugin.ts` defines a source plugin, GhostGet snapshots every eagerly imported
 repository module and every exact installed package tree that could have
 contributed a planner, validator, subject matcher, or other function object to
 the descriptor. Registry startup must rediscover the same closure and bytes.
@@ -65,8 +65,8 @@ new source.
 
 The registry separately snapshots each plugin's complete lazy runtime
 implementation and dependency identity. Immediately before and after the first
-runtime import, Ghostget rereads only that owning closure and rejects drift; restart
-Ghostget after changing source files. These checks protect normal
+runtime import, GhostGet rereads only that owning closure and rejects drift; restart
+GhostGet after changing source files. These checks protect normal
 upgrade/replacement workflows and prevent a changed runtime from reaching an
 operation. They are not an atomic sandbox against a same-account writer racing
 the module loader: changed top-level module code could run before the
@@ -76,13 +76,13 @@ Treat built-in durable contract identity as the final semantic review step,
 never an iteration mechanism. Finish provider code, manifests, deterministic
 tests, documentation, and formatting before changing a semantic-identity
 digest. Then run the focused contract test once to obtain the exact new digest,
-review and record it, and run registry startup once more. Ghostget derives the
+review and record it, and run registry startup once more. GhostGet derives the
 current source/dependency closure automatically, snapshots it at registry
 startup, and revalidates it before and after lazy runtime load. It deliberately
 has no manual closure allowlist or source-hash approval step.
 
 Bare package imports are bound to their exact relocation-stable dependency
-graph, not the repository's whole lockfile. Ghostget snapshots each installed package
+graph, not the repository's whole lockfile. GhostGet snapshots each installed package
 with bounded full-tree walks around its byte reads, hashes the exact paths and
 bytes, records required, optional, peer, and statically imported resolution
 edges, and revalidates shared startup snapshots before the registry becomes
@@ -96,7 +96,7 @@ self-contained portable package instead of weakening this boundary.
 
 Source identity also binds the Bun version, `NODE_ENV`, repository package
 module semantics, safe `bunfig.toml`, the complete `tsconfig` extends chain,
-and the nearest package scope for JavaScript. Ghostget must start from the checked
+and the nearest package scope for JavaScript. GhostGet must start from the checked
 repository root and refuses ambient loader, preload, condition, transform,
 working-directory, and tsconfig overrides. Repository modules may use
 JavaScript or TypeScript module extensions plus imported JSON or TOML data.
@@ -110,7 +110,7 @@ fail-closed reservation state. It does not make later plugin execution safe or
 establish that the implementation is trustworthy.
 
 `adapter install` installs a parsed data manifest only. Do not present it as a
-code-plugin installer. Ghostget never imports portable JavaScript into its process,
+code-plugin installer. GhostGet never imports portable JavaScript into its process,
 executes an authoring directory, runs package lifecycle scripts, or resolves
 dependencies from ancestor `node_modules`.
 
@@ -136,7 +136,7 @@ The generated package contains:
 - `AGENTS.md`, package-local authoring and protocol guidance.
 
 It starts `capture-required` and network-inert. An agent may implement it
-without editing Ghostget, but must still prove the same origin, current-account,
+without editing GhostGet, but must still prove the same origin, current-account,
 request, response, target, side-effect, uncertainty, and drift facts required
 for a source plugin. Then verify the fixed package boundary:
 
@@ -185,7 +185,7 @@ authorities are:
 - one kernel-bracketed dispatch begin/request/verify sequence for mutations.
 
 Resource owners register teardown before they start. After an operation
-terminalizes, Ghostget gives the complete cleanup join one separate 30-second bound.
+terminalizes, GhostGet gives the complete cleanup join one separate 30-second bound.
 A still-pending or rejected barrier becomes cleanup-unsafe, rejects the
 kernel-visible barrier, and preserves a durable retry fence rather than
 silently authorizing another run. Portable plugins retain an invocation lease
@@ -218,7 +218,7 @@ Portable v1 may describe a `linked-device` binding only as a network-inert
 `capture-required` reservation. Observed linked-device operations, pairing,
 and sync remain source-plugin-only until a portable lifecycle protocol can
 preserve the same admission, journal, acknowledgement, and recovery
-invariants. Ghostget rejects that execution path without transport fallback.
+invariants. GhostGet rejects that execution path without transport fallback.
 Portable v1 also rejects `local-cli`: verified native executable discovery,
 process authority, and subprocess cleanup remain source-plugin-only.
 
@@ -256,7 +256,7 @@ shape:
 {"outcome":"applied","evidenceHash":"<sha256>"}
 ```
 
-Ghostget binds that observation to the immutable receipt, bundle, manifest,
+GhostGet binds that observation to the immutable receipt, bundle, manifest,
 descriptor, auth, input, plan, and encrypted recovery capsule before it records
 anything. The current auth record must be the run's exact record, or a
 reconnect that keeps its locator ID and kind and names the provider subject the
@@ -267,14 +267,14 @@ record exists, a different outcome or evidence digest is rejected. A recorded
 `not-applied` claim is not a resolution, so later `applied` evidence still
 settles the run.
 
-Ghostget treats `not-applied` as your unverified claim, so it never reopens
+GhostGet treats `not-applied` as your unverified claim, so it never reopens
 the fence. It records the claim create-once, reports
 `"status":"fence-retained"`, and exits with status `5`. The ledger, recovery
-capsule, and journal stay unchanged. Ghostget refuses a claim after a verified
+capsule, and journal stay unchanged. GhostGet refuses a claim after a verified
 dispatch or an existing resolution, and rejects a different claim for the same
 run. Settle the run with `applied` evidence when you have it. Never submit
 `applied` just to unblock the bundle, because that resolution is a permanent
-record that the effect happened. A run that an older Ghostget resolved as
+record that the effect happened. A run that an older GhostGet resolved as
 `not-applied` and then interrupted before its release finished is in the same
 state: its resolution stays readable, both outcomes are refused, and the
 ledger, capsule, and bundle stay retained.
@@ -293,7 +293,7 @@ that does not meet these rules rejects the whole manifest. An operation with
 no `readback` key has unchanged canonical bytes and hashes.
 
 For a declared write, `ghostget runs reconcile <run-id>` without `--input`
-makes Ghostget itself invoke that read-only operation, with the run's retained
+makes GhostGet itself invoke that read-only operation, with the run's retained
 input and its current auth record under the same continuity rule. The host
 sends one protocol version 2 `host.readback` frame that carries the run ID, the
 intent hash, and the write's name and contract version, and accepts only a
@@ -304,7 +304,7 @@ plugin that declares no readback never receives a version 2 frame, so existing
 plugins run unchanged. For an undeclared write the command still requires
 `--input`, exactly as before.
 
-Ghostget records the first `applied` or `not-applied` observation create-once
+GhostGet records the first `applied` or `not-applied` observation create-once
 with the run, intent, auth realm, manifest and bundle hashes, and the evidence
 digest, and later passes act on that record without asking the plugin again.
 `applied` settles the run and keeps its ledger. `not-applied` releases the
@@ -319,7 +319,7 @@ readback, is a duplicate-risk successor
 Successors are admitted for one-dispatch R3 `posts.publish` writes on both the
 web-session and the portable transport, under the same election and
 auth-continuity rules. Once the elected successor settles after its dispatch,
-Ghostget marks the retained source `supersededBy` that successor. That releases
+GhostGet marks the retained source `supersededBy` that successor. That releases
 the source's recovery capsule and retained assets, so the source no longer
 blocks plugin update, disable, or removal; its indeterminate ledger stays, so
 the intent fence still counts its possible effect and no second successor can
@@ -329,7 +329,7 @@ receipt or retry a dispatch.
 
 Every operation resolves to an exact immutable identity: plugin ID and
 version, host API version, bundle and manifest SHA-256, adapter, transport,
-surface, operation, contract version, and descriptor SHA-256. Ghostget retains that
+surface, operation, contract version, and descriptor SHA-256. GhostGet retains that
 identity in plans, receipts, run journals, and encrypted recovery capsules.
 Live R1 work also owns an exact process-bound invocation lease.
 
@@ -343,7 +343,7 @@ ghostget plugin remove example-web --expected-current <bundle-sha256> --yes
 ```
 
 The catalog lock serializes portable activation, adapter installation,
-invocation leases, and confirmation-plan publication. Ghostget refuses update,
+invocation leases, and confirmation-plan publication. GhostGet refuses update,
 disable, or removal while the exact old bundle owns a live/unknown invocation,
 preview, claim, nonterminal or unreconciled run, recovery capsule, or
 linked-device lifecycle. Invalid or unexpected durable state also blocks.
@@ -466,7 +466,7 @@ malformed, timed-out, or signaled post-dispatch response is indeterminate and
 must never be retried. Reconcile only with a separately reviewed exact read.
 One local-CLI dispatch item is one fixed child invocation; if that command
 performs an internal upload followed by a provider mutation, disclose the
-opaque sequence and possible intermediate effect. Ghostget cannot fence those
+opaque sequence and possible intermediate effect. GhostGet cannot fence those
 internal calls separately, so uncertainty begins when the child starts.
 Raw API/RPC, software and plugin lifecycle, account recovery, arbitrary file
 output, destructive administration, and other high-authority commands remain
@@ -529,13 +529,13 @@ live request.
    writes static imports. Do not add runtime directory scanning or load code
    from local state.
    List the plugin and provider entry roots in the implementation-source
-   closure. Ghostget then resolves and binds every recursive local value dependency,
+   closure. GhostGet then resolves and binds every recursive local value dependency,
    so an agent can split JavaScript or TypeScript code into helpers without
    manually maintaining a duplicate file list. Keep installed package loads
-   literal and declared when possible. Ghostget follows literal undeclared package
+   literal and declared when possible. GhostGet follows literal undeclared package
    imports defensively, but rejects computed package loads because no
    statically knowable implementation identity can include an unknown target.
-   Definitions are bounded before Ghostget copies their sources, bindings,
+   Definitions are bounded before GhostGet copies their sources, bindings,
    operations, contract histories, origins, auth kinds, scopes, coverage, or
    input fields.
    Source plugins are trusted repository code, not a hostile-code sandbox;

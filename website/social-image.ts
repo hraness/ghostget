@@ -20,7 +20,7 @@ export const socialSite = defineSocialImageSite({
     kind: "mark",
     src: `data:image/svg+xml;base64,${Buffer.from(markSvg, "utf8").toString("base64")}`,
   },
-  name: "Ghostget",
+  name: "GhostGet",
   theme: {
     accent: "#2474d4",
     background: "#fbf1c7",

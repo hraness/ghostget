@@ -1,4 +1,4 @@
-Ghostget gives your AI agent named web actions: read a page, archive one
+GhostGet gives your AI agent named web actions: read a page, archive one
 media item, or use a connected account, without credentials or a browser to
 steer.
 
