@@ -7,6 +7,13 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.48
+
+This release updates the website footer.
+
+- The website footer uses the shared metallic mark and preserves its plain
+  fallback for forced-color modes.
+
 ## 0.18.47
 
 This release downloads paywalled PDFs through your browser sign-in, lists
