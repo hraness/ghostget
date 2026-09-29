@@ -1,0 +1,23 @@
+== Ghostget ==
+1 account needs reconnecting · v0.18.40
+Account: none (public scope)
+! Browser sign-in works on macOS. ghostget doctor
+
+== Approvals ==
+No approvals waiting
+
+== Accounts ==
+- x-main · Chrome · Personal · x · reconnect-required
+Connect: browser sign-in unavailable here
+
+== Permissions ==
+Managed: on · revision 3
+allow 0 · ask 0 · deny 0
+
+== Outputs ==
+No output files
+
+== Next ==
+ghostget auth list
+ghostget read https://example.com
+ghostget commands --json

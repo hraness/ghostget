@@ -1,0 +1,86 @@
+{
+  "product": "ghostget",
+  "version": "0.18.40",
+  "health": "attention",
+  "headline": "1 approval waiting",
+  "detail": null,
+  "confirmedAgeSeconds": 0,
+  "accountId": "x-main",
+  "accounts": [
+    {
+      "id": "x-main",
+      "label": "@runner · Chrome · Personal",
+      "provider": "x",
+      "source": "chrome",
+      "status": "verified",
+      "current": true
+    },
+    {
+      "id": "linkedin-web-5d0e2a91",
+      "label": "runner-person · Safari",
+      "provider": "linkedin",
+      "source": "safari",
+      "status": "verified",
+      "current": false
+    }
+  ],
+  "approvals": [
+    {
+      "id": "appr-1",
+      "digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "title": "Post to X",
+      "account": "x-main",
+      "effect": "write",
+      "preview": "Shipping the new menu today",
+      "expiresAt": "2026-09-26T12:04:00.000Z"
+    }
+  ],
+  "attempts": [],
+  "connect": {
+    "available": true,
+    "providers": [
+      "x-web",
+      "linkedin-web",
+      "reddit-web"
+    ],
+    "browsers": [
+      "safari",
+      "chrome-default",
+      "chrome-profile-1"
+    ]
+  },
+  "permissions": {
+    "managed": true,
+    "revision": 3,
+    "allow": 1,
+    "ask": 1,
+    "deny": 0
+  },
+  "web": {
+    "revision": 1,
+    "gatewayOnly": false,
+    "rules": 0
+  },
+  "outputs": {
+    "files": [
+      {
+        "name": "x-timeline-2026-09-26.md",
+        "bytes": 18432,
+        "modifiedAt": "2026-09-26T11:55:00.000Z"
+      },
+      {
+        "name": "example-com.pdf",
+        "bytes": 402118,
+        "modifiedAt": "2026-09-26T09:00:00.000Z"
+      }
+    ],
+    "message": null,
+    "truncated": false
+  },
+  "notices": [],
+  "next": [
+    "ghostget approvals list",
+    "ghostget read https://example.com",
+    "ghostget commands --json"
+  ]
+}

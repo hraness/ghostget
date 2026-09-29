@@ -1,0 +1,56 @@
+{
+  "product": "ghostget",
+  "version": "0.18.40",
+  "health": "ready",
+  "headline": "Ready · 1 account",
+  "detail": null,
+  "confirmedAgeSeconds": 0,
+  "accountId": null,
+  "accounts": [
+    {
+      "id": "x-main",
+      "label": "x-main · Chrome · Personal",
+      "provider": "x",
+      "source": "chrome",
+      "status": "verified",
+      "current": false
+    }
+  ],
+  "approvals": [],
+  "attempts": [],
+  "connect": {
+    "available": true,
+    "providers": [
+      "x-web",
+      "linkedin-web",
+      "reddit-web"
+    ],
+    "browsers": [
+      "safari",
+      "chrome-default",
+      "chrome-profile-1"
+    ]
+  },
+  "permissions": {
+    "managed": true,
+    "revision": 3,
+    "allow": 0,
+    "ask": 0,
+    "deny": 0
+  },
+  "web": {
+    "revision": 1,
+    "gatewayOnly": false,
+    "rules": 0
+  },
+  "outputs": {
+    "files": [],
+    "message": null,
+    "truncated": false
+  },
+  "notices": [],
+  "next": [
+    "ghostget read https://example.com",
+    "ghostget commands --json"
+  ]
+}

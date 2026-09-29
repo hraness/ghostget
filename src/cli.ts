@@ -250,7 +250,7 @@ export async function runGhostgetCliProcess(
     const { assertGatewayCommandAllowed } = await import("./control/web-policy");
     assertGatewayCommandAllowed(rawArguments, process.env);
   } catch {
-    resolvedOutput.stderr("Ghostget gateway-only policy blocks this command, or its policy state is unavailable. Review the policy through an authorized local control client.\n");
+    resolvedOutput.stderr("Ghostget gateway-only policy blocks this command, or its policy state is unavailable. Review it with ghostget status, or change it with ghostget web rules set.\n");
     process.exitCode = 1;
     return;
   }
@@ -265,14 +265,19 @@ export async function runGhostgetCliProcess(
       process.exitCode = await runVaultCommand(rawArguments, process.env, resolvedOutput);
       return;
     }
-    if (rawArguments[0] === "web") {
+    if (rawArguments[0] === "web" && rawArguments[1] !== "rules") {
       const { runWebCommand } = await import("./control/cli");
       process.exitCode = await runWebCommand(rawArguments, process.env, resolvedOutput);
       return;
     }
-    if (rawArguments[0] === "interface") {
+    if (rawArguments[0] === "interface" && rawArguments[1] !== "activate") {
       const { runInterfaceCommand } = await import("./control/interface-cli");
       process.exitCode = runInterfaceCommand(rawArguments, process.env, resolvedOutput);
+      return;
+    }
+    const { registryOwns, runRegistryCommand } = await import("./control/registry");
+    if (registryOwns(rawArguments)) {
+      process.exitCode = await runRegistryCommand(rawArguments, process.env, resolvedOutput);
       return;
     }
     if (rawArguments[0] === "menubar") {

@@ -8,7 +8,7 @@ Start here
   ghostget auth add x-main --cookie-source chrome
                                       Connect an account from that browser
   ghostget capabilities               See the actions you can run
-  ghostget menubar                    Show GhostGet in the menu bar
+  ghostget status                     Accounts, approvals and saved outputs
 
 Everyday
   ghostget clip <url>                 Save a page as a Markdown note

@@ -1,0 +1,156 @@
+{
+  "product": "ghostget",
+  "version": "0.18.40",
+  "health": "attention",
+  "headline": "1 account needs reconnecting",
+  "detail": null,
+  "confirmedAgeSeconds": 0,
+  "accountId": null,
+  "accounts": [
+    {
+      "id": "x-0",
+      "label": "x-0 · Chrome · Work",
+      "provider": "x",
+      "source": "chrome",
+      "status": "verified",
+      "current": false
+    },
+    {
+      "id": "reddit-web-10000001",
+      "label": "reddit-web-10000001 · Chrome · Personal",
+      "provider": "reddit",
+      "source": "chrome",
+      "status": "verified",
+      "current": false
+    },
+    {
+      "id": "x-2",
+      "label": "x-2 · Chrome · Personal",
+      "provider": "x",
+      "source": "chrome",
+      "status": "verified",
+      "current": false
+    },
+    {
+      "id": "reddit-web-10000003",
+      "label": "reddit-web-10000003 · Chrome · Work",
+      "provider": "reddit",
+      "source": "chrome",
+      "status": "reconnect-required",
+      "current": false
+    },
+    {
+      "id": "x-4",
+      "label": "x-4 · Chrome · Personal",
+      "provider": "x",
+      "source": "chrome",
+      "status": "verified",
+      "current": false
+    },
+    {
+      "id": "reddit-web-10000005",
+      "label": "reddit-web-10000005 · Chrome · Personal",
+      "provider": "reddit",
+      "source": "chrome",
+      "status": "verified",
+      "current": false
+    },
+    {
+      "id": "x-6",
+      "label": "x-6 · Chrome · Work",
+      "provider": "x",
+      "source": "chrome",
+      "status": "verified",
+      "current": false
+    },
+    {
+      "id": "reddit-web-10000007",
+      "label": "reddit-web-10000007 · Chrome · Personal",
+      "provider": "reddit",
+      "source": "chrome",
+      "status": "verified",
+      "current": false
+    },
+    {
+      "id": "x-8",
+      "label": "x-8 · Chrome · Personal",
+      "provider": "x",
+      "source": "chrome",
+      "status": "verified",
+      "current": false
+    },
+    {
+      "id": "reddit-web-10000009",
+      "label": "reddit-web-10000009 · Chrome · Work",
+      "provider": "reddit",
+      "source": "chrome",
+      "status": "verified",
+      "current": false
+    },
+    {
+      "id": "x-10",
+      "label": "x-10 · Chrome · Personal",
+      "provider": "x",
+      "source": "chrome",
+      "status": "verified",
+      "current": false
+    },
+    {
+      "id": "reddit-web-1000000b",
+      "label": "reddit-web-1000000b · Chrome · Personal",
+      "provider": "reddit",
+      "source": "chrome",
+      "status": "verified",
+      "current": false
+    }
+  ],
+  "approvals": [],
+  "attempts": [],
+  "connect": {
+    "available": true,
+    "providers": [
+      "x-web",
+      "linkedin-web",
+      "reddit-web"
+    ],
+    "browsers": [
+      "safari",
+      "chrome-default",
+      "chrome-profile-1"
+    ]
+  },
+  "permissions": {
+    "managed": true,
+    "revision": 3,
+    "allow": 0,
+    "ask": 16,
+    "deny": 0
+  },
+  "web": {
+    "revision": 1,
+    "gatewayOnly": false,
+    "rules": 0
+  },
+  "outputs": {
+    "files": [
+      {
+        "name": "x-timeline-2026-09-26.md",
+        "bytes": 18432,
+        "modifiedAt": "2026-09-26T11:55:00.000Z"
+      },
+      {
+        "name": "example-com.pdf",
+        "bytes": 402118,
+        "modifiedAt": "2026-09-26T09:00:00.000Z"
+      }
+    ],
+    "message": null,
+    "truncated": false
+  },
+  "notices": [],
+  "next": [
+    "ghostget auth list",
+    "ghostget read https://example.com",
+    "ghostget commands --json"
+  ]
+}

@@ -186,13 +186,15 @@ export type AssembledLocalApp = {
 };
 
 export type LocalAppDependencies = {
-  /** Runner binary override (maintainer path like `GHOSTGET_MENUBAR`). */
+  /** Runner binary override (maintainer path like `GHOSTGET_HELPER`). */
   readonly runnerBinary?: string;
   readonly resolveRunnerBinary?: () => Promise<string>;
   readonly resolveSidecarPath?: () => string | Promise<string>;
   readonly sidecarPath?: string;
   readonly run?: typeof runRunner;
   readonly fileSha256?: (path: string) => Promise<string>;
+  /** Checks the installed helper's code signature and designated identifier. */
+  readonly verifyHelperSignature?: (helperPath: string, identifier: string) => Promise<boolean>;
   readonly productVersion?: string;
 };
 
@@ -200,14 +202,29 @@ async function defaultFileSha256(path: string): Promise<string> {
   return createHash("sha256").update(await readFile(path)).digest("hex");
 }
 
-async function defaultRunnerBinary(environment: LocalAppEnvironment): Promise<string> {
-  const override = environment.GHOSTGET_MENUBAR;
-  if (override !== undefined && override !== "") {
-    if (!isAbsolute(override) || normalize(override) !== override) {
-      throw new LocalAppError("runner-failed", "GHOSTGET_MENUBAR must be an absolute, normalized path to a reviewed companion executable.");
-    }
-    return override;
+/**
+ * The maintainer override for the reviewed helper executable. `GHOSTGET_HELPER`
+ * is the current name; `GHOSTGET_MENUBAR` stays accepted as an alias so
+ * existing local setups keep working. Setting both to different paths is
+ * refused rather than guessed.
+ */
+export function helperOverride(environment: LocalAppEnvironment): string | undefined {
+  const helper = environment.GHOSTGET_HELPER === "" ? undefined : environment.GHOSTGET_HELPER;
+  const legacy = environment.GHOSTGET_MENUBAR === "" ? undefined : environment.GHOSTGET_MENUBAR;
+  if (helper !== undefined && legacy !== undefined && helper !== legacy) {
+    throw new LocalAppError("runner-failed", "GHOSTGET_HELPER and GHOSTGET_MENUBAR name different executables. Unset GHOSTGET_MENUBAR.");
   }
+  const override = helper ?? legacy;
+  if (override === undefined) return undefined;
+  if (!isAbsolute(override) || normalize(override) !== override) {
+    throw new LocalAppError("runner-failed", `${helper !== undefined ? "GHOSTGET_HELPER" : "GHOSTGET_MENUBAR"} must be an absolute, normalized path to a reviewed helper executable.`);
+  }
+  return override;
+}
+
+async function defaultRunnerBinary(environment: LocalAppEnvironment): Promise<string> {
+  const override = helperOverride(environment);
+  if (override !== undefined) return override;
   // The pinned-release installer runs in its own process so this opt-in path
   // adds no dependency edge to the analyzed module graph. The resolver script
   // is addressed by its own file URL, never through PATH or a shell.
@@ -223,7 +240,7 @@ async function defaultRunnerBinary(environment: LocalAppEnvironment): Promise<st
   ) {
     throw new LocalAppError(
       "runner-failed",
-      "The reviewed companion executable could not be resolved, so Ghostget can't build its app yet.",
+      "The reviewed helper executable could not be resolved, so Ghostget can't build its app yet.",
     );
   }
   return line.path;
@@ -252,8 +269,10 @@ async function defaultSidecarPath(environment: LocalAppEnvironment): Promise<str
 /**
  * Build or refresh `~/Applications/Hraness/Ghostget.app` with the signed
  * cookie-reader helper inside it. Both inputs are digest-verified: the runner
- * checks the helper digest inside `--assemble-app`, and the installed copy is
- * hashed again before its path is handed out. Any failure is a typed
+ * checks the helper digest inside `--assemble-app` and must then report the
+ * bundle `unchanged` for the same request, and the installed helper's code
+ * signature must verify under its designated identifier before its path is
+ * handed out. Any failure is a typed
  * `LocalAppError`; nothing falls back to the system `security` tool.
  */
 export async function assembleLocalApp(
@@ -291,7 +310,37 @@ export async function assembleLocalApp(
     helpers: [{ name: COOKIE_READER_HELPER_NAME, path: sidecarPath, sha256: sidecarSha256 }],
     signing: "local",
   });
-  const result = await run(runner, ["--assemble-app"], request);
+  const first = parseAppResult(await run(runner, ["--assemble-app"], request));
+  // Signing rewrites the helper's bytes, so the installed copy never hashes
+  // to the packaged digest. The binding is attested twice instead: the runner
+  // answers `unchanged` only when HranessInputsSha256 (which covers every
+  // helper's input digest, the signing mode and the runner version) matches
+  // the installed bundle and `codesign --verify --strict` passes; and the
+  // helper's own signature must verify under its designated identifier.
+  const confirmed = first.status === "unchanged"
+    ? first
+    : parseAppResult(await run(runner, ["--assemble-app"], request));
+  if (confirmed.status !== "unchanged" || confirmed.appPath !== first.appPath) {
+    throw new LocalAppError(
+      "helper-mismatch",
+      "The signed cookie reader inside Ghostget's app did not match the packaged helper.",
+    );
+  }
+  const helperPath = localAppHelperPath(first.appPath);
+  const verifySignature = dependencies.verifyHelperSignature ?? defaultVerifyHelperSignature;
+  if (!await verifySignature(helperPath, COOKIE_READER_HELPER_IDENTIFIER)) {
+    throw new LocalAppError(
+      "helper-mismatch",
+      "The signed cookie reader inside Ghostget's app did not match the packaged helper.",
+    );
+  }
+  return { appPath: first.appPath, helperPath };
+}
+
+/** The signing identifier the runner gives the cookie reader (`app.hraness.<appId>.<helper>`). */
+export const COOKIE_READER_HELPER_IDENTIFIER = `app.hraness.${APP_ID}.${COOKIE_READER_HELPER_NAME}`;
+
+function parseAppResult(result: RunnerResult): { readonly status: "built" | "unchanged"; readonly appPath: string } {
   const line = firstJsonLine(result.stdout);
   const status = line?.status;
   const appPath = typeof line?.path === "string" ? line.path : undefined;
@@ -308,15 +357,15 @@ export async function assembleLocalApp(
       `Ghostget's local app could not be built (${code}).`,
     );
   }
+  return { status, appPath };
+}
 
-  const helperPath = localAppHelperPath(appPath);
-  if (await fileSha256(helperPath) !== sidecarSha256) {
-    throw new LocalAppError(
-      "helper-mismatch",
-      "The signed cookie reader inside Ghostget's app did not match the packaged helper.",
-    );
-  }
-  return { appPath, helperPath };
+async function defaultVerifyHelperSignature(helperPath: string, identifier: string): Promise<boolean> {
+  const result = await runRunner(
+    "/usr/bin/codesign",
+    ["--verify", "--strict", `-R=identifier "${identifier}"`, helperPath],
+  );
+  return result.code === 0;
 }
 
 let assemblyPromise: Promise<AssembledLocalApp> | undefined;

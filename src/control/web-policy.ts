@@ -1,3 +1,4 @@
+import { registryOwns } from "./registry-words";
 import { join } from "node:path";
 import { createPrivateJsonIfAbsent, ensurePrivateStateDirectory, ghostgetStateHome, privateStateFilesMayExist, readPrivateStateFileIfPresent, writePrivateJsonIfUnchanged } from "../storage";
 import { canonicalJson, sha256 } from "../canonical-json";
@@ -47,10 +48,11 @@ export function checkWebRequest(method:"GET"|"HEAD", rawUrl:string, environment:
   return {url,method,ruleIds:ids,endpoint:matches.length===1?matches[0]!.path.value:null,maxResponseBytes:Math.min(2_000_000,...matches.map(rule=>rule.maxResponseBytes)),timeoutMs:Math.min(30_000,...matches.map(rule=>rule.timeoutMs)),approval:{digest:sha256(canonicalJson({schema:1,method,url:url.href,policy})),revision:policy.revision,decision,kind:"web",title:`${method} ${url.hostname}`,account:null,effect:"Public web retrieval",preview:`${method} ${url.href}\nRules: ${ids.join(", ") || "No matching rule"}\nNo cookies, authorization headers, redirects, or retries.`}};
 }
 /** Application gateway mode covers the supported CLI, not other processes or same-user code. */
+/** Registry control verbs replace the menu bar as the administrative surface; every change among them is human-gated and decided by the owner. */
 export function assertGatewayCommandAllowed(args: readonly string[], environment:ControlEnvironment=process.env): void {
   if(!readWebPolicy(environment).gatewayOnly) return;
   const first=args[0];
-  if(first==="web" || first==="capabilities" || first==="menubar" || first==="tui" || first==="--version" || first==="help" || first==="--help" || first==="-h" || args.length===0) return;
+  if(first==="web" || first==="capabilities" || first==="menubar" || first==="tui" || registryOwns(args) || first==="--version" || first==="help" || first==="--help" || first==="-h" || args.length===0) return;
   if((first==="plugin"||first==="plugins") && ["list","show"].includes(args[1]??"")) return;
-  throw new ControlError("GATEWAY_ONLY","This state home permits web gateway requests only. Use ghostget web request or change the mode through an authorized local control client.");
+  throw new ControlError("GATEWAY_ONLY","This state home permits web gateway requests only. Use ghostget web request or change the mode with ghostget web rules set.");
 }

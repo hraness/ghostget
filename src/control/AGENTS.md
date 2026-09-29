@@ -5,6 +5,9 @@
 - `menubar-cli.ts` – shared desktop-foundation menu adapter over the helper's private stdio channel.
 - `menubar-icon.ts` – bundled 32px Twemoji (CC-BY 4.0) tray art for icon-only surfaces.
 - `tui*.ts` – keyboard-driven control views, input decoding, and terminal lifetime.
+- `registry.ts`, `registry-words.ts` – the shared-grammar control verbs (`status`, `approvals`, `permissions`, `control`, …) with `--json` parity.
+- `admin-socket.ts` – the owner's capability-bound administrative socket used by those verbs.
+- `status-view.ts`, `outputs.ts` – the one-screen status model and saved-output listing shared by the TUI, CLI and menu.
 - `helper-client.ts`, `control-response.ts` – bounded private control transport and strict response parsing shared by the menu and TUI.
 - `vault-cli.ts`, `vault-input.ts` – explicit X-token import metadata and command guidance; secret resolution stays in `credential-helper.ts`.
 - `approval-*.ts` – exact human request and one-use approval lifetimes.
@@ -19,6 +22,11 @@
 administrative stdio and a separate owner-only agent socket. Agent requests
 cannot grant approvals, alter policy, connect accounts, or resolve secrets.
 Keep both protocols bounded and reject drift before dispatch.
+The owner's `admin.sock` carries the administrative union for the control
+verbs and requires the owner's private capability file. It is not a boundary
+against the same user, so every verb that grants, loosens, connects,
+disconnects, activates or installs passes the shared T1+T2 human gate; only
+inputs that strictly tighten run without it.
 The menu and TUI share one helper owner per state home. The token-import
 command performs its own credential-helper ceremony without that owner, so
 imports run while control surfaces stay open. Keep account selection and

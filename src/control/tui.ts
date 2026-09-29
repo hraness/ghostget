@@ -1,17 +1,25 @@
 import { spawnHelper, type HelperClient } from "./helper-client";
 import { DEFAULT_BROWSER_CHOICES, browserChoices, type BrowserChoice } from "./browser-choices";
 import type { ControlRequest, ControlResponse, PermissionDecision } from "./protocol";
-import { applyTuiSnapshot, createTuiState, renderTui, renderTuiSnapshot, selectTuiSection, TUI_SECTIONS, tuiRows, tuiText, type TuiChoice, type TuiState } from "./tui-model";
+import { applyTuiSnapshot, createTuiState, renderTui, renderTuiNotice, renderTuiSnapshot, selectTuiSection, TUI_SECTIONS, TUI_SNAPSHOT_WIDTH, tuiRows, tuiText, type TuiChoice, type TuiState } from "./tui-model";
 import { processTerminal, TuiInput, withTuiTerminal, type TuiKey, type TuiTerminal } from "./tui-terminal";
 import type { ControlEnvironment } from "./web-policy";
+import { detectAudience, type Audience } from "@hraness/desktop-foundation/audience";
+import { adminClient, adminOwnerRunning } from "./admin-socket";
+import { STATUS_SCHEMA } from "./status-view";
+import type { ControlPorts } from "./registry";
 
 type Output = { readonly stdout: (text: string) => unknown; readonly stderr: (text: string) => unknown };
-const USAGE = `Usage: ghostget tui [--account <id>] [--snapshot]
+const USAGE = `Usage: ghostget tui [--account <id>] [--snapshot | --json]
 
 Open local controls for setup, accounts, capabilities, approvals, activity,
 and imported interfaces. No model or Rust toolchain is needed.
 
-  --snapshot      Print a plain status summary and exit (works without a TTY)
+  --snapshot      Print a plain status summary and exit (works without a TTY;
+                  agents get the --json envelope)
+  --json          Print the ghostget.status/1 envelope and exit
+  --width <n>     Wrap --snapshot text to n columns (40-200; default: the
+                  terminal width, or 80 without a terminal)
   --account <id>  Select an existing account for permission review
   --help          Show this help without starting a helper
 
@@ -19,8 +27,9 @@ Tab changes sections; arrows choose rows; Enter opens actions; ? shows help.
 q, Esc or Ctrl-C exits. Every change requires an exact review and confirmation.
 Pasted text is ignored. Keep this panel open for your agent's approval requests.
 
-Only one local controller can run at a time. If the menu bar is running:
-  ghostget menubar stop
+The TUI uses a running control owner (ghostget control serve) when there is
+one. Otherwise it starts its own, and only one can run at a time:
+  ghostget control stop     (or ghostget menubar stop)
   ghostget tui
 
 First page read (no account needed): ghostget read https://example.com
@@ -373,28 +382,47 @@ export async function runInteractiveTui(helper: HelperClient, terminal: TuiTermi
   if (drawFailed) throw new Error("terminal unavailable");
 }
 
-export async function runTuiCommand(args: readonly string[], environment: ControlEnvironment, output: Output, dependencies: { readonly helper?: (environment: ControlEnvironment) => HelperClient; readonly terminal?: TuiTerminal } = {}): Promise<number> {
+export async function runTuiCommand(args: readonly string[], environment: ControlEnvironment, output: Output, dependencies: { readonly helper?: (environment: ControlEnvironment) => HelperClient; readonly terminal?: TuiTerminal; readonly audience?: Audience; readonly ports?: ControlPorts } = {}): Promise<number> {
   if (args.length === 2 && (args[1] === "--help" || args[1] === "-h")) { output.stdout(USAGE); return 0; }
-  let snapshot = false; let accountId: string | null = null;
+  let snapshot = false; let json = false; let accountId: string | null = null; let width: number | null = null;
   for (let index = 1; index < args.length; index += 1) {
-    if (args[index] === "--snapshot" && !snapshot) snapshot = true;
+    if (args[index] === "--snapshot" && !snapshot && !json) snapshot = true;
+    else if (args[index] === "--width" && width === null && /^[1-9][0-9]{1,2}$/u.test(args[index + 1] ?? "")
+      && Number(args[index + 1]) >= TUI_SNAPSHOT_WIDTH.min && Number(args[index + 1]) <= TUI_SNAPSHOT_WIDTH.max) width = Number(args[++index]!);
+    else if (args[index] === "--json" && !json && !snapshot) json = true;
     else if (args[index] === "--account" && accountId === null && /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/u.test(args[index + 1] ?? "")) accountId = args[++index]!;
     else { output.stderr("Invalid TUI arguments. Use ghostget tui --help.\n"); return 1; }
+  }
+  if (width !== null && !snapshot) { output.stderr("--width only applies to ghostget tui --snapshot.\n"); return 1; }
+  if (json || (snapshot && (dependencies.audience ?? detectAudience({ env: environment as NodeJS.ProcessEnv })) === "agent")) {
+    const { defaultPorts, readStatus } = await import("./registry");
+    const { okEnvelope, errorEnvelope, HranessError } = await import("@hraness/desktop-foundation/registry");
+    try {
+      const status = await readStatus(dependencies.ports ?? defaultPorts(environment), accountId);
+      output.stdout(`${JSON.stringify(okEnvelope(STATUS_SCHEMA, status, status.next.map((command) => ({ command, why: "Suggested next step", audience: "agent" as const }))))}\n`);
+      return 0;
+    } catch (error) {
+      const body = error instanceof HranessError ? error.toBody() : { code: "internal" as const, message: "Ghostget could not read its status." };
+      output.stdout(`${JSON.stringify(errorEnvelope(body))}\n`);
+      return 1;
+    }
   }
   const terminal = dependencies.terminal ?? processTerminal(output.stdout);
   if (!snapshot && !terminal.isTerminal) { output.stderr("ghostget tui needs an interactive terminal. Use ghostget tui --snapshot for a plain summary.\n"); return 1; }
   let helper: HelperClient | undefined;
   try {
-    helper = (dependencies.helper ?? spawnHelper)(environment);
+    helper = dependencies.helper !== undefined ? dependencies.helper(environment)
+      : await adminOwnerRunning(environment) ? adminClient(environment) : spawnHelper(environment);
     if (snapshot) {
       const controller = new TuiController(helper, accountId, () => {}, process.platform, browserChoices(environment));
       await controller.refresh();
-      if (!controller.state.fresh) { output.stderr(`${tuiText(controller.state.notice)}\n`); return 1; }
-      output.stdout(renderTuiSnapshot(controller.state));
+      const columns = width ?? (terminal.isTerminal ? terminal.size().columns : TUI_SNAPSHOT_WIDTH.default);
+      if (!controller.state.fresh) { output.stderr(renderTuiNotice(controller.state.notice, columns)); return 1; }
+      output.stdout(renderTuiSnapshot(controller.state, columns));
     } else await runInteractiveTui(helper, terminal, accountId, browserChoices(environment));
     return 0;
   } catch {
-    output.stderr("Ghostget's terminal controls could not start or stopped unexpectedly. Stop the menu bar with ghostget menubar stop, quit any other controller, then try ghostget tui again.\n");
+    output.stderr("Ghostget's terminal controls could not start or stopped unexpectedly. Stop other controllers with ghostget control stop (or ghostget menubar stop), then try ghostget tui again.\n");
     return 1;
   } finally { await helper?.close(); }
 }

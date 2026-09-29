@@ -1,0 +1,78 @@
+{
+  "product": "ghostget",
+  "version": "0.18.40",
+  "health": "idle",
+  "headline": "No accounts connected",
+  "detail": "Public pages work without one",
+  "confirmedAgeSeconds": 0,
+  "accountId": null,
+  "accounts": [],
+  "approvals": [],
+  "attempts": [
+    {
+      "attemptId": "att-1",
+      "title": "X · browser session",
+      "providerId": "x-web",
+      "browserKey": "chrome-default",
+      "accountId": null,
+      "status": "awaiting-sign-in",
+      "subject": null,
+      "displayName": null
+    },
+    {
+      "attemptId": "att-2",
+      "title": "Reddit · browser session",
+      "providerId": "reddit-web",
+      "browserKey": "safari",
+      "accountId": null,
+      "status": "failed",
+      "subject": null,
+      "displayName": null
+    },
+    {
+      "attemptId": "att-3",
+      "title": "LinkedIn · browser session",
+      "providerId": "linkedin-web",
+      "browserKey": "chrome-profile-1",
+      "accountId": null,
+      "status": "verified",
+      "subject": "urn:li:fsd_profile:11777888",
+      "displayName": "person-verified"
+    }
+  ],
+  "connect": {
+    "available": true,
+    "providers": [
+      "x-web",
+      "linkedin-web",
+      "reddit-web"
+    ],
+    "browsers": [
+      "safari",
+      "chrome-default",
+      "chrome-profile-1"
+    ]
+  },
+  "permissions": {
+    "managed": true,
+    "revision": 3,
+    "allow": 0,
+    "ask": 0,
+    "deny": 0
+  },
+  "web": {
+    "revision": 1,
+    "gatewayOnly": false,
+    "rules": 0
+  },
+  "outputs": {
+    "files": [],
+    "message": null,
+    "truncated": false
+  },
+  "notices": [],
+  "next": [
+    "ghostget read https://example.com",
+    "ghostget commands --json"
+  ]
+}

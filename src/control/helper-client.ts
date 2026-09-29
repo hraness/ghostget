@@ -110,7 +110,7 @@ export function parseHelperEnvelope(text: string): ControlResponse & { readonly 
   if (Object.keys(frame).length !== allowed.length || allowed.some(key => !Object.hasOwn(frame, key))) throw new Error("invalid helper fields");
   if (frame.ok === false) {
     if (typeof frame.code !== "string" || !/^[A-Z][A-Z0-9_]{0,63}$/u.test(frame.code) || typeof frame.message !== "string" || frame.message.length > 4096) throw new Error("invalid helper error");
-    if (frame.code === "CONTROL_ALREADY_RUNNING") frame.message = "Another Ghostget controller is open. Run ghostget menubar stop or quit the other TUI, then reopen this controller.";
+    if (frame.code === "CONTROL_ALREADY_RUNNING") frame.message = "Another Ghostget controller is open. Run ghostget control stop or quit the other TUI, then reopen this controller.";
   } else if (frame.ok === true) {
     assertControlData(frame.data);
   } else throw new Error("invalid helper result");

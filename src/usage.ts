@@ -20,7 +20,7 @@ Start here
   ghostget auth add x-main --cookie-source chrome
                                       Connect an account from that browser
   ghostget capabilities               See the actions you can run
-  ghostget menubar                    Show GhostGet in the menu bar
+  ghostget status                     Accounts, approvals and saved outputs
 
 Everyday
   ghostget clip <url>                 Save a page as a Markdown note
@@ -61,8 +61,12 @@ Run actions
   ghostget runs list                  Review past runs
 
 Control GhostGet
-  ghostget menubar                    Show GhostGet in the menu bar
+  ghostget status                     Accounts, approvals and saved outputs
   ghostget tui                        Open the keyboard control panel
+  ghostget control serve|stop         Run the control owner without a window
+  ghostget approvals|permissions|connections
+                                      Every control action as a command
+  ghostget menubar                    Show GhostGet in the menu bar
   ghostget doctor                     Check everything GhostGet needs
 
 Extend GhostGet
@@ -450,8 +454,8 @@ const advancedHelp = `GhostGet advanced commands
   ghostget runs show|reconcile       Inspect or settle one run
   ghostget operator doctor           Same as ghostget doctor
 
-Use one controller at a time: run ghostget menubar stop before opening the
-TUI. Setup guide: https://ghostget.com/getting-started
+The TUI uses a running control owner. Stop the menu bar first with
+ghostget menubar stop. Setup guide: https://ghostget.com/getting-started
 `;
 
 type HelpTopic =
@@ -513,6 +517,15 @@ const HELP_TOPICS: Readonly<Record<string, HelpTopic>> = {
   help: { text: ghostgetUsage },
   menubar: { delegate: "menubar" },
   tui: { delegate: "tui" },
+  status: { delegate: "status" },
+  approvals: { delegate: "approvals" },
+  activity: { delegate: "activity" },
+  prompt: { delegate: "prompt" },
+  outputs: { delegate: "outputs" },
+  connections: { delegate: "connections" },
+  control: { delegate: "control" },
+  permissions: { delegate: "permissions" },
+  commands: { delegate: "commands" },
   vault: { delegate: "vault" },
   web: { delegate: "web" },
   interface: { delegate: "interface" },
@@ -591,7 +604,7 @@ export function ghostgetHelpRequest(raw: readonly string[]): GhostgetHelpRequest
   const separator = raw.indexOf("--");
   const scanned = separator === -1 ? raw : raw.slice(0, separator);
   if (!scanned.includes("--help") && !scanned.includes("-h")) return null;
-  if (SELF_HELP_COMMANDS.has(first)) return null;
+  if (SELF_HELP_COMMANDS.has(first) || registryOwns(raw)) return null;
   return resolveTopic(first, raw[1]);
 }
 
@@ -608,4 +621,19 @@ export function ghostgetHelpCommandFor(raw: readonly string[]): string {
   const key = topicFor(first, raw[1]);
   if (HELP_TOPICS[key] === undefined || key === "help") return "ghostget --help";
   return key === "invoke" && first !== "invoke" ? "ghostget invoke --help" : `ghostget ${key} --help`;
+}
+
+/**
+ * The first words the control registry owns, kept here so help routing needs
+ * no import. `src/control/registry-words.ts` re-exports them.
+ */
+export const REGISTRY_WORDS: ReadonlySet<string> = new Set([
+  "commands", "status", "approvals", "permissions", "activity", "prompt", "outputs", "connections", "control",
+]);
+
+/** Whether `args` names a registry verb; everything else keeps its existing dispatcher. */
+export function registryOwns(args: readonly string[]): boolean {
+  const first = args[0] ?? "";
+  if (REGISTRY_WORDS.has(first)) return true;
+  return (first === "web" && args[1] === "rules") || (first === "interface" && args[1] === "activate");
 }

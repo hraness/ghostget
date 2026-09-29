@@ -10,6 +10,7 @@ import { CONTROL_PROTOCOL, type ApprovalTarget, type JsonValue } from "./protoco
 import { controlFailure, ControlService } from "./service";
 import { ControlError, controlResponseLine, digest, identifier, integer, keys, nullable, oneOf, parseControlRequest, record, string } from "./validation";
 import type { ControlEnvironment } from "./web-policy";
+import { startAdminServer, type AdminServer } from "./admin-socket";
 
 function parseTarget(value:unknown):ApprovalTarget {
   const v=record(value);
@@ -100,11 +101,17 @@ export async function settleHelperShutdown(steps:HelperShutdownSteps):Promise<vo
   steps.releaseOwner();
 }
 
-/** Private native stdio is the only administrative transport. No TCP listener is created. */
-export async function runControlHelper(environment:ControlEnvironment=process.env):Promise<void> {
+/**
+ * `stdio`: the controller's private channel plus the owner sockets; the owner
+ * stops when stdin ends. `serve`: the headless owner (`ghostget control
+ * serve`); it stops on an admin `control.stop`, SIGTERM or SIGINT. Both modes
+ * bind `agent.sock` and `admin.sock`. No TCP listener is created.
+ */
+export type HelperMode = "stdio" | "serve";
+export async function runControlHelper(environment:ControlEnvironment=process.env,mode:HelperMode="stdio",onReady?:()=>void):Promise<void> {
   process.umask(0o077);
   const releaseOwner=acquireOwner(environment);const socketPath=controlSocketPath(environment);const clients=new Set<Socket>();const active=new Set<Promise<void>>();
-  let service:ControlService|undefined;let ownedSocket:{dev:number;ino:number}|undefined;let closing=false;let controlActive=0;
+  let service:ControlService|undefined;let admin:AdminServer|undefined;let stopServe:()=>void=()=>{};let ownedSocket:{dev:number;ino:number}|undefined;let closing=false;let controlActive=0;
   const directory=join(ghostgetStateHome(environment),"control");const directoryIdentity=ensurePrivateStateDirectory(directory,environment);
   const server=createServer(socket=>{
     if(closing||clients.size>=16||service===undefined){socket.destroy();return;}
@@ -119,17 +126,20 @@ export async function runControlHelper(environment:ControlEnvironment=process.en
   const shutdown=async()=>{if(closing)return;closing=true;await settleHelperShutdown({
     disconnectClients:async()=>{const closes:Promise<void>[]=[];for(const socket of clients){if(socket.closed)continue;closes.push(new Promise<void>(resolve=>socket.once("close",resolve)));socket.destroy();}await Promise.all(closes);},
     beginShutdown:()=>{service?.beginShutdown();},active,closeService:()=>{service?.close();},
-    closeServer:async()=>{if(server.listening)await new Promise<void>(resolve=>server.close(()=>resolve()));},
-    removeOwnedSocket:()=>{if(ownedSocket!==undefined){snapshotPrivateStateDirectory(directory,environment,directoryIdentity);try{const stat=lstatSync(socketPath);if(stat.isSocket()&&stat.dev===ownedSocket.dev&&stat.ino===ownedSocket.ino)unlinkSync(socketPath);}catch(error){if((error as NodeJS.ErrnoException).code!=="ENOENT")throw error;}}},
+    closeServer:async()=>{await admin?.close();if(server.listening)await new Promise<void>(resolve=>server.close(()=>resolve()));},
+    removeOwnedSocket:()=>{admin?.removeOwned();if(ownedSocket!==undefined){snapshotPrivateStateDirectory(directory,environment,directoryIdentity);try{const stat=lstatSync(socketPath);if(stat.isSocket()&&stat.dev===ownedSocket.dev&&stat.ino===ownedSocket.ino)unlinkSync(socketPath);}catch(error){if((error as NodeJS.ErrnoException).code!=="ENOENT")throw error;}}},
     releaseOwner,
   });};
-  const termination=()=>{process.stdin.destroy();};process.once("SIGTERM",termination);process.once("SIGINT",termination);
+  const termination=()=>{if(mode==="serve")stopServe();else process.stdin.destroy();};process.once("SIGTERM",termination);process.once("SIGINT",termination);
   try {
     if(Buffer.byteLength(socketPath)>100)throw new ControlError("CONTROL_PATH_TOO_LONG","Choose a shorter Ghostget state-home path for the control helper.");
     let stale:ReturnType<typeof lstatSync>|undefined;try{stale=lstatSync(socketPath);}catch(error){if((error as NodeJS.ErrnoException).code!=="ENOENT")throw error;}
     if(stale!==undefined){if(!stale.isSocket()||stale.uid!==process.getuid?.()||(Number(stale.mode)&0o777)!==0o600||await socketLive(socketPath))throw new ControlError("CONTROL_ALREADY_RUNNING","The control socket is already in use or unsafe.");snapshotPrivateStateDirectory(directory,environment,directoryIdentity);const current=lstatSync(socketPath);if(current.dev!==stale.dev||current.ino!==stale.ino)throw new Error("socket changed");unlinkSync(socketPath);}
     await new Promise<void>((resolve,reject)=>{server.once("error",reject);server.listen(socketPath,()=>{server.off("error",reject);resolve();});});chmodSync(socketPath,0o600);const socketStat=lstatSync(socketPath);ownedSocket={dev:socketStat.dev,ino:socketStat.ino};
     service=new ControlService(environment);
+    admin=await startAdminServer({environment,directoryIdentity,active,closing:()=>closing,handle:request=>service!.request(request),stop:()=>{if(mode==="serve")stopServe();else process.stdin.destroy();}});
+    onReady?.();
+    if(mode==="serve"){await new Promise<void>(resolve=>{stopServe=resolve;});return;}
     let buffer=Buffer.alloc(0);
     for await(const chunk of process.stdin){if(closing)break;buffer=Buffer.concat([buffer,typeof chunk==="string"?Buffer.from(chunk):chunk]);if(buffer.length>4_194_304)throw new Error("control frame too large");let newline:number;
       while((newline=buffer.indexOf(10))>=0){const frame=buffer.subarray(0,newline);buffer=buffer.subarray(newline+1);if(controlActive>=8)throw new Error("too many control requests");controlActive++;

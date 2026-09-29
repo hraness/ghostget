@@ -1,0 +1,35 @@
+== Ghostget ==
+1 account needs reconnecting · v0.18.40
+Account: none (public scope)
+
+== Approvals ==
+No approvals waiting
+
+== Accounts ==
+- x-0 · Chrome · Work · x · verified
+- reddit-web-10000001 · Chrome · Personal · reddit · verified
+- x-2 · Chrome · Personal · x · verified
+- reddit-web-10000003 · Chrome · Work · reddit · reconnect-required
+- x-4 · Chrome · Personal · x · verified
+- reddit-web-10000005 · Chrome · Personal · reddit · verified
+- x-6 · Chrome · Work · x · verified
+- reddit-web-10000007 · Chrome · Personal · reddit · verified
+- x-8 · Chrome · Personal · x · verified
+- reddit-web-10000009 · Chrome · Work · reddit · verified
+- x-10 · Chrome · Personal · x · verified
+- reddit-web-1000000b · Chrome · Personal · reddit · verified
+Connect: x-web, linkedin-web, reddit-web
+  from safari, chrome-default, chrome-profile-1
+
+== Permissions ==
+Managed: on · revision 3
+allow 0 · ask 16 · deny 0
+
+== Outputs ==
+x-timeline-2026-09-26.md · 18.0 KB · 5 min ago
+example-com.pdf · 392.7 KB · 3 h ago
+
+== Next ==
+ghostget auth list
+ghostget read https://example.com
+ghostget commands --json

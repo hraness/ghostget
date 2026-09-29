@@ -1,0 +1,52 @@
+{
+  "product": "ghostget",
+  "version": "0.18.40",
+  "health": "idle",
+  "headline": "No accounts connected",
+  "detail": "Public pages work without one",
+  "confirmedAgeSeconds": 0,
+  "accountId": null,
+  "accounts": [],
+  "approvals": [],
+  "attempts": [],
+  "connect": {
+    "available": true,
+    "providers": [
+      "x-web",
+      "linkedin-web",
+      "reddit-web"
+    ],
+    "browsers": [
+      "chrome-default",
+      "chrome-profile-1"
+    ]
+  },
+  "permissions": {
+    "managed": true,
+    "revision": 3,
+    "allow": 0,
+    "ask": 0,
+    "deny": 0
+  },
+  "web": {
+    "revision": 1,
+    "gatewayOnly": false,
+    "rules": 0
+  },
+  "outputs": {
+    "files": [],
+    "message": null,
+    "truncated": false
+  },
+  "notices": [
+    {
+      "code": "FDA_DENIED",
+      "message": "Safari needs Full Disk Access",
+      "next": "Turn it on in System Settings > Privacy & Security > Full Disk Access"
+    }
+  ],
+  "next": [
+    "ghostget read https://example.com",
+    "ghostget commands --json"
+  ]
+}

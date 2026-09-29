@@ -8,11 +8,11 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 246 claims: 227 evidenced, 0 planned, and 19 not verified. It maps 93 guidelines from 5 guides; 70 list claims and 23 are exempt.
+The register holds 247 claims: 228 evidenced, 0 planned, and 19 not verified. It maps 93 guidelines from 5 guides; 70 list claims and 23 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
-| example test | 147 | 0 | 0 |
+| example test | 148 | 0 | 0 |
 | property test | 23 | 0 | 0 |
 | stateful model | 24 | 0 | 0 |
 | Quint model with production trace replay | 21 | 0 | 0 |
@@ -112,7 +112,7 @@ Each claim holds only while its listed assumptions hold.
 | `bun-runtime` | Bun and JavaScriptCore execute the sources and the test runner as specified. | 8 |
 | `filesystem-atomic-rename` | Same-volume rename and link are atomic. | 33 |
 | `filesystem-durability` | Data and directory entries that were fsynced persist across a crash or power loss. | 31 |
-| `same-user-trusted` | Processes running as the same operating-system user are trusted; file modes and owner-only sockets separate users. | 33 |
+| `same-user-trusted` | Processes running as the same operating-system user are trusted; file modes and owner-only sockets separate users. | 34 |
 | `process-liveness` | Process ID, process start time, and boot identity readings are truthful. | 10 |
 | `monotonic-clock` | The injected monotonic clock never runs backward. | 6 |
 | `whatwg-url` | Bun's URL parser implements the WHATWG URL Standard. | 13 |
@@ -317,7 +317,7 @@ R1 reads store a provisional receipt before execution, accept only zero-dispatch
 - Assumptions: none beyond the register-wide scope
 - Not verified: Only the enumerated example cases are checked.
 
-### `control` (13 claims)
+### `control` (14 claims)
 
 #### `agent-channel-cannot-escalate`
 
@@ -328,6 +328,19 @@ Requests on the owner-only agent socket cannot grant approvals, alter policy or 
 - Evidence: `src/control/approval-broker.test.ts`, `src/control/helper-lifecycle.test.ts`, `src/control/validation.test.ts`
 - Assumptions: `same-user-trusted`
 - Not verified: Only the enumerated example cases are checked.
+
+#### `control-verbs-human-gated`
+
+Control verbs that grant an approval, loosen a permission, replace web rules, activate an interface, connect or disconnect an account, or install the login item require a confirmed T1+T2 human gate before any administrative request is sent; only strictly tightening inputs (deny) run without it, and admin-socket frames without the owner's capability never reach the handler.
+
+- Evidenced by example test.
+- Source: `src/control/AGENTS.md`: “every verb that grants, loosens, connects,”
+- Evidence: `src/control/registry.test.ts`, `src/control/admin-socket.test.ts`
+- Assumptions: `same-user-trusted`
+- Not verified:
+  - Only the enumerated example cases are checked.
+  - The gate itself (terminal presence and confirmation) is desktop-foundation's `requireHuman`; its tests live in that package.
+  - The admin capability file is not a boundary against processes of the same user.
 
 #### `control-protocol-bounded-reject-drift`
 
@@ -1144,7 +1157,7 @@ A mutation dispatches only after an exact preview and a confirmation whose diges
 
 - Evidenced by stateful model.
 - Source: `AGENTS.md`: “Keep mutations behind exact preview, confirmation, durable dispatch, and at-most-once evidence.”
-- Evidence: `src/confirmed-write-program.test.ts`, `src/control/menubar-cli.test.ts`, `src/messaging-runtime-composite.test.ts`, `src/operation-authority.property.test.ts`, `src/operation-permission.test.ts`, `src/providers/x.test.ts`, `src/runtime.test.ts`, `src/runtime.ts`
+- Evidence: `src/confirmed-write-program.test.ts`, `src/control/menubar-cli.test.ts`, `src/control/registry-helper.test.ts`, `src/messaging-runtime-composite.test.ts`, `src/operation-authority.property.test.ts`, `src/operation-permission.test.ts`, `src/providers/x.test.ts`, `src/runtime.test.ts`, `src/runtime.ts`
 - Property tests: `src/operation-authority.property.test.ts`: “property: authority never outlives a change of account incarnation, realm, interface, closure, contract or policy”
 - Assumptions: `filesystem-durability`, `provider-behaviour`
 - Not verified:
@@ -2920,7 +2933,7 @@ A state home in gateway-only mode restricts Ghostget command routing to policy-a
 
 - Evidenced by example test.
 - Source: `SECURITY.md`: “Gateway-only mode restricts Ghostget command routing”
-- Evidence: `src/control/interface-cli.test.ts`, `src/control/menubar-cli.test.ts`, `src/storage-state-home.test.ts`
+- Evidence: `src/control/interface-cli.test.ts`, `src/control/menubar-cli.test.ts`, `src/control/registry-helper.test.ts`, `src/storage-state-home.test.ts`
 - Assumptions: `filesystem-durability`, `same-user-trusted`, `whatwg-url`, `dns-tls`
 - Not verified:
   - Only the enumerated example cases are checked.

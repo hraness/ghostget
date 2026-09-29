@@ -2204,15 +2204,51 @@
 // Preserve all platform projections and portability allowances:
 // 12,134,122 + 12,387 + 4,096 = 12,150,605 packed;
 // 24,025,660 + 353 + 65 = 24,026,078 unpacked.
+// The menu-bar retirement's release-N control surface over main 460bdf0 adds
+// src/control/admin-socket.ts, outputs.ts, registry.ts, registry-words.ts
+// and status-view.ts to the shipped control sources and grows the CLI,
+// TUI, helper, usage, skill and changelog payloads. After `bun run build`,
+// npm 11.19.0 pack --ignore-scripts with Node 24.20.0 on darwin arm64
+// measured 625 entries, 12,151,310 packed bytes, and 24,090,676
+// unpacked bytes; archive SHA-256
+// d5861b503853758fc7939c664194717b066864004f89801ad86d85bde7a4f8eb.
+// Preserve the projections and allowances:
+// 12,151,310 + 12,387 + 4,096 = 12,167,793 packed;
+// 24,090,676 + 353 + 65 = 24,091,094 unpacked.
+// The same release N with `tui --snapshot` wrapped to --width (review fix)
+// grows src/control/tui.ts, tui-model.ts and the changelog. After
+// `bun run build`, npm 11.19.0 pack --ignore-scripts with Node 24.20.0 on
+// darwin arm64 measured 625 entries, 12,152,234 packed bytes, and 24,093,014
+// unpacked bytes; archive SHA-256
+// 636e8e4c92e97e72b08090ac36acb11da0b2d4a3906bfbfd095d266ce4803a2f.
+// Preserve the projections and allowances:
+// 12,152,234 + 12,387 + 4,096 = 12,168,717 packed;
+// 24,093,014 + 353 + 65 = 24,093,432 unpacked.
+// Integrating main 7cca3ef (0.18.51, design-kit v0.29.2) into the same
+// release N. After `bun run build`, npm 11.19.0 pack --ignore-scripts with
+// Node 24.20.0 on darwin arm64 measured 625 entries, 12,152,401 packed bytes, and
+// 24,093,255 unpacked bytes; archive SHA-256
+// 59c8473107b13026150b8d8dd02b0b05831ccdf95d65d6f13a662d7c0a79e125.
+// Preserve the projections and allowances:
+// 12,152,401 + 12,387 + 4,096 = 12,168,884 packed;
+// 24,093,255 + 353 + 65 = 24,093,673 unpacked.
+// Integrating main 6622835 (0.18.52, web-discovery v0.11.0 share card) into
+// the same release N. After `bun run build`, npm 11.19.0 pack --ignore-scripts
+// with Node 24.20.0 on darwin arm64 measured 625 entries, 12,152,476 packed
+// bytes, and 24,093,450 unpacked bytes; archive SHA-256
+// 53163e785e34ab363fdf7e936f5b1cd9a61ca838700dfdd5d1b888ca6e9ce0dd.
+// Preserve the projections and allowances:
+// 12,152,476 + 12,387 + 4,096 = 12,168,959 packed;
+// 24,093,450 + 353 + 65 = 24,093,868 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget 0.18.52 release over main 6cb5711",
+  scope: "Ghostget menu-bar retirement release-N control surface with tui --snapshot --width over main 6622835",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "8c64bb2ed2c949f60b9b3c9887eb172de0b4a5076cc0d95e379aa873b436b5a6",
-  packedBytes: 12_134_122,
-  unpackedBytes: 24_025_660,
-  entryCount: 620,
+  archiveSha256: "53163e785e34ab363fdf7e936f5b1cd9a61ca838700dfdd5d1b888ca6e9ce0dd",
+  packedBytes: 12_152_476,
+  unpackedBytes: 24_093_450,
+  entryCount: 625,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,

@@ -1,0 +1,24 @@
+== Ghostget ==
+No accounts connected · v0.18.40
+Public pages work without one
+Account: none (public scope)
+! Safari needs Full Disk Access. Turn it on in System Settings > Privacy & Secur
+
+== Approvals ==
+No approvals waiting
+
+== Accounts ==
+No accounts connected
+Connect: x-web, linkedin-web, reddit-web
+  from chrome-default, chrome-profile-1
+
+== Permissions ==
+Managed: on · revision 3
+allow 0 · ask 0 · deny 0
+
+== Outputs ==
+No output files
+
+== Next ==
+ghostget read https://example.com
+ghostget commands --json

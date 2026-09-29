@@ -1,0 +1,25 @@
+== Ghostget ==
+Ready · 2 accounts · v0.18.40
+Account: x-main
+! macOS didn't allow the keychain request. Try again and choose Always Allow whe
+
+== Approvals ==
+No approvals waiting
+
+== Accounts ==
+* @runner · Chrome · Personal · x · verified
+- runner-person · Safari · linkedin · verified
+Connect: x-web, linkedin-web, reddit-web
+  from safari, chrome-default, chrome-profile-1
+
+== Permissions ==
+Managed: on · revision 3
+allow 1 · ask 1 · deny 0
+
+== Outputs ==
+x-timeline-2026-09-26.md · 18.0 KB · 5 min ago
+example-com.pdf · 392.7 KB · 3 h ago
+
+== Next ==
+ghostget read https://example.com
+ghostget commands --json

@@ -57,9 +57,9 @@ describe("public interface CLI", () => {
     for (const args of [["interface"], ["interface", "--help"]]) {
       const result = await run(f, args);
       expect(result.exitCode).toBe(0); expect(result.stderr).toBe("");
-      expect(result.stdout).toContain("Import saves an inert draft. Activation requires an authorized local control client.");
+      expect(result.stdout).toContain("Import saves an inert draft. Activation asks a person at the terminal.");
     }
-    expect((await run(f, ["web", "--help"])).stdout).toContain("Rules and approvals require an authorized local control client.");
+    expect((await run(f, ["web", "--help"])).stdout).toContain("Rule changes and approvals need a person at the terminal.");
   });
 
   test("export, import and list round-trip an editable draft without activating it", async () => {
@@ -87,7 +87,7 @@ describe("public interface CLI", () => {
     expect(second.title).toBe("Edited in user space"); expect(second.digest).not.toBe(first.digest);
     expect(second.activeDigest).toBeNull();
     expect((await run(f, ["interface", "import", path, "--expected-digest", first.digest])).exitCode).toBe(1);
-    expect((await run(f, ["interface", "activate", first.id])).exitCode).toBe(1);
+    expect((await run(f, ["interface", "activate", first.id])).exitCode).toBe(2);
     expect(loadInstalledManifestSnapshot("cli-draft", f.environment, registry).availability).toBe("absent");
     const before = loadInstalledManifestSnapshot(original.id, f.environment, registry);
     expect(before.result.ok && manifestHash(before.result.value)).toBe(manifestHash(original));

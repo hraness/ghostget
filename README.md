@@ -104,7 +104,7 @@ you want to use:
 ```sh
 ghostget adapter sync-bundled --json
 ghostget capabilities
-ghostget menubar
+ghostget status
 ```
 
 `capabilities` lists installed adapters. Add an adapter ID, such as
@@ -148,12 +148,14 @@ explicit authority; uncertain results stay visible instead of being blindly
 retried. Local state is not all encrypted: see the
 [privacy guide](https://ghostget.com/privacy/) for the storage boundaries.
 
-Use `ghostget menubar` or `ghostget tui` to review accounts, permissions, and
-pending approvals. The menu also opens local outputs. Stop the menu with
-`ghostget menubar stop` before opening the TUI; quit the TUI before starting
-the menu. `ghostget tui --snapshot` prints the control state once. See the
-[control guide](docs/menubar-release.md) for startup, platform requirements,
-and the limited 1Password X-token import. GhostGet is not a general password
+Use `ghostget tui` or `ghostget status` to review accounts, permissions,
+pending approvals and saved outputs. Every control has a command with `--json`
+output, and decisions ask you at the terminal; see the
+[CLI parity guide](docs/cli-parity.md). `ghostget control serve` keeps a
+control owner running without a window. The menu bar (`ghostget menubar`)
+still works in this release and will be removed in the next one; see the
+[menu bar guide](docs/menubar-release.md) and the limited 1Password X-token
+import. GhostGet is not a general password
 manager.
 
 The separate public web gateway applies your domain and path rules to

@@ -37,7 +37,7 @@ test("a second controller gets recovery guidance while the first keeps custody",
   try {
     const state = await first.request({ action: "snapshot", accountId: null }); expect(state.ok).toBe(true);
     const second = spawnHelper(environment);
-    try { const result = await second.request({ action: "snapshot", accountId: null }); expect(result).toMatchObject({ ok: false, code: "CONTROL_ALREADY_RUNNING" }); if (!result.ok) expect(result.message).toContain("ghostget menubar stop"); }
+    try { const result = await second.request({ action: "snapshot", accountId: null }); expect(result).toMatchObject({ ok: false, code: "CONTROL_ALREADY_RUNNING" }); if (!result.ok) expect(result.message).toContain("ghostget control stop"); }
     finally { await second.close(); }
     expect((await first.request({ action: "snapshot", accountId: null })).ok).toBe(true);
   } finally { await first.close(); rmSync(root, { recursive: true, force: true }); }
