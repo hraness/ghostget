@@ -575,6 +575,7 @@ not turn missing message history into zero activity.
 | LinkedIn official API | First-degree connections with locale-selection evidence | Unavailable; the Connections API does not expose ordinary inbox history |
 | Instagram authenticated web | Unique non-viewer participants from the reviewed first Direct inbox summary page, with explicit first-page and pagination incompleteness | Unavailable until acknowledgement-free message-history paging is reviewed |
 | WhatsApp linked device | One page of the authenticated account owner's private, quiescent Whatsmeow contact store | Unavailable; Ghostget does not treat a linked-device message cache as account-owned history |
+| X authenticated web | Viewer-bound pages of the signed-in account's own following and followers collections, with each row's user ID, handle, display name, and both relationship directions | Unavailable; the contract returns identity and relationship flags only |
 | Facebook authenticated web | Capture-required reservation for friends or Messenger participants | Capture-required |
 | Telegram | Not installed | Requires a reviewed TDLib user-session lifecycle; Ghostget does not substitute the Bot API or claim contact access |
 

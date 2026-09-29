@@ -141,6 +141,7 @@ Before private reads or mutations, resolve the current stable X user ID through 
 The current registry marks these code-owned reads observed:
 
 - `feeds.read`: one bounded For You, Following, user, List, search, or bookmarks page; bookmarks pages also emit stable `items` keyed by `post_id`;
+- `contacts.list`: one bounded viewer-bound page of the signed-in account's own `following` or `followers` collection through the current first-party GraphQL queries;
 - `posts.read`: one exact post through the current TweetDetail query;
 - `comments.read`: one bounded TweetDetail conversation/reply page;
 - `articles.read@2`: one exact current-viewer-owned private Article Draft.
@@ -169,6 +170,10 @@ ghostget x-web feeds.read \
 
 ghostget x-web feeds.read \
   --input '{"feed":"bookmarks","limit":25}' \
+  --auth x-main --json
+
+ghostget x-web contacts.list \
+  --input '{"collection":"following","limit":50}' \
   --auth x-main --json
 
 ghostget x-web posts.read \
