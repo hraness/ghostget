@@ -23,9 +23,11 @@ Historical entries retain their original delivery coordinates.
   `hraness-helper` (falling back to `hraness-companion`). `GHOSTGET_HELPER`
   overrides it; `GHOSTGET_MENUBAR` still works as an alias.
 - The menu bar is removed. `ghostget menubar` prints the replacement commands.
-  `ghostget control serve`, `control install` and `menubar uninstall` move the
-  old menu bar login item aside (renamed, never deleted; rename it back to
-  undo). The signed cookie reader is unchanged.
+  An old menu bar login item moves itself aside at the next login; every such
+  item is renamed, never deleted (rename it back to undo). `ghostget control
+  serve`, `control install` and `menubar uninstall` do it at once, and
+  `menubar doctor --json` and `control status --json` list any left in
+  `legacyLoginItems`. The signed cookie reader is unchanged.
 - The `menu-bar-snapshot-read-only` claim is now `tui-snapshot-read-only`: the
   control snapshot behind `ghostget status` and `tui --snapshot` writes nothing.
 

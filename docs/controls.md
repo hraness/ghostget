@@ -62,11 +62,14 @@ installation as the CLI; it needs no Rust compiler or separate download.
 ## The retired menu bar
 
 Ghostget no longer ships a menu bar companion. `ghostget menubar` prints the
-replacement commands. If you had set the menu bar to open at login,
-`ghostget control serve` and `ghostget control install` move that login item
-aside (renamed to `<name>.retired-<time>`, never deleted), as does
-`ghostget menubar uninstall`. To undo, rename the file back and run
-`launchctl bootstrap gui/$(id -u) <path>`.
+replacement commands. If you had set the menu bar to open at login, the next
+login moves that login item aside by itself: the old item runs
+`ghostget menubar --foreground`, which renames every Ghostget menu bar login
+item to `<name>.retired-<time>` (never deleted) and exits.
+`ghostget control serve`, `control install` and `menubar uninstall` do the same
+at once. `ghostget menubar doctor --json` and `ghostget control status --json`
+list any still installed (`legacyLoginItems`). To undo, rename the file back
+and run `launchctl bootstrap gui/$(id -u) <path>`.
 
 The signed macOS cookie reader is separate from the menu bar and still used for
 Chrome and Safari cookie reads: Ghostget resolves the shared `hraness-helper`

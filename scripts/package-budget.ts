@@ -2203,14 +2203,24 @@
 // Preserve the projections and allowances:
 // 12,136,066 + 12,387 + 4,096 = 12,152,549 packed;
 // 24,033,028 + 353 + 65 = 24,033,446 unpacked.
+// Release N+1 with the review fixes over it (tui --snapshot --width,
+// retiring every legacy login item, the menubar doctor receipt) grows
+// src/control/tui.ts, tui-model.ts, retire-tray.ts, registry.ts and the
+// changelog. After `bun run build`, npm 11.19.0 pack --ignore-scripts with
+// Node 24.20.0 on darwin arm64 measured 624 entries, 12,138,017 packed
+// bytes, and 24,039,661 unpacked bytes; archive SHA-256
+// 735918ce13357c4b4c39d1ba869d818a556cfc7e79054e137ca1ef6a0c2d5a6a.
+// Preserve the projections and allowances:
+// 12,138,017 + 12,387 + 4,096 = 12,154,500 packed;
+// 24,039,661 + 353 + 65 = 24,040,079 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget menu-bar retirement release-N+1 menu bar removal",
+  scope: "Ghostget menu-bar retirement release-N+1 menu bar removal with review fixes",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "6411d6c143bc28cedb5e04a42a81097aa5b6255376907731b9ddd84c0f5fea04",
-  packedBytes: 12_136_066,
-  unpackedBytes: 24_033_028,
+  archiveSha256: "735918ce13357c4b4c39d1ba869d818a556cfc7e79054e137ca1ef6a0c2d5a6a",
+  packedBytes: 12_138_017,
+  unpackedBytes: 24_039_661,
   entryCount: 624,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
