@@ -6,7 +6,7 @@
  * optional provider runtime is broken. This module must stay import-free.
  */
 
-const GHOSTGET_DESCRIPTION = `Ghostget gives your AI agent named web actions: read a page, archive one
+const GHOSTGET_DESCRIPTION = `GhostGet gives your AI agent named web actions: read a page, archive one
 media item, or use a connected account, without credentials or a browser to
 steer.`;
 
@@ -60,15 +60,15 @@ Run actions
   ghostget confirm <digest>           Run a previewed change once
   ghostget runs list                  Review past runs
 
-Control Ghostget
+Control GhostGet
   ghostget status                     Accounts, approvals and saved outputs
   ghostget tui                        Open the keyboard control panel
   ghostget control serve|stop         Run the control owner without a window
   ghostget approvals|permissions|connections
                                       Every control action as a command
-  ghostget doctor                     Check everything Ghostget needs
+  ghostget doctor                     Check everything GhostGet needs
 
-Extend Ghostget
+Extend GhostGet
   ghostget adapter|plugin|contracts   Add and check site support
   ghostget derive                     Record a site's API from a browser
   ghostget web|interface|platforms    Web rules, API drafts, site policy
@@ -126,7 +126,7 @@ Example
 
 const authHelp = `Usage: ghostget auth <list|add|bind|remove|login|pair|sync> [options]
 
-Connect accounts you're already signed in to. Ghostget reads the sign-in
+Connect accounts you're already signed in to. GhostGet reads the sign-in
 from your browser when it needs it and never stores your password.
 
 Commands
@@ -145,7 +145,7 @@ Commands
                                      Connect Google with your own OAuth app
   auth pair <id> [--phone <number>]  Pair a linked device
   auth sync <id> --once              Refresh a linked device's local copy
-  auth remove <id> --yes             Remove an account from Ghostget
+  auth remove <id> --yes             Remove an account from GhostGet
 
 Options
   --subject <account-id>             Expect this account
@@ -160,7 +160,7 @@ Example
 
 const browsersHelp = `Usage: ghostget browsers [--json]
 
-List browsers and profiles on this Mac that Ghostget can read a sign-in
+List browsers and profiles on this Mac that GhostGet can read a sign-in
 from, with the flags to paste into ghostget auth add.
 
 Options
@@ -172,7 +172,7 @@ Example
 
 const capabilitiesHelp = `Usage: ghostget capabilities [adapter] [--json]
 
-List the actions installed adapters offer. An adapter is Ghostget's support
+List the actions installed adapters offer. An adapter is GhostGet's support
 for one site, such as x-web.
 
 Options
@@ -245,7 +245,7 @@ don't need this to connect sites; use ghostget auth add for that.
 
 const adapterHelp = `Usage: ghostget adapter <command> [options]
 
-Adapters are Ghostget's reviewed support for one site.
+Adapters are GhostGet's reviewed support for one site.
 
 Commands
   adapter sync-bundled [--json]      Install or update the bundled adapters
@@ -348,7 +348,7 @@ Commands
 
 const platformsHelp = `Usage: ghostget platforms [site] [--json]
 
-Show the reviewed policy for each supported site: what Ghostget may read or
+Show the reviewed policy for each supported site: what GhostGet may read or
 change there. This lists policy, not installed adapters.
 `;
 
@@ -372,7 +372,7 @@ Commands
 Most commands take --root <directory> to pick the notes folder.
 
 Paywalled PDFs
-  Add the browser you use to open the paper, and Ghostget downloads it
+  Add the browser you use to open the paper, and GhostGet downloads it
   with that sign-in:
     ghostget pdf <url> --cookie-source chrome
   Also: --browser-profile <name|path>, --cookie-profile <name>,
@@ -383,7 +383,7 @@ Paywalled PDFs
 
 const supportHelp = `Usage: ghostget support [--json]
 
-See optional product updates and ways to support Ghostget. Nothing is paid
+See optional product updates and ways to support GhostGet. Nothing is paid
 or signed up for through these commands.
 
 Commands
@@ -396,12 +396,12 @@ Agent commands moved to ghostget help advanced.
 Turn off: HRANESS_SUPPORT=off
 `;
 
-const policyHelp = `Ghostget policy
+const policyHelp = `GhostGet policy
 
 Risk levels
   R1 reads run right away. R2 and R3 changes make a preview that lasts five
   minutes; ghostget confirm <digest> makes the change once. R4 is blocked.
-  Signed-in actions use each site's own API. Ghostget never runs arbitrary
+  Signed-in actions use each site's own API. GhostGet never runs arbitrary
   scripts, requests, selectors, cookies or file transfers for an agent.
 
 Saved reads
@@ -417,14 +417,14 @@ Combined inboxes
   rebuilds it from saved reads only.
 
 Local browsers
-  Ghostget runs at most two browsers of its own at a time for page capture,
+  GhostGet runs at most two browsers of its own at a time for page capture,
   shared by every process that uses the same state folder. A capture waits
   up to 30 seconds for a free browser. Attaching to your own browser with
   --browser-live or --cdp doesn't count. ghostget doctor --json shows the
   state folder.
 
 Updates and support
-  After useful work, Ghostget may print one short line on stderr about
+  After useful work, GhostGet may print one short line on stderr about
   updates or support. Output and exit codes don't change. Agents read
   ghostget support protocol --json once, then check
   ghostget support offer --json at the end of a task with a person.
@@ -438,7 +438,7 @@ Telemetry
   HRANESS_TELEMETRY=off or GHOSTGET_TELEMETRY=off turns it off.
 `;
 
-const advancedHelp = `Ghostget advanced commands
+const advancedHelp = `GhostGet advanced commands
 
   ghostget tui --snapshot            Print the control panel as plain text
   ghostget vault --help              Import an X token from 1Password

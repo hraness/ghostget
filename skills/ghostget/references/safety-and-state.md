@@ -89,7 +89,7 @@ Auth replacement and removal rotate a durable local lifetime identity before
 cleanup. Projection and provider-session ciphertext from an earlier lifetime
 must remain unreadable even if identical locator bytes are later recreated.
 
-The projection key is bound to an authenticated store-ownership marker. Ghostget
+The projection key is bound to an authenticated store-ownership marker. GhostGet
 refuses a missing, malformed, or replacement key while projection ciphertext
 or that marker remains. If the key is irretrievably lost, remove exactly
 `read-projections/`, `omni-read-projections/`, `.projection-encryption-key`, and
@@ -111,7 +111,7 @@ conversation, message, and other resource IDs. Never use an interactive picker
 or fuzzy selector for a mutation.
 
 Parse stdout and stderr strictly from `unknown`; cap both and enforce a
-Ghostget-owned deadline because an upstream timeout flag may not be effective.
+GhostGet-owned deadline because an upstream timeout flag may not be effective.
 Do not log or persist argv. When the upstream CLI accepts private text only in
 argv, document the same-account process-inspection exposure and minimize the
 child lifetime.
@@ -119,7 +119,7 @@ child lifetime.
 For a mutation, enter the durable dispatch boundary before process start. A
 timeout, signal, malformed response, or lost response after that point is
 indeterminate. Never let an upstream retry option or a new process invocation
-bypass Ghostget's at-most-once fence. Reconcile only through a separate exact
+bypass GhostGet's at-most-once fence. Reconcile only through a separate exact
 read declared by the semantic operation.
 
 ## Keep browser authority narrow

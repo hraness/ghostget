@@ -6,7 +6,7 @@ a device, synchronize WhatsApp, open a network connection, or send a message.
 
 ## Runtime identity
 
-Ghostget pins the official macOS arm64 Wacli v0.15.0 release at commit
+GhostGet pins the official macOS arm64 Wacli v0.15.0 release at commit
 `a020de724180d31eccfa5241d45443402d62fb06`.
 
 - Official archive: `wacli_0.15.0_darwin_arm64.tar.gz`
@@ -39,12 +39,12 @@ The auth ID is lowercase kebab case with at most 48 characters. The output
 path is a non-root absolute path of at most 4,096 UTF-8 bytes with no NUL,
 carriage return, or line feed. The destination must not exist.
 
-Ghostget holds one durable private-export admission across recovery, helper
+GhostGet holds one durable private-export admission across recovery, helper
 launch, conversion, cleanup, and publication. It validates the bound store's
 owner, mode, physical identity, schema, integrity, sidecars, account identity,
 and immutable generation. One detached helper keeps the databases open across
 bounded row-ID pages and seals its final counts, checkpoint, self aliases, and
-rolling canonical-frame SHA-256. Ghostget publishes a result only after the
+rolling canonical-frame SHA-256. GhostGet publishes a result only after the
 complete helper stream and exact child exit settle.
 
 ## Bundle identity
@@ -57,11 +57,11 @@ The output is Message Like Me local-message bundle schema 2:
 - immutable consumer `@hraness/message-like-me` v0.7.0;
 - six NDJSON artifacts plus `manifest.json`.
 
-Ghostget imports Message Like Me's public schema-2 constants, parser, and types.
+GhostGet imports Message Like Me's public schema-2 constants, parser, and types.
 The standalone release gate runs the real Message Like Me v0.7.0 CLI against a
-Ghostget-generated seven-file bundle.
+GhostGet-generated seven-file bundle.
 
-The output directory is mode `0700`; its files are mode `0600`. Ghostget writes
+The output directory is mode `0700`; its files are mode `0600`. GhostGet writes
 and verifies a complete sibling staging directory, then publishes it with one
 atomic rename. A partial directory never appears at the requested path.
 

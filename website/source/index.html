@@ -6,9 +6,9 @@
     <meta name="color-scheme" content="light dark">
     <meta name="theme-color" content="#fbf1c7" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">
-    <title>Ghostget: let AI agents read web pages and use your accounts</title>
+    <title>GhostGet: let AI agents read web pages and use your accounts</title>
     <meta name="description" content="{{GHOSTGET_DESCRIPTION}}">
-    <meta name="application-name" content="Ghostget">
+    <meta name="application-name" content="GhostGet">
     <meta name="generator" content="Bun 1.3.14">
     <meta name="robots" content="max-image-preview:large">
     <link rel="canonical" href="https://ghostget.com/">
@@ -20,8 +20,8 @@
     {{MARKDOWN_ALTERNATE}}
 
     <meta property="og:type" content="website">
-    <meta property="og:site_name" content="Ghostget">
-    <meta property="og:title" content="Ghostget: let AI agents read web pages and use your accounts">
+    <meta property="og:site_name" content="GhostGet">
+    <meta property="og:title" content="GhostGet: let AI agents read web pages and use your accounts">
     <meta property="og:description" content="{{GHOSTGET_DESCRIPTION}}">
     <meta property="og:url" content="https://ghostget.com/">
     <meta property="og:image" content="https://ghostget.com/og.png">
@@ -30,7 +30,7 @@
     <meta property="og:image:height" content="630">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Ghostget: let AI agents read web pages and use your accounts">
+    <meta name="twitter:title" content="GhostGet: let AI agents read web pages and use your accounts">
     <meta name="twitter:description" content="{{GHOSTGET_DESCRIPTION}}">
     <meta name="twitter:image" content="https://ghostget.com/og.png">
     <meta name="twitter:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
@@ -46,7 +46,7 @@
     <a class="skip-link" href="#main">Skip to content</a>
     <header class="hraness-marketing-header" data-hraness-marketing="header">
       <div class="hraness-marketing-header__inner">
-        <a aria-label="Ghostget home" class="hraness-marketing-header__brand" data-foil="" href="/"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span> Ghostget</a>
+        <a aria-label="GhostGet home" class="hraness-marketing-header__brand" data-foil="" href="/"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span> GhostGet</a>
         <nav aria-label="Primary" class="hraness-marketing-header__nav">
           <a href="#how-it-works">How it works</a>
           <a href="#providers">Providers</a>
@@ -71,16 +71,17 @@
           <div class="hraness-marketing-hero__copy">
             <p class="home-eyebrow">Web actions for agents</p>
             <h1 class="hraness-marketing-hero__heading" id="brand-name">wget for the ghost <span class="hero-heading-accent">in the machine.</span></h1>
-            <p class="hraness-marketing-hero__summary hero-explainer">A free CLI and TypeScript SDK for Claude Code, Codex, Cursor, and other agents that run commands. It reads a page as Markdown, archives one media item, or acts in an account you connected, and returns the result instead of a browser to steer.</p>
+            <p class="hraness-marketing-hero__summary hero-explainer">A free CLI and TypeScript SDK for Claude Code, Codex, Cursor, and other agents that run commands. Read a page as Markdown, save a media item, or use a connected account.</p>
             <div class="hraness-marketing-hero__actions">
-              <a class="hraness-marketing-action" data-analytics-cta="hero-install" data-emphasis="primary" href="#start">Install Ghostget</a>
+              <a class="hraness-marketing-action" data-analytics-cta="hero-install" data-emphasis="primary" href="#start">Install GhostGet</a>
               <a class="home-text-link" data-analytics-cta="hero-see-it-work" href="/docs/tutorials/getting-started/#demo">See it work <span aria-hidden="true">→</span></a>
             </div>
             <p class="hraness-marketing-hero__boundary">Free and MIT licensed · macOS and Linux with Bun 1.3.14 · Release {{GHOSTGET_RELEASE}}</p>
           </div>
           <div class="hraness-marketing-hero__frame">
             <figure class="hraness-marketing-proof-frame" data-hraness-marketing="proof-frame">
-              <div class="hraness-marketing-proof-frame__content"><pre class="proof-transcript" tabindex="0"><code><span class="proof-transcript__prompt">$</span> ghostget read https://example.com
+              <div aria-hidden="true" class="hraness-marketing-proof-frame__chrome"><span class="hraness-marketing-proof-frame__lights"><span class="hraness-marketing-proof-frame__light"></span><span class="hraness-marketing-proof-frame__light"></span><span class="hraness-marketing-proof-frame__light"></span></span><span class="hraness-marketing-proof-frame__title">Read a page · Terminal</span></div>
+              <div class="hraness-marketing-proof-frame__content"><pre class="proof-transcript" tabindex="0"><code><span class="proof-transcript__prompt">$</span> {{GHOSTGET_READ_CODE}}
 <span class="proof-transcript__meta">Capturing https://example.com/ (auto, auto) ...</span>
 ---
 title: "Example Domain"
@@ -97,48 +98,46 @@ This domain is for use in documentation examples without needing permission. Avo
 
 [Learn more](https://iana.org/domains/example)</code></pre></div>
               <figcaption class="hraness-marketing-proof-frame__caption">
-                <span>The complete output of one <code>ghostget read</code> for a public page: a short record of what was captured and how, then the page as Markdown. Nothing was saved.</span>
-                <small>Public-page read recorded on September 5, 2026; command updated for Ghostget.</small>
+                <span>A public page returned as Markdown, with its source and capture details. This read saved no files.</span>
+                <small>Public-page read recorded on September 5, 2026; command updated for GhostGet.</small>
               </figcaption>
             </figure>
           </div>
         </header>
 
+        <section aria-labelledby="uses-heading" class="hraness-marketing-section" data-hraness-marketing="section" data-layout="stack" id="uses">
+          <div class="hraness-marketing-section__heading-group">
+            <p class="home-eyebrow">What it does</p>
+            <h2 class="hraness-marketing-section__heading" id="uses-heading">Read a page, archive one item, or act in an account.</h2>
+          </div>
+          <dl aria-label="GhostGet in three points" class="hraness-marketing-pillars" data-hraness-marketing="pillars">
+            <div><dt>Read</dt><dd>Turn a public URL into Markdown your agent can inspect on the spot or keep in a local knowledge base.</dd></div>
+            <div><dt>Archive</dt><dd>Save one media item you’re allowed to access, with its transcript and source details. Playlists, live streams, and DRM-protected media are not supported.</dd></div>
+            <div><dt>Act</dt><dd>Use supported actions across {{PROVIDER_SURFACE_COUNT}} services, including Beeper, Gmail, and YouTube. Most need a connected account. Check the provider list for available actions.</dd></div>
+          </dl>
+        </section>
+
         <section aria-labelledby="how-it-works-heading" class="hraness-marketing-section" data-hraness-marketing="section" data-layout="split" id="how-it-works">
           <div class="hraness-marketing-section__heading-group">
             <p class="home-eyebrow">How it works</p>
-            <h2 class="hraness-marketing-section__heading" id="how-it-works-heading">Each request runs one named action.</h2>
-            <p class="hraness-marketing-section__summary">Your agent asks for a supported action, such as reading an inbox or saving a video. Ghostget checks the inputs and the account, makes the request, and returns a structured result. Sign-in details stay inside Ghostget.</p>
+            <h2 class="hraness-marketing-section__heading" id="how-it-works-heading">Give your agent a web task.</h2>
+            <p class="hraness-marketing-section__summary">GhostGet runs supported actions and returns their results. Connect an account only when the action needs one.</p>
           </div>
           <div class="hraness-marketing-section__body">
-            <ol aria-label="One Ghostget request" class="hraness-marketing-flow" data-hraness-marketing="flow">
-              <li class="hraness-marketing-flow__step"><span aria-hidden="true" class="hraness-marketing-flow__number">01</span><div class="hraness-marketing-flow__body"><strong class="hraness-marketing-flow__label">Name the job</strong><p class="hraness-marketing-flow__detail">The agent asks for an outcome, such as reading an inbox or preserving one video.</p></div></li>
-              <li class="hraness-marketing-flow__step"><span aria-hidden="true" class="hraness-marketing-flow__number">02</span><div class="hraness-marketing-flow__body"><strong class="hraness-marketing-flow__label">Match one action</strong><p class="hraness-marketing-flow__detail">Ghostget finds one installed, supported action. There is no general browser or request tool to fall back on.</p></div></li>
-              <li class="hraness-marketing-flow__step"><span aria-hidden="true" class="hraness-marketing-flow__number">03</span><div class="hraness-marketing-flow__body"><strong class="hraness-marketing-flow__label">Check, then run once</strong><p class="hraness-marketing-flow__detail">Ghostget checks the exact service, account, and risk level, then makes one exchange. Your sign-in can reach only the service that action needs.</p></div></li>
-              <li class="hraness-marketing-flow__step"><span aria-hidden="true" class="hraness-marketing-flow__number">04</span><div class="hraness-marketing-flow__body"><strong class="hraness-marketing-flow__label">Return the result</strong><p class="hraness-marketing-flow__detail">Your agent gets a structured result, a note of anything incomplete, or a saved record that the outcome is not yet known.</p></div></li>
+            <ol aria-label="One GhostGet request" class="hraness-marketing-flow" data-hraness-marketing="flow">
+              <li class="hraness-marketing-flow__step"><span aria-hidden="true" class="hraness-marketing-flow__number">01</span><div class="hraness-marketing-flow__body"><strong class="hraness-marketing-flow__label">Name the job</strong><p class="hraness-marketing-flow__detail">Ask your agent to read a page, check an inbox, or save a video.</p></div></li>
+              <li class="hraness-marketing-flow__step"><span aria-hidden="true" class="hraness-marketing-flow__number">02</span><div class="hraness-marketing-flow__body"><strong class="hraness-marketing-flow__label">Match one action</strong><p class="hraness-marketing-flow__detail">Your agent selects an action from the installed capability list.</p></div></li>
+              <li class="hraness-marketing-flow__step"><span aria-hidden="true" class="hraness-marketing-flow__number">03</span><div class="hraness-marketing-flow__body"><strong class="hraness-marketing-flow__label">Use the right account</strong><p class="hraness-marketing-flow__detail">GhostGet checks the selected account and inputs. Account changes require your preview and confirmation.</p></div></li>
+              <li class="hraness-marketing-flow__step"><span aria-hidden="true" class="hraness-marketing-flow__number">04</span><div class="hraness-marketing-flow__body"><strong class="hraness-marketing-flow__label">Return the result</strong><p class="hraness-marketing-flow__detail">Read the result, save it, or let your agent use it in the next step. Incomplete or unknown results stay visible.</p></div></li>
             </ol>
-          </div>
-        </section>
-
-        <section aria-labelledby="boundary-heading" class="hraness-marketing-section" data-hraness-marketing="section" data-layout="split" id="boundary">
-          <div class="hraness-marketing-section__heading-group">
-            <p class="home-eyebrow">No browser to steer</p>
-            <h2 class="hraness-marketing-section__heading" id="boundary-heading">Your agent never steers a browser.</h2>
-            <p class="hraness-marketing-section__summary">Browser-using agents stream the live page into the model and let it choose each click. With Ghostget, the agent asks for an outcome and only the result comes back.</p>
-          </div>
-          <div class="hraness-marketing-section__body">
-            <div class="hraness-marketing-prose">
-              <p>Page state and screenshots never enter the agent’s context. It never sees a cookie or token, and there are no selectors for it to guess. If a service changes how it responds, the affected action stops instead of improvising a click path.</p>
-              <p>Some pages need a real browser to render. For those, Ghostget runs its own browser internally, at most two at a time, and the agent can’t steer it. The <a href="/compare/agent-browser/">agent-browser comparison</a> shows how that works.</p>
-            </div>
           </div>
         </section>
 
         <section aria-labelledby="measured-heading" class="hraness-marketing-section" data-hraness-marketing="section" data-layout="stack" id="measured">
           <div class="hraness-marketing-section__heading-group">
             <p class="home-eyebrow">Measured</p>
-            <h2 class="hraness-marketing-section__heading" id="measured-heading">Smaller answers cost fewer tokens.</h2>
-            <p class="hraness-marketing-section__summary">Your model provider charges for everything the agent reads. On September 22, 2026, <code>ghostget read</code> returned these bytes for each URL, compared with the raw HTML the URL serves. Every row was one HTTP capture with no browser and <code>capture_status: "complete"</code>.</p>
+            <h2 class="hraness-marketing-section__heading" id="measured-heading">Read the page without its HTML.</h2>
+            <p class="hraness-marketing-section__summary">These September 22, 2026 reads returned Markdown and capture details. Each completed over HTTP without a browser. The table compares bytes, not token counts or billing.</p>
           </div>
           <div class="hraness-marketing-section__body">
             <div class="table-scroll" role="region" aria-labelledby="measured-heading" tabindex="0">
@@ -153,30 +152,14 @@ This domain is for use in documentation examples without needing permission. Avo
                 </tbody>
               </table>
             </div>
-            <div class="hraness-marketing-prose">
-              <p>At roughly four bytes per token, that Wikipedia read costs about 3,800 tokens where the raw page carries about 36,000. The table counts bytes because tokenizers differ.</p>
-              <p>Browser-driving agents pay again on every step, because the page comes back into context each time. A July 2026 <a href="https://modernqacourse.com/docs/en/01-agent-skills-browser-automation/07-competitive-landscape/01-tool-comparison-matrix">comparison matrix</a> cites Microsoft’s reported figure of about 114,000 tokens for a typical Playwright MCP task, against about 27,000 for its disk-first CLI. Treat any single figure as an estimate.</p>
-            </div>
           </div>
-        </section>
-
-        <section aria-labelledby="uses-heading" class="hraness-marketing-section" data-hraness-marketing="section" data-layout="stack" id="uses">
-          <div class="hraness-marketing-section__heading-group">
-            <p class="home-eyebrow">What it does</p>
-            <h2 class="hraness-marketing-section__heading" id="uses-heading">Read a page, archive one item, or act in an account.</h2>
-          </div>
-          <dl aria-label="Ghostget in three points" class="hraness-marketing-pillars" data-hraness-marketing="pillars">
-            <div><dt>Read</dt><dd>Turn a public URL into Markdown your agent can inspect on the spot or keep in a local knowledge base.</dd></div>
-            <div><dt>Archive</dt><dd>Preserve one media item you’re allowed to access, with its source bytes, transcript, manifest, and SHA-256 records.</dd></div>
-            <div><dt>Act</dt><dd>Use named actions in {{PROVIDER_SURFACE_COUNT}} services, from Beeper and Gmail to YouTube. Most use an account you’ve connected; a few, such as GitHub, need no sign-in. If an action isn’t listed, Ghostget doesn’t offer it.</dd></div>
-          </dl>
         </section>
 
         <section aria-labelledby="providers-title" class="hraness-marketing-section provider-section" data-hraness-marketing="section" data-layout="stack" id="providers">
           <div class="hraness-marketing-section__heading-group">
             <p class="home-eyebrow">Providers</p>
-            <h2 id="providers-title">Reviewed actions across {{PROVIDER_SURFACE_COUNT}} services.</h2>
-            <p class="hraness-marketing-section__summary">Each entry shows how Ghostget connects to that service and links to its supported actions in this release.</p>
+            <h2 id="providers-title">Use {{PROVIDER_SURFACE_COUNT}} services from your agent.</h2>
+            <p class="hraness-marketing-section__summary">Choose a service to see its supported actions and connection instructions.</p>
           </div>
           <div class="hraness-marketing-section__body">
             <div class="provider-directory">
@@ -198,7 +181,7 @@ This domain is for use in documentation examples without needing permission. Avo
               {{WEBMCP_DOMAIN_SAMPLE}}
             </div>
             <p class="provider-status-note">
-              Provider names identify compatible services and do not imply endorsement. Counts are for release {{GHOSTGET_RELEASE}}.
+              Supported actions are listed for release {{GHOSTGET_RELEASE}}.
               <a href="/docs/reference/provider-capabilities/">Browse every supported action <span aria-hidden="true">→</span></a>
             </p>
           </div>
@@ -208,18 +191,17 @@ This domain is for use in documentation examples without needing permission. Avo
           <div class="hraness-marketing-install__heading-group">
             <p class="home-eyebrow">Get started</p>
             <h2 class="hraness-marketing-install__heading" id="start-heading">Tell your agent, or run two commands.</h2>
-            <p class="install-summary">Any agent that can run terminal commands can install Ghostget for you. To do it yourself, install <a href="https://bun.sh/docs/installation">Bun 1.3.14</a> on macOS or Linux, then install the <a href="{{GHOSTGET_PACKAGE_ARTIFACT}}"><code>@hraness/ghostget</code> canonical release archive</a>. Your first public-page read needs no account, API key, or vault.</p>
+            <p class="install-summary">Ask your agent to install GhostGet, or run the commands below with <a href="https://bun.sh/docs/installation">Bun 1.3.14</a> on macOS or Linux. They install the <a href="{{GHOSTGET_PACKAGE_ARTIFACT}}"><code>@hraness/ghostget</code> release archive</a> and read a public page. No account is needed.</p>
           </div>
           <div class="hraness-marketing-install__commands">
             <aside class="prompt-card">
               <p class="prompt-label">Tell your agent</p>
-              <p>“Install Ghostget {{GHOSTGET_RELEASE}}, then use it to read https://example.com and summarize it.”</p>
+              <p>“Install GhostGet {{GHOSTGET_RELEASE}}, then use it to read https://example.com and summarize it.”</p>
             </aside>
             <div class="command-stack">
-              <div class="command-panel" data-install-command="cli">
-                <div class="command-label"><span>terminal</span><span>{{GHOSTGET_RELEASE}}</span></div>
-                <pre><code>{{GHOSTGET_INSTALL_COMMAND}}
-ghostget read https://example.com</code></pre>
+              <div class="hraness-marketing-proof-frame" data-hraness-marketing="proof-frame" data-install-command="cli">
+                <div aria-hidden="true" class="hraness-marketing-proof-frame__chrome"><span class="hraness-marketing-proof-frame__lights"><span class="hraness-marketing-proof-frame__light"></span><span class="hraness-marketing-proof-frame__light"></span><span class="hraness-marketing-proof-frame__light"></span></span><span class="hraness-marketing-proof-frame__title">Install and read · Terminal</span></div><div class="hraness-marketing-proof-frame__content">
+                <pre tabindex="0" aria-label="Install GhostGet and read a page">{{GHOSTGET_FIRST_READ_CODE}}</pre></div>
               </div>
             </div>
             <div class="skill-install" data-skill-install data-install-command="agent_skill">
@@ -232,10 +214,10 @@ ghostget read https://example.com</code></pre>
                   <span data-skill-install-copy-label>Copy</span>
                 </button>
               </div>
-              <p class="skill-install-note" id="hero-skill-install-note">Teach your agent the Ghostget commands after installing the CLI. With Bun, run <code>{{GHOSTGET_SKILL_INSTALL_COMMAND_BUNX}}</code> instead. <a href="{{GHOSTGET_SKILLS}}">View the Ghostget Agent Skill on skills.sh.</a></p>
+              <p class="skill-install-note" id="hero-skill-install-note">Teach your agent the GhostGet commands after installing the CLI. With Bun, run <code>{{GHOSTGET_SKILL_INSTALL_COMMAND_BUNX}}</code> instead. <a href="{{GHOSTGET_SKILLS}}">View the GhostGet Agent Skill on skills.sh.</a></p>
               <p aria-live="polite" class="visually-hidden" data-skill-install-status id="hero-skill-install-status" role="status"></p>
             </div>
-            <p class="install-next">Success prints <strong>Example Domain</strong> as Markdown without saving it. Next, <a href="/docs/tutorials/getting-started/#save-pages">save a page</a> or <a href="/docs/tutorials/getting-started/#inspect-capabilities">connect one service</a>. Provider setup starts with <code>ghostget adapter sync-bundled --json</code>.</p>
+            <p class="install-next">You’ll see <strong>Example Domain</strong> as Markdown. Next, <a href="/docs/tutorials/getting-started/#save-pages">save a page</a> or <a href="/docs/tutorials/getting-started/#inspect-capabilities">connect a service</a>.</p>
           </div>
         </section>
 
@@ -243,12 +225,12 @@ ghostget read https://example.com</code></pre>
           <header class="hraness-marketing-interfaces__header">
             <p class="home-eyebrow">Interfaces</p>
             <h2 class="hraness-marketing-interfaces__heading" id="interfaces-title">Use an Agent Skill, CLI, or TypeScript SDK</h2>
-            <p>Ghostget runs on your machine. It has no hosted API or MCP server, so your agent can do the same things from a skill, a terminal, or typed code.</p>
+            <p>Use GhostGet from your own agent, terminal, or TypeScript program. It runs locally; there is no hosted API or MCP server.</p>
           </header>
           <div class="hraness-marketing-interface-grid">
-            <article class="hraness-marketing-interface"><h3 class="hraness-marketing-interface__heading">Agent Skill</h3><p>Add the release-matched capture, archive, provider, and publishing guide to an agent that can run commands.</p><pre><code>{{GHOSTGET_SKILL_INSTALL_COMMAND}}</code></pre></article>
-            <article class="hraness-marketing-interface"><h3 class="hraness-marketing-interface__heading">CLI</h3><p>Use stable human output or JSON from a terminal, a script, or an agent tool call.</p><pre><code>ghostget capabilities --json</code></pre></article>
-            <article class="hraness-marketing-interface"><h3 class="hraness-marketing-interface__heading">TypeScript SDK</h3><p>Import validators and types without starting the CLI or reading anything on your machine.</p><pre><code>import { isProviderPluginId } from "@hraness/ghostget"</code></pre></article>
+            <article class="hraness-marketing-interface"><h3 class="hraness-marketing-interface__heading">Agent Skill</h3><p>Give your agent a guide to reading pages, using accounts, and saving media.</p><div class="hraness-marketing-proof-frame" data-hraness-marketing="proof-frame"><div aria-hidden="true" class="hraness-marketing-proof-frame__chrome"><span class="hraness-marketing-proof-frame__lights"><span class="hraness-marketing-proof-frame__light"></span><span class="hraness-marketing-proof-frame__light"></span><span class="hraness-marketing-proof-frame__light"></span></span><span class="hraness-marketing-proof-frame__title">Agent Skill · Terminal</span></div><div class="hraness-marketing-proof-frame__content"><pre tabindex="0" aria-label="Install the GhostGet Agent Skill">{{GHOSTGET_SKILL_CODE}}</pre></div></div></article>
+            <article class="hraness-marketing-interface"><h3 class="hraness-marketing-interface__heading">CLI</h3><p>Use stable human output or JSON from a terminal, a script, or an agent tool call.</p><div class="hraness-marketing-proof-frame" data-hraness-marketing="proof-frame"><div aria-hidden="true" class="hraness-marketing-proof-frame__chrome"><span class="hraness-marketing-proof-frame__lights"><span class="hraness-marketing-proof-frame__light"></span><span class="hraness-marketing-proof-frame__light"></span><span class="hraness-marketing-proof-frame__light"></span></span><span class="hraness-marketing-proof-frame__title">Capabilities · Terminal</span></div><div class="hraness-marketing-proof-frame__content"><pre tabindex="0" aria-label="List GhostGet capabilities">{{GHOSTGET_CAPABILITIES_CODE}}</pre></div></div></article>
+            <article class="hraness-marketing-interface"><h3 class="hraness-marketing-interface__heading">TypeScript SDK</h3><p>Use the SDK’s types and validators in your own tools.</p><pre tabindex="0" aria-label="Import the TypeScript SDK">{{GHOSTGET_SDK_CODE}}</pre></article>
           </div>
         </section>
 
@@ -269,42 +251,42 @@ ghostget read https://example.com</code></pre>
         <section aria-labelledby="local-by-design-title" class="hraness-marketing-trust" data-hraness-marketing="trust" id="local-by-design">
           <header class="hraness-marketing-trust__header">
             <p class="home-eyebrow">Safety and limits</p>
-            <h2 class="hraness-marketing-trust__heading" id="local-by-design-title">Keep accounts and saved work under your control.</h2>
-            <p>Account state and saved results stay on your machine. Requested work contacts the source service, and your agent receives the results you give it.</p>
+            <h2 class="hraness-marketing-trust__heading" id="local-by-design-title">Choose what your agent can do.</h2>
+            <p>Connections and saved results stay on your machine. Actions contact the service you choose.</p>
           </header>
           <dl class="hraness-marketing-trust-grid">
-            <div class="hraness-marketing-trust-item"><dt>Your sign-ins stay here</dt><dd>Ghostget stores sign-ins on this machine, including any linked-device store you choose to use. Your agent gets a named action and its result, never cookies, tokens, or a browser it can steer.</dd></div>
-            <div class="hraness-marketing-trust-item"><dt>Import a token without showing it</dt><dd>For X, <code>ghostget vault import-x</code> accepts a 1Password field reference instead of a pasted secret; Ghostget verifies the X user and stores the token privately on your machine. It is a token importer for one provider, not a general password manager.</dd></div>
+            <div class="hraness-marketing-trust-item"><dt>Your sign-ins stay here</dt><dd>GhostGet stores sign-ins on this machine, including any linked-device store you choose to use. Your agent gets a named action and its result, never cookies, tokens, or a browser it can steer.</dd></div>
+            <div class="hraness-marketing-trust-item"><dt>Import a token without showing it</dt><dd>For X, <code>ghostget vault import-x</code> accepts a 1Password field reference instead of a pasted secret; GhostGet verifies the X user and stores the token privately on your machine. It is a token importer for one provider, not a general password manager.</dd></div>
             <div class="hraness-marketing-trust-item"><dt>Only the traffic you asked for</dt><dd>Reads and actions contact their selected sources. Provider sign-in and explicitly started messaging sync also use the network. The CLI and SDK send no website analytics.</dd></div>
             <div class="hraness-marketing-trust-item"><dt>Reads you can open later</dt><dd>Provider-read snapshots are encrypted on your machine; owner messaging keeps a separate private local history and journal. A failed refresh does not erase the last verified state.</dd></div>
-            <div class="hraness-marketing-trust-item"><dt>Writes need a preview and a confirmation</dt><dd>Anything that changes an account needs a preview and an explicit confirmation of that exact preview, or a limited grant you set up for owner messaging. If a write went out and its result is unknown, Ghostget won’t send it again. It stays marked unsettled until separate evidence shows what happened.</dd></div>
-            <div class="hraness-marketing-trust-item"><dt>When a service changes</dt><dd>If a service changes how it responds, the affected action stays off until it is reviewed again. Ghostget never quietly falls back to a browser.</dd></div>
-            <div class="hraness-marketing-trust-item"><dt>Bring your own agent</dt><dd>Ghostget supplies the local tools and terminal controls for accounts, approvals, and outputs. Your agent owns the model and planning.</dd></div>
-            <div class="hraness-marketing-trust-item"><dt>No bypassing access controls</dt><dd>Media archiving is limited to one finite item you are allowed to access that is not protected by DRM. Ghostget does not bypass payment, sign-in, access controls, or DRM.</dd></div>
+            <div class="hraness-marketing-trust-item"><dt>Writes need a preview and a confirmation</dt><dd>Anything that changes an account needs a preview and an explicit confirmation of that exact preview, or a limited grant you set up for owner messaging. If a write went out and its result is unknown, GhostGet won’t send it again. It stays marked unsettled until separate evidence shows what happened.</dd></div>
+            <div class="hraness-marketing-trust-item"><dt>When a service changes</dt><dd>If a service changes how it responds, the affected action stays off until it is reviewed again. GhostGet never quietly falls back to a browser.</dd></div>
+            <div class="hraness-marketing-trust-item"><dt>Bring your own agent</dt><dd>GhostGet supplies the local tools and terminal controls for accounts, approvals, and outputs. Your agent owns the model and planning.</dd></div>
+            <div class="hraness-marketing-trust-item"><dt>No bypassing access controls</dt><dd>Media archiving is limited to one finite item you are allowed to access that is not protected by DRM. GhostGet does not bypass payment, sign-in, access controls, or DRM.</dd></div>
           </dl>
         </section>
 
         <section aria-labelledby="comparison-title" class="hraness-marketing-section" data-hraness-marketing="section" data-layout="stack" id="how-it-fits">
           <div class="hraness-marketing-section__heading-group">
             <p class="home-eyebrow">Compare</p>
-            <h2 class="hraness-marketing-section__heading" id="comparison-title">How Ghostget compares with other ways agents reach the web.</h2>
-            <p class="hraness-marketing-section__summary">Browser tools give the model a browser to drive. Reader services fetch pages on their own servers. Integration platforms manage your sign-ins for you. Ghostget runs reviewed actions on your machine and returns one result. <a href="/compare/">Compare the approaches</a> in detail.</p>
+            <h2 class="hraness-marketing-section__heading" id="comparison-title">How GhostGet compares with other ways agents reach the web.</h2>
+            <p class="hraness-marketing-section__summary">Browser tools give the model a browser to drive. Reader services fetch pages on their own servers. Integration platforms manage your sign-ins for you. GhostGet runs reviewed actions on your machine and returns one result. <a href="/compare/">Compare the approaches</a> in detail.</p>
           </div>
           <div class="hraness-marketing-section__body">
             <div aria-labelledby="comparison-title" class="table-scroll" role="region" tabindex="0">
               <table>
-                <thead><tr><th scope="col">Approach</th><th scope="col">Best fit</th><th scope="col">How Ghostget differs</th></tr></thead>
+                <thead><tr><th scope="col">Approach</th><th scope="col">Best fit</th><th scope="col">How GhostGet differs</th></tr></thead>
                 <tbody>
                   <tr><th scope="row">Your agent’s built-in web fetch</th><td>Quick lookups with nothing to install. Claude Code’s WebFetch, for example, returns a small model’s answer about the page.</td><td>Returns the page’s content as Markdown and can save it on your machine.</td></tr>
                   <tr><th scope="row"><a href="/compare/firecrawl/">Firecrawl</a> and <a href="/compare/jina-reader/">Jina Reader</a></th><td>Hosted URL-to-Markdown, crawling, and search, metered per page or per token</td><td>Reads one page on your machine with no key or meter. No crawl or search.</td></tr>
                   <tr><th scope="row"><a href="https://github.com/unclecode/crawl4ai">Crawl4AI</a></th><td>Open-source Python crawling of whole sites for RAG pipelines, on your own machine</td><td>Reads one URL at a time, and also runs actions in accounts you connect.</td></tr>
                   <tr><th scope="row"><a href="/compare/browser-use/">browser-use</a></th><td>Open-ended, multi-step browsing where the model observes the page and decides each step</td><td>The model chooses no steps. Each call runs one reviewed action or stops with an error.</td></tr>
                   <tr><th scope="row"><a href="/compare/playwright-mcp/">Playwright MCP</a></th><td>Giving an existing agent live browser controls, with the accessibility tree streamed into context per step</td><td>One result per call. No page state goes back into the agent’s context.</td></tr>
-                  <tr><th scope="row"><a href="/compare/agent-browser/">agent-browser</a></th><td>Shell-level browser steering an agent composes itself: open, click, type, snapshot</td><td>Ghostget runs agent-browser internally for pages that need rendering, and the agent can’t steer it.</td></tr>
+                  <tr><th scope="row"><a href="/compare/agent-browser/">agent-browser</a></th><td>Shell-level browser steering an agent composes itself: open, click, type, snapshot</td><td>GhostGet runs agent-browser internally for pages that need rendering, and the agent can’t steer it.</td></tr>
                   <tr><th scope="row"><a href="/compare/browserbase/">Browserbase + Stagehand</a></th><td>Managed cloud browser sessions at scale, with proxies, stealth, and session replay</td><td>Runs on your machine with no remote browser, and never falls back to a browser when an action is missing or has changed.</td></tr>
                   <tr><th scope="row"><a href="https://composio.dev">Composio</a>, <a href="https://www.arcade.dev">Arcade</a>, and <a href="https://pipedream.com/docs/connect">Pipedream Connect</a></th><td>Large app-integration catalogs with managed sign-in, for products whose agents act for many users</td><td>Covers far fewer services. Sign-ins stay on your machine, and each write shows a preview first.</td></tr>
                   <tr><th scope="row"><a href="https://docs.apify.com/integrations/mcp">Apify MCP</a></th><td>Discovering and running eligible Apify Store Actors through a hosted MCP service, with access to results and storage</td><td>Each provider action and implementation must be named and reviewed before it can run.</td></tr>
-                  <tr><th scope="row">Ghostget</th><td>Repeated account and page work where you want to know exactly what the agent can do</td><td>Encrypted local copies of reads, a preview and a record for every write, and actions that stop when a service changes.</td></tr>
+                  <tr><th scope="row">GhostGet</th><td>Repeated account and page work where you want to know exactly what the agent can do</td><td>Encrypted local copies of reads, a preview and a record for every write, and actions that stop when a service changes.</td></tr>
                 </tbody>
               </table>
             </div>
@@ -317,15 +299,15 @@ ghostget read https://example.com</code></pre>
             <h2 class="hraness-marketing-questions__heading" id="faq-title">Before you install.</h2>
           </header>
           <div class="hraness-marketing-question-list">
-            <details class="hraness-marketing-question"><summary>Which agents does it work with?</summary><div class="hraness-marketing-question__answer"><p>Any agent that can run commands: Claude Code, Codex, Cursor, Gemini CLI, or your own. The optional <a href="{{GHOSTGET_SKILLS}}">Agent Skill</a> teaches it the Ghostget commands and their limits in one step.</p></div></details>
-            <details class="hraness-marketing-question"><summary>Does Ghostget need an account?</summary><div class="hraness-marketing-question__answer"><p>No. Install the CLI and read a public page. You connect a service only when you want its actions, and each connection is stored on your machine. Hraness Accounts sign-in is optional and is not needed for page reads or provider setup.</p></div></details>
-            <details class="hraness-marketing-question"><summary>Does it use my credentials?</summary><div class="hraness-marketing-question__answer"><p>It uses a sign-in you already have for a service, on this machine, and keeps it out of your agent’s hands. Each sign-in is bound to one account and one service, in a locked local store the agent cannot read. Ghostget’s normal outputs do not include cookies or tokens. The calling agent keeps the separate tools and permissions you give it.</p></div></details>
-            <details class="hraness-marketing-question"><summary>What does it cost?</summary><div class="hraness-marketing-question__answer"><p>Nothing. Ghostget is free and MIT licensed, with no hosted tier and no paid plan. You pay your model provider and any service subscriptions you already have.</p></div></details>
-            <details class="hraness-marketing-question"><summary>Does it phone home?</summary><div class="hraness-marketing-question__answer"><p>No. The CLI and SDK send no analytics to ghostget.com; they make only the network requests the action you chose requires. This website counts page views with cookieless analytics and honors Do Not Track. The <a href="/privacy/">privacy page</a> explains both.</p></div></details>
+            <details class="hraness-marketing-question"><summary>Which agents does it work with?</summary><div class="hraness-marketing-question__answer"><p>Any agent that can run commands: Claude Code, Codex, Cursor, Gemini CLI, or your own. The optional <a href="{{GHOSTGET_SKILLS}}">Agent Skill</a> teaches it the GhostGet commands and their limits in one step.</p></div></details>
+            <details class="hraness-marketing-question"><summary>Does GhostGet need an account?</summary><div class="hraness-marketing-question__answer"><p>Public-page reads need no account. Connect a service when you want its actions; Hraness Accounts sign-in is optional.</p></div></details>
+            <details class="hraness-marketing-question"><summary>Does it use my credentials?</summary><div class="hraness-marketing-question__answer"><p>Yes, for connected services. Sign-ins stay in a local store and are omitted from GhostGet’s outputs. Your agent keeps any separate tools and permissions you give it.</p></div></details>
+            <details class="hraness-marketing-question"><summary>What does it cost?</summary><div class="hraness-marketing-question__answer"><p>Nothing. GhostGet is free and MIT licensed, with no hosted tier and no paid plan. You pay your model provider and any service subscriptions you already have.</p></div></details>
+            <details class="hraness-marketing-question"><summary>Does it phone home?</summary><div class="hraness-marketing-question__answer"><p>The CLI and SDK send no analytics. Actions, sign-in, and messaging sync contact their selected services. This website uses cookieless analytics and honors Do Not Track. See <a href="/privacy/">privacy details</a>.</p></div></details>
             <details class="hraness-marketing-question"><summary>Which platforms does it run on?</summary><div class="hraness-marketing-question__answer"><p>macOS and Linux with Bun 1.3.14. Actions that read iMessage or Apple Photos need macOS. Beeper actions need Beeper Desktop on the same machine, and WhatsApp reads need a linked device.</p></div></details>
-            <details class="hraness-marketing-question"><summary>Is Ghostget an AI agent?</summary><div class="hraness-marketing-question__answer"><p>No. Ghostget supplies a CLI, an SDK, and terminal controls. Your agent brings the model and the plan; Ghostget manages account permissions, approvals, and the records of its actions.</p></div></details>
-            <details class="hraness-marketing-question"><summary>Does Ghostget use a browser internally?</summary><div class="hraness-marketing-question__answer"><p>Yes, in two cases. When a page can’t be read without rendering it, Ghostget runs its own browser, at most two at once; page reads try a single HTTP request first. Some signed-in provider actions, such as certain LinkedIn and Instagram reads, also run inside a contained browser session. In both cases the browser accepts no selectors, coordinates, or scripts from the caller.</p></div></details>
-            <details class="hraness-marketing-question"><summary>Why does Ghostget refuse to retry some writes?</summary><div class="hraness-marketing-question__answer"><p>If a request left the machine and its response was lost, the effect may already exist. Ghostget keeps that uncertainty visible and settles it from separately obtained evidence instead of sending the request again.</p></div></details>
+            <details class="hraness-marketing-question"><summary>Is GhostGet an AI agent?</summary><div class="hraness-marketing-question__answer"><p>No. GhostGet supplies a CLI, an SDK, and terminal controls. Your agent brings the model and the plan; GhostGet manages account permissions, approvals, and the records of its actions.</p></div></details>
+            <details class="hraness-marketing-question"><summary>Does GhostGet use a browser internally?</summary><div class="hraness-marketing-question__answer"><p>Yes, in two cases. When a page can’t be read without rendering it, GhostGet runs its own browser, at most two at once; page reads try a single HTTP request first. Some signed-in provider actions, such as certain LinkedIn and Instagram reads, also run inside a contained browser session. In both cases the browser accepts no selectors, coordinates, or scripts from the caller.</p></div></details>
+            <details class="hraness-marketing-question"><summary>Why does GhostGet refuse to retry some writes?</summary><div class="hraness-marketing-question__answer"><p>If a request left the machine and its response was lost, the effect may already exist. GhostGet keeps that uncertainty visible and settles it from separately obtained evidence instead of sending the request again.</p></div></details>
             <details class="hraness-marketing-question"><summary>What does release {{GHOSTGET_RELEASE}} include?</summary><div class="hraness-marketing-question__answer"><p>Page capture, media archives, encrypted reads, and {{PROVIDER_CALLABLE_ACTION_COUNT}} supported actions across {{PROVIDER_SURFACE_COUNT}} services. <code>ghostget capabilities</code> shows what is installed and available on your machine, and the <a href="/docs/reference/provider-capabilities/">provider list</a> names every action in this release.</p></div></details>
           </div>
         </section>
@@ -338,11 +320,11 @@ ghostget read https://example.com</code></pre>
               <p>Each guide covers the current release, the commands to use, and the limits that apply.</p>
             </div>
             <div class="card-grid">
-              <article class="card"><h3><a href="/docs/tutorials/getting-started/">Install and verify Ghostget</a></h3><p>Install the CLI, read a public page, then choose saving, account setup, or local controls.</p></article>
-              <article class="card"><h3><a href="/docs/how-to/capture-and-archive/">Capture URLs and archive media</a></h3><p>Choose between an inspection, durable Markdown capture, or one verified finite-item media archive.</p></article>
+              <article class="card"><h3><a href="/docs/tutorials/getting-started/">Read your first page</a></h3><p>Install the CLI, read a public page, then choose saving, account setup, or local controls.</p></article>
+              <article class="card"><h3><a href="/docs/how-to/capture-and-archive/">Capture URLs and archive media</a></h3><p>Read a page, save its Markdown, or keep a media item for later.</p></article>
               <article class="card"><h3><a href="/docs/reference/provider-capabilities/">Check provider support</a></h3><p>See every provider action available in the current release and the access method it uses.</p></article>
-              <article class="card"><h3><a href="/docs/explanation/security-model/">Understand the security model</a></h3><p>How Ghostget keeps sign-ins on your machine, ties each action to one account, and handles a write whose outcome is unknown.</p></article>
-              <article class="card"><h3><a href="/docs/how-to/author-provider-plugin/">Author a provider plugin</a></h3><p>Define one operation, prove what it sends and returns, then check, test, pack, trust, and install the exact code.</p></article>
+              <article class="card"><h3><a href="/docs/explanation/security-model/">Understand the security model</a></h3><p>How GhostGet keeps sign-ins on your machine, ties each action to one account, and handles a write whose outcome is unknown.</p></article>
+              <article class="card"><h3><a href="/docs/how-to/author-provider-plugin/">Author a provider plugin</a></h3><p>Add a supported action for another service and test its requests and results.</p></article>
               <article class="card"><h3><a href="/docs/">Browse the documentation</a></h3><p>Every guide organized by job: tutorial, how-to, explanation, and reference.</p></article>
             </div>
           </section>
@@ -355,7 +337,7 @@ ghostget read https://example.com</code></pre>
             </div>
             <div class="card-grid editorial-card-grid">
               {{EDITORIAL_CARDS}}
-              <article class="card"><h3><a href="/compare/">How agents reach the web</a></h3><p>Browser tools, reader services, and integration platforms compared with Ghostget’s named actions.</p></article>
+              <article class="card"><h3><a href="/compare/">How agents reach the web</a></h3><p>Browser tools, reader services, and integration platforms compared with GhostGet’s named actions.</p></article>
             </div>
           </section>
         </div>
@@ -366,7 +348,7 @@ ghostget read https://example.com</code></pre>
             <h2 class="hraness-marketing-maker__heading" id="maker-title">Hraness</h2>
           </header>
           <div class="hraness-marketing-maker__body">
-            <p>Ghostget is built by Hraness, a software studio in Puerto Rico. We build tools that give AI agents memory, context, web access, and a record of their work, and we make apps and sourced archives for people.</p>
+            <p>GhostGet is built by Hraness, a software studio in Puerto Rico. We build tools that give AI agents memory, context, web access, and a record of their work, and we make apps and sourced archives for people.</p>
             <ul class="hraness-marketing-maker__links">
               <li><a href="https://hraness.com">hraness.com</a></li>
               <li><a href="https://x.com/hraness">@hraness</a></li>
@@ -409,14 +391,14 @@ ghostget read https://example.com</code></pre>
           <h2 class="hraness-marketing-cta__heading" id="final-title">Read your first page in two commands.</h2>
           <p class="hraness-marketing-cta__summary">Start with one public page and no account or API key. Connect a service when you need its actions.</p>
           <div class="hraness-marketing-cta__actions">
-            <a class="hraness-marketing-action" data-analytics-cta="final-install" data-emphasis="primary" href="#start">Install Ghostget</a>
+            <a class="hraness-marketing-action" data-analytics-cta="final-install" data-emphasis="primary" href="#start">Install GhostGet</a>
           </div>
         </section>
       </div>
     </main>
 
-    <aside aria-label="Ghostget project information" class="site-disclosure">
-      <p>Ghostget {{GHOSTGET_VERSION}} is maintained and published in the open by the <a href="https://github.com/hraness">Hraness GitHub organization</a>. MIT licensed. <a href="/about/">About</a> · <a href="/contact/">Contact</a> · <a href="/privacy/">Privacy</a> · <a href="/llms.txt">llms.txt</a></p>
+    <aside aria-label="GhostGet project information" class="site-disclosure">
+      <p>GhostGet {{GHOSTGET_VERSION}} is maintained and published in the open by the <a href="https://github.com/hraness">Hraness GitHub organization</a>. MIT licensed. <a href="/about/">About</a> · <a href="/contact/">Contact</a> · <a href="/privacy/">Privacy</a> · <a href="/llms.txt">llms.txt</a></p>
       <p class="privacy-note">Privacy: cookieless PostHog analytics measure page lifecycle, Core Web Vitals, and the two GitHub links. No person profiles, replay, broad autocapture, or URL queries; Do Not Track is honored.</p>
     </aside>
     {{HRANESS_SITE_FOOTER}}

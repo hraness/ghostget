@@ -24,6 +24,7 @@ import {
   symlink,
   writeFile,
 } from "node:fs/promises";
+import { readFileSync, readdirSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join, relative } from "node:path";
 
@@ -67,7 +68,12 @@ import {
   parseAxiomAudit,
   parseLeanProofs,
   parseQuintModels,
-  parseSkipApalache,
+  APALACHE_ALL,
+  QUINT_APALACHE_MODELS_VARIABLE,
+  apalacheSelectionEnvironmentLine,
+  parseApalacheSelection,
+  quintLockClosure,
+  quintPackagePins,
   parseVerificationMode,
   pathReplacements,
   pinnedArchives,
@@ -989,8 +995,41 @@ describe("pull-request Apalache scope", () => {
   const base = "a".repeat(40);
   const head = "b".repeat(40);
   const merge = "c".repeat(40);
-  const git = (changed: string | null, parents = `${merge} ${base} ${head}\n`) => (argumentsList: readonly string[]) =>
-    argumentsList[0] === "rev-list" ? parents : changed;
+  const repositoryFile = (path: string) => readFileSync(join(import.meta.dir, "..", path), "utf8");
+  const manifest = repositoryFile("verification/quint/models.json");
+  const packageText = repositoryFile("package.json");
+  const lockText = repositoryFile("bun.lock");
+  const quintListing = readdirSync(join(import.meta.dir, "..", "verification/quint"))
+    .sort()
+    .map((file) => `verification/quint/${file}\0`)
+    .join("");
+  // A fake Git: `rev-list` answers the parents, `diff` the changed paths, and
+  // `show <commit>:<path>` the file at that commit (base or merge), falling
+  // back to the checked-in file.
+  const git = (
+    changed: string | null,
+    parents = `${merge} ${base} ${head}\n`,
+    files: Readonly<Record<string, string | null>> = {},
+  ) => (argumentsList: readonly string[]): string | null => {
+    if (argumentsList[0] === "rev-list") return parents;
+    if (argumentsList[0] === "diff") return changed;
+    if (argumentsList[0] === "ls-tree") {
+      const key = `ls-tree:${argumentsList[3]!}`;
+      return Object.hasOwn(files, key) ? files[key]! : quintListing;
+    }
+    if (argumentsList[0] === "show") {
+      const spec = argumentsList[1]!;
+      if (Object.hasOwn(files, spec)) return files[spec]!;
+      const path = spec.slice(spec.indexOf(":") + 1);
+      if (path === "verification/quint/models.json") return manifest;
+      if (path.startsWith("verification/quint/") && path.endsWith(".qnt")) return repositoryFile(path);
+      if (path === "package.json") return packageText;
+      if (path === "bun.lock") return lockText;
+      return null;
+    }
+    return null;
+  };
+  const kind = (decision: ReturnType<typeof decideApalacheScope>) => decision.selection.kind;
 
   test("covers the models, checker scripts, Quint pin, and workflow", () => {
     for (const path of [
@@ -1011,16 +1050,121 @@ describe("pull-request Apalache scope", () => {
     expect(QUINT_APALACHE_SCOPE).toContain("verification/quint/");
   });
 
-  test("skips only on a pull-request merge commit whose diff misses the scope", () => {
-    expect(decideApalacheScope("pull_request", git("src/cli.ts\0website/index.html\0")).skip).toBeTrue();
-    expect(decideApalacheScope("pull_request", git("src/cli.ts\0verification/quint/fence.qnt\0")).skip).toBeFalse();
-    expect(decideApalacheScope("push", git("src/cli.ts\0")).skip).toBeFalse();
-    expect(decideApalacheScope("schedule", git("src/cli.ts\0")).skip).toBeFalse();
-    expect(decideApalacheScope(undefined, git("src/cli.ts\0")).skip).toBeFalse();
-    expect(decideApalacheScope("pull_request", git(null)).skip).toBeFalse();
-    expect(decideApalacheScope("pull_request", git("src/cli.ts\0", `${merge} ${base}\n`)).skip).toBeFalse();
-    expect(decideApalacheScope("pull_request", git("src/cli.ts\0", "")).skip).toBeFalse();
-    expect(decideApalacheScope("pull_request", () => null).skip).toBeFalse();
+  test("skips only on a pull-request merge commit whose diff cannot change a verdict", () => {
+    expect(kind(decideApalacheScope("pull_request", git("src/cli.ts\0website/index.html\0")))).toBe("none");
+    expect(kind(decideApalacheScope("pull_request", git("src/cli.ts\0scripts/verification-tools.ts\0")))).toBe("all");
+    expect(kind(decideApalacheScope("pull_request", git(".github/workflows/ci.yml\0")))).toBe("all");
+    expect(kind(decideApalacheScope("pull_request", git("verification/quint/models.json\0")))).toBe("all");
+    expect(kind(decideApalacheScope("push", git("src/cli.ts\0")))).toBe("all");
+    expect(kind(decideApalacheScope("schedule", git("src/cli.ts\0")))).toBe("all");
+    expect(kind(decideApalacheScope("workflow_dispatch", git("src/cli.ts\0")))).toBe("all");
+    expect(kind(decideApalacheScope(undefined, git("src/cli.ts\0")))).toBe("all");
+    expect(kind(decideApalacheScope("pull_request", git(null)))).toBe("all");
+    expect(kind(decideApalacheScope("pull_request", git("src/cli.ts\0", `${merge} ${base}\n`)))).toBe("all");
+    expect(kind(decideApalacheScope("pull_request", git("src/cli.ts\0", "")))).toBe("all");
+    expect(kind(decideApalacheScope("pull_request", () => null))).toBe("all");
+  });
+
+  test("checks only the models a pull request changes", () => {
+    const one = decideApalacheScope("pull_request", git("src/cli.ts\0verification/quint/fence.qnt\0"));
+    expect(one.selection).toEqual({ kind: "models", files: ["fence.qnt"] });
+    const two = decideApalacheScope("pull_request", git("verification/quint/lock.qnt\0verification/quint/fence.qnt\0"));
+    expect(two.selection).toEqual({ kind: "models", files: ["fence.qnt", "lock.qnt"] });
+    // A model file with its manifest, an unlisted file, or an unreadable manifest runs every model.
+    expect(kind(decideApalacheScope("pull_request", git("verification/quint/fence.qnt\0verification/quint/models.json\0")))).toBe("all");
+    expect(kind(decideApalacheScope("pull_request", git("verification/quint/helper.qnt\0")))).toBe("all");
+    expect(kind(decideApalacheScope("pull_request", git("verification/quint/README.md\0")))).toBe("all");
+    expect(kind(decideApalacheScope("pull_request", git("verification/quint/fence.qnt\0", undefined, {
+      [`${merge}:verification/quint/models.json`]: null,
+    })))).toBe("all");
+    expect(kind(decideApalacheScope("pull_request", git("verification/quint/fence.qnt\0", undefined, {
+      [`${merge}:verification/quint/models.json`]: "{\"models\": 3}",
+    })))).toBe("all");
+    // Every listed model maps to itself.
+    const files = (JSON.parse(manifest) as { models: { file: string }[] }).models.map((model) => model.file);
+    for (const file of files) {
+      expect(decideApalacheScope("pull_request", git(`verification/quint/${file}\0`)).selection).toEqual({ kind: "models", files: [file] });
+    }
+  });
+
+  test("checks every model when any model imports another file", () => {
+    const changed = "verification/quint/lock.qnt\0";
+    const fence = repositoryFile("verification/quint/fence.qnt");
+    // No checked-in model imports another file, so a lone model change narrows.
+    for (const file of readdirSync(join(import.meta.dir, "..", "verification/quint")).filter((name) => name.endsWith(".qnt"))) {
+      expect(repositoryFile(`verification/quint/${file}`)).not.toMatch(/\b(?:import|export)\b[^\n]*?\bfrom\s*"/u);
+    }
+    expect(kind(decideApalacheScope("pull_request", git(changed)))).toBe("models");
+    // An unchanged model that imports the changed one widens the selection.
+    for (const statement of [
+      'import lock.* from "./lock"',
+      'import lock as L from "./lock"',
+      'import lock(N = 2) as L from "./lock"',
+      'export lock.* from "./lock"',
+    ]) {
+      expect(kind(decideApalacheScope("pull_request", git(changed, undefined, {
+        [`${merge}:verification/quint/fence.qnt`]: `${statement}\n${fence}`,
+      })))).toBe("all");
+    }
+    // A same-file module import stays narrow.
+    expect(kind(decideApalacheScope("pull_request", git(changed, undefined, {
+      [`${merge}:verification/quint/fence.qnt`]: `${fence}\nmodule extra { import fence.* }\n`,
+    })))).toBe("models");
+    // An unreadable model file or listing, or an empty listing, checks every model.
+    expect(kind(decideApalacheScope("pull_request", git(changed, undefined, {
+      [`${merge}:verification/quint/fence.qnt`]: null,
+    })))).toBe("all");
+    expect(kind(decideApalacheScope("pull_request", git(changed, undefined, { [`ls-tree:${merge}`]: null })))).toBe("all");
+    expect(kind(decideApalacheScope("pull_request", git(changed, undefined, { [`ls-tree:${merge}`]: "" })))).toBe("all");
+  });
+
+  test("counts package.json only when the Quint pins change", () => {
+    const parsed = JSON.parse(packageText) as Record<string, unknown> & { devDependencies: Record<string, string>; scripts: Record<string, string> };
+    const bumped = JSON.stringify({ ...parsed, version: "999.0.0", scripts: { ...parsed.scripts, "zz-unrelated": "true" } }, null, 2);
+    expect(kind(decideApalacheScope("pull_request", git("package.json\0CHANGELOG.md\0", undefined, { [`${merge}:package.json`]: bumped })))).toBe("none");
+    const repinned = JSON.stringify({ ...parsed, devDependencies: { ...parsed.devDependencies, "@informalsystems/quint": "0.33.0" } });
+    expect(kind(decideApalacheScope("pull_request", git("package.json\0", undefined, { [`${merge}:package.json`]: repinned })))).toBe("all");
+    const rescripted = JSON.stringify({ ...parsed, scripts: { ...parsed.scripts, "verify:quint": "true" } });
+    expect(kind(decideApalacheScope("pull_request", git("package.json\0", undefined, { [`${merge}:package.json`]: rescripted })))).toBe("all");
+    const overridden = JSON.stringify({ ...parsed, overrides: { lodash: "4.0.0" } });
+    expect(kind(decideApalacheScope("pull_request", git("package.json\0", undefined, { [`${merge}:package.json`]: overridden })))).toBe("all");
+    expect(kind(decideApalacheScope("pull_request", git("package.json\0", undefined, { [`${merge}:package.json`]: "{" })))).toBe("all");
+    expect(kind(decideApalacheScope("pull_request", git("package.json\0", undefined, { [`${base}:package.json`]: null })))).toBe("all");
+    // A version bump with a model change still checks only that model.
+    expect(decideApalacheScope("pull_request", git("package.json\0verification/quint/lock.qnt\0", undefined, { [`${merge}:package.json`]: bumped })).selection)
+      .toEqual({ kind: "models", files: ["lock.qnt"] });
+    expect(quintPackagePins(packageText)).toContain("\"devDependencies\":\"0.32.0\"");
+    expect(quintPackagePins(bumped)).toBe(quintPackagePins(packageText));
+    expect(() => quintPackagePins("[]")).toThrow("must be an object");
+  });
+
+  test("counts bun.lock only when the Quint closure changes", () => {
+    const closure = quintLockClosure(lockText);
+    // The closure reaches Quint and its transitive dependencies, not unrelated packages.
+    expect(closure).toContain("\"@informalsystems/quint\"");
+    expect(closure).toContain("\"yargs\"");
+    expect(closure).not.toContain("\"typescript\"");
+    const unrelated = lockText.replace(/("typescript": \["typescript@)([^"]+)"/u, "$1$2-changed\"");
+    expect(unrelated).not.toBe(lockText);
+    expect(quintLockClosure(unrelated)).toBe(closure);
+    expect(kind(decideApalacheScope("pull_request", git("bun.lock\0", undefined, { [`${merge}:bun.lock`]: unrelated })))).toBe("none");
+    const transitive = lockText.replace(/("yargs": \["yargs@)([^"]+)"/u, "$1$2-changed\"");
+    expect(transitive).not.toBe(lockText);
+    expect(kind(decideApalacheScope("pull_request", git("bun.lock\0", undefined, { [`${merge}:bun.lock`]: transitive })))).toBe("all");
+    const repinned = lockText.replace("\"@informalsystems/quint@0.32.0\"", "\"@informalsystems/quint@0.33.0\"");
+    expect(repinned).not.toBe(lockText);
+    expect(kind(decideApalacheScope("pull_request", git("bun.lock\0", undefined, { [`${merge}:bun.lock`]: repinned })))).toBe("all");
+    expect(kind(decideApalacheScope("pull_request", git("bun.lock\0", undefined, { [`${merge}:bun.lock`]: "{" })))).toBe("all");
+    expect(() => quintLockClosure("{\"packages\": {}}")).toThrow("does not list");
+    expect(() => quintLockClosure("{\"packages\": {\"@informalsystems/quint\": [\"q@1\", \"\", { \"dependencies\": { \"gone\": \"1\" } }, \"x\"],}}"))
+      .toThrow("does not list");
+    // Nested entries resolve before hoisted ones, as Node resolves node_modules.
+    const nested = "{\"packages\": {"
+      + "\"@informalsystems/quint\": [\"q@1\", \"\", { \"dependencies\": { \"a\": \"1\" } }, \"x\"],"
+      + "\"a\": [\"a@2\", \"\", {}, \"x\"],"
+      + "\"@informalsystems/quint/a\": [\"a@1\", \"\", {}, \"x\"],}}";
+    expect(quintLockClosure(nested)).toContain("a@1");
+    expect(quintLockClosure(nested)).not.toContain("a@2");
   });
 
   test("diffs the merge commit against its first (base) parent", () => {
@@ -1032,11 +1176,20 @@ describe("pull-request Apalache scope", () => {
     expect(calls[1]).toEqual(["diff", "--no-renames", "--name-only", "-z", base, merge]);
   });
 
-  test("parses the skip variable strictly", () => {
-    expect(parseSkipApalache(undefined)).toBeFalse();
-    expect(parseSkipApalache("")).toBeFalse();
-    expect(parseSkipApalache("1")).toBeTrue();
-    for (const value of ["0", "true", "yes", " 1", "1\n"]) expect(() => parseSkipApalache(value)).toThrow("must be unset or 1");
+  test("parses the scope variables strictly and round-trips the environment line", () => {
+    expect(parseApalacheSelection(undefined, undefined)).toEqual(APALACHE_ALL);
+    expect(parseApalacheSelection("", "")).toEqual(APALACHE_ALL);
+    expect(parseApalacheSelection("1", undefined)).toEqual({ kind: "none" });
+    expect(parseApalacheSelection(undefined, "fence.qnt,lock.qnt")).toEqual({ kind: "models", files: ["fence.qnt", "lock.qnt"] });
+    for (const value of ["0", "true", "yes", " 1", "1\n"]) expect(() => parseApalacheSelection(value, undefined)).toThrow("must be unset or 1");
+    for (const value of ["fence", "fence.qnt,", ",fence.qnt", "fence.qnt,fence.qnt", "../fence.qnt", "a/b.qnt", "fence.qnt lock.qnt"]) {
+      expect(() => parseApalacheSelection(undefined, value)).toThrow(QUINT_APALACHE_MODELS_VARIABLE);
+    }
+    expect(() => parseApalacheSelection("1", "fence.qnt")).toThrow("at most one");
+    expect(apalacheSelectionEnvironmentLine(APALACHE_ALL)).toBeNull();
+    expect(apalacheSelectionEnvironmentLine({ kind: "none" })).toBe("GHOSTGET_QUINT_SKIP_APALACHE=1");
+    expect(apalacheSelectionEnvironmentLine({ kind: "models", files: ["fence.qnt"] })).toBe("GHOSTGET_QUINT_APALACHE_MODELS=fence.qnt");
+    expect(() => apalacheSelectionEnvironmentLine({ kind: "models", files: [] })).toThrow("at least one");
   });
 });
 

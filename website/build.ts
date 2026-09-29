@@ -28,6 +28,7 @@ import {
   readClaimsRegisterSource,
 } from "./claims-register";
 import { product, type PortfolioProductId } from "@hraness/design-kit/portfolio";
+import { highlightCode, type SyntaxLanguage } from "@hraness/design-kit/syntax-highlighting";
 import { renderStatusPageHtml, type StatusPageLink } from "@hraness/design-kit";
 import {
   EDITORIAL_ARTICLE_IMAGE_SIZES,
@@ -92,14 +93,14 @@ import {
 /** Alt text for the static `/og.png` card, from the one social-image declaration. */
 export { SOCIAL_IMAGE_ALT };
 export const SITE_ORIGIN = "https://ghostget.com" as const;
-export const SITE_TITLE = "Ghostget: wget for the ghost in the machine." as const;
+export const SITE_TITLE = "GhostGet: wget for the ghost in the machine." as const;
 /** The home page title: the product name plus the job and audience searchers use. */
-export const HOME_TITLE = "Ghostget: let AI agents read web pages and use your accounts" as const;
+export const HOME_TITLE = "GhostGet: let AI agents read web pages and use your accounts" as const;
 export const SITE_DESCRIPTION =
-  "Ghostget gives your AI agent named web actions: read a page, archive one media item, or use a connected account, without credentials or a browser to steer." as const;
+  "GhostGet gives your AI agent named web actions: read a page, archive one media item, or use a connected account, without credentials or a browser to steer." as const;
 export const BLOG_SITE: BlogSite = {
   description: SITE_DESCRIPTION,
-  name: "Ghostget",
+  name: "GhostGet",
   origin: SITE_ORIGIN,
   socialImageAlt: SOCIAL_IMAGE_ALT,
   title: SITE_TITLE,
@@ -135,18 +136,18 @@ export const PUBLIC_PAGES = [
   {
     canonicalPath: "/docs/",
     description:
-      "Ghostget documentation organized by job: a getting-started tutorial, task how-to guides, security explanation, and the provider capability reference.",
+      "GhostGet documentation organized by job: a getting-started tutorial, task how-to guides, security explanation, and the provider capability reference.",
     outputFile: "docs/index.html",
     sourceFile: "docs-index.html",
-    title: "Ghostget documentation: tutorials, how-to guides, explanation, and reference",
+    title: "GhostGet documentation: tutorials, how-to guides, explanation, and reference",
   },
   {
     canonicalPath: "/docs/tutorials/getting-started/",
     description:
-      "Install Ghostget and read a public page with no account or API key. Then choose page saving, an agent skill, or connected services.",
+      "Install GhostGet and read a public page with no account or API key. Then choose page saving, an agent skill, or connected services.",
     outputFile: "docs/tutorials/getting-started/index.html",
     sourceFile: "docs-tutorials-getting-started.html",
-    title: "Get started with Ghostget: install the CLI and read your first page",
+    title: "Get started with GhostGet: install the CLI and read your first page",
   },
   {
     canonicalPath: "/docs/how-to/capture-and-archive/",
@@ -154,15 +155,15 @@ export const PUBLIC_PAGES = [
       "Capture public URLs as Markdown and preserve one authorized media item with manifests, transcripts, provenance, and SHA-256 verification.",
     outputFile: "docs/how-to/capture-and-archive/index.html",
     sourceFile: "docs-how-to-capture-and-archive.html",
-    title: "Capture URLs and create verified media archives with Ghostget",
+    title: "Capture URLs and create verified media archives with GhostGet",
   },
   {
     canonicalPath: "/docs/reference/provider-capabilities/",
     description:
-      "See which provider actions Ghostget supports in the current release and how each service connects.",
+      "See which provider actions GhostGet supports in the current release and how each service connects.",
     outputFile: "docs/reference/provider-capabilities/index.html",
     sourceFile: "docs-reference-provider-capabilities.html",
-    title: "Provider support in Ghostget",
+    title: "Provider support in GhostGet",
   },
   {
     canonicalPath: "/docs/how-to/connect-beeper/",
@@ -181,122 +182,122 @@ export const PUBLIC_PAGES = [
   {
     canonicalPath: "/docs/how-to/use-webmcp-sites/",
     description:
-      "Search the WebMCP Registry, read one site's tool schema, and call its read-only tools through Ghostget's bundled webmcp adapter, with no account or API key.",
+      "Search the WebMCP Registry, read one site's tool schema, and call its read-only tools through GhostGet's bundled webmcp adapter, with no account or API key.",
     outputFile: "docs/how-to/use-webmcp-sites/index.html",
     sourceFile: "docs-how-to-use-webmcp-sites.html",
-    title: "Use WebMCP sites with your agent through Ghostget",
+    title: "Use WebMCP sites with your agent through GhostGet",
   },
   {
     canonicalPath: "/providers/",
     description:
-      "Every service Ghostget supports: its built-in providers, plus sites in the public WebMCP Registry whose read-only tools your agent can call.",
+      "Every service GhostGet supports: its built-in providers, plus sites in the public WebMCP Registry whose read-only tools your agent can call.",
     outputFile: "providers/index.html",
     sourceFile: "providers.html",
-    title: "Providers Ghostget works with: supported services and the WebMCP Registry",
+    title: "Providers GhostGet works with: supported services and the WebMCP Registry",
   },
   {
     canonicalPath: "/webmcp/",
     description:
-      "WebMCP lets a website publish tools through navigator.modelContext. Ghostget reads them from the public WebMCP Registry and calls only tools declared read-only.",
+      "WebMCP lets a website publish tools through navigator.modelContext. GhostGet reads them from the public WebMCP Registry and calls only tools declared read-only.",
     outputFile: "webmcp/index.html",
     sourceFile: "webmcp.html",
-    title: "WebMCP for agents: call website-published tools through Ghostget",
+    title: "WebMCP for agents: call website-published tools through GhostGet",
   },
   {
     canonicalPath: "/docs/explanation/security-model/",
     description:
-      "How Ghostget keeps sign-ins on your machine, ties each action to one account, and handles a write whose outcome is unknown.",
+      "How GhostGet keeps sign-ins on your machine, ties each action to one account, and handles a write whose outcome is unknown.",
     outputFile: "docs/explanation/security-model/index.html",
     sourceFile: "docs-explanation-security-model.html",
-    title: "Ghostget security model: accounts, credentials, and writes",
+    title: "GhostGet security model: accounts, credentials, and writes",
   },
   {
     canonicalPath: "/docs/how-to/author-provider-plugin/",
     description:
-      "Write a Ghostget provider plugin, prove one operation, and install the exact content-addressed bundle after it passes checks, tests, and your trust decision.",
+      "Write a GhostGet provider plugin, prove one operation, and install the exact content-addressed bundle after it passes checks, tests, and your trust decision.",
     outputFile: "docs/how-to/author-provider-plugin/index.html",
     sourceFile: "docs-how-to-author-provider-plugin.html",
-    title: "Author and verify Ghostget provider plugins",
+    title: "Author and verify GhostGet provider plugins",
   },
   {
     canonicalPath: CLAIMS_PAGE_PATH,
     description:
-      "Every claim in Ghostget's public register with its current verification status, generated from the repository's verification/claims.json on each release.",
+      "Every claim in GhostGet's public register with its current verification status, generated from the repository's verification/claims.json on each release.",
     outputFile: "claims/index.html",
     sourceFile: "claims.html",
-    title: "Ghostget claims register: what is checked and what is not",
+    title: "GhostGet claims register: what is checked and what is not",
   },
   {
     canonicalPath: "/about/",
     description:
-      "Ghostget is an open-source CLI and TypeScript SDK that lets any agent that can run commands read pages, archive media, and use connected accounts.",
+      "GhostGet is an open-source CLI and TypeScript SDK that lets any agent that can run commands read pages, archive media, and use connected accounts.",
     outputFile: "about/index.html",
     sourceFile: "about.html",
-    title: "About Ghostget: open-source web actions for AI agents",
+    title: "About GhostGet: open-source web actions for AI agents",
   },
   {
     canonicalPath: "/contact/",
     description:
-      "Contact Ghostget through public GitHub issues or private vulnerability reporting. No telephone, postal address, or support inbox is published.",
+      "Contact GhostGet through public GitHub issues or private vulnerability reporting. No telephone, postal address, or support inbox is published.",
     outputFile: "contact/index.html",
     sourceFile: "contact.html",
-    title: "Contact Ghostget maintainers and report security issues",
+    title: "Contact GhostGet maintainers and report security issues",
   },
   {
     canonicalPath: "/privacy/",
     description:
-      "How Ghostget stores CLI and provider state locally, when requested work contacts third parties, how to remove data, and what ghostget.com measures.",
+      "How GhostGet stores CLI and provider state locally, when requested work contacts third parties, how to remove data, and what ghostget.com measures.",
     outputFile: "privacy/index.html",
     sourceFile: "privacy.html",
-    title: "Ghostget privacy and data custody: CLI, providers, and website",
+    title: "GhostGet privacy and data custody: CLI, providers, and website",
   },
   {
     canonicalPath: "/compare/",
     description:
-      "Six ways agents reach the web, from browser-driving libraries to reader services and integration platforms, compared with Ghostget's named actions.",
+      "Six ways agents reach the web, from browser-driving libraries to reader services and integration platforms, compared with GhostGet's named actions.",
     outputFile: "compare/index.html",
     sourceFile: "compare-index.html",
-    title: "How agents reach the web: browser-use, Playwright MCP, Firecrawl, Composio, and Ghostget",
+    title: "How agents reach the web: browser-use, Playwright MCP, Firecrawl, Composio, and GhostGet",
   },
   {
     canonicalPath: "/compare/browser-use/",
     description:
-      "browser-use lets a model drive a browser through an observe, plan, and click loop. Ghostget gives agents named, reviewed actions that each return one result.",
+      "browser-use lets a model drive a browser through an observe, plan, and click loop. GhostGet gives agents named, reviewed actions that each return one result.",
     outputFile: "compare/browser-use/index.html",
     sourceFile: "compare-browser-use.html",
-    title: "Ghostget vs browser-use: named operations instead of a model-driven browser",
+    title: "GhostGet vs browser-use: named operations instead of a model-driven browser",
   },
   {
     canonicalPath: "/compare/browserbase/",
     description:
-      "Browserbase hosts cloud browser sessions for Playwright, Puppeteer, and Stagehand. Ghostget runs named, reviewed actions on your own machine instead.",
+      "Browserbase hosts cloud browser sessions for Playwright, Puppeteer, and Stagehand. GhostGet runs named, reviewed actions on your own machine instead.",
     outputFile: "compare/browserbase/index.html",
     sourceFile: "compare-browserbase.html",
-    title: "Ghostget vs Browserbase: local named operations instead of hosted browser sessions",
+    title: "GhostGet vs Browserbase: local named operations instead of hosted browser sessions",
   },
   {
     canonicalPath: "/compare/playwright-mcp/",
     description:
-      "Playwright MCP sends a page's accessibility tree into your agent's context on every step. Ghostget returns one result per named action.",
+      "Playwright MCP sends a page's accessibility tree into your agent's context on every step. GhostGet returns one result per named action.",
     outputFile: "compare/playwright-mcp/index.html",
     sourceFile: "compare-playwright-mcp.html",
-    title: "Ghostget vs Playwright MCP: one result per action instead of streamed page state",
+    title: "GhostGet vs Playwright MCP: one result per action instead of streamed page state",
   },
   {
     canonicalPath: "/compare/agent-browser/",
     description:
-      "agent-browser lets an agent open, click, type in, and snapshot a real browser. Ghostget runs it internally for page capture, where the agent can't steer it.",
+      "agent-browser lets an agent open, click, type in, and snapshot a real browser. GhostGet runs it internally for page capture, where the agent can't steer it.",
     outputFile: "compare/agent-browser/index.html",
     sourceFile: "compare-agent-browser.html",
-    title: "Ghostget vs agent-browser: a browser the agent can never steer",
+    title: "GhostGet vs agent-browser: a browser the agent can never steer",
   },
   {
     canonicalPath: "/compare/firecrawl/",
     description:
-      "A Firecrawl alternative for one-page reads: Ghostget turns a URL into Markdown on your machine with no key or credits. Firecrawl adds crawls and proxies.",
+      "A Firecrawl alternative for one-page reads: GhostGet turns a URL into Markdown on your machine with no key or credits. Firecrawl adds crawls and proxies.",
     outputFile: "compare/firecrawl/index.html",
     sourceFile: "compare-firecrawl.html",
-    title: "Ghostget vs Firecrawl: a free, local Firecrawl alternative",
+    title: "GhostGet vs Firecrawl: a free, local Firecrawl alternative",
   },
   {
     canonicalPath: "/compare/jina-reader/",
@@ -304,20 +305,20 @@ export const PUBLIC_PAGES = [
       "A Jina Reader alternative that turns a URL into Markdown on your machine with no key or rate limit. Jina's hosted r.jina.ai prefix needs no install.",
     outputFile: "compare/jina-reader/index.html",
     sourceFile: "compare-jina-reader.html",
-    title: "Ghostget vs Jina Reader: a local Jina Reader alternative",
+    title: "GhostGet vs Jina Reader: a local Jina Reader alternative",
   },
   {
     canonicalPath: "/compare/personal-agents-browser-use/",
     description:
-      "Persistent personal agents work through a general browser. Ghostget gives an agent a fixed list of named web actions, and anything unlisted stays unavailable.",
+      "Persistent personal agents work through a general browser. GhostGet gives an agent a fixed list of named web actions, and anything unlisted stays unavailable.",
     outputFile: "compare/personal-agents-browser-use/index.html",
     sourceFile: "compare-personal-agents-browser-use.html",
-    title: "Browser-using personal agents and Ghostget's named web actions",
+    title: "Browser-using personal agents and GhostGet's named web actions",
   },
   {
     canonicalPath: "/agentic-web-spoofing/",
     description:
-      "Known Agents measures inbound bot impersonation. That check does not establish a safe outbound Ghostget operation or name its operator.",
+      "Known Agents measures inbound bot impersonation. That check does not establish a safe outbound GhostGet operation or name its operator.",
     outputFile: "agentic-web-spoofing/index.html",
     sourceFile: "agentic-web-spoofing.html",
     title: "Agentic-web index spoofing, and why attested operations still matter",
@@ -325,7 +326,7 @@ export const PUBLIC_PAGES = [
   {
     canonicalPath: "/vms-cannot-contain-agents/",
     description:
-      "The Wednesday 26 August 2026 rough.day tech edition ranked Trail of Bits' argument that VMs cannot reliably contain cyber-capable AI agents. A guest machine does not establish a safe Ghostget operation.",
+      "The Wednesday 26 August 2026 rough.day tech edition ranked Trail of Bits' argument that VMs cannot reliably contain cyber-capable AI agents. A guest machine does not establish a safe GhostGet operation.",
     outputFile: "vms-cannot-contain-agents/index.html",
     sourceFile: "vms-cannot-contain-agents.html",
     title: "VMs cannot contain agents, and why attested web operations still matter",
@@ -333,7 +334,7 @@ export const PUBLIC_PAGES = [
   {
     canonicalPath: "/paypal-grapheneos-attestation/",
     description:
-      "The Thursday 27 August 2026 rough.day tech edition ranked PayPal crashing on GrapheneOS with a RootDetectionSecurityException. Device-policy attestation is not a named Ghostget operation.",
+      "The Thursday 27 August 2026 rough.day tech edition ranked PayPal crashing on GrapheneOS with a RootDetectionSecurityException. Device-policy attestation is not a named GhostGet operation.",
     outputFile: "paypal-grapheneos-attestation/index.html",
     sourceFile: "paypal-grapheneos-attestation.html",
     title: "PayPal attested a hardened phone as rooted, and why named web operations still matter",
@@ -341,7 +342,7 @@ export const PUBLIC_PAGES = [
   {
     canonicalPath: "/rumour-is-the-exploit/",
     description:
-      "This Monday 31 August 2026 sourced take starts from Anil Madhavapeddy’s essay that a rumour of a bug is enough for agentic search. A search direction is not a named Ghostget operation.",
+      "This Monday 31 August 2026 sourced take starts from Anil Madhavapeddy’s essay that a rumour of a bug is enough for agentic search. A search direction is not a named GhostGet operation.",
     outputFile: "rumour-is-the-exploit/index.html",
     sourceFile: "rumour-is-the-exploit.html",
     title: "A rumour is enough for agentic search, and why named web operations still matter",
@@ -349,7 +350,7 @@ export const PUBLIC_PAGES = [
   {
     canonicalPath: "/omarchy-root-escalation/",
     description:
-      "The Sunday 30 August 2026 rough.day tech edition ranked Omarchy’s default desktop allowing any user process to escalate to root. A host privilege grant is not a named Ghostget operation.",
+      "The Sunday 30 August 2026 rough.day tech edition ranked Omarchy’s default desktop allowing any user process to escalate to root. A host privilege grant is not a named GhostGet operation.",
     outputFile: "omarchy-root-escalation/index.html",
     sourceFile: "omarchy-root-escalation.html",
     title: "Omarchy lets any user process escalate to root, and why named web operations still matter",
@@ -570,10 +571,10 @@ export function parsePackageIdentity(value: unknown): PackageIdentity {
     throw new TypeError("The package and website descriptions must stay identical.");
   }
   if (manifest.homepage !== SITE_ORIGIN) {
-    throw new TypeError("The package homepage must be the canonical Ghostget origin.");
+    throw new TypeError("The package homepage must be the canonical GhostGet origin.");
   }
   if (repository.url !== "git+https://github.com/hraness/ghostget.git") {
-    throw new TypeError("The package repository must be the canonical public Ghostget repository.");
+    throw new TypeError("The package repository must be the canonical public GhostGet repository.");
   }
   return {
     description: SITE_DESCRIPTION,
@@ -687,7 +688,7 @@ function sharedJsonLd(identity: PackageIdentity): ReadonlyArray<Readonly<Record<
       "@type": "WebSite",
       description: SITE_DESCRIPTION,
       inLanguage: "en",
-      name: "Ghostget",
+      name: "GhostGet",
       publisher: { "@id": HRANESS_ORGANIZATION_ID },
       url: `${SITE_ORIGIN}/`,
     },
@@ -708,7 +709,7 @@ function sharedJsonLd(identity: PackageIdentity): ReadonlyArray<Readonly<Record<
       installUrl: `${SITE_ORIGIN}/docs/tutorials/getting-started/`,
       isAccessibleForFree: true,
       license: "https://opensource.org/license/mit",
-      name: "Ghostget",
+      name: "GhostGet",
       offers: {
         "@type": "Offer",
         availability: "https://schema.org/InStock",
@@ -727,7 +728,7 @@ function sharedJsonLd(identity: PackageIdentity): ReadonlyArray<Readonly<Record<
       "@type": "SoftwareSourceCode",
       codeRepository: REPOSITORY_URL,
       license: "https://opensource.org/license/mit",
-      name: "Ghostget source code",
+      name: "GhostGet source code",
       programmingLanguage: {
         "@type": "ComputerLanguage",
         name: "TypeScript",
@@ -743,7 +744,7 @@ function jsonLd(identity: PackageIdentity, page: PublicPage): Readonly<Record<st
   const url = `${SITE_ORIGIN}${page.canonicalPath}`;
   const pageId = `${url}#webpage`;
   const isHome = page.canonicalPath === "/";
-  const homeCrumb = { item: `${SITE_ORIGIN}/`, name: "Ghostget" } as const;
+  const homeCrumb = { item: `${SITE_ORIGIN}/`, name: "GhostGet" } as const;
   const providerSegment = page.canonicalPath.startsWith("/providers/")
     ? page.canonicalPath.slice("/providers/".length, -1)
     : undefined;
@@ -829,15 +830,15 @@ const CONTENT_FOOTER_LINKS = [
   { href: REPOSITORY_URL, label: 'GitHub <span aria-hidden="true">↗</span>' },
 ] as const;
 
-// The in-flow product footer is Ghostget's own composition around the shared
-// Hraness network footer: same row contract, Ghostget brand, eight links.
+// The in-flow product footer is GhostGet's own composition around the shared
+// Hraness network footer: same row contract, GhostGet brand, eight links.
 function renderGhostgetContentFooter(): string {
   const links = CONTENT_FOOTER_LINKS
     .map(({ href, label }) => `<a class="hraness-marketing-footer__link" href="${href}">${label}</a>`)
     .join("\n      ");
-  return `<footer aria-label="Ghostget" class="hraness-marketing-footer" data-hraness-marketing="footer">
+  return `<footer aria-label="GhostGet" class="hraness-marketing-footer" data-hraness-marketing="footer">
   <div class="hraness-marketing-footer__inner">
-    <a class="hraness-marketing-footer__brand" data-foil="" href="/" aria-label="Ghostget home"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span><span class="hraness-marketing-footer__name">Ghostget</span></a>
+    <a class="hraness-marketing-footer__brand" data-foil="" href="/" aria-label="GhostGet home"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span><span class="hraness-marketing-footer__name">GhostGet</span></a>
     <nav aria-label="Footer navigation" class="hraness-marketing-footer__nav">
       ${links}
     </nav>
@@ -1012,6 +1013,20 @@ function renderTemplate(
       rendered = rendered.replaceAll(placeholder, escapeHtml(value));
     }
   }
+  const codeExamples = new Map<string, readonly [string, SyntaxLanguage]>([
+    ["{{GHOSTGET_READ_CODE}}", ["ghostget read https://example.com", "shell"]],
+    ["{{GHOSTGET_FIRST_READ_CODE}}", [`${installCommand}\nghostget read https://example.com`, "shell"]],
+    ["{{GHOSTGET_SKILL_CODE}}", [skillInstallCommands.npx, "shell"]],
+    ["{{GHOSTGET_CAPABILITIES_CODE}}", ["ghostget capabilities --json", "shell"]],
+    ["{{GHOSTGET_SDK_CODE}}", ['import { isProviderPluginId } from "@hraness/ghostget"', "typescript"]],
+  ]);
+  for (const [placeholder, [source, language]] of codeExamples) {
+    if (!rendered.includes(placeholder)) continue;
+    const code = highlightCode(source, language, { styles: "classes" });
+    const tag = placeholder === "{{GHOSTGET_READ_CODE}}" ? "span" : "code";
+    const markup = `<${tag} class="${code.className}" data-language="${code.language}">${code.html}</${tag}>`;
+    rendered = rendered.replaceAll(placeholder, () => markup);
+  }
   if (page !== undefined && rendered.includes("{{WEBMCP_")) {
     const webmcpValues = options.webmcpValues(page.canonicalPath);
     if (webmcpValues === undefined) {
@@ -1038,7 +1053,7 @@ function renderTemplate(
 
 /**
  * The shared design-kit 404 body. The primary action matches the homepage
- * hero; the three next links cover what Ghostget is, the install guide, and
+ * hero; the three next links cover what GhostGet is, the install guide, and
  * the provider reference. `routes` feeds "Did you mean" and is never listed.
  */
 export function renderGhostgetStatusPage(routes: readonly StatusPageLink[]): string {
@@ -1058,13 +1073,13 @@ export function renderGhostgetStatusPage(routes: readonly StatusPageLink[]): str
       {
         description: "What the CLI and SDK do, and what they leave to your agent.",
         href: "/about/",
-        label: "About Ghostget",
+        label: "About GhostGet",
       },
     ],
-    primaryAction: { href: "/#start", label: "Install Ghostget" },
+    primaryAction: { href: "/#start", label: "Install GhostGet" },
     rootElement: "div",
     routes,
-    siteName: "Ghostget",
+    siteName: "GhostGet",
   });
 }
 
@@ -1089,7 +1104,7 @@ export function statusPageRoutes(
       const provider = /^\/providers\/([^/]+)\/$/u.exec(page.canonicalPath)?.[1];
       return {
         href: page.canonicalPath,
-        label: statusRouteLabel(provider === undefined ? page.title : `${provider} on Ghostget`),
+        label: statusRouteLabel(provider === undefined ? page.title : `${provider} on GhostGet`),
       };
     }),
     { href: BLOG_PATH, label: statusRouteLabel(BLOG_TITLE) },
