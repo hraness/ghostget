@@ -4,13 +4,19 @@ import { join } from "node:path";
 import { ghostgetHelpRequest } from "../usage";
 import type { BrowserChoice } from "./browser-choices";
 import type { OutputsView } from "./outputs";
+import type { HelperClient } from "./helper-client";
 import type { ControlSnapshot } from "./protocol";
 import { buildStatus, renderStatus, type StatusAttempt, type StatusInputs } from "./status-view";
+import { runTuiCommand } from "./tui";
+import { processTerminal } from "./tui-terminal";
 
 /**
- * The status each former menu bar state now shows, committed as the
- * `ghostget.status/1` JSON and the 80-column `tui --snapshot` text. These are
- * the same 13 states `__fixtures__/menubar` covered. Regenerate with
+ * What each former menu bar state now shows, committed three ways: the
+ * `ghostget.status/1` JSON (`<state>.json`, also what `tui --snapshot` prints
+ * for agents), the 80-column `ghostget status` text (`<state>.txt`), and the
+ * human `ghostget tui --snapshot --width <w>` text at 40, 80 and 120 columns
+ * (`<state>.tui-<w>.txt`). These are the same 13 states `__fixtures__/menubar`
+ * covered. Regenerate with
  * `UPDATE_TUI_FIXTURES=1 bun test src/control/tui-fixtures.test.ts`.
  */
 const FIXTURES = join(import.meta.dir, "__fixtures__", "tui");
@@ -113,6 +119,35 @@ const STATES: Readonly<Record<string, State>> = {
   },
 };
 
+const SNAPSHOT_WIDTHS = [40, 80, 120] as const;
+
+/** A helper that answers `snapshot` with the state's snapshot, or fails like a paused owner. */
+function fakeHelper(value: ControlSnapshot | null): { client: HelperClient; closed: () => boolean } {
+  let closed = false;
+  const client: HelperClient = {
+    request: async (request) => {
+      if (value === null) return { ok: false, code: "CONTROL_OWNER_UNAVAILABLE", message: "Ghostget's control owner is paused. Start it with ghostget control serve." };
+      if (request.action === "snapshot") return { ok: true, data: { kind: "snapshot", snapshot: value } };
+      return { ok: false, code: "UNSUPPORTED", message: "Not part of a snapshot." };
+    },
+    close: () => { closed = true; },
+  };
+  return { client, closed: () => closed };
+}
+
+/** Runs the real `ghostget tui --snapshot` path for a human against a state. */
+async function tuiSnapshot(state: State, extra: readonly string[], tty?: { isTerminal: boolean; columns: number }): Promise<{ code: number; stdout: string; stderr: string }> {
+  let stdout = ""; let stderr = "";
+  const helper = fakeHelper(state.snapshot);
+  const base = processTerminal(() => {});
+  const terminal = tty === undefined ? undefined : { ...base, isTerminal: tty.isTerminal, size: () => ({ columns: tty.columns, rows: 24 }) };
+  const code = await runTuiCommand(["tui", "--snapshot", ...extra], {}, { stdout: (text) => { stdout += text; }, stderr: (text) => { stderr += text; } }, {
+    helper: () => helper.client, audience: "human", ...(terminal === undefined ? {} : { terminal }),
+  });
+  if (code === 0) expect(helper.closed()).toBe(true);
+  return { code, stdout, stderr };
+}
+
 const status = (state: State) => buildStatus({ outputs: NO_OUTPUTS, platform: "darwin", browsers: BROWSERS, safari: "ok", ...state });
 
 /** The words of a suggested command, up to its first argument or flag. */
@@ -145,6 +180,54 @@ describe("tui fixtures", () => {
       expect(await readFile(textPath, "utf8")).toBe(text);
     });
   }
+
+  for (const [name, state] of Object.entries(STATES)) {
+    for (const width of SNAPSHOT_WIDTHS) {
+      test(`${name} · tui --snapshot --width ${width}`, async () => {
+        const { code, stdout, stderr } = await tuiSnapshot(state, ["--width", String(width)]);
+        // A paused owner fails the snapshot with its reason on stderr, as the CLI does.
+        const text = state.snapshot === null ? `exit ${code}\n${stderr}` : `exit ${code}\n${stdout}`;
+        expect(state.snapshot === null ? stdout : stderr).toBe("");
+        const path = join(FIXTURES, `${name}.tui-${width}.txt`);
+        if (process.env["UPDATE_TUI_FIXTURES"] === "1") await writeFile(path, text);
+        expect(await readFile(path, "utf8")).toBe(text);
+        for (const line of text.split("\n")) expect(Bun.stringWidth(line)).toBeLessThanOrEqual(width);
+      });
+    }
+  }
+
+  test("tui --snapshot keeps every account and approval line at every width", async () => {
+    for (const state of Object.values(STATES)) {
+      if (state.snapshot === null) continue;
+      for (const width of SNAPSHOT_WIDTHS) {
+        const { stdout } = await tuiSnapshot(state, ["--width", String(width)]);
+        // Word wrapping only breaks at spaces here, so rejoining with one restores each line.
+        const joined = stdout.split("\n").join(" ");
+        for (const account of state.snapshot.accounts.slice(0, 20)) expect(joined).toContain(account.displayName ?? account.id);
+        for (const approval of state.snapshot.approvals.slice(0, 20)) expect(joined).toContain(`Approval pending: ${approval.title}`);
+        expect(joined).toContain(`Accounts: ${state.snapshot.accounts.length} · capabilities: ${state.snapshot.capabilities.length} · approvals: ${state.snapshot.approvals.length}`);
+      }
+    }
+  });
+
+  test("tui --snapshot wraps to the terminal width, or 80 columns without one", async () => {
+    const wide = STATES["max-accounts"]!;
+    const narrow = await tuiSnapshot(wide, [], { isTerminal: true, columns: 40 });
+    expect(narrow.stdout).toBe((await tuiSnapshot(wide, ["--width", "40"])).stdout);
+    const piped = await tuiSnapshot(wide, [], { isTerminal: false, columns: 40 });
+    expect(piped.stdout).toBe((await tuiSnapshot(wide, ["--width", "80"])).stdout);
+    const tiny = await tuiSnapshot(wide, [], { isTerminal: true, columns: 12 });
+    expect(tiny.stdout).toBe(narrow.stdout);
+  });
+
+  test("--width is bounded and only applies to --snapshot", async () => {
+    for (const args of [["--width", "39"], ["--width", "201"], ["--width", "080"], ["--width"], ["--width", "80", "--width", "80"]]) {
+      expect((await tuiSnapshot(STATES.running!, args)).code).toBe(1);
+    }
+    const errors: string[] = [];
+    expect(await runTuiCommand(["tui", "--width", "80"], {}, { stdout: () => {}, stderr: (text) => errors.push(text) }, { helper: () => fakeHelper(null).client, audience: "human" })).toBe(1);
+    expect(errors.join("")).toContain("--snapshot");
+  });
 
   test("every line fits 80 columns and every state suggests a next step", () => {
     for (const state of Object.values(STATES)) {

@@ -1,0 +1,4 @@
+exit 1
+CONTROL_OWNER_UNAVAILABLE: Ghostget's
+control owner is paused. Start it with
+ghostget control serve.

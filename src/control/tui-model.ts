@@ -201,10 +201,18 @@ export function renderTui(state: TuiState, columns = 100, rows = 28): { readonly
   return { text: screen.slice(0, height).join("\n"), reviewEndVisible, reviewOffset };
 }
 
-export function renderTuiSnapshot(state: TuiState): string {
+/** Narrowest and widest `tui --snapshot` text; 80 columns when not asked. */
+export const TUI_SNAPSHOT_WIDTH = Object.freeze({ min: 40, max: 200, default: 80 });
+
+/**
+ * The plain `tui --snapshot` text. Every line is wrapped, never truncated, to
+ * `width` terminal cells, so long account ids and titles stay readable at 40.
+ */
+export function renderTuiSnapshot(state: TuiState, width: number = TUI_SNAPSHOT_WIDTH.default): string {
+  const cells = Math.max(TUI_SNAPSHOT_WIDTH.min, Math.min(TUI_SNAPSHOT_WIDTH.max, Math.floor(width)));
   const snapshot = state.snapshot;
-  if (snapshot === null) return `${tuiText(state.notice)}\n`;
-  return [
+  if (snapshot === null || !state.fresh) return renderTuiNotice(state.notice, cells);
+  return wrapLines(cells, [
     `Ghostget ${snapshot.version} · Local controls`,
     `Account: ${snapshot.accountId ?? "No account (public scope)"}`,
     `Accounts: ${snapshot.accounts.length} · capabilities: ${snapshot.capabilities.length} · approvals: ${snapshot.approvals.length} · interfaces: ${snapshot.interfaces.length}`,
@@ -212,5 +220,30 @@ export function renderTuiSnapshot(state: TuiState): string {
     "", "First read: ghostget read https://example.com", "Interactive controls: ghostget tui", "1Password X-token import: ghostget vault --help", "",
     ...snapshot.accounts.slice(0, 20).map((account) => `Account ${account.displayName ?? account.id}: ${account.status} · ${account.provider ?? account.kind}`),
     ...snapshot.approvals.slice(0, 20).map((approval) => `Approval pending: ${approval.title}`),
-  ].map((line) => tuiText(line)).join("\n") + "\n";
+  ]);
+}
+
+/** A one-line notice, such as why the snapshot failed, wrapped like the snapshot. */
+export function renderTuiNotice(notice: string, width: number = TUI_SNAPSHOT_WIDTH.default): string {
+  return wrapLines(Math.max(TUI_SNAPSHOT_WIDTH.min, Math.min(TUI_SNAPSHOT_WIDTH.max, Math.floor(width))), [notice]);
+}
+
+function wrapLines(width: number, lines: readonly string[]): string {
+  return lines.flatMap((line) => line === "" ? [""] : wrapWords(line, width)).join("\n") + "\n";
+}
+
+/** Wraps at spaces; a word wider than the line is split across lines. */
+function wrapWords(text: string, width: number): string[] {
+  const result: string[] = [];
+  let line = "";
+  for (const word of tuiText(text, 8_192).split(" ")) {
+    const candidate = line === "" ? word : `${line} ${word}`;
+    if (Bun.stringWidth(candidate) <= width) { line = candidate; continue; }
+    if (line !== "") result.push(line);
+    const pieces = wrap(word, width);
+    line = pieces.pop() ?? "";
+    result.push(...pieces);
+  }
+  result.push(line);
+  return result;
 }

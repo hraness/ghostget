@@ -67,4 +67,7 @@ changes. Inputs that only tighten run without asking:
 
 The TUI (`ghostget tui`) keeps its keyboard views and reuses a running owner.
 `ghostget tui --snapshot` prints one frame and exits; agents get the
-`ghostget.status/1` JSON envelope from it, and `--json` forces that.
+`ghostget.status/1` JSON envelope from it, and `--json` forces that. People
+get text wrapped to the terminal width, or to `--width <40-200>` columns. The
+13 former menu bar states are committed as goldens at 40, 80 and 120 columns
+in `src/control/__fixtures__/tui/<state>.tui-<width>.txt`.
