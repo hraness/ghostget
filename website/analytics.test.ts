@@ -1,9 +1,15 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  captureCta,
+  captureInstallCommandCopied,
   captureProjectLink,
   createBrowserConfig,
+  doNotTrackEnabled,
+  liveCaptureTarget,
+  LEGACY_SITE_IDS,
   sanitizeCapture,
+  SITE_ID,
 } from "./source/analytics";
 
 const evidence = {
@@ -88,7 +94,7 @@ describe("Ghostget browser analytics", () => {
       content_group: "ghostget",
       page_kind: "product_landing",
       referrer_host: "chatgpt.com",
-      site_id: "wrench",
+      site_id: "ghostget",
       traffic_channel: "ai_referral",
       traffic_source: "chatgpt",
     });
@@ -166,7 +172,7 @@ describe("Ghostget browser analytics", () => {
     }
   });
 
-  test("allows only page lifecycle, web vitals, and the repository event", () => {
+  test("allows only page lifecycle, web vitals, and the named interaction events", () => {
     for (const event of ["$pageview", "$pageleave", "$web_vitals"]) {
       expect(sanitizeCapture({
         event,
@@ -196,5 +202,88 @@ describe("Ghostget browser analytics", () => {
       event: "invented event",
       properties: { token: "phc_public_project_token" },
     }, evidence)).toBeNull();
+  });
+
+  test("reports the ghostget site id and keeps wrench only as a legacy alias", () => {
+    expect(SITE_ID).toBe("ghostget");
+    expect(LEGACY_SITE_IDS).toEqual(["wrench"]);
+    const capture = sanitizeCapture({
+      event: "$pageview",
+      properties: { site_id: "wrench", token: "phc_public_project_token" },
+    }, evidence);
+    expect(capture?.properties.site_id).toBe("ghostget");
+  });
+
+  test("records CTA clicks and install copies only with bounded names", () => {
+    const captures: unknown[][] = [];
+    const target = {
+      capture: (event: string, properties?: unknown, options?: unknown) => {
+        captures.push([event, properties, options]);
+      },
+    };
+    captureCta(target, "hero-install");
+    captureCta(target, "invented-cta");
+    captureInstallCommandCopied(target, "cli");
+    captureInstallCommandCopied(target, "curl https://example.com | sh");
+    expect(captures).toEqual([
+      ["cta clicked", { cta: "hero-install" }, { send_instantly: true, transport: "sendBeacon" }],
+      ["install command copied", { install_command: "cli" }, undefined],
+    ]);
+
+    for (const cta of ["final-install", "header-install", "hero-install", "hero-see-it-work"]) {
+      expect(sanitizeCapture({
+        event: "cta clicked",
+        properties: { cta, token: "phc_public_project_token" },
+      }, evidence)?.properties.cta).toBe(cta);
+    }
+    for (const command of ["agent_skill", "cli"]) {
+      expect(sanitizeCapture({
+        event: "install command copied",
+        properties: { install_command: command, token: "phc_public_project_token" },
+      }, evidence)?.properties.install_command).toBe(command);
+    }
+    expect(sanitizeCapture({
+      event: "cta clicked",
+      properties: { cta: "someone@example.com", token: "phc_public_project_token" },
+    }, evidence)).toBeNull();
+    expect(sanitizeCapture({
+      event: "install command copied",
+      properties: { token: "phc_public_project_token" },
+    }, evidence)).toBeNull();
+  });
+
+  test("interaction captures reach the loaded SDK, not the replaced snippet stub", () => {
+    const stubCalls: unknown[][] = [];
+    const liveCalls: unknown[][] = [];
+    const stub = { capture: (...args: unknown[]) => { stubCalls.push(args); } };
+    const windowValue: { posthog?: { capture: (...args: unknown[]) => void } } = { posthog: stub };
+    const target = liveCaptureTarget(windowValue, stub);
+
+    captureCta(target, "hero-install");
+    expect(stubCalls).toHaveLength(1);
+
+    windowValue.posthog = { capture: (...args: unknown[]) => { liveCalls.push(args); } };
+    captureCta(target, "final-install");
+    captureInstallCommandCopied(target, "cli");
+    captureProjectLink(target, { target_id: "ghostget" });
+    expect(stubCalls).toHaveLength(1);
+    expect(liveCalls.map((call) => call[0])).toEqual(["cta clicked", "install command copied", "project link opened"]);
+    expect(liveCalls[1]).toEqual(["install command copied", { install_command: "cli" }]);
+
+    delete windowValue.posthog;
+    captureCta(target, "header-install");
+    expect(stubCalls).toHaveLength(2);
+  });
+
+  test("Do Not Track stops the bootstrap because cookieless mode ignores respect_dnt", () => {
+    for (const value of ["1", "yes", " YES ", "true"]) {
+      expect(doNotTrackEnabled({ doNotTrack: value }, {})).toBe(true);
+      expect(doNotTrackEnabled({ msDoNotTrack: value }, {})).toBe(true);
+      expect(doNotTrackEnabled({}, { doNotTrack: value })).toBe(true);
+    }
+    for (const value of [null, undefined, "0", "no", "unspecified", ""]) {
+      expect(doNotTrackEnabled({ doNotTrack: value, msDoNotTrack: value }, { doNotTrack: value })).toBe(false);
+    }
+    expect(doNotTrackEnabled(undefined, undefined)).toBe(false);
   });
 });

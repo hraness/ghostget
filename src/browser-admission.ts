@@ -353,11 +353,13 @@ function throwIfUnavailable(
   now: () => number,
   expiresAt: number,
 ): void {
+  // Read the clock first so the deadline check is the last observation.
+  const current = validateMonotonicTime(now());
   options.deadline?.throwIfUnavailable("local browser admission");
   if (options.signal?.aborted === true) {
     throw new BrowserAdmissionError("cancelled");
   }
-  if (validateMonotonicTime(now()) >= expiresAt) {
+  if (current >= expiresAt) {
     throw new BrowserAdmissionError("timed-out");
   }
 }

@@ -7,7 +7,7 @@ import {
   deriveBrowserArtifact, deriveBrowserVersion, parseBrowserToolchainReceipt,
   type BrowserArtifact, type DeriveBrowserToolchain,
 } from "./derive-browser-toolchain.test-support";
-import { assertBrowserZipEntries } from "../scripts/provision-derive-browser";
+import { assertBrowserZipEntries, deriveBrowserCacheParent, deriveBrowserRootName } from "../scripts/provision-derive-browser";
 import { assertProperty, fc } from "./test-support";
 
 const artifact: BrowserArtifact = { platform: "linux64", archiveSha256: "a".repeat(64),
@@ -140,4 +140,17 @@ test("native fixture provisioning precedes every CI full or selected-shard gate"
   expect(ci.indexOf("bun run ./scripts/provision-derive-browser.ts")).toBeGreaterThan(0);
   expect(ci).toContain("--for-shard '${{ matrix.shard }}' 8");
   expect(ci.indexOf("bun run ./scripts/provision-derive-browser.ts")).toBeLessThan(ci.indexOf("- run: bun run ./scripts/ci-test-shard.ts"));
+});
+
+test("provisioning retains one content-addressed root per pinned archive", () => {
+  const sha = "a".repeat(64);
+  expect(deriveBrowserRootName("linux64", sha)).toBe(`linux64-${sha}`);
+  expect(deriveBrowserRootName("mac-arm64", sha)).toBe(`mac-arm64-${sha}`);
+  for (const [platform, digest] of [["../x", sha], ["linux64", "A".repeat(64)], ["linux64", sha.slice(1)], ["", sha]] as const) {
+    expect(() => deriveBrowserRootName(platform, digest)).toThrow("malformed");
+  }
+  expect(deriveBrowserCacheParent({}, "/home/u")).toBe("/home/u/.cache/ghostget-derive-browser");
+  expect(deriveBrowserCacheParent({ GHOSTGET_DERIVE_BROWSER_CACHE: "/c" }, "/home/u")).toBe("/c");
+  expect(deriveBrowserCacheParent({ GHOSTGET_DERIVE_BROWSER_CACHE: "" }, "/home/u")).toBe("/home/u/.cache/ghostget-derive-browser");
+  expect(() => deriveBrowserCacheParent({ GHOSTGET_DERIVE_BROWSER_CACHE: "rel" }, "/home/u")).toThrow("absolute");
 });

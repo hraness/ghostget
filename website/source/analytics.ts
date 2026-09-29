@@ -1,5 +1,8 @@
-// Stable analytics identity preserves the pre-rename traffic series.
-const SITE_ID = "wrench" as const;
+// Events recorded before this id changed carry the legacy site_id "wrench".
+// Until the shared PostHog site registry lists "wrench" as a legacy alias of
+// "ghostget", queries that span the change must match both ids.
+export const SITE_ID = "ghostget" as const;
+export const LEGACY_SITE_IDS = ["wrench"] as const;
 const CANONICAL_DOMAIN = "ghostget.com" as const;
 const CANONICAL_ORIGIN = `https://${CANONICAL_DOMAIN}` as const;
 const SCHEMA_VERSION = 1 as const;
@@ -86,8 +89,18 @@ const ALLOWED_EVENTS = new Set([
   "$pageleave",
   "$pageview",
   "$web_vitals",
+  "cta clicked",
+  "install command copied",
   "project link opened",
 ]);
+export const CTA_IDS = new Set([
+  "final-install",
+  "header-install",
+  "hero-install",
+  "hero-see-it-work",
+]);
+export const INSTALL_COMMANDS = new Set(["agent_skill", "cli"]);
+export const INSTALL_COPIED_EVENT = "ghostget:install-command-copied" as const;
 const QUERY_ATTRIBUTION_KEYS = new Set([
   "_kx",
   "dclid",
@@ -125,6 +138,8 @@ const CURRENT_URL_KEYS = new Set([
 ]);
 const REFERRER_KEYS = new Set(["$initial_referrer", "$referrer", "referrer"]);
 const SAFE_CUSTOM_PROPERTIES = new Set([
+  "cta",
+  "install_command",
   "target_host",
   "target_id",
   "target_kind",
@@ -308,6 +323,15 @@ export function sanitizeCapture(
   }
   const properties = unknownRecord(capture.properties);
   if (properties === null) return null;
+  if (capture.event === "cta clicked" && !(typeof properties.cta === "string" && CTA_IDS.has(properties.cta))) {
+    return null;
+  }
+  if (
+    capture.event === "install command copied"
+    && !(typeof properties.install_command === "string" && INSTALL_COMMANDS.has(properties.install_command))
+  ) {
+    return null;
+  }
   const token = properties.token;
   if (typeof token !== "string" || !/^phc_[A-Za-z0-9_-]+$/u.test(token)) return null;
   const rawUrl = typeof properties.$current_url === "string" ? properties.$current_url : evidence.href;
@@ -397,6 +421,38 @@ export function captureProjectLink(
   });
 }
 
+export function captureCta(posthog: PostHogCaptureTarget, cta: string): void {
+  if (!CTA_IDS.has(cta)) return;
+  posthog.capture?.("cta clicked", { cta }, {
+    send_instantly: true,
+    transport: "sendBeacon",
+  });
+}
+
+export function captureInstallCommandCopied(posthog: PostHogCaptureTarget, command: string): void {
+  if (!INSTALL_COMMANDS.has(command)) return;
+  posthog.capture?.("install command copied", { install_command: command });
+}
+
+/**
+ * The snippet stub only queues calls made before the SDK loads. Once `array.js`
+ * loads, PostHog replaces `window.posthog` with the real instance and never
+ * drains the stub again, so interaction handlers must resolve the current
+ * instance at call time instead of holding the stub.
+ */
+export function liveCaptureTarget(
+  windowValue: Readonly<{ posthog?: PostHogCaptureTarget }>,
+  stub: PostHogCaptureTarget,
+): PostHogCaptureTarget {
+  return {
+    capture: (event, properties, options) => {
+      const current = windowValue.posthog ?? stub;
+      if (options === undefined) current.capture?.(event, properties);
+      else current.capture?.(event, properties, options);
+    },
+  };
+}
+
 function stubMethod(target: PostHogQueue, method: string): void {
   target[method] = (...args: unknown[]) => target.push([method, ...args]);
 }
@@ -460,6 +516,19 @@ function installPostHogQueue(documentValue: Document, windowValue: Window): Post
   return queue;
 }
 
+/**
+ * PostHog ignores `respect_dnt` when `cookieless_mode` is "always", so the
+ * bootstrap checks Do Not Track itself and never loads the SDK when it is set.
+ */
+export function doNotTrackEnabled(
+  navigatorValue: Readonly<{ doNotTrack?: string | null | undefined; msDoNotTrack?: string | null | undefined }> | undefined,
+  windowValue: Readonly<{ doNotTrack?: string | null | undefined }> | undefined,
+): boolean {
+  return [navigatorValue?.doNotTrack, navigatorValue?.msDoNotTrack, windowValue?.doNotTrack].some(
+    (value) => typeof value === "string" && ["1", "yes", "true"].includes(value.trim().toLowerCase()),
+  );
+}
+
 function metaContent(documentValue: Document, name: string): string {
   return documentValue.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content.trim() ?? "";
 }
@@ -472,14 +541,33 @@ function initializeBrowserAnalytics(): void {
     || window.location.hostname.toLowerCase().replace(/\.$/u, "") !== CANONICAL_DOMAIN
     || !/^phc_[A-Za-z0-9_-]+$/u.test(key)
     || !/^https:\/\/(?:eu|us)\.i\.posthog\.com$/u.test(host)
+    || doNotTrackEnabled(
+      navigator as Navigator & { msDoNotTrack?: string | null },
+      window as Window & { doNotTrack?: string | null },
+    )
   ) return;
 
   const evidence = { href: window.location.href, referrer: document.referrer } as const;
-  const posthog = installPostHogQueue(document, window);
-  posthog.init?.(key, createBrowserConfig(host, evidence));
+  const queue = installPostHogQueue(document, window);
+  queue.init?.(key, createBrowserConfig(host, evidence));
+  const posthog = liveCaptureTarget(window, queue);
+
+  document.addEventListener(INSTALL_COPIED_EVENT, (event) => {
+    const command = event instanceof CustomEvent ? unknownRecord(event.detail)?.command : undefined;
+    if (typeof command === "string") captureInstallCommandCopied(posthog, command);
+  });
+
+  document.addEventListener("copy", () => {
+    const anchor = document.getSelection()?.anchorNode;
+    const element = anchor instanceof Element ? anchor : anchor?.parentElement;
+    const command = element?.closest<HTMLElement>("[data-install-command]")?.dataset.installCommand;
+    if (command !== undefined) captureInstallCommandCopied(posthog, command);
+  });
 
   document.addEventListener("click", (event) => {
     if (event.button !== 0 || !(event.target instanceof Element)) return;
+    const cta = event.target.closest<HTMLAnchorElement>("a[data-analytics-cta]")?.dataset.analyticsCta;
+    if (cta !== undefined) captureCta(posthog, cta);
     const link = event.target.closest<HTMLAnchorElement>("a[data-analytics-event]");
     if (link?.dataset.analyticsEvent !== "project link opened") return;
     const analyticsId = link.dataset.analyticsId;

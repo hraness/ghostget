@@ -78,6 +78,7 @@ import {
 } from "./provider-presentation";
 import webmcpRegistrySource from "./source/webmcp-registry.json";
 import { isNoindexDocumentPath, NOINDEX_ROBOTS } from "../edge/robots";
+import { SOCIAL_IMAGE_ALT } from "./social-image";
 import {
   parseWebmcpRegistrySnapshot,
   substituteTemplateValues,
@@ -89,14 +90,14 @@ import {
   type WebmcpRegistrySnapshot,
 } from "./webmcp-registry";
 
+/** Alt text for the static `/og.png` card, from the one social-image declaration. */
+export { SOCIAL_IMAGE_ALT };
 export const SITE_ORIGIN = "https://ghostget.com" as const;
-export const SITE_TITLE = "Ghostget: Your agent gets the result without clicking around." as const;
+export const SITE_TITLE = "Ghostget: wget for the ghost in the machine." as const;
 /** The home page title: the product name plus the job and audience searchers use. */
 export const HOME_TITLE = "Ghostget: let AI agents read web pages and use your accounts" as const;
 export const SITE_DESCRIPTION =
   "Ghostget gives your AI agent named web actions: read a page, archive one media item, or use a connected account, without credentials or a browser to steer." as const;
-/** Alt text for the static `/og.png` card that `scripts/generate-og.tsx` renders from SITE_TITLE. */
-export const SOCIAL_IMAGE_ALT = `The title “${SITE_TITLE}” and the Ghostget ghost mark on a light card` as const;
 export const BLOG_SITE: BlogSite = {
   description: SITE_DESCRIPTION,
   name: "Ghostget",
@@ -114,7 +115,7 @@ export const HRANESS_LOGO_URL = "https://hraness.com/icon.png" as const;
 export const HRANESS_LINKEDIN_URL = "https://www.linkedin.com/company/hraness" as const;
 export const NPM_PACKAGE_URL = "https://www.npmjs.com/package/@hraness/ghostget" as const;
 export const SKILL_REPOSITORY = "hraness/ghostget" as const;
-export const CONTENT_REVIEWED_RELEASE = "v0.18.46" as const;
+export const CONTENT_REVIEWED_RELEASE = "v0.18.50" as const;
 export const DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com" as const;
 export const DEMO_PUBLIC_FILES = [
   "wrench-first-capture.gif",
@@ -837,7 +838,7 @@ function renderGhostgetContentFooter(): string {
     .join("\n      ");
   return `<footer aria-label="Ghostget" class="hraness-marketing-footer" data-hraness-marketing="footer">
   <div class="hraness-marketing-footer__inner">
-    <a class="hraness-marketing-footer__brand" href="/" aria-label="Ghostget home"><img alt="" height="20" src="/icon.png" width="20" /><span class="hraness-marketing-footer__name">Ghostget</span></a>
+    <a class="hraness-marketing-footer__brand" data-foil="" href="/" aria-label="Ghostget home"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span><span class="hraness-marketing-footer__name">Ghostget</span></a>
     <nav aria-label="Footer navigation" class="hraness-marketing-footer__nav">
       ${links}
     </nav>

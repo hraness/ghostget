@@ -99,6 +99,26 @@ tag to recover a run. Both the actor and triggering actor must be exact User
 `894119`; the protected tag, public repository `hraness/ghostget` / `1316443113`,
 and Release workflow `323493609` remain bound at each capability boundary.
 
+Push the tag only after the admitted commit's own `CI` run for its push to
+`main` has completed successfully. Release admission reads that run once and
+never waits, so a tag pushed while it still runs fails the first Release
+attempt; the automatic website promotion then refuses the successful rerun,
+and the site waits for manual recovery (v0.18.45 waited about ten hours). Main
+push runs are never cancelled by a later merge, so the run for `C` always
+finishes:
+
+```sh
+sha=<C>
+run_id="$(gh run list --repo hraness/ghostget --workflow CI --event push \
+  --commit "$sha" --limit 1 --json databaseId --jq '.[0].databaseId')"
+test -n "$run_id"
+gh run watch "$run_id" --repo hraness/ghostget --exit-status
+```
+
+If the Release still needs a rerun, dispatch **Promote website production**
+with the tag as soon as the rerun publishes, rather than waiting for a later
+release.
+
 The canonical asset set is exactly:
 
 - `hraness-ghostget-<version>.tgz`, packed once with `npm pack --ignore-scripts`.
@@ -222,12 +242,12 @@ delivery proceeds through a new source-qualified version.
 
 ## Install the canonical release
 
-These commands require the matching published immutable v0.18.46 release.
+These commands require the matching published immutable v0.18.50 release.
 
 For the CLI:
 
 ```sh
-bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.46/hraness-ghostget-0.18.46.tgz
+bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.50/hraness-ghostget-0.18.50.tgz
 ghostget --version
 ghostget doctor --json
 ```
@@ -1125,3 +1145,9 @@ See npm's documentation for [trusted
 publishing](https://docs.npmjs.com/trusted-publishers/), [staged
 publishing](https://docs.npmjs.com/staged-publishing/), and [dual-use package
 publishing](https://docs.npmjs.com/policies/dual-use/).
+
+The v0.18.49 request passed source, archive and attestation checks, but its
+publisher stopped at the prewrite authority guard after PR #463 changed
+protected release controls on main. No draft or canonical assets were created.
+Retain the tag and failed run `36536744822`; v0.18.50 includes those reviewed
+controls and carries the metallic product-footer update forward.

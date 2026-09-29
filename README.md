@@ -1,6 +1,6 @@
 # Ghostget
 
-[![The title “Ghostget: Your agent gets the result without clicking around.” and the Ghostget ghost mark on a light card](https://ghostget.com/og.png)](https://ghostget.com)
+[![Ghostget: Named web actions for AI agents: read pages, save media, use connected accounts](https://ghostget.com/og.png)](https://ghostget.com)
 
 [![skills.sh](https://skills.sh/b/hraness/ghostget)](https://www.skills.sh/hraness/ghostget/ghostget)
 
@@ -28,7 +28,7 @@ Install [Bun 1.3.14](https://bun.sh/docs/installation) if needed, then install
 Ghostget and read a public page:
 
 ```sh
-bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.46/hraness-ghostget-0.18.46.tgz
+bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.50/hraness-ghostget-0.18.50.tgz
 ghostget read https://example.com
 ```
 
@@ -49,9 +49,9 @@ which always names the latest published release. Upgrading from Wrench? Read the
 The optional Agent Skill teaches your agent when and how to use Ghostget:
 
 ```sh
-npx skills add hraness/ghostget#v0.18.46
+npx skills add hraness/ghostget#v0.18.50
 # With Bun instead:
-bunx skills add hraness/ghostget#v0.18.46
+bunx skills add hraness/ghostget#v0.18.50
 ```
 
 Start a new agent session, then ask: “Use Ghostget to read https://example.com
@@ -163,7 +163,7 @@ firewall.
 
 ## Built-in provider catalog
 
-This v0.18.46 source tree supports executable actions for 21 services: Beeper,
+This v0.18.50 source tree supports executable actions for 21 services: Beeper,
 Bluesky, ClasificadosOnline, Facebook, Facebook Groups, Facebook Marketplace,
 GitHub, Gmail, Hacker News, Instagram, iMessage, LinkedIn, Reddit, Substack,
 Threads, TikTok, Twitch, WebMCP Registry, WhatsApp, X, and YouTube. LinkedIn
@@ -247,7 +247,7 @@ For that same released coordinate, install Ghostget in an agent or application
 that owns its own model, planning, tool loop, approvals, and interface:
 
 ```sh
-bun add https://github.com/hraness/ghostget/releases/download/v0.18.46/hraness-ghostget-0.18.46.tgz
+bun add https://github.com/hraness/ghostget/releases/download/v0.18.50/hraness-ghostget-0.18.50.tgz
 ```
 
 ```ts
@@ -575,6 +575,7 @@ not turn missing message history into zero activity.
 | LinkedIn official API | First-degree connections with locale-selection evidence | Unavailable; the Connections API does not expose ordinary inbox history |
 | Instagram authenticated web | Unique non-viewer participants from the reviewed first Direct inbox summary page, with explicit first-page and pagination incompleteness | Unavailable until acknowledgement-free message-history paging is reviewed |
 | WhatsApp linked device | One page of the authenticated account owner's private, quiescent Whatsmeow contact store | Unavailable; Ghostget does not treat a linked-device message cache as account-owned history |
+| X authenticated web | Viewer-bound pages of the signed-in account's own following and followers collections, with each row's user ID, handle, display name, and both relationship directions | Unavailable; the contract returns identity and relationship flags only |
 | Facebook authenticated web | Capture-required reservation for friends or Messenger participants | Capture-required |
 | Telegram | Not installed | Requires a reviewed TDLib user-session lifecycle; Ghostget does not substitute the Bot API or claim contact access |
 

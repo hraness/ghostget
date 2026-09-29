@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 
 import { assertProperty, fc } from "../test-support";
+import { projectXWebContactPage } from "./x-web";
 import { resolveCurrentXWebChunkUrl } from "./x-web-runtime";
 
 const BOOKMARKS_FAMILY = "shared~bundle.BookmarkFolders~bundle.Bookmarks";
@@ -66,6 +67,114 @@ test("revision evidence fails closed for unreviewed asset-name hash widths", () 
         webpackMapHtml("deadbee"),
         `${BOOKMARKS_FAMILY}.${pad.slice(0, width)}.js`,
       )).toThrow("source chunk is not a reviewed hashed JavaScript asset");
+    },
+  ));
+});
+
+const digitId = fc.array(fc.constantFrom(..."0123456789"), { minLength: 1, maxLength: 19 })
+  .map((digits) => digits.join(""));
+
+const timelineEntry = fc.oneof(
+  digitId.map((id) => ({
+    entryId: `user-${id}`,
+    sortIndex: "100",
+    content: {
+      entryType: "TimelineTimelineItem",
+      itemContent: {
+        itemType: "TimelineUser",
+        user_results: { result: { __typename: "User", rest_id: id } },
+      },
+    },
+  })),
+  digitId.map((id) => ({
+    entryId: `user-${id}`,
+    sortIndex: "100",
+    content: {
+      entryType: "TimelineTimelineItem",
+      itemContent: {
+        itemType: "TimelineUser",
+        user_results: { result: { __typename: "UserUnavailable" } },
+      },
+    },
+  })),
+  fc.constant({
+    entryId: "prompt-1",
+    sortIndex: "50",
+    content: {
+      entryType: "TimelineTimelineItem",
+      itemContent: { itemType: "TimelinePrompt" },
+    },
+  }),
+);
+
+function contactsResponse(
+  entries: readonly unknown[],
+  bottomCursor: string | null,
+): unknown {
+  return {
+    data: {
+      user: {
+        result: {
+          __typename: "User",
+          rest_id: "123456789012345678",
+          timeline: {
+            timeline: {
+              instructions: [{
+                type: "TimelineAddEntries",
+                entries: [
+                  ...entries,
+                  ...(bottomCursor === null ? [] : [{
+                    entryId: "cursor-bottom",
+                    sortIndex: "1",
+                    content: {
+                      entryType: "TimelineTimelineCursor",
+                      cursorType: "Bottom",
+                      value: bottomCursor,
+                    },
+                  }]),
+                ],
+              }],
+            },
+          },
+        },
+      },
+    },
+  };
+}
+
+test("contact pages never expose a cursor after truncation and project only users", () => {
+  assertProperty(fc.property(
+    fc.array(timelineEntry, { minLength: 0, maxLength: 30 }),
+    fc.integer({ min: 1, max: 40 }),
+    fc.option(fc.string({ minLength: 1, maxLength: 32 }), { nil: null }),
+    (entries, limit, bottomCursor) => {
+      const response = contactsResponse(entries, bottomCursor);
+      let page: ReturnType<typeof projectXWebContactPage> | null = null;
+      let threw = false;
+      try {
+        page = projectXWebContactPage("contacts.following", response, limit);
+      } catch {
+        threw = true;
+      }
+      // Users come only from TimelineUser rows that resolve real User results;
+      // the normalizer deduplicates repeated entryIds, last write wins.
+      const deduped = [...new Map(entries.map((entry) =>
+        [(entry as { entryId: string }).entryId, entry] as const)).values()];
+      const realUsers = deduped.filter((entry) => {
+        const content = (entry as { content: { itemContent: { itemType: string; user_results?: { result?: { __typename?: string } } } } }).content.itemContent;
+        return content.itemType === "TimelineUser" && content.user_results?.result?.__typename === "User";
+      });
+      if (realUsers.length > limit && bottomCursor === null) {
+        expect(threw).toBe(true);
+        return;
+      }
+      expect(threw).toBe(false);
+      expect(page?.users.length).toBe(Math.min(realUsers.length, limit));
+      if (realUsers.length > limit) {
+        expect(page?.cursor).toBeNull();
+      } else {
+        expect(page?.cursor ?? null).toBe(bottomCursor);
+      }
     },
   ));
 });

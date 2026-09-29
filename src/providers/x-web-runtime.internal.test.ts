@@ -33,6 +33,9 @@ const MAIN_URL = "https://abs.twimg.com/responsive-web/client-web/main.abcdef12.
 const VIEWER_QUERY_ID = "9t128XgFic52jPUEkJMf6w";
 const BOOKMARKS_QUERY_ID = "-dgKZ58Dr9YSJYrcgEb5KA";
 const USER_TWEETS_QUERY_ID = "jeAA-59Y9FL7FmjgBNIVPw";
+const FOLLOWING_QUERY_ID = "uwmIAx89XrXNuGY-Y7WFLg";
+const FOLLOWERS_QUERY_ID = "mrqxgX8JzwlL6pvYiC5CPA";
+const CONTACT_USER_ID = "998877665544332211";
 const SEARCH_TIMELINE_QUERY_ID = "auLkqtmHqYEpRvflfvLhyQ";
 const ARTICLE_QUERY_ID = "_rbmb_NKLqKVBr5X_MSoMQ";
 const ARTICLE_BUNDLE_URL = "https://abs.twimg.com/responsive-web/client-web/bundle.TwitterArticles.305538ca.js";
@@ -238,6 +241,54 @@ function userFeedResponse(userId: string, ...entries: readonly unknown[]): unkno
       user: {
         result: {
           rest_id: userId,
+          timeline: { timeline: timeline(...entries) },
+        },
+      },
+    },
+  };
+}
+
+function contactEntry(
+  id: string,
+  username: string,
+  name: string,
+  relationship: { readonly following?: boolean; readonly followedBy?: boolean } | null = null,
+): unknown {
+  return {
+    entryId: `user-${id}`,
+    sortIndex: id,
+    content: {
+      entryType: "TimelineTimelineItem",
+      itemContent: {
+        itemType: "TimelineUser",
+        user_results: {
+          result: {
+            __typename: "User",
+            rest_id: id,
+            core: { name, screen_name: username },
+            ...(relationship === null ? {} : {
+              relationship_perspectives: {
+                ...(relationship.following === undefined ? {} : { following: relationship.following }),
+                ...(relationship.followedBy === undefined ? {} : { followed_by: relationship.followedBy }),
+              },
+            }),
+          },
+        },
+      },
+    },
+  };
+}
+
+function contactsFeedResponse(userId: string | null, ...entries: readonly unknown[]): unknown {
+  return {
+    data: {
+      user: {
+        result: {
+          __typename: "User",
+          // The live Following/Followers documents return a bare User timeline
+          // node with no echoed identity; rest_id appears only when a test
+          // models an identity-carrying variant.
+          ...(userId === null ? {} : { rest_id: userId }),
           timeline: { timeline: timeline(...entries) },
         },
       },
@@ -1338,6 +1389,327 @@ describe("X authenticated internal-API runtime", () => {
     expect(result.error).not.toContain("ChangedQueryId_12345");
     expect(result.error).not.toContain("6r5OLCC_wFH4CpRyXKuAmQ");
     expect(result.error).not.toContain("SXVCYB8XHSS25nzIljNtZA");
+  });
+
+  test("exports a viewer-bound following page with a continuation cursor", async () => {
+    const calls: CapturedRequest[] = [];
+    const runtimeDependencies = dependencies(calls, (request) => {
+      if (request.url.href === "https://x.com/home") {
+        return new Response(homeHtml(), { headers: { "content-type": "text/html" } });
+      }
+      if (request.url.href === MAIN_URL) {
+        return new Response(mainBundle(
+          descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
+          descriptor("Following", FOLLOWING_QUERY_ID, "query"),
+        ), { headers: { "content-type": "application/javascript" } });
+      }
+      if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
+      return jsonResponse(contactsFeedResponse(
+        null,
+        contactEntry(CONTACT_USER_ID, "friendhandle", "Friend Name", { following: true, followedBy: true }),
+        cursorEntry("next-following-page"),
+      ));
+    });
+    const result = await executeXWebOperation(
+      xRecipe("contacts.list"),
+      { collection: "following", limit: 10 },
+      xAuth,
+      { dependencies: runtimeDependencies },
+    );
+    expect(result.status).toBe("succeeded");
+    expect(result.dispatchStarted).toBe(false);
+    expect(result.dispatch).toEqual({ planned: 0, started: 0, verified: 0 });
+    expect(result.finalUrl).toBe("https://x.com/wrench_test/following");
+    expect(result.output).toMatchObject({
+      collection: "following",
+      viewerId: VIEWER_ID,
+      users: [{
+        providerId: CONTACT_USER_ID,
+        handle: "friendhandle",
+        displayName: "Friend Name",
+        followsViewer: true,
+        followedByViewer: true,
+      }],
+      cursor: "next-following-page",
+    });
+    const dispatch = calls.find((call) => call.url.pathname.endsWith("/Following"));
+    expect(dispatch).toBeDefined();
+    expect(dispatch?.method).toBe("GET");
+    expect(dispatch?.url.pathname).toBe(`/i/api/graphql/${FOLLOWING_QUERY_ID}/Following`);
+    expect(JSON.parse(dispatch?.url.searchParams.get("variables") ?? "{}")).toEqual({
+      userId: VIEWER_ID,
+      count: 10,
+      includePromotedContent: false,
+    });
+  });
+
+  test("exports a viewer-bound followers page with exact relationship flags", async () => {
+    const calls: CapturedRequest[] = [];
+    const runtimeDependencies = dependencies(calls, (request) => {
+      if (request.url.href === "https://x.com/home") {
+        return new Response(homeHtml(), { headers: { "content-type": "text/html" } });
+      }
+      if (request.url.href === MAIN_URL) {
+        return new Response(mainBundle(
+          descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
+          descriptor("Followers", FOLLOWERS_QUERY_ID, "query"),
+        ), { headers: { "content-type": "application/javascript" } });
+      }
+      if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
+      return jsonResponse(contactsFeedResponse(
+        null,
+        contactEntry(CONTACT_USER_ID, "mutualhandle", "Mutual Name", { following: true, followedBy: true }),
+        contactEntry("887766554433221100", "silenthandle", "Silent Name", { following: false, followedBy: true }),
+      ));
+    });
+    const result = await executeXWebOperation(
+      xRecipe("contacts.list"),
+      { collection: "followers", cursor: "provider-cursor-token" },
+      xAuth,
+      { dependencies: runtimeDependencies },
+    );
+    expect(result.status).toBe("succeeded");
+    expect(result.finalUrl).toBe("https://x.com/wrench_test/followers");
+    expect(result.output).toMatchObject({
+      collection: "followers",
+      viewerId: VIEWER_ID,
+      users: [
+        {
+          providerId: CONTACT_USER_ID,
+          handle: "mutualhandle",
+          displayName: "Mutual Name",
+          followsViewer: true,
+          followedByViewer: true,
+        },
+        {
+          providerId: "887766554433221100",
+          handle: "silenthandle",
+          displayName: "Silent Name",
+          followsViewer: true,
+          followedByViewer: false,
+        },
+      ],
+      cursor: null,
+    });
+    const dispatch = calls.find((call) => call.url.pathname.endsWith("/Followers"));
+    expect(dispatch?.method).toBe("POST");
+    expect(dispatch?.url.pathname).toBe(`/i/api/graphql/${FOLLOWERS_QUERY_ID}/Followers`);
+    expect(JSON.parse(dispatch?.body ?? "{}")).toMatchObject({
+      variables: {
+        userId: VIEWER_ID,
+        count: 20,
+        includePromotedContent: false,
+        cursor: "provider-cursor-token",
+      },
+      queryId: FOLLOWERS_QUERY_ID,
+    });
+  });
+
+  test("fails closed when the contact timeline binds a different user", async () => {
+    const runtimeDependencies = dependencies([], (request) => {
+      if (request.url.href === "https://x.com/home") {
+        return new Response(homeHtml(), { headers: { "content-type": "text/html" } });
+      }
+      if (request.url.href === MAIN_URL) {
+        return new Response(mainBundle(
+          descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
+          descriptor("Following", FOLLOWING_QUERY_ID, "query"),
+        ), { headers: { "content-type": "application/javascript" } });
+      }
+      if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
+      return jsonResponse(contactsFeedResponse(
+        CONTACT_USER_ID,
+        contactEntry(CONTACT_USER_ID, "someone", "Someone"),
+      ));
+    });
+    const result = await executeXWebOperation(
+      xRecipe("contacts.list"),
+      { collection: "following", limit: 10 },
+      xAuth,
+      { dependencies: runtimeDependencies },
+    );
+    expect(result).toMatchObject({
+      status: "failed",
+      output: null,
+      dispatchStarted: false,
+    });
+    expect(result.error).toContain("did not bind the requested user");
+  });
+
+  test("keeps unavailable and non-user rows out of the contacts projection", async () => {
+    const runtimeDependencies = dependencies([], (request) => {
+      if (request.url.href === "https://x.com/home") {
+        return new Response(homeHtml(), { headers: { "content-type": "text/html" } });
+      }
+      if (request.url.href === MAIN_URL) {
+        return new Response(mainBundle(
+          descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
+          descriptor("Following", FOLLOWING_QUERY_ID, "query"),
+        ), { headers: { "content-type": "application/javascript" } });
+      }
+      if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
+      return jsonResponse(contactsFeedResponse(
+        null,
+        {
+          entryId: "user-tombstoned",
+          sortIndex: "5",
+          content: {
+            entryType: "TimelineTimelineItem",
+            itemContent: {
+              itemType: "TimelineUser",
+              user_results: {
+                result: { __typename: "UserUnavailable", reason: "Suspended" },
+              },
+            },
+          },
+        },
+        {
+          entryId: "user-empty",
+          sortIndex: "4",
+          content: {
+            entryType: "TimelineTimelineItem",
+            itemContent: { itemType: "TimelineUser" },
+          },
+        },
+        contactEntry(CONTACT_USER_ID, "realcontact", "Real Contact"),
+      ));
+    });
+    const result = await executeXWebOperation(
+      xRecipe("contacts.list"),
+      { collection: "following", limit: 10 },
+      xAuth,
+      { dependencies: runtimeDependencies },
+    );
+    expect(result.status).toBe("succeeded");
+    expect((result.output as { users: readonly { providerId: string }[] }).users.map((user) => user.providerId)).toEqual([
+      CONTACT_USER_ID,
+    ]);
+  });
+
+  test("never returns a provider end cursor after truncating unseen contacts", async () => {
+    const runtimeDependencies = dependencies([], (request) => {
+      if (request.url.href === "https://x.com/home") {
+        return new Response(homeHtml(), { headers: { "content-type": "text/html" } });
+      }
+      if (request.url.href === MAIN_URL) {
+        return new Response(mainBundle(
+          descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
+          descriptor("Following", FOLLOWING_QUERY_ID, "query"),
+        ), { headers: { "content-type": "application/javascript" } });
+      }
+      if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
+      return jsonResponse(contactsFeedResponse(
+        null,
+        contactEntry(CONTACT_USER_ID, "first", "First"),
+        contactEntry("887766554433221100", "second", "Second"),
+        cursorEntry("would-skip-second"),
+      ));
+    });
+    const result = await executeXWebOperation(
+      xRecipe("contacts.list"),
+      { collection: "following", limit: 1 },
+      xAuth,
+      { dependencies: runtimeDependencies },
+    );
+    expect(result.status).toBe("succeeded");
+    expect(result.output).toMatchObject({
+      users: [{ providerId: CONTACT_USER_ID }],
+      cursor: null,
+    });
+    expect(JSON.stringify(result.output)).not.toContain("would-skip-second");
+  });
+
+  test("rejects an oversized contacts page that exposes no continuation cursor", async () => {
+    const runtimeDependencies = dependencies([], (request) => {
+      if (request.url.href === "https://x.com/home") {
+        return new Response(homeHtml(), { headers: { "content-type": "text/html" } });
+      }
+      if (request.url.href === MAIN_URL) {
+        return new Response(mainBundle(
+          descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
+          descriptor("Following", FOLLOWING_QUERY_ID, "query"),
+        ), { headers: { "content-type": "application/javascript" } });
+      }
+      if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
+      return jsonResponse(contactsFeedResponse(
+        null,
+        contactEntry(CONTACT_USER_ID, "first", "First"),
+        contactEntry("887766554433221100", "second", "Second"),
+      ));
+    });
+    const message = await rejectionMessage(executeXWebOperation(
+      xRecipe("contacts.list"),
+      { collection: "following", limit: 1 },
+      xAuth,
+      { dependencies: runtimeDependencies },
+    ));
+    expect(message).toContain("more entries than the requested limit");
+    expect(message).toContain("no continuation cursor was exposed");
+  });
+
+  test("fails closed when the current Following query ID drifted", async () => {
+    const calls: CapturedRequest[] = [];
+    const runtimeDependencies = dependencies(calls, (request) => {
+      if (request.url.href === "https://x.com/home") {
+        return new Response(homeHtml(), { headers: { "content-type": "text/html" } });
+      }
+      if (request.url.href === MAIN_URL) {
+        return new Response(mainBundle(
+          descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
+          descriptor("Following", "ChangedQueryId_12345", "query"),
+        ), { headers: { "content-type": "application/javascript" } });
+      }
+      if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
+      throw new Error(`unexpected Following dispatch ${request.url.href}`);
+    });
+    const result = await executeXWebOperation(
+      xRecipe("contacts.list"),
+      { collection: "following", limit: 10 },
+      xAuth,
+      { dependencies: runtimeDependencies },
+    );
+    expect(result).toMatchObject({
+      status: "failed",
+      output: null,
+      dispatchStarted: false,
+      readFailure: { category: "contract-drift" },
+    });
+    expect(result.error).toContain("query-ID drift");
+    expect(result.error).toContain("Following:query");
+    expect(calls.some((call) => call.url.pathname.includes("/i/api/graphql/ChangedQueryId_12345"))).toBe(false);
+  });
+
+  test("rejects unsupported collections and out-of-range limits before dispatch", async () => {
+    const calls: CapturedRequest[] = [];
+    const runtimeDependencies = dependencies(calls, (request) => {
+      if (request.url.href === "https://x.com/home") {
+        return new Response(homeHtml(), { headers: { "content-type": "text/html" } });
+      }
+      if (request.url.href === MAIN_URL) {
+        return new Response(mainBundle(
+          descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
+          descriptor("Following", FOLLOWING_QUERY_ID, "query"),
+        ), { headers: { "content-type": "application/javascript" } });
+      }
+      if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
+      return jsonResponse(contactsFeedResponse(null));
+    });
+    for (const input of [
+      { collection: "mutuals" },
+      { collection: "following", limit: 0 },
+      { collection: "following", limit: 101 },
+      {},
+    ]) {
+      const result = await executeXWebOperation(
+        xRecipe("contacts.list"),
+        input,
+        xAuth,
+        { dependencies: runtimeDependencies },
+      );
+      expect(result.status).toBe("failed");
+      expect(result.dispatchStarted).toBe(false);
+    }
+    expect(calls.some((call) => call.url.pathname.includes("/i/api/graphql/") && call.url.pathname.endsWith("/Following"))).toBe(false);
   });
 
   test("dispatches SearchTimeline and pages a search feed with a next cursor", async () => {

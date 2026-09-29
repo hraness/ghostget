@@ -2116,15 +2116,80 @@
 // Retain the same platform projections and allowances:
 // 12,126,287 + 12,387 + 4,096 = 12,142,770 packed;
 // 23,942,384 + 353 + 65 = 23,942,802 unpacked.
+//
+// The X contacts.list qualification adds the viewer-bound Following and
+// Followers GraphQL collection reads, the TimelineUser normalizer, the
+// contacts page projection on the shared directional-statistics shape, the
+// archived x-web 1.14.0 adapter snapshot, and the qualification record over
+// merged main 46e31838 (Ghostget 0.18.46 plus the README alternatives
+// table). Registering the new archive snapshot in the package manifest
+// grows the inventory to 619 entries: a clean npm 11.16.0 pack
+// --ignore-scripts with Node 24.18.1 on darwin arm64 measured 12,132,235
+// packed bytes and 23,980,585 unpacked bytes; archive SHA-256
+// 9641f93ab7dd2c52174cf2ddf3e41f407ebca562c46e0dd0af2e6cd01447c2de.
+// Retain the same platform projections and portability allowances:
+// 12,132,235 + 12,387 + 4,096 = 12,148,718 packed;
+// 23,980,585 + 353 + 65 = 23,981,003 unpacked.
+//
+// Signed-in `ghostget pdf <url>` downloads add src/pdf-auth.ts to the packed
+// source and a lazy import from cli.ts; no dist chunk changes. Over merged
+// main 65944e7 (which carries the X contacts.list snapshot above), the new
+// source file grows the inventory to 620 entries. After `bun run build`, a
+// clean npm 11.19.0 pack --ignore-scripts with Node 24.20.0 on darwin arm64
+// measured 620 entries, 12,133,122 packed bytes, and 24,023,022 unpacked
+// bytes; archive SHA-256
+// e34c1d14165fdc4985280f7d56626bcd17055de9e2906bc9db1569807ed568ab.
+// Retain the same platform projections and portability allowances:
+// 12,133,122 + 12,387 + 4,096 = 12,149,605 packed;
+// 24,023,022 + 353 + 65 = 24,023,440 unpacked.
+//
+// Release 0.18.47 over main 74544c9 changes only the version pins, the
+// `## 0.18.47` changelog section, and the renamed version chunk. After
+// `bun run build`, a clean npm 11.19.0 pack --ignore-scripts with Node 24.20.0
+// on darwin arm64 measured 620 entries, 12,133,601 packed bytes, and
+// 24,024,323 unpacked bytes; archive SHA-256
+// 22c3be36b2f085591aefbc743d6717a5c56701481acef2fef2143a36ccc61309.
+// Retain the same platform projections and portability allowances:
+// 12,133,601 + 12,387 + 4,096 = 12,150,084 packed;
+// 24,024,323 + 353 + 65 = 24,024,741 unpacked.
+//
+// Release 0.18.48 over main 9689dd4 changes the version pins, changelog,
+// and renamed version chunk. After `bun run build`, npm 11.19.0
+// pack --ignore-scripts with Node 24.20.0 on darwin arm64 measured
+// 620 entries, 12,133,689 packed bytes, and 24,024,488 unpacked bytes;
+// archive SHA-256
+// 823baf88bde9e8436e1ce9c08116be355195c2a980003fb293699a1dd8d39678.
+// Retain the same platform projections and portability allowances:
+// 12,133,689 + 12,387 + 4,096 = 12,150,172 packed;
+// 24,024,488 + 353 + 65 = 24,024,906 unpacked.
+//
+// Release 0.18.49 over main cf63f0a changes the version pins and changelog;
+// the product-footer renderer remains outside the package archive. After
+// `bun run build`, npm 11.19.0 pack --ignore-scripts with Node 24.20.0 on
+// darwin arm64 measured 620 entries, 12,133,765 packed bytes, and
+// 24,024,705 unpacked bytes; archive SHA-256
+// 2d3a2a7b776bc784fd00a00ecc205433ae33be634c2e18faf94aeaea9ed1c6d0.
+// Preserve the existing platform projections and portability allowances:
+// 12,133,765 + 12,387 + 4,096 = 12,150,248 packed;
+// 24,024,705 + 353 + 65 = 24,025,123 unpacked.
+// Release 0.18.50 over main 198f9e4 retains the metallic footer and the
+// current release controls after the unpublished 0.18.49 request. A clean
+// npm 11.19.0 pack --ignore-scripts on darwin arm64 measured 12,133,918
+// packed bytes and 24,025,224 payload bytes across the unchanged 620 files.
+// Archive SHA-256
+// be18897395dd74b2da8a7d82c1827c740c4977090145e16c4f992addbf8e963d.
+// Preserve the projections and allowances:
+// 12,133,918 + 12,387 + 4,096 = 12,150,401 packed;
+// 24,025,224 + 353 + 65 = 24,025,642 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "README alternatives table over main d426704",
+  scope: "Ghostget 0.18.50 release over main 198f9e4",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "785b8fa60c329d7ac46bc8fcf4d959b5fa9d96455bba9e7cdea63f6a3827c4f6",
-  packedBytes: 12_126_287,
-  unpackedBytes: 23_942_384,
-  entryCount: 618,
+  archiveSha256: "be18897395dd74b2da8a7d82c1827c740c4977090145e16c4f992addbf8e963d",
+  packedBytes: 12_133_918,
+  unpackedBytes: 24_025_224,
+  entryCount: 620,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,

@@ -60,7 +60,7 @@
           >GitHub <span aria-hidden="true">↗</span></a>
         </nav>
         <div class="hraness-marketing-header__actions">
-          <a class="hraness-marketing-action" data-emphasis="primary" href="#start">Install</a>
+          <a class="hraness-marketing-action" data-analytics-cta="header-install" data-emphasis="primary" href="#start">Install</a>
         </div>
       </div>
     </header>
@@ -70,11 +70,11 @@
         <header aria-labelledby="brand-name" class="hraness-marketing-hero ghostget-product-hero" data-align="start" data-hraness-marketing="hero" data-tone="paper">
           <div class="hraness-marketing-hero__copy">
             <p class="home-eyebrow">Web actions for agents</p>
-            <h1 class="hraness-marketing-hero__heading" id="brand-name">Your agent gets the result <span class="hero-heading-accent">without clicking around.</span></h1>
+            <h1 class="hraness-marketing-hero__heading" id="brand-name">wget for the ghost <span class="hero-heading-accent">in the machine.</span></h1>
             <p class="hraness-marketing-hero__summary hero-explainer">A free CLI and TypeScript SDK for Claude Code, Codex, Cursor, and other agents that run commands. Read a page as Markdown, save a media item, or use a connected account.</p>
             <div class="hraness-marketing-hero__actions">
-              <a class="hraness-marketing-action" data-emphasis="primary" href="#start">Install Ghostget</a>
-              <a class="home-text-link" href="/docs/tutorials/getting-started/#demo">See it work <span aria-hidden="true">→</span></a>
+              <a class="hraness-marketing-action" data-analytics-cta="hero-install" data-emphasis="primary" href="#start">Install Ghostget</a>
+              <a class="home-text-link" data-analytics-cta="hero-see-it-work" href="/docs/tutorials/getting-started/#demo">See it work <span aria-hidden="true">→</span></a>
             </div>
             <p class="hraness-marketing-hero__boundary">Free and MIT licensed · macOS and Linux with Bun 1.3.14 · Release {{GHOSTGET_RELEASE}}</p>
           </div>
@@ -199,12 +199,12 @@ This domain is for use in documentation examples without needing permission. Avo
               <p>“Install Ghostget {{GHOSTGET_RELEASE}}, then use it to read https://example.com and summarize it.”</p>
             </aside>
             <div class="command-stack">
-              <div class="hraness-marketing-proof-frame" data-hraness-marketing="proof-frame">
+              <div class="hraness-marketing-proof-frame" data-hraness-marketing="proof-frame" data-install-command="cli">
                 <div aria-hidden="true" class="hraness-marketing-proof-frame__chrome"><span class="hraness-marketing-proof-frame__lights"><span class="hraness-marketing-proof-frame__light"></span><span class="hraness-marketing-proof-frame__light"></span><span class="hraness-marketing-proof-frame__light"></span></span><span class="hraness-marketing-proof-frame__title">Install and read · Terminal</span></div><div class="hraness-marketing-proof-frame__content">
                 <pre tabindex="0" aria-label="Install Ghostget and read a page">{{GHOSTGET_FIRST_READ_CODE}}</pre></div>
               </div>
             </div>
-            <div class="skill-install" data-skill-install>
+            <div class="skill-install" data-skill-install data-install-command="agent_skill">
               <p class="skill-install-label" id="hero-skill-install-label">Optional: add the Agent Skill</p>
               <div class="skill-install-control">
                 <span aria-hidden="true" class="skill-install-prompt">$</span>
@@ -387,7 +387,7 @@ This domain is for use in documentation examples without needing permission. Avo
           <h2 class="hraness-marketing-cta__heading" id="final-title">Read your first page in two commands.</h2>
           <p class="hraness-marketing-cta__summary">Start with one public page and no account or API key. Connect a service when you need its actions.</p>
           <div class="hraness-marketing-cta__actions">
-            <a class="hraness-marketing-action" data-emphasis="primary" href="#start">Install Ghostget</a>
+            <a class="hraness-marketing-action" data-analytics-cta="final-install" data-emphasis="primary" href="#start">Install Ghostget</a>
           </div>
         </section>
       </div>

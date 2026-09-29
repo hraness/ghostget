@@ -8,6 +8,7 @@
     "module": "Preserve",
     "moduleResolution": "Bundler",
     "moduleDetection": "force",
+    "jsx": "react-jsx",
     "paths": {
       "@hraness/ghostget": [
         "./src/index.ts"

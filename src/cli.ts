@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-import { ghostgetBareUsage, ghostgetHelpRequest } from "./usage";
+import { ghostgetBareUsage, ghostgetHelpRequest, hasPdfSignInOptions } from "./usage";
 import { cliStyle, renderCliError } from "./cli-style";
 import { terminalIntro } from "./cli-intro";
 import { GHOSTGET_VERSION } from "./version";
@@ -114,7 +114,7 @@ export function isImmediateGhostgetVersionRequest(
     && (second === undefined || second === "--json");
 }
 
-/** `ghostget 0.18.46`, or `{"name":"ghostget","version":"0.18.46"}` with `--json`. */
+/** `ghostget 0.18.50`, or `{"name":"ghostget","version":"0.18.50"}` with `--json`. */
 export function ghostgetVersionText(rawArguments: readonly string[]): string {
   return rawArguments.includes("--json")
     ? `${JSON.stringify({ name: "ghostget", version: GHOSTGET_VERSION })}\n`
@@ -288,6 +288,16 @@ export async function runGhostgetCliProcess(
   if (rawArguments[0] === "support") {
     const support = await loadSupport();
     process.exitCode = await support.runGhostgetSupportCommand(rawArguments.slice(1), resolvedOutput);
+    return;
+  }
+  if (rawArguments[0] === "pdf" && help === null && hasPdfSignInOptions(rawArguments.slice(1))) {
+    const { runSignedInPdfCommand, runWordcellPdfWithDownload } = await import("./pdf-auth");
+    process.exitCode = await runSignedInPdfCommand(rawArguments.slice(1), resolvedOutput, {
+      environment: process.env,
+      runWordcellPdf: async (pdfArguments, download) => download === undefined
+        ? (await loadKnowledgeCli()).main(["pdf", ...pdfArguments], resolvedOutput)
+        : runWordcellPdfWithDownload(pdfArguments, download, process.env, resolvedOutput),
+    });
     return;
   }
   if (isPublicGhostgetCommand(rawArguments)) {

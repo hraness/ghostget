@@ -177,7 +177,7 @@
     {
       "guide": "AGENTS.md",
       "anchor": "CI covers the complete",
-      "digest": "d44cdc0e8a4ce9b2e907f6f9007aa9e36eb9b39de6dcbc2ceb479e67d3d3e296",
+      "digest": "7d4d31d38dc45eba65c7cd60d42060ec9cfec99948c079c1d02c19c7df67d530",
       "claims": [
         "ci-source-coverage-contract"
       ]
@@ -513,7 +513,7 @@
     {
       "guide": "AGENTS.md",
       "anchor": "An owner release",
-      "digest": "cdbd3411cd40ef8f519acc94dac9981ce62d3dbdfea5870c8b142516f1bfb729",
+      "digest": "66138239e7bf28abd582c1e89cdef4171f01e94f5b5edc72b13b4d9697ade4ef",
       "exempt": "Delegation of owner authority to agents; it governs who acts, while the readback and tag claims cover what must hold."
     },
     {
@@ -893,6 +893,12 @@
     },
     {
       "guide": "website/AGENTS.md",
+      "anchor": "Share images come only",
+      "digest": "63f59838cd0f1d27b2d67298b4b41343749f88ec382b10c419257e66512ba472",
+      "exempt": "Social-image presentation rule; it states no safety or integrity property."
+    },
+    {
+      "guide": "website/AGENTS.md",
       "anchor": "Keep ordinary reference",
       "digest": "565a9105cb81bd4643ec63da534bf4efebbb4506d1a519638a05f56797818b63",
       "exempt": "Presentation rule for website guides and editorial images; it states no safety or integrity property."
@@ -916,7 +922,7 @@
     {
       "guide": "website/AGENTS.md",
       "anchor": "Keep analytics canonical-host-only,",
-      "digest": "d51d95d61a935f65d2fe9c6a3bf5aa2673a98f5ec058964447d74b26b3772369",
+      "digest": "7648ce653c3aaa6f12e6d0fbbe441227c2c82aad42b9ebce17ed98e5b9d2264e",
       "claims": [
         "analytics-allowlist-byte-ceiling"
       ]
@@ -4287,7 +4293,7 @@
     },
     {
       "id": "analytics-allowlist-byte-ceiling",
-      "statement": "Analytics events come from a checked allowlist (page lifecycle, web vitals, the two GitHub links) with a byte ceiling per event, canonical-host-only, cookieless, personless, and query-free.",
+      "statement": "Analytics events come from a checked allowlist (page lifecycle, web vitals, the two GitHub links, four named CTA clicks, two named install-command copies) with a byte ceiling per event, canonical-host-only, cookieless, personless, and query-free.",
       "area": "website",
       "source": {
         "path": "AGENTS.md",

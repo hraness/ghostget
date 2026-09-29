@@ -230,6 +230,44 @@ describe("lazy ghostget CLI entrypoint", () => {
     }
   });
 
+  test("pdf without sign-in options still delegates unchanged; with them Ghostget handles it first", async () => {
+    const previousExitCode = process.exitCode;
+    try {
+      const received: (readonly string[])[] = [];
+      const stdout: string[] = [];
+      const loadKnowledge = () => Promise.resolve({
+        main: (raw?: readonly string[]) => {
+          received.push(raw ?? []);
+          return Promise.resolve(0);
+        },
+      });
+      const noRuntime = () => {
+        throw new Error("pdf must not load the provider runtime");
+      };
+      await runGhostgetCliProcess(
+        ["pdf", "https://example.org/a.pdf", "--json"],
+        { stdout: () => undefined, stderr: () => undefined },
+        noRuntime,
+        noRuntime,
+        loadKnowledge,
+      );
+      expect(received).toEqual([["pdf", "https://example.org/a.pdf", "--json"]]);
+
+      await runGhostgetCliProcess(
+        ["pdf", "https://example.org/a.pdf", "--cookie-source", "netscape", "--json"],
+        { stdout: (text) => stdout.push(text), stderr: () => undefined },
+        noRuntime,
+        noRuntime,
+        loadKnowledge,
+      );
+      expect(received).toHaveLength(1);
+      expect(process.exitCode).toBe(2);
+      expect(JSON.parse(stdout.join(""))).toMatchObject({ ok: false, error: { code: "usage" } });
+    } finally {
+      process.exitCode = previousExitCode ?? 0;
+    }
+  });
+
   test("routes only complete capabilities and plugin inspection shapes", async () => {
     expect(routedGhostgetCatalogCommand(["capabilities", "--json"])).toEqual({
       command: "capabilities",
@@ -490,7 +528,7 @@ throw new Error("private fallback did not load a forbidden module");
 
   test("has only static help and release identity as eager dependencies and bounds startup CPU work", async () => {
     const source = readFileSync(cliPath, "utf8");
-    expect(source).toContain('import { ghostgetBareUsage, ghostgetHelpRequest } from "./usage"');
+    expect(source).toContain('import { ghostgetBareUsage, ghostgetHelpRequest, hasPdfSignInOptions } from "./usage"');
     expect(source).toContain('import { cliStyle, renderCliError } from "./cli-style"');
     expect(source).toContain('import { GHOSTGET_VERSION } from "./version"');
     expect(source).toContain('import("./ghostget")');
