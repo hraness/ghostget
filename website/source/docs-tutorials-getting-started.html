@@ -35,6 +35,7 @@
     <script type="application/ld+json">{{JSON_LD}}</script>
     <script type="module" src="{{ANALYTICS_ASSET}}"></script>
     <script type="module" src="{{FOIL_ASSET}}"></script>
+    <script type="module" src="{{GHOSTGET_PLATFORM_INSTALL_ASSET}}"></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -64,10 +65,8 @@
 
         <section aria-labelledby="install">
           <h2 id="install">1. Install Ghostget</h2>
-          <div class="command-panel">
-            <div class="command-label"><span>terminal</span><span>{{GHOSTGET_RELEASE}}</span></div>
-            <pre><code>{{GHOSTGET_INSTALL_COMMAND}}</code></pre>
-          </div>
+          {{GHOSTGET_PLATFORM_BADGES}}
+          {{GHOSTGET_PLATFORM_INSTALL}}
           <p>This installs the CLI from the exact published GitHub release. If your shell cannot find <code>ghostget</code>, open a new terminal or run <code>export PATH="$(bun pm bin -g):$PATH"</code>.</p>
           <p>Upgrading from Wrench? Follow the <a href="{{GHOSTGET_REPOSITORY}}/blob/{{GHOSTGET_RELEASE}}/docs/ghostget-migration.md">Ghostget migration guide</a> to keep existing local state and recovery records in place.</p>
         </section>

@@ -30,6 +30,7 @@ import {
 import { product, type PortfolioProductId } from "@hraness/design-kit/portfolio";
 import { highlightCode, type SyntaxLanguage } from "@hraness/design-kit/syntax-highlighting";
 import { renderStatusPageHtml, type StatusPageLink } from "@hraness/design-kit";
+import { renderPlatformBadges, renderPlatformInstall } from "./platform-install";
 import {
   EDITORIAL_ARTICLE_IMAGE_SIZES,
   EDITORIAL_CARD_IMAGE_SIZES,
@@ -543,6 +544,7 @@ type RenderOptions = Readonly<{
   providerDirectory: ProviderDirectory;
   providerOverviewCards: string;
   skillInstallAsset: string;
+  platformInstallAsset: string;
   webmcpValues: (canonicalPath: string) => Readonly<Record<string, string>> | undefined;
   whatsappFacts: WhatsAppPresentationFacts;
 }>;
@@ -856,6 +858,42 @@ function renderInFlowFooters(options: RenderOptions, page?: PublicPage): string 
   return `${above}${options.ghostgetContentFooter}\n${options.hranessSiteFooter}`;
 }
 
+const GHOSTGET_BUN_NOTE = 'Requires <a href="https://bun.sh/docs/installation">Bun 1.3.14</a>.';
+const GHOSTGET_PLATFORM_BADGES = renderPlatformBadges(["macos", "linux", { id: "windows", note: "via WSL2" }]);
+
+/**
+ * The install command for each platform, in the portfolio order macOS, Linux,
+ * Windows. The command is the same Bun install everywhere Ghostget runs.
+ */
+function renderGhostgetPlatformInstall(installCommand: string): string {
+  return renderPlatformInstall({
+    analyticsCommand: "cli",
+    id: "ghostget-install",
+    platforms: [
+      {
+        command: installCommand,
+        id: "macos",
+        noteHtml: `${GHOSTGET_BUN_NOTE} The optional iMessage and WhatsApp helpers and the menu bar app need Apple silicon.`,
+        shell: "Terminal",
+      },
+      {
+        command: installCommand,
+        id: "linux",
+        noteHtml: `${GHOSTGET_BUN_NOTE} The iMessage and WhatsApp helpers and the menu bar app are macOS only.`,
+        shell: "Terminal",
+      },
+      {
+        command: installCommand,
+        id: "windows",
+        noteHtml: GHOSTGET_BUN_NOTE,
+        shell: "WSL2 terminal",
+        unavailable: true,
+        unavailableNoteHtml: "Ghostget isn’t tested on Windows. It runs in WSL2 with the Linux command.",
+      },
+    ],
+  });
+}
+
 function renderTemplate(
   template: string,
   options: RenderOptions,
@@ -973,6 +1011,7 @@ function renderTemplate(
     ["{{GHOSTGET_REPOSITORY}}", REPOSITORY_URL],
     ["{{GHOSTGET_SKILLS}}", SKILLS_URL],
     ["{{GHOSTGET_SKILL_INSTALL_ASSET}}", options.skillInstallAsset],
+    ["{{GHOSTGET_PLATFORM_INSTALL_ASSET}}", options.platformInstallAsset],
     ["{{GHOSTGET_SKILL_INSTALL_COMMAND}}", skillInstallCommands.npx],
     ["{{GHOSTGET_SKILL_INSTALL_COMMAND_BUNX}}", skillInstallCommands.bunx],
     ["{{GHOSTGET_VERSION}}", identity.version],
@@ -1013,9 +1052,14 @@ function renderTemplate(
       rendered = rendered.replaceAll(placeholder, escapeHtml(value));
     }
   }
+  if (rendered.includes("{{GHOSTGET_PLATFORM_INSTALL}}")) {
+    rendered = rendered.replaceAll("{{GHOSTGET_PLATFORM_INSTALL}}", renderGhostgetPlatformInstall(installCommand));
+  }
+  if (rendered.includes("{{GHOSTGET_PLATFORM_BADGES}}")) {
+    rendered = rendered.replaceAll("{{GHOSTGET_PLATFORM_BADGES}}", GHOSTGET_PLATFORM_BADGES);
+  }
   const codeExamples = new Map<string, readonly [string, SyntaxLanguage]>([
     ["{{GHOSTGET_READ_CODE}}", ["ghostget read https://example.com", "shell"]],
-    ["{{GHOSTGET_FIRST_READ_CODE}}", [`${installCommand}\nghostget read https://example.com`, "shell"]],
     ["{{GHOSTGET_SKILL_CODE}}", [skillInstallCommands.npx, "shell"]],
     ["{{GHOSTGET_CAPABILITIES_CODE}}", ["ghostget capabilities --json", "shell"]],
     ["{{GHOSTGET_SDK_CODE}}", ['import { isProviderPluginId } from "@hraness/ghostget"', "typescript"]],
@@ -1319,6 +1363,7 @@ export async function buildWebsite(
       entrypoints: [
         join(sourceRoot, "analytics.ts"),
         join(sourceRoot, "skill-install-command.ts"),
+        join(sourceRoot, "platform-install.ts"),
         join(sourceRoot, "foil.ts"),
         join(sourceRoot, "status-page.ts"),
       ],
@@ -1339,7 +1384,7 @@ export async function buildWebsite(
   );
   const webmcpIndexValues = webmcpIndexTemplateValues(webmcpSnapshot);
   const allPages: readonly PublicPage[] = [...PUBLIC_PAGES, ...webmcpPages];
-  if (!browserBuild.success || browserBuild.outputs.length !== 4) {
+  if (!browserBuild.success || browserBuild.outputs.length !== 5) {
     const messages = browserBuild.logs.map((log) => log.message).join("\n");
     throw new Error(`Browser script build failed: ${messages || "no browser output"}`);
   }
@@ -1351,6 +1396,7 @@ export async function buildWebsite(
   };
   const analytics = new Uint8Array(await scriptAsset("analytics"));
   const skillInstall = new Uint8Array(await scriptAsset("skill-install-command"));
+  const platformInstall = new Uint8Array(await scriptAsset("platform-install"));
   const foil = new Uint8Array(await scriptAsset("foil"));
   const statusPage = new Uint8Array(await scriptAsset("status-page"));
   const identity = parsePackageIdentity(manifest);
@@ -1366,6 +1412,7 @@ export async function buildWebsite(
   const cssAsset = `/assets/styles-${contentHash(compiledCss)}.css`;
   const analyticsAsset = `/assets/analytics-${contentHash(analytics)}.js`;
   const skillInstallAsset = `/assets/skill-install-${contentHash(skillInstall)}.js`;
+  const platformInstallAsset = `/assets/platform-install-${contentHash(platformInstall)}.js`;
   const foilAsset = `/assets/foil-${contentHash(foil)}.js`;
   const statusPageAsset = `/assets/status-page-${contentHash(statusPage)}.js`;
   const providerDirectory = createProviderDirectory(attestation);
@@ -1393,6 +1440,7 @@ export async function buildWebsite(
     providerDirectory,
     providerOverviewCards: renderProviderOverviewCards(providerDirectory),
     skillInstallAsset,
+    platformInstallAsset,
     webmcpValues: (canonicalPath: string) => {
       const shared = webmcpSharedTemplateValues(webmcpSnapshot);
       if (canonicalPath === "/providers/") return webmcpIndexValues;
@@ -1469,6 +1517,7 @@ export async function buildWebsite(
     writeFile(join(outputRoot, cssAsset.slice(1)), compiledCss),
     writeFile(join(outputRoot, analyticsAsset.slice(1)), analytics),
     writeFile(join(outputRoot, skillInstallAsset.slice(1)), skillInstall),
+    writeFile(join(outputRoot, platformInstallAsset.slice(1)), platformInstall),
     writeFile(join(outputRoot, foilAsset.slice(1)), foil),
     writeFile(join(outputRoot, statusPageAsset.slice(1)), statusPage),
     writeFile(
