@@ -7,6 +7,12 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.54
+
+- Short public pages keep their footer at the bottom of the viewport. Long
+  pages keep both footer rows after their content. The shared document shell
+  covers public pages and the 404 page; native-control previews are unchanged.
+- Install tab names stay whole in narrow documentation columns.
 - The menu bar is removed. `ghostget menubar` prints the replacement commands.
   An old menu bar login item moves itself aside at the next login; every such
   item is renamed, never deleted (rename it back to undo). `ghostget control

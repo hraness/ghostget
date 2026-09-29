@@ -2263,14 +2263,23 @@
 // reproduced by a second pack. Preserve the projections and allowances:
 // 12,138,305 + 12,387 + 4,096 = 12,154,788 packed;
 // 24,040,509 + 353 + 65 = 24,040,927 unpacked.
+// Release 0.18.54 over main 632e2abd adds footer delivery notes and updates
+// active version pins and generated dist. The website remains outside the
+// archive. A clean npm 11.19.0 pack --ignore-scripts using official Node
+// 24.20.0 (zlib 1.3.2.1-motley-42c2f19) on darwin arm64 measured 624 entries,
+// 12,150,897 packed bytes and 24,040,816 unpacked bytes; archive SHA-256
+// 273995083ee47c84ad7ba56f719945e9937b627bdb4d929c0175ac000f1c22ae.
+// Preserve the existing platform projections and portability allowances:
+// 12,150,897 + 12,387 + 4,096 = 12,167,380 packed;
+// 24,040,816 + 353 + 65 = 24,041,234 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget menu-bar retirement release-N+1 menu bar removal over main 58e7abc",
+  scope: "Ghostget 0.18.54 shared-footer release over main 632e2abd",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "1638bc653d9fa0cf5cc071e502227244f26feadf9003e6cf4e4ada80275025a0",
-  packedBytes: 12_138_305,
-  unpackedBytes: 24_040_509,
+  archiveSha256: "273995083ee47c84ad7ba56f719945e9937b627bdb4d929c0175ac000f1c22ae",
+  packedBytes: 12_150_897,
+  unpackedBytes: 24_040_816,
   entryCount: 624,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
