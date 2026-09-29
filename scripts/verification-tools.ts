@@ -1826,6 +1826,7 @@ export const QUINT_APALACHE_SCOPE = Object.freeze([
   "package.json",
   "bun.lock",
   ".github/workflows/ci.yml",
+  ".github/workflows/verification-nightly.yml",
 ]);
 
 /** Whether a change to these repository paths can change an Apalache verdict. */

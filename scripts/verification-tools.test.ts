@@ -1002,6 +1002,7 @@ describe("pull-request Apalache scope", () => {
       "package.json",
       "bun.lock",
       ".github/workflows/ci.yml",
+      ".github/workflows/verification-nightly.yml",
     ]) {
       expect(quintApalacheScopeChanged(["README.md", path])).toBeTrue();
     }
