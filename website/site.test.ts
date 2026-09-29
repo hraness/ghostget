@@ -383,7 +383,8 @@ describe("ghostget.com static site", () => {
     expect(builtCss).not.toMatch(/@import\b/iu);
     expect(builtCss.startsWith("@layer base, components;")).toBe(true);
     const presetCss = await readFile(join(websiteRoot, "vendor/marketing-preset/product-marketing-preset.css"), "utf8");
-    expect(builtCss.endsWith(`${sourceCss.trimEnd()}\n\n${presetCss}\n`)).toBe(true);
+    const forcedColorsCss = await readFile(join(websiteRoot, "vendor/marketing-forced-colors/marketing-forced-colors.css"), "utf8");
+    expect(builtCss.endsWith(`${sourceCss.trimEnd()}\n\n${presetCss}\n\n${forcedColorsCss.trim()}\n`)).toBe(true);
     expect(html).toContain('data-hraness-marketing-preset="editorial" data-hraness-pattern="none"');
     expect(builtCss).toContain('--hraness-marketing-display-font: var(--font-text)');
     expect(html).toContain('<main id="main" tabindex="-1">');
@@ -874,7 +875,8 @@ describe("ghostget.com static site", () => {
       expect(cssPropertyValues(css, ".ghostget-product-hero .hero-explainer", "color").at(-1))
         .toBe("var(--muted)");
       expect(cssPropertyValues(css, '.hraness-marketing-action[data-emphasis="primary"]', "color").at(-1))
-        .toBe("var(--ghostget-action-ink)");
+        .toBe(css === sourceCss ? "var(--ghostget-action-ink)" : "ButtonText");
+      expect(css).toMatch(/@media\s*\(forced-colors: none\)\s*\{\s*\.hraness-marketing-action\[data-emphasis="primary"\]\s*\{\s*color:\s*var\(--ghostget-action-ink\)/u);
       const providerMarkDisplay = cssPropertyValues(css, ".provider-mark", "display");
       expect(providerMarkDisplay.length).toBeGreaterThan(0);
       expect(providerMarkDisplay).not.toContain("none");

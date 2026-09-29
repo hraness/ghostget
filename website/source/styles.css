@@ -2698,8 +2698,10 @@ body {
   align-items: center;
 }
 
-.hraness-marketing-action[data-emphasis="primary"] {
-  color: var(--ghostget-action-ink);
+@media (forced-colors: none) {
+  .hraness-marketing-action[data-emphasis="primary"] {
+    color: var(--ghostget-action-ink);
+  }
 }
 
 .hraness-marketing-page ::selection {
