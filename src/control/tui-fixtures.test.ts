@@ -1,5 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import { existsSync, readdirSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { ghostgetHelpRequest } from "../usage";
@@ -126,12 +125,8 @@ function commandWords(command: string): string[] {
 
 describe("tui fixtures", () => {
   test("cover every former menu bar state", () => {
-    expect(Object.keys(STATES)).toHaveLength(13);
-    const menubar = join(import.meta.dir, "__fixtures__", "menubar");
-    if (existsSync(menubar)) {
-      const names = [...new Set(readdirSync(menubar).map((file) => file.replace(/\.(json|txt)$/u, "")))].sort();
-      expect(Object.keys(STATES).sort()).toEqual(names);
-    }
+    // The 13 states the retired `__fixtures__/menubar` covered, by name.
+    expect(Object.keys(STATES).sort()).toEqual(["connecting", "controls-paused", "empty", "error", "first-run", "keychain-denied", "linux", "max-accounts", "needs-approval", "running", "safari-needs-full-disk-access", "reconnecting", "signed-out"].sort());
   });
 
   for (const [name, state] of Object.entries(STATES)) {

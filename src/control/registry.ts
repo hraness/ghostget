@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineRegistry, HranessError, runCli, type CliIO, type ParsedArgs, type Registry, type Verb } from "@hraness/desktop-foundation/registry";
 import { installLoginItem, uninstallLoginItem } from "@hraness/desktop-foundation/login";
+import type { Retired } from "@hraness/desktop-foundation/retire";
 import { canonicalJson, sha256 } from "../canonical-json";
 import { probeSafariAccess } from "../cookie-access";
 import { ghostgetStateHome } from "../storage";
@@ -11,6 +12,7 @@ import { ADMIN_STOP, adminClient, adminOwnerRunning, adminRequest } from "./admi
 import { browserChoices } from "./browser-choices";
 import { spawnHelper, type HelperClient } from "./helper-client";
 import { readOutputs } from "./outputs";
+import { retiredNotice, retireTray } from "./retire-tray";
 import type { ActivityQuery, ApprovalView, ControlData, ControlRequest, ControlResponse, ControlSnapshot, WebRule } from "./protocol";
 import { buildStatus, renderStatus, STATUS_SCHEMA, type GhostgetStatus } from "./status-view";
 import { parseControlRequest } from "./validation";
@@ -40,6 +42,8 @@ export interface ControlPorts {
   startOwner(): Promise<HelperClient>;
   readonly platform: NodeJS.Platform;
   readonly now: () => number;
+  /** Move the retired menu bar's login item aside; null when there was none. */
+  retireTray(): Promise<Retired | null>;
 }
 
 function cliScript(): string { return fileURLToPath(new URL("../cli.ts", import.meta.url)); }
@@ -65,6 +69,7 @@ export function defaultPorts(environment: ControlEnvironment): ControlPorts {
     },
     platform: process.platform,
     now: () => Date.now(),
+    retireTray: async () => await retireTray(environment),
   };
 }
 
@@ -343,6 +348,9 @@ export function ghostgetVerbs(portsFor: (io: CliIO) => ControlPorts): Verb<any, 
       run: async (_i, ctx) => {
         const { runControlHelper } = await import("./helper");
         const environment = portsFor(ctx.io).environment;
+        const ports = portsFor(ctx.io);
+        const retired = await ports.retireTray();
+        if (retired !== null) ctx.io.stderr.write(`${retiredNotice(retired)}\n`);
         try { await runControlHelper(environment, "serve", () => { ctx.io.stderr.write("Ghostget control owner is running. Stop it with ghostget control stop.\n"); }); return 0; }
         catch (error) {
           const { controlFailure } = await import("./service");
@@ -366,8 +374,15 @@ export function ghostgetVerbs(portsFor: (io: CliIO) => ControlPorts): Verb<any, 
       path: ["control", "install"], opClass: "decide", schema: "ghostget.login-item/1", summary: "Start the control owner at login (opt-in LaunchAgent)",
       input: () => ({}),
       gate: { tier: "T1T2", describe: () => ({ title: "Start Ghostget's control owner at every login", digest: digestOf({ label: LOGIN_ITEM_LABEL, program: process.execPath, script: cliScript() }) }) },
-      run: async () => await installLoginItem({ product: PRODUCT, label: LOGIN_ITEM_LABEL, program: process.execPath, args: ["--no-env-file", cliScript(), "control", "serve", "--foreground"] }),
-      text: (o: { path: string; changed: boolean }) => o.changed ? `Installed ${o.path}. It starts at next login.` : `Already installed: ${o.path}`,
+      run: async (_i, ctx) => {
+        const retired = await portsFor(ctx.io).retireTray();
+        const installed = await installLoginItem({ product: PRODUCT, label: LOGIN_ITEM_LABEL, program: process.execPath, args: ["--no-env-file", cliScript(), "control", "serve", "--foreground"] });
+        return { ...installed, retired };
+      },
+      text: (o: { path: string; changed: boolean; retired: Retired | null }) => [
+        ...(o.retired === null ? [] : [retiredNotice(o.retired)]),
+        o.changed ? `Installed ${o.path}. It starts at next login.` : `Already installed: ${o.path}`,
+      ].join("\n"),
     },
     {
       path: ["control", "uninstall"], opClass: "operate", schema: "ghostget.login-item/1", summary: "Stop starting the control owner at login",

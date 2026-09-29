@@ -19,7 +19,7 @@ description: >-
 
 # Ghostget
 
-Ghostget supplies bounded CLI and SDK capabilities with a menu-bar companion for account, approval, and permission review plus local outputs and CLI guidance. Use it from the caller's own agent loop; Ghostget does not run a model.
+Ghostget supplies bounded CLI and SDK capabilities with terminal controls (`ghostget status`, `ghostget tui`) for account, approval, and permission review plus local outputs and CLI guidance. Use it from the caller's own agent loop; Ghostget does not run a model.
 
 ## Install or verify Ghostget
 
@@ -32,7 +32,7 @@ automation.
 ## Choose the smallest path
 
 - Read control state with `ghostget status --json` (or `ghostget tui --snapshot`); `ghostget commands --json` lists every control command. Decisions such as `approvals decide … allow-once`, `permissions set … allow`, `connections commit` and `interface activate` ask a person at the terminal: when one returns `human-required`, show the user the exact command to run themselves and never retry it. Use `ghostget interface` for user-space OpenAPI drafts.
-- Use `ghostget vault import-x` only for a human-selected 1Password X token on a supported desktop (macOS, Linux, or Windows). Run `ghostget vault --help`, declare its actual scopes and numeric X user ID, and pass an `op://` field reference rather than a secret. For a renewable import, pass `--refresh-reference` and `--client-id` together and declare `offline.access`; the TUI and menubar may stay open either way. This is not a general password manager or the Markdown vault.
+- Use `ghostget vault import-x` only for a human-selected 1Password X token on a supported desktop (macOS, Linux, or Windows). Run `ghostget vault --help`, declare its actual scopes and numeric X user ID, and pass an `op://` field reference rather than a secret. For a renewable import, pass `--refresh-reference` and `--client-id` together and declare `offline.access`; the TUI and control owner may stay open either way. This is not a general password manager or the Markdown vault.
 
 - Capture a URL: `ghostget <url>` or `ghostget clip <url>`.
 - Read without persistence: `ghostget read <url>`.

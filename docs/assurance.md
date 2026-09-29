@@ -415,10 +415,10 @@ Credential publication re-verifies the exact staged bytes and account revision; 
 
 #### `control-single-helper-owner`
 
-The menu and TUI share exactly one helper owner per state home; a second controller does not acquire custody.
+The control verbs and TUI share exactly one helper owner per state home; a second controller does not acquire custody.
 
 - Evidenced by stateful model.
-- Source: `src/control/AGENTS.md`: “The menu and TUI share one helper owner per state home.”
+- Source: `src/control/AGENTS.md`: “The control verbs and TUI share one helper owner per state home.”
 - Evidence: `src/control/helper.ts`, `src/control/helper-owner.property.test.ts`, `src/control/helper-client.test.ts`, `src/control/helper-lifecycle.test.ts`, `src/control/tui.test.ts`
 - Property tests: `src/control/helper-owner.property.test.ts`: “property: at most one live contender holds helper custody across inspect and commit races, crashes, restarts, and unknown owners”
 - Assumptions: `same-user-trusted`, `filesystem-durability`
@@ -1157,7 +1157,7 @@ A mutation dispatches only after an exact preview and a confirmation whose diges
 
 - Evidenced by stateful model.
 - Source: `AGENTS.md`: “Keep mutations behind exact preview, confirmation, durable dispatch, and at-most-once evidence.”
-- Evidence: `src/confirmed-write-program.test.ts`, `src/control/menubar-cli.test.ts`, `src/control/registry-helper.test.ts`, `src/messaging-runtime-composite.test.ts`, `src/operation-authority.property.test.ts`, `src/operation-permission.test.ts`, `src/providers/x.test.ts`, `src/runtime.test.ts`, `src/runtime.ts`
+- Evidence: `src/confirmed-write-program.test.ts`, `src/control/registry-helper.test.ts`, `src/messaging-runtime-composite.test.ts`, `src/operation-authority.property.test.ts`, `src/operation-permission.test.ts`, `src/providers/x.test.ts`, `src/runtime.test.ts`, `src/runtime.ts`
 - Property tests: `src/operation-authority.property.test.ts`: “property: authority never outlives a change of account incarnation, realm, interface, closure, contract or policy”
 - Assumptions: `filesystem-durability`, `provider-behaviour`
 - Not verified:
@@ -2541,7 +2541,7 @@ Read paths never mutate state; reads may only cache.
 - Not verified:
   - Evidence is by named example. Whole-state-tree fingerprints taken before and after cover a cache read (hit, miss, first read, and a leftover admission claim whose owner is dead), a revalidation, a capability read, and `invoke --cache-only`; omni materialization, control inspection, confirmation preparation, and the operation-permission description are checked only for not creating an incarnation. No static or exhaustive check shows that every command that reads is write-free; a new read path is covered only once it takes the typed `AuthIncarnationReader` capability and has its own test.
   - The D14 exemptions are writes by design and are tested as the only permitted changes: a cache read may create and release its own admission claim, remove a claim whose recorded owner is proven dead, and create the projection encryption key and its store-key marker when they are absent.
-  - Only the menu-bar snapshot, its account and permission listings, the auth checks of cache reads, live-read publication, and omni materialization, read-path invocation preparation, confirmation preparation, and the operation-permission account identity take a typed read capability; explicit invocation preparation, including the messaging route, context, and action preparations, still creates a missing auth incarnation as an admitted execution path.
+  - Only the control snapshot, its account and permission listings, the auth checks of cache reads, live-read publication, and omni materialization, read-path invocation preparation, confirmation preparation, and the operation-permission account identity take a typed read capability; explicit invocation preparation, including the messaging route, context, and action preparations, still creates a missing auth incarnation as an admitted execution path.
 
 #### `read-path-read-capability`
 
@@ -2554,14 +2554,14 @@ A read path receives a branded read capability with only read members, such as `
 - Not verified:
   - Only the enumerated example cases are checked; the type assertions run under `bun run typecheck`.
   - The brand exists only in the type system; code that casts through `unknown` can still forge a capability.
-  - Only the menu-bar snapshot, its account and permission listings, the auth checks of cache reads, live-read publication, and omni materialization, read-path invocation preparation, confirmation preparation, and the operation-permission account identity take the typed capability; other read paths are not covered.
+  - Only the control snapshot, its account and permission listings, the auth checks of cache reads, live-read publication, and omni materialization, read-path invocation preparation, confirmation preparation, and the operation-permission account identity take the typed capability; other read paths are not covered.
 
-#### `menu-bar-snapshot-read-only`
+#### `tui-snapshot-read-only`
 
-The menu-bar snapshot and its account and permission listings take no admission and create no state; auth incarnations are created only by account saves, the control-service startup backfill, and admitted execution paths.
+The control snapshot that `ghostget status` and `ghostget tui --snapshot` read, and its account and permission listings, take no admission and create no state; auth incarnations are created only by account saves, the control-service startup backfill, and admitted execution paths.
 
 - Evidenced by property test.
-- Source: `AGENTS.md`: “The menu-bar snapshot and its account and permission listings take no admission and create no state; account saves, the control-service startup backfill, and admitted execution paths create auth incarnations.”
+- Source: `AGENTS.md`: “The control snapshot that `ghostget status` and `ghostget tui --snapshot` read, and its account and permission listings, take no admission and create no state; account saves, the control-service startup backfill, and admitted execution paths create auth incarnations.”
 - Evidence: `src/control/read-capability.test.ts`
 - Property tests: `src/control/read-capability.test.ts`: “for any set of legacy accounts and orphaned claims, listing revisions write nothing and match the admitted revision exactly when an incarnation exists”
 - Assumptions: `filesystem-atomic-rename`, `same-user-trusted`
@@ -2933,7 +2933,7 @@ A state home in gateway-only mode restricts Ghostget command routing to policy-a
 
 - Evidenced by example test.
 - Source: `SECURITY.md`: “Gateway-only mode restricts Ghostget command routing”
-- Evidence: `src/control/interface-cli.test.ts`, `src/control/menubar-cli.test.ts`, `src/control/registry-helper.test.ts`, `src/storage-state-home.test.ts`
+- Evidence: `src/control/interface-cli.test.ts`, `src/control/registry-helper.test.ts`, `src/storage-state-home.test.ts`
 - Assumptions: `filesystem-durability`, `same-user-trusted`, `whatwg-url`, `dns-tls`
 - Not verified:
   - Only the enumerated example cases are checked.

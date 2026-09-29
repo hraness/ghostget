@@ -39,6 +39,7 @@ function harness(options: { owner?: boolean; answer?: (request: ControlRequest) 
     startOwner: async () => client,
     platform: "linux",
     now: () => 0,
+    retireTray: async () => null,
   };
   const registry = ghostgetRegistry(() => ports);
   const run = async (args: string[], io: Partial<CliIO> = {}) => {

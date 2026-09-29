@@ -642,14 +642,13 @@
     "src/control/credential-helper.ts",
     "src/control/account-revision.ts",
     "src/control/interface-cli.ts",
-    "src/control/menubar-cli.ts",
     "src/control/browser-choices.ts",
-    "src/control/menubar-icon.ts",
     "src/control/bundled-interfaces.ts",
     "src/control/admin-socket.ts",
     "src/control/outputs.ts",
     "src/control/registry.ts",
     "src/control/registry-words.ts",
+    "src/control/retire-tray.ts",
     "src/control/status-view.ts"
   ],
   "scripts": {

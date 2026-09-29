@@ -26,7 +26,6 @@ const MEASURED_FILE_WEIGHTS = Object.freeze({
   "src/session-secrets.test.ts": 96,
   "src/web-session-recovery.test.ts": 69,
   "src/support-cli.test.ts": 66,
-  "src/control/menubar-cli.test.ts": 62,
   "src/derive.test.ts": 55,
   "src/contracts-cli.test.ts": 53,
   "src/auth-storage.test.ts": 46,

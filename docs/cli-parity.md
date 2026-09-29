@@ -1,6 +1,6 @@
 # Control CLI parity
 
-Every control you can reach from the Ghostget menu bar has a command that does
+Every control the retired Ghostget menu bar offered has a command that does
 the same thing. Each command takes `--json` and answers with a versioned
 envelope (`ghostget.<name>/1`, or `hraness.error/1` on failure).
 `ghostget commands --json` lists them all with their operation class.
@@ -60,7 +60,9 @@ changes. Inputs that only tighten run without asking:
 | Agent prompts (install, use, extend, gateway) | `ghostget prompt install\|use\|extend\|gateway [--adapter <id>]` |
 | Outputs folder, open, reveal, copy path | `ghostget outputs list` prints the folder and every file path |
 | 1Password X-token import | `ghostget vault import-x --help` |
-| Provider setup guide, Open Ghostget, Help & support | `ghostget --help`, and <https://ghostget.com/getting-started> |
+| Provider setup guide, Open Ghostget | `ghostget --help`, and <https://ghostget.com/getting-started> |
+| Help & support | `ghostget support` |
+| Open at login | `ghostget control install` (asks you); the old menu bar login item is moved aside |
 | Copy diagnostics | `ghostget doctor` |
 
 The TUI (`ghostget tui`) keeps its keyboard views and reuses a running owner.

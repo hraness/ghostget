@@ -28,6 +28,7 @@ function fixture() {
     startOwner: async () => spawnHelper(environment),
     platform: process.platform,
     now: () => Date.now(),
+    retireTray: async () => null,
   };
   const registry = ghostgetRegistry(() => ports);
   const gate: typeof requireHuman = async (opts) => ({ ok: true, proof: { tier: "T1T2", digest: opts.digest, confirmedAt: new Date(0).toISOString() } });

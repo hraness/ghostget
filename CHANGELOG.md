@@ -20,7 +20,12 @@ Historical entries retain their original delivery coordinates.
 - The signed cookie reader is assembled by desktop-foundation 0.9.0's
   `hraness-helper` (falling back to `hraness-companion`). `GHOSTGET_HELPER`
   overrides it; `GHOSTGET_MENUBAR` still works as an alias.
-- The menu bar still works in this release and is removed in the next one.
+- The menu bar is removed. `ghostget menubar` prints the replacement commands.
+  `ghostget control serve`, `control install` and `menubar uninstall` move the
+  old menu bar login item aside (renamed, never deleted; rename it back to
+  undo). The signed cookie reader is unchanged.
+- The `menu-bar-snapshot-read-only` claim is now `tui-snapshot-read-only`: the
+  control snapshot behind `ghostget status` and `tui --snapshot` writes nothing.
 
 ## 0.18.50
 
