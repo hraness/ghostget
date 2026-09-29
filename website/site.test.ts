@@ -385,6 +385,13 @@ describe("ghostget.com static site", () => {
     const cssAsset = /<link rel="stylesheet" href="([^"?]+)">/u.exec(html)?.[1];
     expect(cssAsset).toMatch(/^\/assets\/styles-[a-f0-9]{12}\.css$/u);
     const builtCss = await readFile(join(websiteRoot, "dist", cssAsset!.slice(1)), "utf8");
+    const siteShellCss = await readFile(join(websiteRoot, "vendor/hraness-site-shell/site-shell.css"), "utf8");
+    expect(createHash("sha256").update(siteShellCss).digest("hex")).toBe("ff45b53be4d26f70c14a5749e75ed03236299d8d36c10ed01680a62d04573e33");
+    expect(builtCss).toContain(siteShellCss.trim());
+    for (const document of [...pages.map((page) => page.html), notFound]) {
+      expect(document).toContain('<body class="hraness-site-shell">');
+    }
+    expect(preview).not.toContain("hraness-site-shell");
     expect(builtCss).not.toMatch(/@import\b/iu);
     expect(builtCss.startsWith("@layer base, components;")).toBe(true);
     const presetCss = await readFile(join(websiteRoot, "vendor/marketing-preset/product-marketing-preset.css"), "utf8");

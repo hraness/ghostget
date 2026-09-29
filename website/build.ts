@@ -908,6 +908,7 @@ function renderTemplate(
   rendered = replaceHtmlRequired(rendered, "{{CSS_ASSET}}", escapeHtml(options.cssAsset));
   rendered = replaceHtmlRequired(rendered, "{{FOIL_ASSET}}", escapeHtml(options.foilAsset));
   if (rendered.includes("{{HRANESS_SITE_FOOTER}}")) {
+    rendered = replaceRequired(rendered, "<body>", '<body class="hraness-site-shell">');
     rendered = replaceRequired(
       rendered,
       "{{HRANESS_SITE_FOOTER}}",
@@ -1310,6 +1311,7 @@ export async function buildWebsite(
     css,
     paperThemeCss,
     marketingForcedColorsCss,
+    siteShellCss,
     paletteSystemCss,
     paletteBridgeCss,
     uiCss,
@@ -1335,6 +1337,7 @@ export async function buildWebsite(
     readFile(join(sourceRoot, "styles.css"), "utf8"),
     readFile(join(repositoryRoot, "website/vendor/paper-theme/paper-theme.css"), "utf8"),
     readFile(join(repositoryRoot, "website/vendor/marketing-forced-colors/marketing-forced-colors.css"), "utf8"),
+    readFile(join(repositoryRoot, "website/vendor/hraness-site-shell/site-shell.css"), "utf8"),
     readFile(fileURLToPath(import.meta.resolve("@hraness/design-kit/palette-system.css")), "utf8"),
     readFile(fileURLToPath(import.meta.resolve("@hraness/design-kit/palette-bridge.css")), "utf8"),
     readUiStylesheet(),
@@ -1410,7 +1413,7 @@ export async function buildWebsite(
   const postHog = postHogEnvironment(environment);
   // The UI facade establishes its complete layer order before the static
   // marketing grammar and footer. Product tokens and composition follow them.
-  const compiledCss = `${uiCss}\n\n${designKitFontsCss.trim()}\n\n${designKitTypographyCss.trim()}\n\n${designKitProductMarketingCss.trim()}\n\n${designKitPlainSiteCss.trim()}\n\n${designKitPlainPublicationCss.trim()}\n\n${designKitStatusPageCss.trim()}\n\n${hranessSiteFooterCss.trim()}\n\n${paperThemeCss.trim()}\n\n${paletteSystemCss.trim()}\n\n${paletteBridgeCss.replace('@import "./palette-system.css";', "").trim()}\n\n${css.trimEnd()}\n\n${marketingPreset.files.get("product-marketing-preset.css")!.toString("utf8")}\n\n${marketingForcedColorsCss.trim()}\n`;
+  const compiledCss = `${uiCss}\n\n${designKitFontsCss.trim()}\n\n${designKitTypographyCss.trim()}\n\n${designKitProductMarketingCss.trim()}\n\n${designKitPlainSiteCss.trim()}\n\n${designKitPlainPublicationCss.trim()}\n\n${designKitStatusPageCss.trim()}\n\n${hranessSiteFooterCss.trim()}\n\n${paperThemeCss.trim()}\n\n${paletteSystemCss.trim()}\n\n${paletteBridgeCss.replace('@import "./palette-system.css";', "").trim()}\n\n${siteShellCss.trim()}\n\n${css.trimEnd()}\n\n${marketingPreset.files.get("product-marketing-preset.css")!.toString("utf8")}\n\n${marketingForcedColorsCss.trim()}\n`;
   const cssAsset = `/assets/styles-${contentHash(compiledCss)}.css`;
   const analyticsAsset = `/assets/analytics-${contentHash(analytics)}.js`;
   const skillInstallAsset = `/assets/skill-install-${contentHash(skillInstall)}.js`;
