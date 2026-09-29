@@ -2192,14 +2192,23 @@
 // Preserve the projections and allowances:
 // 12,151,310 + 12,387 + 4,096 = 12,167,793 packed;
 // 24,090,676 + 353 + 65 = 24,091,094 unpacked.
+// The same release N with `tui --snapshot` wrapped to --width (review fix)
+// grows src/control/tui.ts, tui-model.ts and the changelog. After
+// `bun run build`, npm 11.19.0 pack --ignore-scripts with Node 24.20.0 on
+// darwin arm64 measured 625 entries, 12,152,234 packed bytes, and 24,093,014
+// unpacked bytes; archive SHA-256
+// 636e8e4c92e97e72b08090ac36acb11da0b2d4a3906bfbfd095d266ce4803a2f.
+// Preserve the projections and allowances:
+// 12,152,234 + 12,387 + 4,096 = 12,168,717 packed;
+// 24,093,014 + 353 + 65 = 24,093,432 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget menu-bar retirement release-N control surface over main 460bdf0",
+  scope: "Ghostget menu-bar retirement release-N control surface with tui --snapshot --width over main 460bdf0",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "d5861b503853758fc7939c664194717b066864004f89801ad86d85bde7a4f8eb",
-  packedBytes: 12_151_310,
-  unpackedBytes: 24_090_676,
+  archiveSha256: "636e8e4c92e97e72b08090ac36acb11da0b2d4a3906bfbfd095d266ce4803a2f",
+  packedBytes: 12_152_234,
+  unpackedBytes: 24_093_014,
   entryCount: 625,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
