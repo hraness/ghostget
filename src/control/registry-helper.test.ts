@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { chmodSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { runCli, type CliIO } from "@hraness/desktop-foundation/registry";
 import type { requireHuman } from "@hraness/desktop-foundation/human-gate";
 import { ghostgetStateHome } from "../storage";
@@ -10,12 +12,14 @@ import { ghostgetRegistry, type ControlPorts } from "./registry";
 // The CLI verbs against the real control helper: the evidence the retired menu
 // adapter's real-helper tests used to carry.
 const cleanups: (() => void)[] = [];
+// Short, physical temp roots: macOS /tmp is a symlink and socket paths are capped at 104 bytes.
+const tempBase = process.platform === "darwin" ? "/private/tmp" : realpathSync(tmpdir());
 afterEach(() => { for (const cleanup of cleanups.splice(0).reverse()) cleanup(); });
 
 function fixture() {
-  const raw = realpathSync(mkdtempSync("/private/tmp/ghostget-rh-")); chmodSync(raw, 0o700);
+  const raw = realpathSync(mkdtempSync(join(tempBase, "ghostget-rh-"))); chmodSync(raw, 0o700);
   cleanups.push(() => rmSync(raw, { recursive: true, force: true }));
-  const environment = { GHOSTGET_STATE_HOME: raw, PATH: "/usr/bin:/bin:/usr/sbin:/sbin", HOME: process.env.HOME ?? "", USER: process.env.USER ?? "", LOGNAME: process.env.LOGNAME ?? "", TMPDIR: "/private/tmp" };
+  const environment = { GHOSTGET_STATE_HOME: raw, PATH: "/usr/bin:/bin:/usr/sbin:/sbin", HOME: process.env.HOME ?? "", USER: process.env.USER ?? "", LOGNAME: process.env.LOGNAME ?? "", TMPDIR: tempBase };
   ghostgetStateHome(environment);
   const ports: ControlPorts = {
     environment,
@@ -52,7 +56,7 @@ describe("control verbs through the real helper", () => {
     expect(stale.code).not.toBe(0);
     expect(stale.json.ok).toBe(false);
     expect(JSON.stringify(readOperationPolicy(environment))).toBe(policy);
-  }, 60_000);
+  });
 
   test("gateway-only web rules round-trip through the helper and show in status", async () => {
     const { run } = fixture();
@@ -60,7 +64,7 @@ describe("control verbs through the real helper", () => {
     expect(status.code).toBe(0);
     const revision = String(status.json.data.web.revision);
     expect(status.json.data.web.gatewayOnly).toBe(false);
-    const rules = realpathSync(mkdtempSync("/private/tmp/gg-rh-rules-"));
+    const rules = realpathSync(mkdtempSync(join(tempBase, "gg-rh-rules-")));
     cleanups.push(() => rmSync(rules, { recursive: true, force: true }));
     await Bun.write(`${rules}/rules.json`, "[]");
     const saved = await run(["web", "rules", "set", "--file", `${rules}/rules.json`, "--expected-revision", revision, "--gateway-only", "--json"]);
@@ -68,5 +72,5 @@ describe("control verbs through the real helper", () => {
     const listed = await run(["status", "--json"]);
     expect(listed.code).toBe(0);
     expect(listed.json.data.web).toEqual({ revision: status.json.data.web.revision + 1, gatewayOnly: true, rules: 0 });
-  }, 60_000);
+  });
 });
