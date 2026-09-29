@@ -178,6 +178,7 @@ export const BLOG_POSTS: readonly BlogPost[] = [
         "On 2026-09-24 the claims register at 76a79fc held 244 claims: 180 evidenced, 45 planned, and 19 not verified, 15 of them resting on configuration readback.",
         "On 2026-09-26 a Claude Opus 5.5 (claude-opus-5-5) AI editorial review rewrote headings and prose for clarity and re-read the diff against the source; it changed no facts, numbers, commands, links, or dates of record.",
         "On 2026-09-27 a fact check against verification/claims.json at origin/main found the register lists 246 claims, 227 evidenced, 0 planned, and 19 not verified; statements that claims were still planned were re-dated to 2026-09-24 and the current status added.",
+        "On 2026-09-28 the opening line and a section on the internal browser were added; the section restates the agent-browser comparison page and the agent-browser 0.32.3 pin in package.json, and names no new capability.",
       ],
       scores: { readerUtility: 2, originalEvidence: 2, factualConfidence: 2, hostFit: 2, voiceIntegrity: 2, maintenanceValue: 1 },
       owner: OWNER,

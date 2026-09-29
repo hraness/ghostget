@@ -12,10 +12,10 @@ serve HTML by default and Markdown when `Accept` prefers `text/markdown`.
 optional PostHog bootstrap records privacy-bounded page lifecycle events, the
 two explicit repository links, `cta clicked` for the home page install and
 getting-started links, and `install command copied` for the CLI and Agent Skill
-commands. Events carry `site_id: "ghostget"`; events recorded before the rename
-used the legacy `site_id` `wrench`, so a query that spans the rename should
-match both ids. Set `NEXT_PUBLIC_POSTHOG_KEY` to the shared
-project's public `phc_` token; `NEXT_PUBLIC_POSTHOG_HOST` defaults to
+commands. Events carry `site_id: "ghostget"`; events recorded before that id
+changed carry the legacy `site_id` `wrench`, so a query that spans the change
+should match both ids. The bootstrap never loads under Do Not Track. Set
+`NEXT_PUBLIC_POSTHOG_KEY` to the shared project's public `phc_` token; `NEXT_PUBLIC_POSTHOG_HOST` defaults to
 `https://us.i.posthog.com`.
 The product-specific Ghostget mailing-list form renders on production builds.
 Local and Preview builds keep the shared footer visible without rendering a

@@ -922,7 +922,7 @@
     {
       "guide": "website/AGENTS.md",
       "anchor": "Keep analytics canonical-host-only,",
-      "digest": "d51d95d61a935f65d2fe9c6a3bf5aa2673a98f5ec058964447d74b26b3772369",
+      "digest": "7648ce653c3aaa6f12e6d0fbbe441227c2c82aad42b9ebce17ed98e5b9d2264e",
       "claims": [
         "analytics-allowlist-byte-ceiling"
       ]
@@ -4293,7 +4293,7 @@
     },
     {
       "id": "analytics-allowlist-byte-ceiling",
-      "statement": "Analytics events come from a checked allowlist (page lifecycle, web vitals, the two GitHub links) with a byte ceiling per event, canonical-host-only, cookieless, personless, and query-free.",
+      "statement": "Analytics events come from a checked allowlist (page lifecycle, web vitals, the two GitHub links, four named CTA clicks, two named install-command copies) with a byte ceiling per event, canonical-host-only, cookieless, personless, and query-free.",
       "area": "website",
       "source": {
         "path": "AGENTS.md",

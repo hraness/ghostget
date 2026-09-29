@@ -1,6 +1,6 @@
-// Events before the rename were recorded under the legacy site_id "wrench".
-// The shared PostHog registry keeps "wrench" as an alias of "ghostget", so
-// dashboards should filter on both ids when they span the rename.
+// Events recorded before this id changed carry the legacy site_id "wrench".
+// Until the shared PostHog site registry lists "wrench" as a legacy alias of
+// "ghostget", queries that span the change must match both ids.
 export const SITE_ID = "ghostget" as const;
 export const LEGACY_SITE_IDS = ["wrench"] as const;
 const CANONICAL_DOMAIN = "ghostget.com" as const;
@@ -434,6 +434,25 @@ export function captureInstallCommandCopied(posthog: PostHogCaptureTarget, comma
   posthog.capture?.("install command copied", { install_command: command });
 }
 
+/**
+ * The snippet stub only queues calls made before the SDK loads. Once `array.js`
+ * loads, PostHog replaces `window.posthog` with the real instance and never
+ * drains the stub again, so interaction handlers must resolve the current
+ * instance at call time instead of holding the stub.
+ */
+export function liveCaptureTarget(
+  windowValue: Readonly<{ posthog?: PostHogCaptureTarget }>,
+  stub: PostHogCaptureTarget,
+): PostHogCaptureTarget {
+  return {
+    capture: (event, properties, options) => {
+      const current = windowValue.posthog ?? stub;
+      if (options === undefined) current.capture?.(event, properties);
+      else current.capture?.(event, properties, options);
+    },
+  };
+}
+
 function stubMethod(target: PostHogQueue, method: string): void {
   target[method] = (...args: unknown[]) => target.push([method, ...args]);
 }
@@ -497,6 +516,19 @@ function installPostHogQueue(documentValue: Document, windowValue: Window): Post
   return queue;
 }
 
+/**
+ * PostHog ignores `respect_dnt` when `cookieless_mode` is "always", so the
+ * bootstrap checks Do Not Track itself and never loads the SDK when it is set.
+ */
+export function doNotTrackEnabled(
+  navigatorValue: Readonly<{ doNotTrack?: string | null | undefined; msDoNotTrack?: string | null | undefined }> | undefined,
+  windowValue: Readonly<{ doNotTrack?: string | null | undefined }> | undefined,
+): boolean {
+  return [navigatorValue?.doNotTrack, navigatorValue?.msDoNotTrack, windowValue?.doNotTrack].some(
+    (value) => typeof value === "string" && ["1", "yes", "true"].includes(value.trim().toLowerCase()),
+  );
+}
+
 function metaContent(documentValue: Document, name: string): string {
   return documentValue.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content.trim() ?? "";
 }
@@ -509,11 +541,16 @@ function initializeBrowserAnalytics(): void {
     || window.location.hostname.toLowerCase().replace(/\.$/u, "") !== CANONICAL_DOMAIN
     || !/^phc_[A-Za-z0-9_-]+$/u.test(key)
     || !/^https:\/\/(?:eu|us)\.i\.posthog\.com$/u.test(host)
+    || doNotTrackEnabled(
+      navigator as Navigator & { msDoNotTrack?: string | null },
+      window as Window & { doNotTrack?: string | null },
+    )
   ) return;
 
   const evidence = { href: window.location.href, referrer: document.referrer } as const;
-  const posthog = installPostHogQueue(document, window);
-  posthog.init?.(key, createBrowserConfig(host, evidence));
+  const queue = installPostHogQueue(document, window);
+  queue.init?.(key, createBrowserConfig(host, evidence));
+  const posthog = liveCaptureTarget(window, queue);
 
   document.addEventListener(INSTALL_COPIED_EVENT, (event) => {
     const command = event instanceof CustomEvent ? unknownRecord(event.detail)?.command : undefined;
