@@ -31,6 +31,13 @@ Historical entries retain their original delivery coordinates.
 - The `menu-bar-snapshot-read-only` claim is now `tui-snapshot-read-only`: the
   control snapshot behind `ghostget status` and `tui --snapshot` writes nothing.
 
+## 0.18.51
+
+This release keeps website action labels readable in forced-colors mode.
+
+- Primary website buttons use system colors when forced colors are active.
+- The site-specific accent text color applies only outside forced-colors mode.
+
 ## 0.18.50
 
 This release delivers the metallic product footer using the current release controls.
