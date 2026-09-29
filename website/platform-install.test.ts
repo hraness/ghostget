@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
+import { platformMark } from "@hraness/design-kit";
+
 import { renderPlatformBadges, renderPlatformInstall } from "./platform-install";
 
 describe("static platform install", () => {
@@ -28,6 +30,15 @@ describe("static platform install", () => {
     expect(html.match(/data-platform-install-copy hidden/gu)).toHaveLength(3);
     expect(html).toContain('data-install-command="cli"');
     expect(html).toContain('<div class="hraness-platform-install__unavailable">Runs in WSL2.</div>');
+  });
+
+  test("draws each mark once from an id-scoped symbol", () => {
+    for (const id of ["macos", "linux", "windows"] as const) {
+      expect(html.split(platformMark(id).path)).toHaveLength(2);
+      expect(html).toContain(`<symbol id="install-mark-${id}" viewBox="${platformMark(id).viewBox}">`);
+      expect(html.match(new RegExp(`<use href="#install-mark-${id}"></use>`, "gu"))).toHaveLength(2);
+    }
+    expect(html).toContain('<span class="hraness-platform-install__tab-label">Windows</span>');
   });
 
   test("rejects a supported platform without a command", () => {
