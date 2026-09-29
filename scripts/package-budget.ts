@@ -2272,14 +2272,24 @@
 // reproduced by a second pack. Preserve the projections and allowances:
 // 12,138,342 + 12,387 + 4,096 = 12,154,825 packed;
 // 24,040,623 + 353 + 65 = 24,041,041 unpacked.
+// The X bootstrap reload over main 64151f9 reloads x.com/home once when it
+// arrives without feature switches and classes a second miss as a temporary
+// read (x-web-runtime and read-failure sources, changelog). `bun run build`
+// leaves dist unchanged. npm 11.19.0 pack --ignore-scripts with Node 24.20.0
+// on darwin arm64 measured 624 entries, 12,151,211 packed bytes, and
+// 24,041,958 unpacked bytes; archive SHA-256
+// 97f60a554bcca2d94d66654f69575a93ff15a0322c8deb91a3bcbb76d8c70b20,
+// reproduced by a second pack. Preserve the projections and allowances:
+// 12,151,211 + 12,387 + 4,096 = 12,167,694 packed;
+// 24,041,958 + 353 + 65 = 24,042,376 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget 0.18.54 release over main 632e2ab",
+  scope: "Ghostget X bootstrap feature-switch reload over main 64151f9",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "270ac51b72d07f797fd84c028c57d49857da135402187de6e893f61063c43c40",
-  packedBytes: 12_138_342,
-  unpackedBytes: 24_040_623,
+  archiveSha256: "97f60a554bcca2d94d66654f69575a93ff15a0322c8deb91a3bcbb76d8c70b20",
+  packedBytes: 12_151_211,
+  unpackedBytes: 24_041_958,
   entryCount: 624,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

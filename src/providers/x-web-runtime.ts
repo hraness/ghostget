@@ -46,7 +46,11 @@ import {
   type WebSessionOperationDeadline,
   type WebSessionProviderAcceptedMutationTargetEvent,
 } from "../web-session-execution";
-import { failedProviderRead, type ProviderReadFailureStage } from "./read-failure";
+import {
+  failedProviderRead,
+  ProviderReadIncompleteResponseError,
+  type ProviderReadFailureStage,
+} from "./read-failure";
 import { scrubXUploadImage } from "./x-image-provenance";
 import { hasExactKeys } from "../contracts-shape.js";
 import {
@@ -222,6 +226,7 @@ function xProfileReadFailure(
       || message === "authenticated web response body stream failed before completion"
       || message === "public first-party web asset request failed"
       || message.includes("Failed to fetch")
+      || current instanceof ProviderReadIncompleteResponseError
     ) return readFailureProjection("provider-temporary");
     current = current instanceof Error ? current.cause : undefined;
   }
@@ -645,7 +650,10 @@ function currentFeatureConfig(html: string): ReadonlyMap<string, unknown> {
     throw new Error("X bootstrap returned malformed initial-state JSON");
   }
   const root = record(parsed, "X initial state");
-  const featureSwitch = record(root.featureSwitch, "X initial state.featureSwitch");
+  if (!isRecord(root.featureSwitch)) {
+    throw new ProviderReadIncompleteResponseError("X initial state carried no feature switches");
+  }
+  const featureSwitch = root.featureSwitch;
   const user = record(featureSwitch.user, "X initial state.featureSwitch.user");
   const config = record(user.config, "X initial state.featureSwitch.user.config");
   if (Object.keys(config).length > 10_000) throw new Error("X user feature configuration exceeded its reviewed limit");
@@ -672,12 +680,23 @@ async function bootstrapX(
   });
   const csrf = webSessionCookie(client.cookies, "ct0");
   if (!/^[A-Za-z0-9_-]{16,512}$/u.test(csrf)) throw new Error("X ct0 session cookie is invalid or expired");
-  const html = await client.requestText({
+  const home = () => client.requestText({
     url: new URL("/home", X_ORIGIN),
     headers: { accept: "text/html" },
     expectedContentTypes: ["text/html"],
     maxBytes: MAX_HOME_BYTES,
   });
+  let html = await home();
+  let features: ReadonlyMap<string, unknown>;
+  try {
+    features = currentFeatureConfig(html);
+  } catch (error) {
+    // X now and then serves /home without its feature switches; one reload
+    // normally restores them. A second miss fails as a temporary read.
+    if (!(error instanceof ProviderReadIncompleteResponseError)) throw error;
+    html = await home();
+    features = currentFeatureConfig(html);
+  }
   const mainUrl = currentMainUrl(html);
   const mainText = await fetchPublicWebAsset(mainUrl, {
     allowedOrigin: X_ASSET_ORIGIN,
@@ -698,7 +717,7 @@ async function bootstrapX(
     mainText,
     bearer: currentBearer(mainText),
     csrf,
-    features: currentFeatureConfig(html),
+    features,
     timeoutMs: recipe.timeoutMs,
     maxOutputBytes: recipe.maxOutputBytes,
     ...(budget.signal === undefined ? {} : { signal: budget.signal }),

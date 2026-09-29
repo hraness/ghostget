@@ -114,9 +114,13 @@ function richArticleHtml(): string {
   return `${homeHtml()}<script>p.u=e=>({31770:"bundle.TwitterArticles",31771:"shared~bundle.LoggedInMain~ondemand.HoverCard~loader.AudioDock~loader.Dock~bundle.BookmarkFolders~bundle.Book",31772:"shared~bundle.TwitterArticles~ondemand.Verified~bundle.SettingsExtendedProfile~bundle.WorkHistory",31773:"shared~bundle.Grok~bundle.GrokDrawer~bundle.ReaderMode~bundle.Birdwatch~bundle.TwitterArticles~bundle.Compose"})[e]||e)+"."+({31770:"305538c",31771:"a9bac6b",31772:"d1314bb",31773:"02f6dc7"})[e]+"a.js"</script>`;
 }
 
-function homeHtml(): string {
-  const initialState = JSON.stringify({ featureSwitch: { user: { config: {} } } });
+function homeHtml(state: unknown = { featureSwitch: { user: { config: {} } } }): string {
+  const initialState = JSON.stringify(state);
   return `<!doctype html><html><head><script src="${MAIN_URL}"></script><script>window.__INITIAL_STATE__=${initialState};window.__META_DATA__={};</script></head><body></body></html>`;
+}
+
+function degradedHomeHtml(): string {
+  return homeHtml({ settings: {} });
 }
 
 function jsonResponse(value: unknown, status = 200): Response {
@@ -1503,6 +1507,76 @@ describe("X authenticated internal-API runtime", () => {
       },
       queryId: FOLLOWERS_QUERY_ID,
     });
+  });
+
+  test("reloads home once when X serves it without feature switches", async () => {
+    const calls: CapturedRequest[] = [];
+    let homeLoads = 0;
+    const runtimeDependencies = dependencies(calls, (request) => {
+      if (request.url.href === "https://x.com/home") {
+        homeLoads += 1;
+        return new Response(homeLoads === 1 ? degradedHomeHtml() : homeHtml(), { headers: { "content-type": "text/html" } });
+      }
+      if (request.url.href === MAIN_URL) {
+        return new Response(mainBundle(
+          descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
+          descriptor("Following", FOLLOWING_QUERY_ID, "query"),
+        ), { headers: { "content-type": "application/javascript" } });
+      }
+      if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
+      return jsonResponse(contactsFeedResponse(null, contactEntry(CONTACT_USER_ID, "realcontact", "Real Contact")));
+    });
+    const result = await executeXWebOperation(
+      xRecipe("contacts.list"),
+      { collection: "following", limit: 10 },
+      xAuth,
+      { dependencies: runtimeDependencies },
+    );
+    expect(result.status).toBe("succeeded");
+    expect(homeLoads).toBe(2);
+  });
+
+  test("reports a second home page without feature switches as a temporary read failure", async () => {
+    let homeLoads = 0;
+    const runtimeDependencies = dependencies([], (request) => {
+      if (request.url.href === "https://x.com/home") {
+        homeLoads += 1;
+        return new Response(degradedHomeHtml(), { headers: { "content-type": "text/html" } });
+      }
+      throw new Error(`unexpected request ${request.url.href}`);
+    });
+    const result = await executeXWebOperation(
+      xRecipe("contacts.list"),
+      { collection: "following", limit: 10 },
+      xAuth,
+      { dependencies: runtimeDependencies },
+    );
+    expect(homeLoads).toBe(2);
+    expect(result).toMatchObject({
+      status: "failed",
+      output: null,
+      dispatchStarted: false,
+      readFailure: { category: "provider-temporary" },
+    });
+  });
+
+  test("still reports a malformed feature configuration as contract drift without reloading", async () => {
+    let homeLoads = 0;
+    const runtimeDependencies = dependencies([], (request) => {
+      if (request.url.href === "https://x.com/home") {
+        homeLoads += 1;
+        return new Response(homeHtml({ featureSwitch: { user: "not-an-object" } }), { headers: { "content-type": "text/html" } });
+      }
+      throw new Error(`unexpected request ${request.url.href}`);
+    });
+    const result = await executeXWebOperation(
+      xRecipe("contacts.list"),
+      { collection: "following", limit: 10 },
+      xAuth,
+      { dependencies: runtimeDependencies },
+    );
+    expect(homeLoads).toBe(1);
+    expect(result).toMatchObject({ status: "failed", readFailure: { category: "contract-drift" } });
   });
 
   test("fails closed when the contact timeline binds a different user", async () => {

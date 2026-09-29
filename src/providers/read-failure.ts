@@ -29,6 +29,15 @@ export class ProviderReadTransportError extends Error {
   }
 }
 
+/** The provider served a page missing data it normally carries, the way a
+ * briefly degraded edge does; callers reload once before failing with it. */
+export class ProviderReadIncompleteResponseError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ProviderReadIncompleteResponseError";
+  }
+}
+
 export class ProviderReadThrottledError extends Error {
   constructor() {
     super("provider read was throttled by bounded response metadata");
@@ -58,7 +67,8 @@ function transientTransportFailure(error: Error): boolean {
     || error.message === "authenticated web response body stream failed before completion"
     || error.message === "public first-party web asset request failed"
     || error.message === "public web asset upload failed before a reviewed response was received"
-    || error instanceof ProviderReadTransportError;
+    || error instanceof ProviderReadTransportError
+    || error instanceof ProviderReadIncompleteResponseError;
 }
 
 export function providerReadFailureProjection(
