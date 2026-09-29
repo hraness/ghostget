@@ -2162,14 +2162,24 @@
 // Retain the same platform projections and portability allowances:
 // 12,133,689 + 12,387 + 4,096 = 12,150,172 packed;
 // 24,024,488 + 353 + 65 = 24,024,906 unpacked.
+//
+// Release 0.18.49 over main cf63f0a changes the version pins and changelog;
+// the product-footer renderer remains outside the package archive. After
+// `bun run build`, npm 11.19.0 pack --ignore-scripts with Node 24.20.0 on
+// darwin arm64 measured 620 entries, 12,133,765 packed bytes, and
+// 24,024,705 unpacked bytes; archive SHA-256
+// 2d3a2a7b776bc784fd00a00ecc205433ae33be634c2e18faf94aeaea9ed1c6d0.
+// Preserve the existing platform projections and portability allowances:
+// 12,133,765 + 12,387 + 4,096 = 12,150,248 packed;
+// 24,024,705 + 353 + 65 = 24,025,123 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget 0.18.48 release over main 9689dd4",
+  scope: "Ghostget 0.18.49 release over main cf63f0a",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "823baf88bde9e8436e1ce9c08116be355195c2a980003fb293699a1dd8d39678",
-  packedBytes: 12_133_689,
-  unpackedBytes: 24_024_488,
+  archiveSha256: "2d3a2a7b776bc784fd00a00ecc205433ae33be634c2e18faf94aeaea9ed1c6d0",
+  packedBytes: 12_133_765,
+  unpackedBytes: 24_024_705,
   entryCount: 620,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

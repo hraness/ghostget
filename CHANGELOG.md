@@ -7,6 +7,13 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.49
+
+This release aligns the product footer with the header.
+
+- The product footer now uses the same metallic Ghostget mark as the header,
+  including its accessible fallback, instead of the legacy blue icon.
+
 ## 0.18.48
 
 This release updates the website footer.
