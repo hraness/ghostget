@@ -403,7 +403,8 @@ describe("ghostget.com static site", () => {
       const bytes = await readFile(join(websiteRoot, "vendor/marketing-forced-colors", name));
       expect(createHash("sha256").update(bytes).digest("hex")).toBe(forcedColorsProvenance.files[name].sha256);
     }
-    expect(builtCss.endsWith(`${sourceCss.trimEnd()}\n\n${presetCss}\n\n${forcedColorsCss.trim()}\n`)).toBe(true);
+    const launchMockupCss = await readFile(join(websiteRoot, "launch/mockups.css"), "utf8");
+    expect(builtCss.endsWith(`${sourceCss.trimEnd()}\n\n${launchMockupCss.trimEnd()}\n\n${presetCss}\n\n${forcedColorsCss.trim()}\n`)).toBe(true);
     expect(html).toContain('data-hraness-marketing-preset="editorial" data-hraness-pattern="none"');
     expect(builtCss).toContain('--hraness-marketing-display-font: var(--font-text)');
     expect(html).toContain('<main id="main" tabindex="-1">');
