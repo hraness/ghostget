@@ -3769,7 +3769,8 @@ body {
   .hraness-platform-install__tabs,
   .hraness-platform-install__command { background-color: Canvas; border-color: CanvasText; }
   .hraness-platform-install__tab { color: ButtonText; }
-  .hraness-platform-install__tab[aria-selected="true"] { background-color: Highlight; border-color: Highlight; box-shadow: none; color: HighlightText; }
+  /* Keep the paired system colors on descendants without automatic text backplates. */
+  .hraness-platform-install__tab[aria-selected="true"] { forced-color-adjust: none; background-color: Highlight; border-color: Highlight; box-shadow: none; color: HighlightText; }
   .hraness-platform-install__copy { background-color: ButtonFace; border-color: ButtonText; color: ButtonText; }
   .hraness-platform-install__note,
   .hraness-platform-install__command-bar,
