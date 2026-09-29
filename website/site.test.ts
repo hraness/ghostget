@@ -646,11 +646,6 @@ describe("ghostget.com static site", () => {
     expect(html).not.toContain('class="hraness-marketing-hero__eyebrow"');
     expect(html).toContain('data-align="start"');
     expect(html).not.toContain('class="hraness-marketing-hero__example"');
-    const sdkCode: string[] = [];
-    new HTMLRewriter().on('code[data-language="typescript"]', {
-      text(chunk) { sdkCode.push(chunk.text); },
-    }).transform(html);
-    expect(sdkCode.join("")).toContain('import { isProviderPluginId } from "@hraness/ghostget"');
     expect(html).toContain('id="providers-title"');
     expect(html).toContain('aria-label="Ghostget home" class="hraness-marketing-header__brand" data-foil="" href="/"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span> Ghostget</a>');
     expect(html).not.toMatch(/hero-field|hero-orbit|hero-glyph/u);
@@ -1192,6 +1187,7 @@ describe("ghostget.com static site", () => {
       "utf8",
     );
     expect(homepageMarkdown).not.toContain("![](");
+    expect(homepageMarkdown).toContain('import { isProviderPluginId } from "@hraness/ghostget"');
     for (const image of editorialImages) {
       expect(homepageMarkdown).toContain(image.cardTitle);
       expect(homepageMarkdown).not.toContain(editorialImageUrl(image));
