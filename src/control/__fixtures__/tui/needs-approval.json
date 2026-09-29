@@ -56,6 +56,11 @@
     "ask": 1,
     "deny": 0
   },
+  "web": {
+    "revision": 1,
+    "gatewayOnly": false,
+    "rules": 0
+  },
   "outputs": {
     "files": [
       {

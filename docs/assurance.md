@@ -1157,7 +1157,7 @@ A mutation dispatches only after an exact preview and a confirmation whose diges
 
 - Evidenced by stateful model.
 - Source: `AGENTS.md`: “Keep mutations behind exact preview, confirmation, durable dispatch, and at-most-once evidence.”
-- Evidence: `src/confirmed-write-program.test.ts`, `src/control/menubar-cli.test.ts`, `src/messaging-runtime-composite.test.ts`, `src/operation-authority.property.test.ts`, `src/operation-permission.test.ts`, `src/providers/x.test.ts`, `src/runtime.test.ts`, `src/runtime.ts`
+- Evidence: `src/confirmed-write-program.test.ts`, `src/control/menubar-cli.test.ts`, `src/control/registry-helper.test.ts`, `src/messaging-runtime-composite.test.ts`, `src/operation-authority.property.test.ts`, `src/operation-permission.test.ts`, `src/providers/x.test.ts`, `src/runtime.test.ts`, `src/runtime.ts`
 - Property tests: `src/operation-authority.property.test.ts`: “property: authority never outlives a change of account incarnation, realm, interface, closure, contract or policy”
 - Assumptions: `filesystem-durability`, `provider-behaviour`
 - Not verified:
@@ -2933,7 +2933,7 @@ A state home in gateway-only mode restricts Ghostget command routing to policy-a
 
 - Evidenced by example test.
 - Source: `SECURITY.md`: “Gateway-only mode restricts Ghostget command routing”
-- Evidence: `src/control/interface-cli.test.ts`, `src/control/menubar-cli.test.ts`, `src/storage-state-home.test.ts`
+- Evidence: `src/control/interface-cli.test.ts`, `src/control/menubar-cli.test.ts`, `src/control/registry-helper.test.ts`, `src/storage-state-home.test.ts`
 - Assumptions: `filesystem-durability`, `same-user-trusted`, `whatwg-url`, `dns-tls`
 - Not verified:
   - Only the enumerated example cases are checked.

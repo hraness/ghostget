@@ -45,6 +45,8 @@ export interface GhostgetStatus {
   readonly attempts: readonly StatusAttempt[];
   readonly connect: { readonly available: boolean; readonly providers: readonly string[]; readonly browsers: readonly string[] };
   readonly permissions: { readonly managed: boolean; readonly revision: number; readonly allow: number; readonly ask: number; readonly deny: number };
+  /** Web gateway rules, as the retired menu's Advanced section showed them. */
+  readonly web: { readonly revision: number; readonly gatewayOnly: boolean; readonly rules: number } | null;
   readonly outputs: { readonly files: readonly { readonly name: string; readonly bytes: number; readonly modifiedAt: string }[]; readonly message: string | null; readonly truncated: boolean };
   readonly notices: readonly StatusNotice[];
   readonly next: readonly string[];
@@ -125,7 +127,7 @@ export function buildStatus(inputs: StatusInputs): GhostgetStatus {
       detail: "Another Ghostget control owner holds this state home, or none answered", confirmedAgeSeconds: null,
       accountId: null, accounts: [], approvals: [], attempts: [...attempts],
       connect: { available: false, providers: [], browsers: [] },
-      permissions: { managed: false, revision: 0, allow: 0, ask: 0, deny: 0 },
+      permissions: { managed: false, revision: 0, allow: 0, ask: 0, deny: 0 }, web: null,
       outputs, notices, next: ["ghostget control status", "ghostget status"],
     };
   }
@@ -163,6 +165,7 @@ export function buildStatus(inputs: StatusInputs): GhostgetStatus {
       browsers: inputs.platform === "darwin" ? offered.map((choice) => choice.key) : [],
     },
     permissions: { managed: snapshot.policy.managed, revision: snapshot.policy.revision, allow: count("allow"), ask: count("ask"), deny: count("deny") },
+    web: { revision: snapshot.web.revision, gatewayOnly: snapshot.web.gatewayOnly, rules: snapshot.web.rules.length },
     outputs, notices, next,
   };
 }
@@ -211,6 +214,7 @@ export function statusViews(nowMs: number): readonly View<GhostgetStatus>[] {
     { id: "permissions", title: "Permissions", render: (s) => [
       `Managed: ${s.permissions.managed ? "on" : "off"} · revision ${s.permissions.revision}`,
       `allow ${s.permissions.allow} · ask ${s.permissions.ask} · deny ${s.permissions.deny}`,
+      ...(s.web?.gatewayOnly === true ? [`Web gateway: gateway-only · ${plural(s.web.rules, "rule", "rules")}`] : []),
     ] },
     { id: "outputs", title: "Outputs", render: (s) => s.outputs.files.length === 0
       ? [s.outputs.message ?? "No output files"]

@@ -1340,6 +1340,7 @@
       "evidence": [
         "src/control/interface-cli.test.ts",
         "src/control/menubar-cli.test.ts",
+        "src/control/registry-helper.test.ts",
         "src/storage-state-home.test.ts"
       ],
       "assumptions": [
@@ -2799,6 +2800,7 @@
       "evidence": [
         "src/confirmed-write-program.test.ts",
         "src/control/menubar-cli.test.ts",
+        "src/control/registry-helper.test.ts",
         "src/messaging-runtime-composite.test.ts",
         "src/operation-authority.property.test.ts",
         "src/operation-permission.test.ts",

@@ -21,6 +21,7 @@
     "ask": 0,
     "deny": 0
   },
+  "web": null,
   "outputs": {
     "files": [
       {
