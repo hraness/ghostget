@@ -214,7 +214,7 @@ describe("ghostget.com static site", () => {
 
     expect(lockfile).toContain('"@hraness/site-footer": "github:hraness/site-footer#v0.20.1"');
     expect(lockfile).toContain(
-      '"@hraness/site-footer": ["@hraness/site-footer@github:hraness/site-footer#60d6ba5"', 
+      '"@hraness/site-footer": ["@hraness/site-footer@github:hraness/site-footer#60d6ba5"',
     );
   });
 
