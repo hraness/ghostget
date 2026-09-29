@@ -27,7 +27,7 @@ type InstalledClosurePackage = {
 const expectedClosureRuntimeDependencies = Object.freeze({
   "@1password/sdk": "0.5.0",
   "@hraness/accounts-cli": "github:hraness/accounts-cli#v0.1.3",
-  "@hraness/desktop-foundation": "https://github.com/hraness/desktop-foundation/releases/download/v0.8.0/hraness-desktop-foundation-0.8.0.tgz",
+  "@hraness/desktop-foundation": "https://github.com/hraness/desktop-foundation/releases/download/v0.9.0/hraness-desktop-foundation-0.9.0.tgz",
   "@hraness/wordcell": "https://github.com/hraness/wordcell/releases/download/v0.24.0/hraness-wordcell-0.24.0.tgz",
   "@hraness/local-custody": "https://github.com/hraness/local-custody/releases/download/v0.9.1/hraness-local-custody-0.9.1.tgz",
   "@hraness/message-like-me": "github:hraness/textbutler#83453cc7c17b49bb53fdfd89ccb69b8b44b30af1",
