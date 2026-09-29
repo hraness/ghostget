@@ -524,7 +524,7 @@ describe("ghostget.com static site", () => {
       `<a href="${SKILLS_URL}">View the Ghostget Agent Skill on skills.sh.</a>`,
     );
     expect(html).toContain(
-      `<a href="${npmPackageUrl}"><code>@hraness/ghostget</code> canonical release archive</a>`,
+      `<a href="${npmPackageUrl}"><code>@hraness/ghostget</code> release archive</a>`,
     );
     expect(html).not.toContain(`value="${skillInstallCommands.npx}"`);
     expect(html).not.toContain(`href="${GITHUB_RELEASES_URL}"`);
@@ -553,6 +553,9 @@ describe("ghostget.com static site", () => {
       expect(page.html).not.toContain("data-hraness-hero-item");
     }
     expect(html).toContain('class="proof-transcript"');
+    expect(html).toContain('class="syntax-code language-shell"');
+    expect(html).toContain('class="syntax-code language-typescript"');
+    expect(html).toContain('class="hraness-marketing-proof-frame__chrome"');
     expect(html).toContain("ghostget menubar");
     expect(html).toContain("Review connected accounts, permissions, pending approvals, and recent activity in your menu bar or terminal");
     expect(html).toContain("ghostget tui");
@@ -643,8 +646,12 @@ describe("ghostget.com static site", () => {
     expect(html).not.toContain('class="hraness-marketing-hero__eyebrow"');
     expect(html).toContain('data-align="start"');
     expect(html).not.toContain('class="hraness-marketing-hero__example"');
-    expect(html).toContain('import { isProviderPluginId } from "@hraness/ghostget"');
-    expect(html).toMatch(/Reviewed actions across \d+ services\./u);
+    const sdkCode: string[] = [];
+    new HTMLRewriter().on('code[data-language="typescript"]', {
+      text(chunk) { sdkCode.push(chunk.text); },
+    }).transform(html);
+    expect(sdkCode.join("")).toContain('import { isProviderPluginId } from "@hraness/ghostget"');
+    expect(html).toContain('id="providers-title"');
     expect(html).toContain('aria-label="Ghostget home" class="hraness-marketing-header__brand" data-foil="" href="/"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span> Ghostget</a>');
     expect(html).not.toMatch(/hero-field|hero-orbit|hero-glyph/u);
     expect(html).not.toMatch(/observed provider operations|capture-required|unavailable reservations/iu);
@@ -1327,13 +1334,10 @@ describe("ghostget.com static site", () => {
       canonicalPath === ("/omarchy-root-escalation/" as never))).toBe(false);
 
     expect(html).toContain('href="https://pipedream.com/docs/connect">Pipedream Connect</a>');
-    expect(html).toContain("Hosted integration breadth and managed end-user authentication");
     expect(html).toContain('href="https://docs.apify.com/integrations/mcp">Apify MCP</a>');
-    expect(html).toContain("Discovering and running eligible Apify Store Actors");
     expect(html).toContain('href="/compare/browserbase/">Browserbase + Stagehand</a>');
-    expect(html).toContain("Managed cloud browser sessions at scale, with proxies, stealth, and session replay");
     expect(html).toContain(
-      "Encrypted local copies of reads, a preview and a record for every write, and actions that stop when a service changes",
+      "A write with an unknown result is not sent again.",
     );
 
     const gettingStarted = pages.find((page) => page.definition.canonicalPath === "/docs/tutorials/getting-started/");
@@ -1435,11 +1439,8 @@ describe("ghostget.com static site", () => {
     expect(providerCapabilities?.html).toContain(
       `${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.cliBackedOperationCount)} actions run through a pinned version of Beeper's official CLI, and ${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.desktopLoopbackOperationCount)} are fixed reads from Beeper Desktop. Writes need a preview first, and Ghostget never resends a write whose outcome is unknown.`,
     );
-    expect(html).toContain(
-      `<h2 id="providers-title">Reviewed actions across ${String(providerDirectory.providerCount)} services.</h2>`,
-    );
-    expect(html).toContain("Each entry shows how Ghostget connects to that service and links to");
-    expect(html).toContain("its supported actions in this release.");
+    const providerHeading = html.match(/<h2 id="providers-title">([^<]+)<\/h2>/u)?.[1];
+    expect(Number(providerHeading?.match(/\d+/u)?.[0])).toBe(providerDirectory.providerCount);
     expect(html).not.toContain("Each card names the actions");
     for (const entry of providerDirectory.entries) {
       expect(html).toContain(`data-provider-icon="${entry.icon}"`);
@@ -2075,8 +2076,6 @@ describe("ghostget.com static site", () => {
     expect(html).toContain('id="measured"');
     expect(html).toContain("145,617 bytes");
     expect(html).toContain("9.7×");
-    expect(html).toContain('id="boundary"');
-    expect(html).toContain("Your agent never steers a browser.");
     expect(html).toContain("ghostget vault import-x");
     expect(html).toContain('href="/compare/"');
 
