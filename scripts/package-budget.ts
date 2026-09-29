@@ -2142,14 +2142,25 @@
 // Retain the same platform projections and portability allowances:
 // 12,133,122 + 12,387 + 4,096 = 12,149,605 packed;
 // 24,023,022 + 353 + 65 = 24,023,440 unpacked.
+//
+// The 0.18.47 release carries signed-in PDF downloads (#449) and the X
+// contacts.list qualification, with version pins, the `## 0.18.47` changelog
+// section, and a rebuilt version chunk over main 74544c9. After
+// `bun run build`, a clean npm 11.19.0 pack --ignore-scripts with Node
+// 24.20.0 on darwin arm64 measured 620 entries, 12,133,430 packed bytes,
+// and 24,023,892 unpacked bytes; archive SHA-256
+// 2806aca6f294c12433f8c35adc380447b1e402685b911fa3207d58422bb28ad7.
+// Retain the same platform projections and portability allowances:
+// 12,133,430 + 12,387 + 4,096 = 12,149,913 packed;
+// 24,023,892 + 353 + 65 = 24,024,310 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget signed-in PDF downloads over merged main 65944e7",
+  scope: "Ghostget 0.18.47 release over main 74544c9",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "e34c1d14165fdc4985280f7d56626bcd17055de9e2906bc9db1569807ed568ab",
-  packedBytes: 12_133_122,
-  unpackedBytes: 24_023_022,
+  archiveSha256: "2806aca6f294c12433f8c35adc380447b1e402685b911fa3207d58422bb28ad7",
+  packedBytes: 12_133_430,
+  unpackedBytes: 24_023_892,
   entryCount: 620,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

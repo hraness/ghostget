@@ -7,6 +7,21 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.47
+
+This release lets `ghostget pdf` download papers that sit behind a library or
+university sign-in, using the access your browser already has.
+
+- `ghostget pdf <url> --cookie-source chrome` (or `--browser-profile`,
+  `--cookie-profile`, `--auth`, `--cookies-file`) now downloads the PDF
+  itself with the same browser cookies `ghostget read` uses, then imports it
+  as before. Cookies are chosen separately for each site along the way, so a
+  site never receives another site's cookies. Downloads are HTTPS only, follow
+  at most five redirects, and are bounded by `--max-pdf-bytes` and
+  `--timeout-ms`. When the publisher returns a sign-in or landing page instead
+  of a PDF, Ghostget says the browser session does not seem to have access and
+  suggests opening the link in the browser first. Without these options,
+  `ghostget pdf` works exactly as before.
 - X `contacts.list` runs for the signed-in viewer's own following and
   followers collections through the current first-party GraphQL queries
   (`Following` over GET, `Followers` over POST). Each page returns user ID,
