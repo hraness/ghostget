@@ -9,6 +9,8 @@ Historical entries retain their original delivery coordinates.
 
 ## 0.18.55
 
+This release keeps public-page footers at the bottom of short pages.
+
 - Public pages and the 404 page use the shared Design Kit document shell.
   Short-page footers reach the viewport bottom, while long-page footers
   follow the content. Native-control previews retain their existing layout.

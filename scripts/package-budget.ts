@@ -2276,19 +2276,19 @@
 // shell and updates active version pins, notes and generated dist. The website
 // is not packed. A clean npm 11.19.0 pack --ignore-scripts using official Node
 // 24.20.0 (zlib 1.3.2.1-motley-42c2f19) on darwin arm64 measured 624 entries,
-// 12,150,890 packed bytes and 24,040,858 unpacked bytes; archive SHA-256
-// 0ef3fd43bdffb39aa1be7c05e68755bc0cbf826af21dec0ab68fc478cb53e7ce.
+// 12,150,909 packed bytes and 24,040,928 unpacked bytes; archive SHA-256
+// 7374a52083cd493200e7f41143baa3de1db50d72fa3c664ffb8339c5ad4ad96e.
 // Preserve the existing platform projections and portability allowances:
-// 12,150,890 + 12,387 + 4,096 = 12,167,373 packed;
-// 24,040,858 + 353 + 65 = 24,041,276 unpacked.
+// 12,150,909 + 12,387 + 4,096 = 12,167,392 packed;
+// 24,040,928 + 353 + 65 = 24,041,346 unpacked.
 export const repairPackageMeasurement = Object.freeze({
   scope: "Ghostget 0.18.55 shared-footer release over main 64151f9d",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "0ef3fd43bdffb39aa1be7c05e68755bc0cbf826af21dec0ab68fc478cb53e7ce",
-  packedBytes: 12_150_890,
-  unpackedBytes: 24_040_858,
+  archiveSha256: "7374a52083cd493200e7f41143baa3de1db50d72fa3c664ffb8339c5ad4ad96e",
+  packedBytes: 12_150_909,
+  unpackedBytes: 24_040_928,
   entryCount: 624,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
