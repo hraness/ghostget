@@ -2291,14 +2291,23 @@
 // reproduced by a second pack. Preserve the projections and allowances:
 // 12,151,243 + 12,387 + 4,096 = 12,167,726 packed;
 // 24,042,061 + 353 + 65 = 24,042,479 unpacked.
+// X contact display names with control characters over main 05563e5 project
+// as no display name instead of failing the page (x-web source, changelog).
+// `bun run build` leaves dist unchanged. npm 11.19.0 pack --ignore-scripts
+// with Node 24.20.0 on darwin arm64 measured 624 entries, 12,151,480 packed
+// bytes, and 24,042,836 unpacked bytes; archive SHA-256
+// 97f7a9d3d3aef4a16a39a84676c2efa6b54a80d65adf6e9fb5e66f1806a2ea8c,
+// reproduced by a second pack. Preserve the projections and allowances:
+// 12,151,480 + 12,387 + 4,096 = 12,167,963 packed;
+// 24,042,836 + 353 + 65 = 24,043,254 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget 0.18.55 release over main 692d023",
+  scope: "Ghostget X contact display-name controls over main 05563e5",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "ca1e3aa8059933d3dfe8c5475b9c25b123f1106d0ca091c7651bed5159fe7d8c",
-  packedBytes: 12_151_243,
-  unpackedBytes: 24_042_061,
+  archiveSha256: "97f7a9d3d3aef4a16a39a84676c2efa6b54a80d65adf6e9fb5e66f1806a2ea8c",
+  packedBytes: 12_151_480,
+  unpackedBytes: 24_042_836,
   entryCount: 624,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

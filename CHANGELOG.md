@@ -7,6 +7,10 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+- X following and follower reads no longer fail when someone's display name
+  contains a control character. That person comes through with their ID and
+  handle and no display name; empty, oversized or non-text names still fail.
+
 ## 0.18.55
 
 This release makes long X reads survive x.com home pages served without

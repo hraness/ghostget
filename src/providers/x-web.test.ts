@@ -2056,6 +2056,49 @@ describe("X bookmark export projection", () => {
         },
       },
     }, 10)).toThrow("handle disagreed across core and legacy");
+    const controlName = projectXWebContactPage("contacts.followers", {
+      data: {
+        user: {
+          result: {
+            __typename: "User",
+            rest_id: "1401049881070997506",
+            timeline: {
+              timeline: timeline(
+                timelineUserEntry("47", {
+                  result: {
+                    __typename: "User",
+                    rest_id: "47",
+                    core: { name: "Ab\u0005cd", screen_name: "controlname" },
+                    legacy: { name: "Ab\u0005cd", screen_name: "controlname" },
+                  },
+                }),
+              ),
+            },
+          },
+        },
+      },
+    }, 10);
+    expect(controlName.users.map(({ providerId, handle, displayName }) => ({ providerId, handle, displayName })))
+      .toEqual([{ providerId: "47", handle: "controlname", displayName: null }]);
+    for (const name of ["", "x".repeat(1_001), 5]) {
+      expect(() => projectXWebContactPage("contacts.followers", {
+        data: {
+          user: {
+            result: {
+              __typename: "User",
+              rest_id: "1401049881070997506",
+              timeline: {
+                timeline: timeline(
+                  timelineUserEntry("48", {
+                    result: { __typename: "User", rest_id: "48", core: { name, screen_name: "drift" } },
+                  }),
+                ),
+              },
+            },
+          },
+        },
+      }, 10)).toThrow("core.name must be bounded public text");
+    }
     expect(() => projectXWebContactPage("contacts.followers", {
       data: {
         user: {

@@ -1821,6 +1821,19 @@ function optionalRelationshipFlag(value: unknown, label: string): boolean | null
   return value;
 }
 
+/**
+ * A user-list row's display name. X lets people put control characters in
+ * their display name, so one such name must not fail a whole follow-graph
+ * page: it projects as no display name. The row keeps its exact ID and
+ * handle. A non-string, empty or oversized name still fails as drift.
+ */
+function timelineUserName(value: unknown, label: string): string | null {
+  if (typeof value === "string" && value.length >= 1 && value.length <= 1_000 && hasAsciiControl(value)) {
+    return null;
+  }
+  return optionalAuthorName(value, label);
+}
+
 function normalizeTimelineUserItem(
   item: JsonRecord,
   entryId: string,
@@ -1875,8 +1888,8 @@ function normalizeTimelineUserItem(
   if (coreHandle !== null && legacyHandle !== null && coreHandle !== legacyHandle) {
     throw new Error(`${label} handle disagreed across core and legacy`);
   }
-  const coreName = core === null ? null : optionalAuthorName(core.name, `${label}.core.name`);
-  const legacyName = legacy === null ? null : optionalAuthorName(legacy.name, `${label}.legacy.name`);
+  const coreName = core === null ? null : timelineUserName(core.name, `${label}.core.name`);
+  const legacyName = legacy === null ? null : timelineUserName(legacy.name, `${label}.legacy.name`);
   if (coreName !== null && legacyName !== null && coreName !== legacyName) {
     throw new Error(`${label} name disagreed across core and legacy`);
   }
