@@ -7,7 +7,14 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.50
+
+This release delivers the metallic product footer using the current release controls.
+
+- The product footer uses the same metallic mark and accessible fallback as the header.
 - Browser admission refuses a slot whose deadline expires on the final check.
+- Retain the unpublished v0.18.49 tag: its publisher stopped before creating a
+  draft after concurrent main changes updated protected release controls.
 
 ## 0.18.49
 
