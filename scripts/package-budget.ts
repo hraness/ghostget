@@ -2263,14 +2263,23 @@
 // reproduced by a second pack. Preserve the projections and allowances:
 // 12,138,305 + 12,387 + 4,096 = 12,154,788 packed;
 // 24,040,509 + 353 + 65 = 24,040,927 unpacked.
+// Release 0.18.54 over main 632e2ab (menu-bar retirement release N+1) moves
+// the active version pins, the changelog and the renamed version chunk.
+// After `bun run build`, npm 11.19.0 pack --ignore-scripts with Node 24.20.0
+// on darwin arm64 measured 624 entries, 12,138,342 packed bytes, and
+// 24,040,623 unpacked bytes; archive SHA-256
+// 270ac51b72d07f797fd84c028c57d49857da135402187de6e893f61063c43c40,
+// reproduced by a second pack. Preserve the projections and allowances:
+// 12,138,342 + 12,387 + 4,096 = 12,154,825 packed;
+// 24,040,623 + 353 + 65 = 24,041,041 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget menu-bar retirement release-N+1 menu bar removal over main 58e7abc",
+  scope: "Ghostget 0.18.54 release over main 632e2ab",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "1638bc653d9fa0cf5cc071e502227244f26feadf9003e6cf4e4ada80275025a0",
-  packedBytes: 12_138_305,
-  unpackedBytes: 24_040_509,
+  archiveSha256: "270ac51b72d07f797fd84c028c57d49857da135402187de6e893f61063c43c40",
+  packedBytes: 12_138_342,
+  unpackedBytes: 24_040_623,
   entryCount: 624,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

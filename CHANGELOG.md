@@ -7,6 +7,11 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.54
+
+This release removes the menu bar. Its controls are `ghostget` commands and
+the `ghostget tui` view.
+
 - The menu bar is removed. `ghostget menubar` prints the replacement commands.
   An old menu bar login item moves itself aside at the next login; every such
   item is renamed, never deleted (rename it back to undo). `ghostget control
