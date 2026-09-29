@@ -2095,26 +2095,38 @@
 // 12,125,761 + 12,387 + 4,096 = 12,142,244 packed;
 // 23,940,938 + 353 + 65 = 23,941,356 unpacked.
 //
+// The 0.18.46 release carries the `ghostget` support handoff id (#450),
+// bumps the version pins, adds its changelog section over merged main
+// 95c6a2c, and rebuilds the version chunk; no adapter file changes. After
+// `bun run build`, a clean npm 11.19.0 pack --ignore-scripts with Node
+// 24.18.1 on darwin arm64 measured 618 entries, 12,125,923 packed bytes,
+// and 23,941,366 unpacked bytes; archive SHA-256
+// 25cfe9120e4cf43087a79e5bf302cb0683719a7db8267ed97503e75da5883185.
+// Retain the same platform projections and allowances:
+// 12,125,923 + 12,387 + 4,096 = 12,142,406 packed;
+// 23,941,366 + 353 + 65 = 23,941,784 unpacked.
+//
 // The X contacts.list qualification adds the viewer-bound Following and
 // Followers GraphQL collection reads, the TimelineUser normalizer, the
 // contacts page projection on the shared directional-statistics shape, the
 // archived x-web 1.14.0 adapter snapshot, and the qualification record over
-// main 50f3ef99 (Ghostget 0.18.45). Registering the new archive snapshot in
-// the package manifest grows the inventory to 619 entries: a clean npm
-// 11.16.0 pack --ignore-scripts with Node 24.18.1 on darwin arm64 measured
-// 12,131,547 packed bytes and 23,979,139 unpacked bytes; archive SHA-256
-// 4643e92ba1ac2f5a38c8bd7ba5bce47a2eb746e005930c2d9d577115206bc5d0.
+// merged main d426704d (Ghostget 0.18.46). Registering the new archive
+// snapshot in the package manifest grows the inventory to 619 entries: a
+// clean npm 11.16.0 pack --ignore-scripts with Node 24.18.1 on darwin
+// arm64 measured 12,131,739 packed bytes and 23,979,567 unpacked bytes;
+// archive SHA-256
+// 1c08503c495cc3e2c16d7eb1628c91d1ceeac9dc0d26de4c27ee75b240e4f9d4.
 // Retain the same platform projections and portability allowances:
-// 12,131,547 + 12,387 + 4,096 = 12,148,030 packed;
-// 23,979,139 + 353 + 65 = 23,979,557 unpacked.
+// 12,131,739 + 12,387 + 4,096 = 12,148,222 packed;
+// 23,979,567 + 353 + 65 = 23,979,985 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "X contacts.list follow-collection qualification over Ghostget 0.18.45 main 50f3ef99",
+  scope: "X contacts.list follow-collection qualification over merged main d426704d (Ghostget 0.18.46)",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.16.0",
   platform: "darwin-arm64",
-  archiveSha256: "4643e92ba1ac2f5a38c8bd7ba5bce47a2eb746e005930c2d9d577115206bc5d0",
-  packedBytes: 12_131_547,
-  unpackedBytes: 23_979_139,
+  archiveSha256: "1c08503c495cc3e2c16d7eb1628c91d1ceeac9dc0d26de4c27ee75b240e4f9d4",
+  packedBytes: 12_131_739,
+  unpackedBytes: 23_979_567,
   entryCount: 619,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
