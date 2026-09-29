@@ -29,8 +29,12 @@ Run actions
   ghostget runs list                  Review past runs
 
 Control Ghostget
-  ghostget menubar                    Show Ghostget in the menu bar
+  ghostget status                     Accounts, approvals and saved outputs
   ghostget tui                        Open the keyboard control panel
+  ghostget control serve|stop         Run the control owner without a window
+  ghostget approvals|permissions|connections
+                                      Every control action as a command
+  ghostget menubar                    Show Ghostget in the menu bar
   ghostget doctor                     Check everything Ghostget needs
 
 Extend Ghostget

@@ -1,3 +1,4 @@
+import { registryOwns } from "./control/registry-words";
 /**
  * Static CLI help kept separate from the command implementation graph.
  *
@@ -20,7 +21,7 @@ Start here
   ghostget auth add x-main --cookie-source chrome
                                       Connect an account from that browser
   ghostget capabilities               See the actions you can run
-  ghostget menubar                    Show Ghostget in the menu bar
+  ghostget status                     Accounts, approvals and saved outputs
 
 Everyday
   ghostget clip <url>                 Save a page as a Markdown note
@@ -61,8 +62,12 @@ Run actions
   ghostget runs list                  Review past runs
 
 Control Ghostget
-  ghostget menubar                    Show Ghostget in the menu bar
+  ghostget status                     Accounts, approvals and saved outputs
   ghostget tui                        Open the keyboard control panel
+  ghostget control serve|stop         Run the control owner without a window
+  ghostget approvals|permissions|connections
+                                      Every control action as a command
+  ghostget menubar                    Show Ghostget in the menu bar
   ghostget doctor                     Check everything Ghostget needs
 
 Extend Ghostget
@@ -450,8 +455,8 @@ const advancedHelp = `Ghostget advanced commands
   ghostget runs show|reconcile       Inspect or settle one run
   ghostget operator doctor           Same as ghostget doctor
 
-Use one controller at a time: run ghostget menubar stop before opening the
-TUI. Setup guide: https://ghostget.com/getting-started
+The TUI uses a running control owner. Stop the menu bar first with
+ghostget menubar stop. Setup guide: https://ghostget.com/getting-started
 `;
 
 type HelpTopic =
@@ -513,6 +518,15 @@ const HELP_TOPICS: Readonly<Record<string, HelpTopic>> = {
   help: { text: ghostgetUsage },
   menubar: { delegate: "menubar" },
   tui: { delegate: "tui" },
+  status: { delegate: "status" },
+  approvals: { delegate: "approvals" },
+  activity: { delegate: "activity" },
+  prompt: { delegate: "prompt" },
+  outputs: { delegate: "outputs" },
+  connections: { delegate: "connections" },
+  control: { delegate: "control" },
+  permissions: { delegate: "permissions" },
+  commands: { delegate: "commands" },
   vault: { delegate: "vault" },
   web: { delegate: "web" },
   interface: { delegate: "interface" },
@@ -591,7 +605,7 @@ export function ghostgetHelpRequest(raw: readonly string[]): GhostgetHelpRequest
   const separator = raw.indexOf("--");
   const scanned = separator === -1 ? raw : raw.slice(0, separator);
   if (!scanned.includes("--help") && !scanned.includes("-h")) return null;
-  if (SELF_HELP_COMMANDS.has(first)) return null;
+  if (SELF_HELP_COMMANDS.has(first) || registryOwns(raw)) return null;
   return resolveTopic(first, raw[1]);
 }
 

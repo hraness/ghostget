@@ -7,6 +7,21 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+- Every menu-bar control has a command with `--json` output: `status`,
+  `approvals list|show|decide`, `permissions list|set|enable`,
+  `connections begin|verify|commit|cancel|disconnect`, `interface activate`,
+  `web rules set`, `activity`, `outputs list`, `prompt` and `commands`.
+  Decisions ask a person at the terminal and return `human-required` to agents.
+  See `docs/cli-parity.md`.
+- `ghostget control serve|status|stop|install|uninstall` runs the control owner
+  without a window; nothing starts at login unless you run `control install`.
+- `ghostget tui --json`, and `tui --snapshot` for agents, print the
+  `ghostget.status/1` envelope. The TUI reuses a running control owner.
+- The signed cookie reader is assembled by desktop-foundation 0.9.0's
+  `hraness-helper` (falling back to `hraness-companion`). `GHOSTGET_HELPER`
+  overrides it; `GHOSTGET_MENUBAR` still works as an alias.
+- The menu bar still works in this release and is removed in the next one.
+
 ## 0.18.50
 
 This release delivers the metallic product footer using the current release controls.

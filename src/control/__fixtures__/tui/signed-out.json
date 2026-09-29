@@ -1,0 +1,63 @@
+{
+  "product": "ghostget",
+  "version": "0.18.40",
+  "health": "attention",
+  "headline": "1 account needs reconnecting",
+  "detail": null,
+  "confirmedAgeSeconds": 0,
+  "accountId": null,
+  "accounts": [
+    {
+      "id": "x-main",
+      "label": "x-main · Chrome · Personal",
+      "provider": "x",
+      "source": "chrome",
+      "status": "reconnect-required",
+      "current": false
+    }
+  ],
+  "approvals": [],
+  "attempts": [],
+  "connect": {
+    "available": true,
+    "providers": [
+      "x-web",
+      "linkedin-web",
+      "reddit-web"
+    ],
+    "browsers": [
+      "safari",
+      "chrome-default",
+      "chrome-profile-1"
+    ]
+  },
+  "permissions": {
+    "managed": true,
+    "revision": 3,
+    "allow": 0,
+    "ask": 0,
+    "deny": 0
+  },
+  "outputs": {
+    "files": [
+      {
+        "name": "x-timeline-2026-09-26.md",
+        "bytes": 18432,
+        "modifiedAt": "2026-09-26T11:55:00.000Z"
+      },
+      {
+        "name": "example-com.pdf",
+        "bytes": 402118,
+        "modifiedAt": "2026-09-26T09:00:00.000Z"
+      }
+    ],
+    "message": null,
+    "truncated": false
+  },
+  "notices": [],
+  "next": [
+    "ghostget auth list",
+    "ghostget read https://example.com",
+    "ghostget commands --json"
+  ]
+}

@@ -673,11 +673,12 @@
     {
       "guide": "src/control/AGENTS.md",
       "anchor": "`protocol.ts` is the",
-      "digest": "a431428d58ae42c7e5ac0e4e194433a1aeb0018c78f28df250056dd96e169236",
+      "digest": "6d1a785864e434177dc83c059c5857ff0c5eaf8b98bf59820246d0bccbfade35",
       "claims": [
         "agent-channel-cannot-escalate",
         "control-protocol-bounded-reject-drift",
         "control-single-helper-owner",
+        "control-verbs-human-gated",
         "tui-input-cannot-bypass-review",
         "tui-restores-terminal-state"
       ]
@@ -1372,6 +1373,29 @@
       ],
       "notVerified": [
         "Only the enumerated example cases are checked."
+      ]
+    },
+    {
+      "id": "control-verbs-human-gated",
+      "statement": "Control verbs that grant an approval, loosen a permission, replace web rules, activate an interface, connect or disconnect an account, or install the login item require a confirmed T1+T2 human gate before any administrative request is sent; only strictly tightening inputs (deny) run without it, and admin-socket frames without the owner's capability never reach the handler.",
+      "area": "control",
+      "source": {
+        "path": "src/control/AGENTS.md",
+        "quote": "every verb that grants, loosens, connects,"
+      },
+      "layer": "example",
+      "status": "evidenced",
+      "evidence": [
+        "src/control/registry.test.ts",
+        "src/control/admin-socket.test.ts"
+      ],
+      "assumptions": [
+        "same-user-trusted"
+      ],
+      "notVerified": [
+        "Only the enumerated example cases are checked.",
+        "The gate itself (terminal presence and confirmation) is desktop-foundation's `requireHuman`; its tests live in that package.",
+        "The admin capability file is not a boundary against processes of the same user."
       ]
     },
     {

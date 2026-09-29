@@ -13,8 +13,8 @@ Ghostget advanced commands
   ghostget runs show|reconcile       Inspect or settle one run
   ghostget operator doctor           Same as ghostget doctor
 
-Use one controller at a time: run ghostget menubar stop before opening the
-TUI. Setup guide: https://ghostget.com/getting-started
+The TUI uses a running control owner. Stop the menu bar first with
+ghostget menubar stop. Setup guide: https://ghostget.com/getting-started
 
 Support for agents
   ghostget support protocol --json   How an agent offers optional support

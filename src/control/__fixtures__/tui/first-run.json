@@ -1,0 +1,43 @@
+{
+  "product": "ghostget",
+  "version": "0.18.40",
+  "health": "idle",
+  "headline": "No accounts connected",
+  "detail": "Public pages work without one",
+  "confirmedAgeSeconds": 0,
+  "accountId": null,
+  "accounts": [],
+  "approvals": [],
+  "attempts": [],
+  "connect": {
+    "available": true,
+    "providers": [
+      "x-web",
+      "linkedin-web",
+      "reddit-web"
+    ],
+    "browsers": [
+      "safari",
+      "chrome-default",
+      "chrome-profile-1"
+    ]
+  },
+  "permissions": {
+    "managed": false,
+    "revision": 1,
+    "allow": 0,
+    "ask": 0,
+    "deny": 0
+  },
+  "outputs": {
+    "files": [],
+    "message": null,
+    "truncated": false
+  },
+  "notices": [],
+  "next": [
+    "ghostget permissions enable --help",
+    "ghostget read https://example.com",
+    "ghostget commands --json"
+  ]
+}

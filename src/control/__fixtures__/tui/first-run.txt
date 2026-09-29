@@ -1,0 +1,24 @@
+== Ghostget ==
+No accounts connected · v0.18.40
+Public pages work without one
+Account: none (public scope)
+
+== Approvals ==
+No approvals waiting
+
+== Accounts ==
+No accounts connected
+Connect: x-web, linkedin-web, reddit-web
+  from safari, chrome-default, chrome-profile-1
+
+== Permissions ==
+Managed: off · revision 1
+allow 0 · ask 0 · deny 0
+
+== Outputs ==
+No output files
+
+== Next ==
+ghostget permissions enable --help
+ghostget read https://example.com
+ghostget commands --json

@@ -1,0 +1,26 @@
+== Ghostget ==
+No accounts connected · v0.18.40
+Public pages work without one
+Account: none (public scope)
+
+== Approvals ==
+No approvals waiting
+
+== Accounts ==
+No accounts connected
+~ X · browser session · chrome-default · awaiting-sign-in
+~ Reddit · browser session · safari · failed
+~ LinkedIn · browser session · chrome-profile-1 · verified · person-verified
+Connect: x-web, linkedin-web, reddit-web
+  from safari, chrome-default, chrome-profile-1
+
+== Permissions ==
+Managed: on · revision 3
+allow 0 · ask 0 · deny 0
+
+== Outputs ==
+No output files
+
+== Next ==
+ghostget read https://example.com
+ghostget commands --json
