@@ -1,4 +1,3 @@
-import { registryOwns } from "./control/registry-words";
 /**
  * Static CLI help kept separate from the command implementation graph.
  *
@@ -622,4 +621,19 @@ export function ghostgetHelpCommandFor(raw: readonly string[]): string {
   const key = topicFor(first, raw[1]);
   if (HELP_TOPICS[key] === undefined || key === "help") return "ghostget --help";
   return key === "invoke" && first !== "invoke" ? "ghostget invoke --help" : `ghostget ${key} --help`;
+}
+
+/**
+ * The first words the control registry owns, kept here so help routing needs
+ * no import. `src/control/registry-words.ts` re-exports them.
+ */
+export const REGISTRY_WORDS: ReadonlySet<string> = new Set([
+  "commands", "status", "approvals", "permissions", "activity", "prompt", "outputs", "connections", "control",
+]);
+
+/** Whether `args` names a registry verb; everything else keeps its existing dispatcher. */
+export function registryOwns(args: readonly string[]): boolean {
+  const first = args[0] ?? "";
+  if (REGISTRY_WORDS.has(first)) return true;
+  return (first === "web" && args[1] === "rules") || (first === "interface" && args[1] === "activate");
 }
