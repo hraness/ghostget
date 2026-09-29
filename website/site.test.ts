@@ -25,8 +25,14 @@ import {
   DEMO_PUBLIC_FILES,
   markdownSiblingPath,
   GITHUB_RELEASES_URL,
+  HOME_TITLE,
+  HRANESS_LINKEDIN_URL,
+  HRANESS_LOGO_URL,
   HRANESS_ORGANIZATION_ID,
   HRANESS_URL,
+  INDEXABLE_EDITORIAL_IMAGES,
+  INDEXABLE_PUBLIC_PAGES,
+  NPM_PACKAGE_URL,
   parsePackageIdentity,
   PUBLIC_PAGES,
   PUBLISHER_URL,
@@ -47,6 +53,12 @@ import {
   webmcpProviderPages,
 } from "./webmcp-registry";
 import { handleDocumentNegotiation } from "../edge/negotiation";
+import {
+  isNoindexDocumentPath,
+  NOINDEX_ESSAY_PATHS,
+  NOINDEX_ROBOTS,
+  WEBMCP_DOMAIN_HEADER_SOURCE,
+} from "../edge/robots";
 import { ghostgetSupportProfile } from "../src/support-profile";
 import {
   EDITORIAL_ARTICLE_IMAGE_SIZES,
@@ -480,7 +492,10 @@ describe("ghostget.com static site", () => {
       );
     }
 
-    expect(html).toContain(`<title>${SITE_TITLE}</title>`);
+    expect(html).toContain(`<title>${HOME_TITLE}</title>`);
+    expect(html).toContain(`<meta property="og:title" content="${HOME_TITLE}">`);
+    expect(html).toContain(`<meta name="twitter:title" content="${HOME_TITLE}">`);
+    expect(html).not.toContain(`<title>${SITE_TITLE}</title>`);
     /* The shared brand lockup on every page: the pointer-tracked foil-text
        name plus the foil-mark icon whose paint is masked by the product
        mark's alpha — the same header convention across Hraness sites. */
@@ -510,7 +525,9 @@ describe("ghostget.com static site", () => {
     expect(notFound).not.toContain('data-slot="ask-ai-about-this"');
     expect(html).toContain(`<meta name="description" content="${SITE_DESCRIPTION}">`);
     expect(html).toContain('<link rel="canonical" href="https://ghostget.com/">');
-    expect(html).toContain('<link rel="icon" href="/icon.png" type="image/png" sizes="512x512">');
+    expect(html).toContain('<link rel="icon" href="/icon.png" type="image/png" sizes="32x32">');
+    expect(html).toContain('<link rel="icon" href="/icon-96.png" type="image/png" sizes="96x96">');
+    for (const page of pages) expect(page.html).not.toContain('sizes="512x512"');
     expect(html).toContain('<meta property="og:image" content="https://ghostget.com/og.png">');
     expect(html).toContain('<meta property="og:image:width" content="1200">');
     expect(html).toContain('<meta property="og:image:height" content="630">');
@@ -567,11 +584,7 @@ describe("ghostget.com static site", () => {
     expect(html.match(new RegExp(`href="${REPOSITORY_URL}"`, "gu"))).toHaveLength(3);
     expect(html).toContain("Privacy: cookieless PostHog analytics");
     expect(html).toContain('href="/compare/personal-agents-browser-use/"');
-    expect(html).toContain('href="/agentic-web-spoofing/"');
-    expect(html).toContain('href="/vms-cannot-contain-agents/"');
-    expect(html).toContain('href="/paypal-grapheneos-attestation/"');
-    expect(html).toContain('href="/rumour-is-the-exploit/"');
-    expect(html).toContain('href="/omarchy-root-escalation/"');
+    for (const path of NOINDEX_ESSAY_PATHS) expect(html).not.toContain(`href="${path}"`);
     expect(html).toContain('href="/docs/how-to/connect-beeper/"');
     expect(html).toContain('href="/docs/how-to/export-whatsapp/"');
     const argumentsSection = /<section aria-labelledby="arguments-title" class="section editorial-cluster">[\s\S]*?<\/section>/u
@@ -582,16 +595,19 @@ describe("ghostget.com static site", () => {
     expect(guidesSection).toBeDefined();
     expect(argumentsSection).toContain('<h2 id="arguments-title">Arguments and comparisons</h2>');
     expect(argumentsSection).toContain('<div class="card-grid editorial-card-grid">');
-    expect(argumentsSection?.match(/<article class="card(?: editorial-card)?">/gu)).toHaveLength(8);
+    expect(argumentsSection?.match(/<article class="card(?: editorial-card)?">/gu)).toHaveLength(
+      INDEXABLE_EDITORIAL_IMAGES.length + 1,
+    );
     expect(guidesSection?.match(/<article class="card">/gu)).toHaveLength(6);
-    expect(argumentsSection).toContain('href="/paypal-grapheneos-attestation/"');
-    expect(argumentsSection).toContain('href="/rumour-is-the-exploit/"');
-    expect(argumentsSection).toContain('href="/omarchy-root-escalation/"');
-    expect(guidesSection).not.toContain('href="/paypal-grapheneos-attestation/"');
-    expect(guidesSection).not.toContain('href="/rumour-is-the-exploit/"');
-    expect(guidesSection).not.toContain('href="/omarchy-root-escalation/"');
+    expect(argumentsSection).toContain('href="/compare/"');
+    for (const path of NOINDEX_ESSAY_PATHS) {
+      expect(argumentsSection).not.toContain(`href="${path}"`);
+      expect(guidesSection).not.toContain(`href="${path}"`);
+    }
     for (const image of editorialImages) {
-      expect(argumentsSection).toContain(`href="${image.canonicalPath}"`);
+      expect(argumentsSection?.includes(`href="${image.canonicalPath}"`)).toBe(
+        !isNoindexDocumentPath(image.canonicalPath),
+      );
       expect(guidesSection).not.toContain(`href="${image.canonicalPath}"`);
     }
     expect(guidesSection).not.toContain('class="card editorial-card"');
@@ -705,11 +721,8 @@ describe("ghostget.com static site", () => {
     expect(llms).toContain("Do not use Ghostget as an AI agent");
     expect(llms).toContain(`${SITE_ORIGIN}/docs/tutorials/getting-started/`);
     expect(llms).toContain(`${SITE_ORIGIN}/compare/personal-agents-browser-use/`);
-    expect(llms).toContain(`${SITE_ORIGIN}/paypal-grapheneos-attestation/`);
-    expect(llms).toContain(`${SITE_ORIGIN}/rumour-is-the-exploit/`);
-    expect(llms).toContain(`${SITE_ORIGIN}/omarchy-root-escalation/`);
-    expect(llms).not.toContain(`${SITE_ORIGIN}/agentic-web-spoofing/`);
-    expect(llms).not.toContain(`${SITE_ORIGIN}/vms-cannot-contain-agents/`);
+    for (const path of NOINDEX_ESSAY_PATHS) expect(llms).not.toContain(`${SITE_ORIGIN}${path}`);
+    expect(llms).toContain("six ways agents reach the web");
     expect(llms).toContain(`${SITE_ORIGIN}/docs/how-to/connect-beeper/`);
     expect(llms).toContain(
       `${String(beeperOperationCount)} supported actions. ${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.cliBackedOperationCount)} run through the pinned \`@beeper/cli\` 0.6.2 executable and ${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.desktopLoopbackOperationCount)} use fixed Desktop loopback reads.`,
@@ -736,17 +749,29 @@ describe("ghostget.com static site", () => {
       parseWebmcpRegistrySnapshot(webmcpRegistrySource),
     );
     const blogPaths = blogSitemapPaths(BLOG_SITE);
-    expect(sitemap.match(/<url>/gu)).toHaveLength(PUBLIC_PAGES.length + webmcpPages.length + blogPaths.length);
+    expect(INDEXABLE_PUBLIC_PAGES).toHaveLength(PUBLIC_PAGES.length - NOINDEX_ESSAY_PATHS.length);
+    expect(sitemap.match(/<url>/gu)).toHaveLength(INDEXABLE_PUBLIC_PAGES.length + blogPaths.length);
     expect(sitemap).toContain('xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"');
-    expect(sitemap.match(/<image:image>/gu)).toHaveLength(editorialImages.length);
-    for (const page of PUBLIC_PAGES) {
+    expect(sitemap.match(/<image:image>/gu)).toHaveLength(INDEXABLE_EDITORIAL_IMAGES.length);
+    for (const page of INDEXABLE_PUBLIC_PAGES) {
       expect(sitemap).toContain(`<loc>${SITE_ORIGIN}${page.canonicalPath}</loc>`);
     }
     expect(sitemap).toContain(`<loc>${SITE_ORIGIN}/providers/</loc>`);
-    for (const page of webmcpPages.slice(0, 25)) {
-      expect(sitemap).toContain(`<loc>${SITE_ORIGIN}${page.canonicalPath}</loc>`);
+    expect(sitemap).toContain(`<loc>${SITE_ORIGIN}/webmcp/</loc>`);
+    expect(sitemap).toContain(`<loc>${SITE_ORIGIN}/docs/how-to/use-webmcp-sites/</loc>`);
+    expect(sitemap).not.toMatch(/<loc>https:\/\/ghostget\.com\/providers\/[^/<]+\/<\/loc>/u);
+    for (const path of NOINDEX_ESSAY_PATHS) {
+      expect(sitemap).not.toContain(`<loc>${SITE_ORIGIN}${path}</loc>`);
     }
-    for (const image of editorialImages) {
+    expect(webmcpPages.length).toBeGreaterThan(0);
+    for (const page of webmcpPages) {
+      expect(isNoindexDocumentPath(page.canonicalPath)).toBe(true);
+      expect(sitemap).not.toContain(`<loc>${SITE_ORIGIN}${page.canonicalPath}</loc>`);
+    }
+    for (const image of editorialImages.filter(({ canonicalPath }) => isNoindexDocumentPath(canonicalPath))) {
+      expect(sitemap).not.toContain(`<image:loc>${editorialImageUrl(image)}</image:loc>`);
+    }
+    for (const image of INDEXABLE_EDITORIAL_IMAGES) {
       expect(sitemap).toContain(`<image:loc>${editorialImageUrl(image)}</image:loc>`);
       expect(sitemap).toContain(`<image:title>${image.title}</image:title>`);
       expect(sitemap).toContain(`<image:caption>${image.caption}</image:caption>`);
@@ -805,6 +830,9 @@ describe("ghostget.com static site", () => {
     expect(indexNowKey).toBe("dc84ee4863539f2fff50ef5f0a164168\n");
     expect(createHash("sha256").update(favicon).digest("hex")).toBe("09931384427416761a2e2d064d41532b8432dfb3c2d2f60d02bb54ed460ee3b4");
     expect(favicon).toEqual(await readFile(join(websiteRoot, "public/icon.png")));
+    const favicon96 = await readFile(join(websiteRoot, "dist/icon-96.png"));
+    expect(createHash("sha256").update(favicon96).digest("hex")).toBe("75e83da4bcd511434a5753b0af5dc3e8ff458013de60575b3ee76d9678919b0b");
+    expect(favicon96).toEqual(await readFile(join(websiteRoot, "public/icon-96.png")));
     expect(await readFile(join(websiteRoot, "dist/apple-icon.png"))).toEqual(await readFile(join(websiteRoot, "public/apple-icon.png")));
     expect(html).toContain('<link rel="apple-touch-icon" href="/apple-icon.png" sizes="180x180">');
     expect(sourceCss).toContain("@media (prefers-reduced-motion: reduce)");
@@ -1041,6 +1069,14 @@ describe("ghostget.com static site", () => {
     expect(notFoundMarkdownHeaders?.headers).toEqual([
       { key: "X-Robots-Tag", value: "noindex, nofollow" },
     ]);
+    const registryDomainHeaders = vercel.headers.find((rule: { source: string }) =>
+      rule.source === WEBMCP_DOMAIN_HEADER_SOURCE);
+    expect(registryDomainHeaders?.headers).toEqual([
+      { key: "X-Robots-Tag", value: NOINDEX_ROBOTS },
+    ]);
+    expect(vercel.redirects).toEqual(expect.arrayContaining([
+      { destination: "/icon.png", permanent: true, source: "/favicon.ico" },
+    ]));
     expect(middleware).toContain("handleDocumentNegotiation");
     expect(middleware).toContain("./edge/negotiation");
     expect(middleware).not.toContain("website/");
@@ -1070,6 +1106,8 @@ describe("ghostget.com static site", () => {
       expect.objectContaining({
         "@id": HRANESS_ORGANIZATION_ID,
         "@type": "Organization",
+        logo: HRANESS_LOGO_URL,
+        sameAs: [PUBLISHER_URL, HRANESS_LINKEDIN_URL],
         url: HRANESS_URL,
       }),
       expect.objectContaining({
@@ -1081,7 +1119,7 @@ describe("ghostget.com static site", () => {
         "@id": `${SITE_ORIGIN}/#software`,
         sameAs: [
           "https://github.com/hraness/ghostget",
-          npmPackageUrl,
+          NPM_PACKAGE_URL,
           SKILLS_URL,
         ],
         softwareVersion: packageIdentity.version,
@@ -1107,7 +1145,9 @@ describe("ghostget.com static site", () => {
       expect(pageHtml).toContain(`<meta property="og:url" content="${canonicalUrl}">`);
       expect(pageHtml).toContain(`<meta name="twitter:title" content="${definition.title}">`);
       expect(pageHtml).toContain(`<meta name="twitter:description" content="${definition.description}">`);
-      expect(pageHtml).toContain('<meta name="robots" content="max-image-preview:large">');
+      expect(pageHtml).toContain(isNoindexDocumentPath(definition.canonicalPath)
+        ? `<meta name="robots" content="${NOINDEX_ROBOTS}">`
+        : '<meta name="robots" content="max-image-preview:large">');
       expect(pageHtml).toContain(`<link rel="alternate" type="text/markdown" title="Markdown" href="${SITE_ORIGIN}${markdownSiblingPath(definition.canonicalPath)}">`);
       expect(pageHtml).toContain('href="/about/"');
       expect(pageHtml).toContain('href="/contact/"');
@@ -1188,7 +1228,7 @@ describe("ghostget.com static site", () => {
     );
     expect(homepageMarkdown).not.toContain("![](");
     expect(homepageMarkdown).toContain('import { isProviderPluginId } from "@hraness/ghostget"');
-    for (const image of editorialImages) {
+    for (const image of INDEXABLE_EDITORIAL_IMAGES) {
       expect(homepageMarkdown).toContain(image.cardTitle);
       expect(homepageMarkdown).not.toContain(editorialImageUrl(image));
     }
@@ -1196,8 +1236,8 @@ describe("ghostget.com static site", () => {
     const editorialCards = html.match(
       /<article class="card editorial-card">[\s\S]*?<\/article>/gu,
     ) ?? [];
-    expect(editorialCards).toHaveLength(editorialImages.length);
-    for (const [index, image] of editorialImages.entries()) {
+    expect(editorialCards).toHaveLength(INDEXABLE_EDITORIAL_IMAGES.length);
+    for (const [index, image] of INDEXABLE_EDITORIAL_IMAGES.entries()) {
       const card = editorialCards[index] ?? "";
       expect(card).toMatch(
         /^<article class="card editorial-card">\s*<a href="[^"]+">[\s\S]*<\/a>\s*<\/article>$/u,
@@ -1329,7 +1369,14 @@ describe("ghostget.com static site", () => {
     expect(editorialImages.some(({ canonicalPath }) =>
       canonicalPath === ("/omarchy-root-escalation/" as never))).toBe(false);
 
-    expect(html).toContain('href="https://pipedream.com/docs/connect">Pipedream Connect</a>');
+    expect(html).toContain(
+      '<h2 class="hraness-marketing-section__heading" id="comparison-title">How Ghostget compares with other ways agents reach the web.</h2>',
+    );
+    expect(html).toContain("<th scope=\"row\">Your agent’s built-in web fetch</th>");
+    expect(html).toContain('<a href="/compare/firecrawl/">Firecrawl</a> and <a href="/compare/jina-reader/">Jina Reader</a></th>');
+    expect(html).toContain('href="https://github.com/unclecode/crawl4ai">Crawl4AI</a>');
+    expect(html).toContain('<a href="https://composio.dev">Composio</a>, <a href="https://www.arcade.dev">Arcade</a>, and <a href="https://pipedream.com/docs/connect">Pipedream Connect</a></th>');
+    expect(html).not.toContain("Hosted integration breadth and managed end-user authentication");
     expect(html).toContain('href="https://docs.apify.com/integrations/mcp">Apify MCP</a>');
     expect(html).toContain('href="/compare/browserbase/">Browserbase + Stagehand</a>');
     expect(html).toContain(
@@ -2001,8 +2048,11 @@ describe("ghostget.com static site", () => {
     const compareIndex = pages.find((page) =>
       page.definition.canonicalPath === "/compare/");
     expect(compareIndex?.html).toContain(
-      "<h1>Five ways agents reach the web, and where Ghostget fits</h1>",
+      "<h1>Six ways agents reach the web, and where Ghostget fits</h1>",
     );
+    expect(compareIndex?.html).toContain('<h2 id="lane-integrations">Integration platforms act in your apps</h2>');
+    expect(compareIndex?.html).toContain("checked on 28 September 2026");
+    expect(compareIndex?.html).not.toMatch(/five ways/iu);
     for (const comparePath of [
       "/compare/browser-use/",
       "/compare/browserbase/",
@@ -2019,6 +2069,8 @@ describe("ghostget.com static site", () => {
         `<link rel="canonical" href="${SITE_ORIGIN}${comparePath}">`,
       );
       expect(comparison?.html).toContain('href="/compare/"');
+      expect(comparison?.html).toContain("six approaches");
+      expect(comparison?.html).not.toMatch(/\b(?:four|five) (?:ways|approaches)\b/iu);
       expect(comparison?.html).toContain(
         '<meta property="og:image" content="https://ghostget.com/og.png">',
       );

@@ -77,6 +77,7 @@ import {
   type WhatsAppPresentationFacts,
 } from "./provider-presentation";
 import webmcpRegistrySource from "./source/webmcp-registry.json";
+import { isNoindexDocumentPath, NOINDEX_ROBOTS } from "../edge/robots";
 import {
   parseWebmcpRegistrySnapshot,
   substituteTemplateValues,
@@ -90,6 +91,8 @@ import {
 
 export const SITE_ORIGIN = "https://ghostget.com" as const;
 export const SITE_TITLE = "Ghostget: Your agent gets the result without clicking around." as const;
+/** The home page title: the product name plus the job and audience searchers use. */
+export const HOME_TITLE = "Ghostget: let AI agents read web pages and use your accounts" as const;
 export const SITE_DESCRIPTION =
   "Ghostget gives your AI agent named web actions: read a page, archive one media item, or use a connected account, without credentials or a browser to steer." as const;
 /** Alt text for the static `/og.png` card that `scripts/generate-og.tsx` renders from SITE_TITLE. */
@@ -107,6 +110,9 @@ export const SKILLS_URL = "https://www.skills.sh/hraness/ghostget/ghostget" as c
 export const PUBLISHER_URL = "https://github.com/hraness" as const;
 export const HRANESS_URL = "https://hraness.com/" as const;
 export const HRANESS_ORGANIZATION_ID = `${HRANESS_URL}#organization` as const;
+export const HRANESS_LOGO_URL = "https://hraness.com/icon.png" as const;
+export const HRANESS_LINKEDIN_URL = "https://www.linkedin.com/company/hraness" as const;
+export const NPM_PACKAGE_URL = "https://www.npmjs.com/package/@hraness/ghostget" as const;
 export const SKILL_REPOSITORY = "hraness/ghostget" as const;
 export const CONTENT_REVIEWED_RELEASE = "v0.18.46" as const;
 export const DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com" as const;
@@ -124,7 +130,7 @@ export const PUBLIC_PAGES = [
     description: SITE_DESCRIPTION,
     outputFile: "index.html",
     sourceFile: "index.html",
-    title: SITE_TITLE,
+    title: HOME_TITLE,
   },
   {
     canonicalPath: "/docs/",
@@ -247,10 +253,10 @@ export const PUBLIC_PAGES = [
   {
     canonicalPath: "/compare/",
     description:
-      "Five ways agents reach the web, from browser-driving libraries to reader services and hosted browsers, compared side by side with Ghostget's named actions.",
+      "Six ways agents reach the web, from browser-driving libraries to reader services and integration platforms, compared with Ghostget's named actions.",
     outputFile: "compare/index.html",
     sourceFile: "compare-index.html",
-    title: "How agents reach the web: browser-use, Playwright MCP, reader services, hosted browsers, and Ghostget",
+    title: "How agents reach the web: browser-use, Playwright MCP, Firecrawl, Composio, and Ghostget",
   },
   {
     canonicalPath: "/compare/browser-use/",
@@ -357,6 +363,35 @@ export type PublicPage = Readonly<{
   sourceFile: string;
   title: string;
 }>;
+
+/** Public pages that search engines may index; the rest stay readable with `noindex, follow`. */
+export const INDEXABLE_PUBLIC_PAGES: readonly PublicPage[] = PUBLIC_PAGES.filter(
+  (page) => !isNoindexDocumentPath(page.canonicalPath),
+);
+
+/** Editorial images whose pages are indexable, for homepage cards and the image sitemap. */
+export const INDEXABLE_EDITORIAL_IMAGES = editorialImages.filter(
+  (image) => !isNoindexDocumentPath(image.canonicalPath),
+);
+
+const ROBOTS_META = /<meta name="robots" content="([^"]*)">/gu;
+
+/**
+ * Require exactly one robots meta whose directive matches the page's index
+ * policy, so a source edit can't quietly index a noindex page or drop one.
+ */
+export function assertPageRobots(page: Pick<PublicPage, "canonicalPath">, html: string): void {
+  const directives = [...html.matchAll(ROBOTS_META)].map((match) => match[1]);
+  const noindex = isNoindexDocumentPath(page.canonicalPath);
+  if (directives.length !== 1) {
+    throw new Error(`${page.canonicalPath} must declare exactly one robots meta tag.`);
+  }
+  if (noindex ? directives[0] !== NOINDEX_ROBOTS : directives[0]!.includes("noindex")) {
+    throw new Error(
+      `${page.canonicalPath} robots meta must be ${noindex ? `"${NOINDEX_ROBOTS}"` : "indexable"}, not "${directives[0]}".`,
+    );
+  }
+}
 
 export function renderAskAiAboutThis(canonicalUrl: string): string {
   return renderToStaticMarkup(createElement(AskAiAboutThis, {
@@ -606,7 +641,7 @@ export function renderRelatedCards(ids: readonly PortfolioProductId[]): string {
 }
 
 function renderEditorialCards(): string {
-  return editorialImages.map((image) => `<article class="card editorial-card">
+  return INDEXABLE_EDITORIAL_IMAGES.map((image) => `<article class="card editorial-card">
               <a href="${image.canonicalPath}">
                 <img alt="" decoding="async" height="${image.height}" loading="lazy"
                   sizes="${EDITORIAL_CARD_IMAGE_SIZES}" src="${image.src}"
@@ -642,8 +677,9 @@ function sharedJsonLd(identity: PackageIdentity): ReadonlyArray<Readonly<Record<
     {
       "@id": HRANESS_ORGANIZATION_ID,
       "@type": "Organization",
+      logo: HRANESS_LOGO_URL,
       name: "Hraness",
-      sameAs: [PUBLISHER_URL],
+      sameAs: [PUBLISHER_URL, HRANESS_LINKEDIN_URL],
       url: HRANESS_URL,
     },
     {
@@ -681,7 +717,7 @@ function sharedJsonLd(identity: PackageIdentity): ReadonlyArray<Readonly<Record<
       },
       operatingSystem: ["macOS", "Linux"],
       publisher: { "@id": HRANESS_ORGANIZATION_ID },
-      sameAs: [REPOSITORY_URL, versionedPackageArtifactUrl(identity), SKILLS_URL],
+      sameAs: [REPOSITORY_URL, NPM_PACKAGE_URL, SKILLS_URL],
       softwareRequirements: "Bun 1.3.14 on macOS or Linux",
       softwareVersion: identity.version,
       url: `${SITE_ORIGIN}/`,
@@ -1096,7 +1132,7 @@ export function renderSitemapXml(
     <loc>${SITE_ORIGIN}${entry.path}</loc>${lastModified}
   </url>`;
   });
-  const urls = [...pages.map((page) => {
+  const urls = [...pages.filter((page) => !isNoindexDocumentPath(page.canonicalPath)).map((page) => {
     const image = editorialImage(page.canonicalPath);
     const imageMarkup = image === undefined ? "" : `
     <image:image>
@@ -1395,6 +1431,7 @@ export async function buildWebsite(
       html: renderTemplate(webmcpSiteTemplate, renderOptions, page),
     });
   }
+  for (const { page, html } of renderedPages) assertPageRobots(page, html);
   await Promise.all([
     cp(designKitFontsDirectory, join(outputRoot, "assets/fonts"), {
       dereference: true,
@@ -1457,6 +1494,7 @@ export async function buildWebsite(
       filter: () => true,
     }),
     copyFile(join(publicRoot, "icon.png"), join(outputRoot, "icon.png")),
+    copyFile(join(publicRoot, "icon-96.png"), join(outputRoot, "icon-96.png")),
     copyFile(join(publicRoot, "apple-icon.png"), join(outputRoot, "apple-icon.png")),
     copyFile(join(publicRoot, "og.png"), join(outputRoot, "og.png")),
     ...DEMO_PUBLIC_FILES.map((file) => copyFile(
