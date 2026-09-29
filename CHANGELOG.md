@@ -31,6 +31,13 @@ Historical entries retain their original delivery coordinates.
 - The `menu-bar-snapshot-read-only` claim is now `tui-snapshot-read-only`: the
   control snapshot behind `ghostget status` and `tui --snapshot` writes nothing.
 
+## 0.18.52
+
+This release updates the website share card.
+
+- The share card renders with web-discovery v0.11.0, keeps the whole
+  one-line description, and uses the site's amber background tint.
+
 ## 0.18.51
 
 This release keeps website action labels readable in forced-colors mode.
