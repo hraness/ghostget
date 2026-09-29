@@ -654,6 +654,7 @@
   "scripts": {
     "check:theme": "bun scripts/check-paper-theme.mjs",
     "website:build": "bun run website/build.ts",
+    "launch:kit": "bun run website/launch/social-kit.ts",
     "website:verify-production-release": "bun run website/production-release-verifier.ts",
     "website:vercel-build": "bun run website/vercel-build.ts",
     "website:test": "bun test --timeout 60000 ./website ./edge",
