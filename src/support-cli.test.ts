@@ -6,8 +6,8 @@ import { standaloneSupportDepth, runGhostgetCliProcess } from "./cli";
 
 const fixtureEmail = "ghostget-fixture@example.test";
 const canonicalSupportUrls = [
-  "https://account.hraness.com/support?product=wrench&source=cli#updates",
-  "https://account.hraness.com/support?product=wrench&source=cli#support",
+  "https://account.hraness.com/support?product=ghostget&source=cli#updates",
+  "https://account.hraness.com/support?product=ghostget&source=cli#support",
 ];
 
 function isolatedEnvironment(root: string): Record<string, string> {
@@ -102,7 +102,7 @@ describe("optional Ghostget support", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toBe("");
     const offer = JSON.parse(result.stdout);
-    expect(offer.product).toEqual({ id: "wrench", name: "Ghostget" });
+    expect(offer.product).toEqual({ id: "ghostget", name: "Ghostget" });
     expect(offer.emailSuggestion).toEqual({ email: fixtureEmail, source: "git-config", verified: false });
     expect(offer.actions.map((action: { url: string }) => action.url)).toEqual(canonicalSupportUrls);
     const text = await runIsolatedSupport(stateRoot, []);

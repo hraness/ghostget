@@ -614,7 +614,7 @@ async function exerciseCli(
   const offer = requireJsonObject(`${target.label} support`, JSON.parse(support.stdout) as unknown);
   const supportProduct = requireJsonObject(`${target.label} support.product`, offer.product);
   if (support.stderr !== "" || offer.schemaVersion !== "hraness-support-offer-v1"
-    || offer.optional !== true || supportProduct.id !== "wrench"
+    || offer.optional !== true || supportProduct.id !== "ghostget"
     || Object.hasOwn(offer, "emailSuggestion")
     || !Array.isArray(offer.actions) || offer.actions.length !== 2) {
     throw new Error(`${target.label} support offer is malformed`);
@@ -622,8 +622,8 @@ async function exerciseCli(
   const supportUrls = offer.actions.map((value: unknown) =>
     requireJsonObject(`${target.label} support.action`, value).url);
   if (!isDeepStrictEqual(supportUrls, [
-    "https://account.hraness.com/support?product=wrench&source=cli#updates",
-    "https://account.hraness.com/support?product=wrench&source=cli#support",
+    "https://account.hraness.com/support?product=ghostget&source=cli#updates",
+    "https://account.hraness.com/support?product=ghostget&source=cli#support",
   ])) throw new Error(`${target.label} support links differ from the canonical handoff`);
 
   const protocolResult = await runCli(target, "support protocol", ["support", "protocol", "--json"]);

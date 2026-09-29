@@ -856,7 +856,7 @@ describe("ghostget.com static site", () => {
     }
     const expectedFooterHrefs = [
       HRANESS_HOME_URL,
-      "https://account.hraness.com/support?product=wrench&amp;source=web#support",
+      "https://account.hraness.com/support?product=ghostget&amp;source=web#support",
       "https://hraness.com/privacy",
       ...hranessSocialLinks.map(({ href }) => href),
     ];

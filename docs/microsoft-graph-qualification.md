@@ -1,7 +1,7 @@
 # Microsoft Graph activation evidence
 
 The Microsoft Graph plugin ships as a disabled candidate starting with
-0.18.45. Source, parser, HTTP-fixture,
+0.18.46. Source, parser, HTTP-fixture,
 package, and registry tests can admit the artifact without activating it.
 Neither operation may be marked `observed` from those tests alone.
 

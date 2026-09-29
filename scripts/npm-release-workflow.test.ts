@@ -1426,6 +1426,7 @@ describe("npm publication contract", () => {
     expect(budget).toContain("81b82626d55fcc0ef960ac59c3dfc0e90ed6417756d614b00796d5c4122b5072");
     expect(budget).toContain("d5681ab13f0bc005bcd4bbf4b18152de887c062e7e8be3d0ecc28f14e11177d5");
     expect(budget).toContain("0d6a1de00fd825d700b1ed0505b6fa34992f11d1deb42a5c255f7cfc295eedbc");
+    expect(budget).toContain("25cfe9120e4cf43087a79e5bf302cb0683719a7db8267ed97503e75da5883185");
     expect(Object.isFrozen(repairPackageMeasurement)).toBeTrue();
     expect(repairPackageMeasurement).toMatchObject({
       archiveSha256: "4643e92ba1ac2f5a38c8bd7ba5bce47a2eb746e005930c2d9d577115206bc5d0",

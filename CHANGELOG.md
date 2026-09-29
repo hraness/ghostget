@@ -15,6 +15,17 @@ Historical entries retain their original delivery coordinates.
   Pages are bound to the authenticated viewer, non-user rows are excluded, and
   a truncated page never exposes an unusable cursor.
 
+## 0.18.46
+
+This release points Ghostget's support links at the product's current
+support page.
+
+- The website footer, `ghostget support`, and the menu bar Support item now
+  open `account.hraness.com/support?product=ghostget`. The previous
+  `product=wrench` link returned a not-found page after the product rename.
+  The footer's mailing form keeps the existing `wrench` audience, so current
+  subscriptions are unchanged.
+
 ## 0.18.45
 
 This release keeps the shipped type sources compiling under a consumer's
