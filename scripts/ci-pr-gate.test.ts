@@ -840,7 +840,8 @@ describe("CI run scheduling and caches", () => {
     expect(quint.steps.indexOf(scope[0]!)).toBeLessThan(quint.steps.findIndex((step) => step.run?.includes("verification-tools.ts quint") === true));
     expect(quint.steps[0]!.with).toEqual({ "persist-credentials": false, "fetch-depth": 2 });
     const source = await readFile(ciWorkflowUrl, "utf8");
-    // Only the scope script sets the skip variable; no workflow env sets it.
+    // Only the scope script sets the scope variables; no workflow env sets them.
     expect(source).not.toMatch(/GHOSTGET_QUINT_SKIP_APALACHE\s*:/u);
+    expect(source).not.toMatch(/GHOSTGET_QUINT_APALACHE_MODELS\s*:/u);
   });
 });
