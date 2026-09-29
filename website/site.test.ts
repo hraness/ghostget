@@ -384,6 +384,13 @@ describe("ghostget.com static site", () => {
     expect(builtCss.startsWith("@layer base, components;")).toBe(true);
     const presetCss = await readFile(join(websiteRoot, "vendor/marketing-preset/product-marketing-preset.css"), "utf8");
     const forcedColorsCss = await readFile(join(websiteRoot, "vendor/marketing-forced-colors/marketing-forced-colors.css"), "utf8");
+    const forcedColorsProvenance = JSON.parse(await readFile(join(websiteRoot, "vendor/marketing-forced-colors/provenance.json"), "utf8"));
+    expect(forcedColorsProvenance.source.commit).toBe("3d28bc3ceceecd98e5ec1ccff57b7da0ec17539c");
+    expect(forcedColorsProvenance.source.tag).toBe("v0.29.1");
+    for (const name of ["marketing-forced-colors.css", "LICENSE"]) {
+      const bytes = await readFile(join(websiteRoot, "vendor/marketing-forced-colors", name));
+      expect(createHash("sha256").update(bytes).digest("hex")).toBe(forcedColorsProvenance.files[name].sha256);
+    }
     expect(builtCss.endsWith(`${sourceCss.trimEnd()}\n\n${presetCss}\n\n${forcedColorsCss.trim()}\n`)).toBe(true);
     expect(html).toContain('data-hraness-marketing-preset="editorial" data-hraness-pattern="none"');
     expect(builtCss).toContain('--hraness-marketing-display-font: var(--font-text)');
