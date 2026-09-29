@@ -1,5 +1,8 @@
-// Stable analytics identity preserves the pre-rename traffic series.
-const SITE_ID = "wrench" as const;
+// Events before the rename were recorded under the legacy site_id "wrench".
+// The shared PostHog registry keeps "wrench" as an alias of "ghostget", so
+// dashboards should filter on both ids when they span the rename.
+export const SITE_ID = "ghostget" as const;
+export const LEGACY_SITE_IDS = ["wrench"] as const;
 const CANONICAL_DOMAIN = "ghostget.com" as const;
 const CANONICAL_ORIGIN = `https://${CANONICAL_DOMAIN}` as const;
 const SCHEMA_VERSION = 1 as const;
@@ -86,8 +89,18 @@ const ALLOWED_EVENTS = new Set([
   "$pageleave",
   "$pageview",
   "$web_vitals",
+  "cta clicked",
+  "install command copied",
   "project link opened",
 ]);
+export const CTA_IDS = new Set([
+  "final-install",
+  "header-install",
+  "hero-install",
+  "hero-see-it-work",
+]);
+export const INSTALL_COMMANDS = new Set(["agent_skill", "cli"]);
+export const INSTALL_COPIED_EVENT = "ghostget:install-command-copied" as const;
 const QUERY_ATTRIBUTION_KEYS = new Set([
   "_kx",
   "dclid",
@@ -125,6 +138,8 @@ const CURRENT_URL_KEYS = new Set([
 ]);
 const REFERRER_KEYS = new Set(["$initial_referrer", "$referrer", "referrer"]);
 const SAFE_CUSTOM_PROPERTIES = new Set([
+  "cta",
+  "install_command",
   "target_host",
   "target_id",
   "target_kind",
@@ -308,6 +323,15 @@ export function sanitizeCapture(
   }
   const properties = unknownRecord(capture.properties);
   if (properties === null) return null;
+  if (capture.event === "cta clicked" && !(typeof properties.cta === "string" && CTA_IDS.has(properties.cta))) {
+    return null;
+  }
+  if (
+    capture.event === "install command copied"
+    && !(typeof properties.install_command === "string" && INSTALL_COMMANDS.has(properties.install_command))
+  ) {
+    return null;
+  }
   const token = properties.token;
   if (typeof token !== "string" || !/^phc_[A-Za-z0-9_-]+$/u.test(token)) return null;
   const rawUrl = typeof properties.$current_url === "string" ? properties.$current_url : evidence.href;
@@ -397,6 +421,19 @@ export function captureProjectLink(
   });
 }
 
+export function captureCta(posthog: PostHogCaptureTarget, cta: string): void {
+  if (!CTA_IDS.has(cta)) return;
+  posthog.capture?.("cta clicked", { cta }, {
+    send_instantly: true,
+    transport: "sendBeacon",
+  });
+}
+
+export function captureInstallCommandCopied(posthog: PostHogCaptureTarget, command: string): void {
+  if (!INSTALL_COMMANDS.has(command)) return;
+  posthog.capture?.("install command copied", { install_command: command });
+}
+
 function stubMethod(target: PostHogQueue, method: string): void {
   target[method] = (...args: unknown[]) => target.push([method, ...args]);
 }
@@ -478,8 +515,22 @@ function initializeBrowserAnalytics(): void {
   const posthog = installPostHogQueue(document, window);
   posthog.init?.(key, createBrowserConfig(host, evidence));
 
+  document.addEventListener(INSTALL_COPIED_EVENT, (event) => {
+    const command = event instanceof CustomEvent ? unknownRecord(event.detail)?.command : undefined;
+    if (typeof command === "string") captureInstallCommandCopied(posthog, command);
+  });
+
+  document.addEventListener("copy", () => {
+    const anchor = document.getSelection()?.anchorNode;
+    const element = anchor instanceof Element ? anchor : anchor?.parentElement;
+    const command = element?.closest<HTMLElement>("[data-install-command]")?.dataset.installCommand;
+    if (command !== undefined) captureInstallCommandCopied(posthog, command);
+  });
+
   document.addEventListener("click", (event) => {
     if (event.button !== 0 || !(event.target instanceof Element)) return;
+    const cta = event.target.closest<HTMLAnchorElement>("a[data-analytics-cta]")?.dataset.analyticsCta;
+    if (cta !== undefined) captureCta(posthog, cta);
     const link = event.target.closest<HTMLAnchorElement>("a[data-analytics-event]");
     if (link?.dataset.analyticsEvent !== "project link opened") return;
     const analyticsId = link.dataset.analyticsId;

@@ -103,7 +103,7 @@
 
         <section aria-labelledby="website-analytics">
           <h2 id="website-analytics">ghostget.com measures pages, not people</h2>
-          <p>ghostget.com is a static documentation site. On the canonical production host only, an optional PostHog bootstrap can record page view, page leave, Core Web Vitals, and the two explicit GitHub repository links on the home page. The runtime is cookieless, personless, memory-only, DNT-aware, query-free, and restricted to that host.</p>
+          <p>ghostget.com is a static documentation site. On the canonical production host only, an optional PostHog bootstrap can record page view, page leave, Core Web Vitals, the two explicit GitHub repository links on the home page, clicks on the home page install and getting-started links, and copies of the install commands. A click or copy event carries only a fixed name for the link or command, never the copied text. The runtime is cookieless, personless, memory-only, DNT-aware, query-free, and restricted to that host.</p>
           <p>URL query strings, fragments, and common attribution parameters are stripped before an event can leave the browser. The site does not use replay, identity, feature flags, broad autocapture, console capture, or person profiles. It does not record form input, local file paths, CLI state, or provider account material. JavaScript is optional, and every public page remains readable without it.</p>
         </section>
 

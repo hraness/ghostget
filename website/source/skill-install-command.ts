@@ -113,6 +113,10 @@ export function initializeSkillInstallCommands(
         button.dataset.copyState = "copied";
         label.textContent = "Copied";
         status.textContent = "Agent Skill install command copied to the clipboard.";
+        root.dispatchEvent(new CustomEvent("ghostget:install-command-copied", {
+          bubbles: true,
+          detail: { command: "agent_skill" },
+        }));
         button.focus();
       }
 

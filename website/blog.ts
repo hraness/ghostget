@@ -156,7 +156,7 @@ export const BLOG_POSTS: readonly BlogPost[] = [
     dek: "Ghostget lets your AI agent work in your own accounts through named, reviewed actions, without handing it your passwords, tokens, or a signed-in browser.",
     eyebrow: "Introducing",
     published: "2026-09-24",
-    updated: "2026-09-27",
+    updated: "2026-09-28",
     keywords: ["ghostget", "agents", "accounts", "previews", "verification", "claims register"],
     bodyFile: "introducing-ghostget.html",
     sources: introducingSources,
