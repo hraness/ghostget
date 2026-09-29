@@ -1,7 +1,7 @@
 {
   "schemaVersion": 4,
   "id": "x-web",
-  "version": "1.15.0",
+  "version": "1.14.0",
   "displayName": "X (Authenticated Web API)",
   "surfaceId": "x",
   "origins": [
@@ -36,47 +36,6 @@
         "contractVersion": 1,
         "timeoutMs": 60000,
         "maxOutputBytes": 2097152
-      }
-    },
-    "contacts.list": {
-      "description": "Observed contract: read one bounded page of the signed-in viewer's own X following or followers collection through the current captured first-party Following (GET) or Followers (POST) GraphQL query; each page returns exact user identities (user ID, handle, display name) plus provider relationship-perspective flags and a next-page cursor, and an over-limit page fails without exposing its end cursor",
-      "risk": "R1",
-      "sideEffect": "none",
-      "idempotency": "none",
-      "dedupeWindowMs": 0,
-      "input": {
-        "properties": {
-          "collection": {
-            "type": "string",
-            "description": "Viewer follow collection",
-            "enum": [
-              "following",
-              "followers"
-            ]
-          },
-          "cursor": {
-            "type": "string",
-            "description": "Opaque cursor returned by the preceding page",
-            "minLength": 1,
-            "maxLength": 4096
-          },
-          "limit": {
-            "type": "number",
-            "description": "Maximum user entries to project",
-            "minimum": 1,
-            "maximum": 100
-          }
-        },
-        "required": [
-          "collection"
-        ]
-      },
-      "webSession": {
-        "site": "x",
-        "action": "contacts.list",
-        "contractVersion": 1,
-        "timeoutMs": 60000,
-        "maxOutputBytes": 4194304
       }
     },
     "feeds.read": {

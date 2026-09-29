@@ -60,6 +60,7 @@ import {
 } from "./x-transaction-id";
 import {
   assertExactXWebGraphQlBinding,
+  assertXWebContactsTargetBound,
   assertXWebUserFeedTargetBound,
   authorizeXWebMutationRequest,
   authorizeXWebR1GraphQlRequest,
@@ -71,6 +72,7 @@ import {
   normalizeXWebProfileHandle,
   normalizeXWebGraphQlTimelineResponse,
   projectXWebBookmarkExportPage,
+  projectXWebContactPage,
   projectXWebFeedPage,
   projectXWebFeedPost,
   projectXWebProfileStats,
@@ -275,6 +277,24 @@ function failedXFeedRead(
     error: error instanceof Error
       ? error.message
       : "X feed read failed before the dispatch boundary",
+  };
+}
+
+function failedXContactsRead(
+  error: unknown,
+  stage: ProviderReadFailureStage,
+): WebSessionExecution {
+  const projected = failedProviderRead("X contacts collection", error, null, {
+    stage,
+    authenticated: true,
+    accountMismatch: xFeedReadAccountMismatch,
+    authRepairRequired: xFeedReadAuthRepairRequired,
+  });
+  return {
+    ...projected,
+    error: error instanceof Error
+      ? error.message
+      : "X contacts collection read failed before the dispatch boundary",
   };
 }
 
@@ -1125,6 +1145,60 @@ async function readFeed(bootstrap: XBootstrap, input: OperationInput): Promise<u
     return projectXWebBookmarkExportPage(response, limit);
   }
   return projectXWebFeedPage(request.operationId, response, limit);
+}
+
+/**
+ * The follow-collection read is viewer-bound: the contract covers only the
+ * signed-in account's own following/followers lists, keyed by the bound
+ * subject's user ID, and every response must echo that same user.
+ */
+function contactsRequest(
+  input: OperationInput,
+  boundViewer: Viewer,
+): FeedRequest {
+  const collection = stringInput(input, "collection");
+  const count = integerInput(input, "limit", DEFAULT_LIMIT, 1, 100);
+  const cursor = optionalStringInput(input, "cursor");
+  const withCursor = (value: Record<string, unknown>): Readonly<Record<string, unknown>> =>
+    cursor === undefined ? value : { ...value, cursor };
+  if (collection === "following") {
+    return {
+      operationId: "contacts.following",
+      operationName: "Following",
+      method: "GET",
+      variables: withCursor({ userId: boundViewer.id, count, includePromotedContent: false }),
+    };
+  }
+  if (collection === "followers") {
+    return {
+      operationId: "contacts.followers",
+      // The current X deployment routes Followers through POST; GET returns 404.
+      operationName: "Followers",
+      method: "POST",
+      variables: withCursor({ userId: boundViewer.id, count, includePromotedContent: false }),
+    };
+  }
+  throw new Error("input.collection must be \"following\" or \"followers\"");
+}
+
+async function readContacts(
+  bootstrap: XBootstrap,
+  input: OperationInput,
+  boundViewer: Viewer,
+): Promise<unknown> {
+  const request = contactsRequest(input, boundViewer);
+  const descriptor = await resolveDescriptor(bootstrap, request.operationName, "query");
+  const response = await graphQl(bootstrap, descriptor, request.variables, request.method, request.operationId);
+  assertXWebContactsTargetBound(response, boundViewer.id);
+  const limit = integerInput(input, "limit", DEFAULT_LIMIT, 1, 100);
+  const page = projectXWebContactPage(request.operationId, response, limit);
+  return Object.freeze({
+    collection: request.operationId === "contacts.following" ? "following" : "followers",
+    viewerId: boundViewer.id,
+    users: page.users,
+    cursor: page.cursor,
+    terminatedDirections: page.terminatedDirections,
+  });
 }
 
 async function readProfile(
@@ -3435,6 +3509,9 @@ export async function executeXWebOperation(
     if (recipe.action === "feeds.read") {
       return failedXFeedRead(error, input, "bootstrap");
     }
+    if (recipe.action === "contacts.list") {
+      return failedXContactsRead(error, "bootstrap");
+    }
     throw error;
   }
   if (recipe.action === "feeds.read") {
@@ -3486,6 +3563,27 @@ export async function executeXWebOperation(
       dispatchStarted: false,
       dispatch: { planned: 0, started: 0, verified: 0 },
     };
+  }
+  if (recipe.action === "contacts.list") {
+    let boundViewer: Viewer;
+    try {
+      boundViewer = await requireBoundViewer(bootstrap, auth);
+    } catch (error) {
+      return failedXContactsRead(error, "identity");
+    }
+    try {
+      const output = await readContacts(bootstrap, input, boundViewer);
+      const handle = boundViewer.screenName === null ? boundViewer.id : boundViewer.screenName;
+      return {
+        status: "succeeded",
+        output,
+        finalUrl: `${X_ORIGIN}/${handle}/${stringInput(input, "collection") === "followers" ? "followers" : "following"}`,
+        dispatchStarted: false,
+        dispatch: { planned: 0, started: 0, verified: 0 },
+      };
+    } catch (error) {
+      return failedXContactsRead(error, "target");
+    }
   }
   if (recipe.action === "articles.read") {
     return executePrivateArticleDraftRead(bootstrap, recipe, input, auth);

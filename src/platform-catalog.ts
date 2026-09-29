@@ -634,7 +634,7 @@ export const socialPlatformCatalog = {
     displayName: "X",
     originPolicy: exactOrigins("https://x.com"),
     operations: buildOperationMatrix({
-      R1: ["content.read", "content.clip", "profiles.read", "messaging.read", "comments.read", "posts.read", "media.read", "articles.read"],
+      R1: ["content.read", "content.clip", "profiles.read", "contacts.list", "messaging.read", "comments.read", "posts.read", "media.read", "articles.read"],
       R2: ["likes.set", "relationships.follow.set", "content.save", "articles.draft.save", "communities.membership.set"],
       R3: [
         "messaging.send",

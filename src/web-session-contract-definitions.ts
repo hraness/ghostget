@@ -661,6 +661,7 @@ const github = {
 const x = {
   "feeds.read": contract("x", "feeds.read", "R1", "observed", "current first-party GraphQL timeline/list/search/bookmark query"),
   "profiles.read": contract("x", "profiles.read", "R1", "observed", "current target-bound UserByScreenName first-party GraphQL query with exact follower and following counts"),
+  "contacts.list": contract("x", "contacts.list", "R1", "observed", "current viewer-bound first-party Following (GET) and Followers (POST) GraphQL collection queries with exact relationship-perspective projection"),
   "posts.read": contract("x", "posts.read", "R1", "observed", "current TweetDetail/UserTweets first-party GraphQL query"),
   "comments.read": contract("x", "comments.read", "R1", "observed", "current TweetDetail conversation entries"),
   "messaging.list": contract("x", "messaging.list", "R1", "capture-required", "current X Chat inbox events are encrypted and require the reviewed key-recovery runtime before plaintext listing"),

@@ -4111,6 +4111,7 @@ describe("provider plugin definition and registry", () => {
       "linkedin-official",
       "meta-web",
       "whatsapp-linked-device",
+      "x-web",
     ]);
     expect(sharedProjectionProviderIds).toEqual(
       observedContactProviderIds.filter(

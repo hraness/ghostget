@@ -2116,15 +2116,29 @@
 // Retain the same platform projections and allowances:
 // 12,126,287 + 12,387 + 4,096 = 12,142,770 packed;
 // 23,942,384 + 353 + 65 = 23,942,802 unpacked.
+//
+// The X contacts.list qualification adds the viewer-bound Following and
+// Followers GraphQL collection reads, the TimelineUser normalizer, the
+// contacts page projection on the shared directional-statistics shape, the
+// archived x-web 1.14.0 adapter snapshot, and the qualification record over
+// merged main 46e31838 (Ghostget 0.18.46 plus the README alternatives
+// table). Registering the new archive snapshot in the package manifest
+// grows the inventory to 619 entries: a clean npm 11.16.0 pack
+// --ignore-scripts with Node 24.18.1 on darwin arm64 measured 12,132,235
+// packed bytes and 23,980,585 unpacked bytes; archive SHA-256
+// 9641f93ab7dd2c52174cf2ddf3e41f407ebca562c46e0dd0af2e6cd01447c2de.
+// Retain the same platform projections and portability allowances:
+// 12,132,235 + 12,387 + 4,096 = 12,148,718 packed;
+// 23,980,585 + 353 + 65 = 23,981,003 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "README alternatives table over main d426704",
+  scope: "X contacts.list follow-collection qualification over merged main 46e31838 (Ghostget 0.18.46)",
   command: "npm pack --ignore-scripts",
-  npmVersion: "11.19.0",
+  npmVersion: "11.16.0",
   platform: "darwin-arm64",
-  archiveSha256: "785b8fa60c329d7ac46bc8fcf4d959b5fa9d96455bba9e7cdea63f6a3827c4f6",
-  packedBytes: 12_126_287,
-  unpackedBytes: 23_942_384,
-  entryCount: 618,
+  archiveSha256: "9641f93ab7dd2c52174cf2ddf3e41f407ebca562c46e0dd0af2e6cd01447c2de",
+  packedBytes: 12_132_235,
+  unpackedBytes: 23_980_585,
+  entryCount: 619,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,
