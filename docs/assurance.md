@@ -93,6 +93,7 @@ These synced blocks sit inside a scanned Guidelines section but have no rules or
 | --- | --- | --- |
 | `AGENTS.md` | `hraness-public-copy` | Synced Hraness public-copy policy for prose; it states no property of the package, CLI, website, or release. |
 | `AGENTS.md` | `hraness-articles` | Synced Hraness article policy for blog posts. website/blog.test.ts checks each post's review record, score, and provenance note and keeps non-indexable posts out of discovery; no automated check covers the prose rules. |
+| `AGENTS.md` | `hraness-launch` | Synced Hraness launch-kit policy for mockups, the launch post, social kit, and film. website/launch/launch.test.ts pins the launch facts to the provider directory, this register, the homepage, and package.json; no automated check covers the prose rules. |
 | `AGENTS.md` | `hraness-delivery` | Synced Hraness delivery and workstation laws, including production-data preservation, runtime-enforced approvals, and delivery-gate guards; no automated check in this repository covers them. |
 | `AGENTS.md` | `hraness-ci` | Synced Hraness CI baseline for admission speed and the Required gate; it states no property of the package, CLI, website, or release. |
 | `AGENTS.md` | `hraness-releases` | Synced Hraness release page standard. website/release-notes.test.ts checks the page shape, the changelog section failures, and the trailing identity record; the claim release-receipt-bot-and-body-prefix covers the publication readback. |
