@@ -528,34 +528,53 @@ const boundarySchedules: readonly (readonly fc.AsyncCommand<Model, Real>[])[] = 
   [new CaptureCommand(378, [0, 29_490, 377])],
   // Full slots and a 60 s timeout: polling still stops at 30 s.
   [acquireAt(1_000), acquireAt(1_000), acquireAt(60_000, [0, 29_990])],
+  // The capture deadline expires on the very clock reading of the final
+  // availability check (CI seeds -723466490 and -1818327600, replay path
+  // "BEs:F"): no admission may be returned at that reading.
+  [new AcquireCommand({ timeoutMs: 2, captureRemainingMs: 1, increments: [0, 0, 0, 0, 1], commitDelayMs: 0 })],
 ];
+
+/** A fresh model and real state over a new private state directory. */
+function freshSetup(): Readonly<{ setup: () => { model: Model; real: Real }; cleanup: () => void }> {
+  const directory = mkdtempSync(join(tmpdir(), "ghostget-browser-admission-model-"));
+  chmodSync(directory, 0o700);
+  const real: Real = {
+    directory,
+    environment: { GHOSTGET_STATE_HOME: directory },
+    boot: 0,
+    nextId: 0,
+    processes: new Map(),
+    admissions: new Map(),
+    clock: { now: 0, increments: [], reads: 0, lastRead: 0 },
+  };
+  return {
+    setup: () => ({ model: { boot: 0, slots: [null, null] as [number | null, number | null], processes: new Map() }, real }),
+    cleanup: () => rmSync(directory, { recursive: true, force: true }),
+  };
+}
 
 describe("browser admission stateful model", () => {
   test("never runs more than two acquisitions, never reclaims a same-boot claim, and never launches after expiry", async () => {
     await assertAsyncProperty(fc.asyncProperty(commands, async (sequence) => {
-      const directory = mkdtempSync(join(tmpdir(), "ghostget-browser-admission-model-"));
-      chmodSync(directory, 0o700);
-      const real: Real = {
-        directory,
-        environment: { GHOSTGET_STATE_HOME: directory },
-        boot: 0,
-        nextId: 0,
-        processes: new Map(),
-        admissions: new Map(),
-        clock: { now: 0, increments: [], reads: 0, lastRead: 0 },
-      };
+      const { setup, cleanup } = freshSetup();
       try {
-        await fc.asyncModelRun(() => ({
-          model: { boot: 0, slots: [null, null] as [number | null, number | null], processes: new Map() },
-          real,
-        }), sequence);
+        await fc.asyncModelRun(setup, sequence);
       } finally {
-        rmSync(directory, { recursive: true, force: true });
+        cleanup();
       }
     }), {
       numRuns: 8,
       interruptAfterTimeLimit: 150_000,
       examples: boundarySchedules.map((schedule) => [schedule as unknown as Iterable<fc.AsyncCommand<Model, Real>>]),
-    });
+    }, "browser-admission/stateful-model");
+  });
+
+  test("refuses an admission when the capture deadline expires on the final clock reading (CI seed -1818327600)", async () => {
+    const { setup, cleanup } = freshSetup();
+    try {
+      await fc.asyncModelRun(setup, [new AcquireCommand({ timeoutMs: 2, captureRemainingMs: 1, increments: [0, 0, 0, 0, 1], commitDelayMs: 0 })]);
+    } finally {
+      cleanup();
+    }
   });
 });

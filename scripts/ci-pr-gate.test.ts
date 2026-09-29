@@ -28,7 +28,7 @@ import {
   soakMultiplier,
   soakTestArguments,
 } from "./verification-soak.js";
-import { QUINT_CI_SHARD_COUNT, assignQuintModelShards, readQuintModels } from "./verification-tools.js";
+import { QUINT_CI_SHARD_COUNT, assignQuintWorkShards, readQuintModels } from "./verification-tools.js";
 import { assertProperty } from "../src/test-support.js";
 
 const repositoryRoot = fileURLToPath(new URL("..", import.meta.url));
@@ -215,6 +215,12 @@ describe("complete local and release check composition", () => {
     const retainsOutput = (id: string, step: Step, index: number, length: number): boolean =>
       (id === "verification" || id === "quint") && index === length - 1 && step.if === "always()"
       && step.run === undefined && step.uses?.startsWith("actions/upload-artifact@") === true;
+    // The other admitted condition: `static` alone saves the Bun package
+    // cache, only on a push to main. A save runs no check, so its condition
+    // cannot gate or skip one; pull-request jobs only restore.
+    const savesPackageCache = (id: string, step: Step): boolean =>
+      id === "static" && step.if === "github.event_name == 'push'"
+      && step.run === undefined && step.uses?.startsWith("actions/cache/save@") === true;
     const validate = (candidate: Workflow): void => {
       if (!isDeepStrictEqual(Object.keys(candidate.jobs).sort(), [...Object.keys(sourceJobs), "required"].sort())) {
         throw new Error("Source CI job inventory changed");
@@ -223,7 +229,8 @@ describe("complete local and release check composition", () => {
         const job = candidate.jobs[id];
         if (job === undefined || !isDeepStrictEqual([job.name, job["runs-on"], job["timeout-minutes"]], metadata)
           || job.if !== undefined || job["continue-on-error"] !== undefined
-          || job.steps.some((step, index) => (step.if !== undefined && !retainsOutput(id, step, index, job.steps.length))
+          || job.steps.some((step, index) => (step.if !== undefined && !retainsOutput(id, step, index, job.steps.length)
+            && !savesPackageCache(id, step))
             || step["continue-on-error"] !== undefined)) {
           throw new Error(`Source CI job ${id} is conditional or changed its execution boundary`);
         }
@@ -276,6 +283,10 @@ describe("complete local and release check composition", () => {
       candidate => { candidate.jobs.quint!.steps.find(step => step.run?.includes("verification-tools.ts quint") === true)!.if = "always()"; },
       candidate => { candidate.jobs.quint!.steps.at(-1)!.if = "success() || failure()"; },
       candidate => { candidate.jobs.verification!.steps.at(-1)!.if = "success() || failure()"; },
+      candidate => { candidate.jobs.static!.steps.find(step => step.uses?.startsWith("actions/cache/save@") === true)!.if = "always()"; },
+      candidate => { candidate.jobs.static!.steps.find(step => step.uses?.startsWith("actions/cache/save@") === true)!.run = "true"; },
+      candidate => { candidate.jobs.static!.steps.find(step => step.run === "bun run check:static")!.if = "github.event_name == 'push'"; },
+      candidate => { candidate.jobs.package!.steps.push({ ...candidate.jobs.static!.steps.find(step => step.uses?.startsWith("actions/cache/save@") === true)! }); },
       candidate => { candidate.jobs.verification!.steps.at(-1)!.run = "true"; },
       candidate => { const steps = candidate.jobs.verification!.steps; steps.splice(steps.length - 2, 0, steps.pop()!); },
       candidate => { candidate.jobs.static!.steps.push({ ...candidate.jobs.verification!.steps.at(-1)! }); },
@@ -393,12 +404,22 @@ describe("complete local and release check composition", () => {
       `^      - run: bun run \\./scripts/verification-tools\\.ts quint \\$\\{\\{ matrix\\.shard \\}\\} ${String(QUINT_CI_SHARD_COUNT)}$`,
       "gmu",
     ))).toHaveLength(1);
-    // Every Quint model lands in exactly one shard, so the matrix checks what verify:quint checks.
+    // Every model's core, replay, and each mutant's Apalache check land in
+    // exactly one shard, so the matrix checks what verify:quint checks.
     const models = await readQuintModels(repositoryRoot);
-    const shards = assignQuintModelShards(models, QUINT_CI_SHARD_COUNT);
+    const shards = assignQuintWorkShards(models, QUINT_CI_SHARD_COUNT);
     expect(shards).toHaveLength(QUINT_CI_SHARD_COUNT);
     expect(shards.every((shard) => shard.length > 0)).toBe(true);
-    expect(shards.flat().map((model) => model.file).sort()).toEqual(models.map((model) => model.file).sort());
+    const units = shards.flat();
+    expect(units.filter((unit) => unit.core).map((unit) => unit.model.file).sort()).toEqual(models.map((model) => model.file).sort());
+    expect(units.filter((unit) => unit.replay).map((unit) => unit.model.file).sort()).toEqual(models.map((model) => model.file).sort());
+    expect(units.flatMap((unit) => unit.mutants.map((mutant) => `${unit.model.file} ${mutant.step} ${mutant.invariant}`)).sort())
+      .toEqual(models.flatMap((model) => model.mutants.map((mutant) => `${model.file} ${mutant.step} ${mutant.invariant}`)).sort());
+    // fence.qnt's fenceSafety check is the slowest single check; it runs alone.
+    const fenceShard = shards.find((shard) => shard.some((unit) => unit.core && unit.model.file === "fence.qnt"))!;
+    expect(fenceShard).toHaveLength(1);
+    expect(fenceShard[0]!.replay).toBeFalse();
+    expect(fenceShard[0]!.mutants).toEqual([]);
     expect(workflow).toContain(`shard: [${Array.from({ length: CI_UNIT_TEST_SHARD_COUNT }, (_, index) =>
       index + 1
     ).join(", ")}]`);
@@ -676,6 +697,11 @@ describe("nightly verification workflow", () => {
     if (!isDeepStrictEqual(soak?.strategy, { "fail-fast": false, matrix: { shard: shards } })) {
       throw new Error("the property soak must expand to every soak shard");
     }
+    const provision = soak?.steps.findIndex((step) => step.run?.startsWith("fixture_browser_root=\"$(bun run ./scripts/provision-derive-browser.ts)\"") === true) ?? -1;
+    if (provision < 0 || soak!.steps[provision]!.run?.includes("--for-shard") === true
+      || provision > soak!.steps.findIndex((step) => step.run === COMMANDS["property-soak"])) {
+      throw new Error("every property soak shard must provision the native fixture browser before the soak");
+    }
     const soakStep = soak?.steps.find((step) => step.run === COMMANDS["property-soak"]);
     if (soakStep?.env?.GHOSTGET_PROPERTY_RUNS !== "${{ inputs.property_runs || '20' }}") {
       throw new Error("the property soak must pass its multiplier only through GHOSTGET_PROPERTY_RUNS");
@@ -717,6 +743,8 @@ describe("nightly verification workflow", () => {
       candidate => { candidate.jobs["quint-nightly"]!.steps.find(step => step.uses?.startsWith("oven-sh/setup-bun@"))!.with = { "bun-version": "latest" }; },
       candidate => { candidate.jobs["quint-nightly"]!.steps.find(step => step.uses?.startsWith("actions/cache@"))!.with!.key = "ghostget-verification-nightly"; },
       candidate => { candidate.jobs["quint-nightly"]!.steps.find(step => step.run === COMMANDS["quint-nightly"])!.run = "bun run ./scripts/verification-tools.ts quint"; },
+      candidate => { candidate.jobs["property-soak"]!.steps = candidate.jobs["property-soak"]!.steps.filter(step => step.run?.includes("provision-derive-browser") !== true); },
+      candidate => { candidate.jobs["property-soak"]!.steps.find(step => step.run?.includes("provision-derive-browser") === true)!.run = "fixture_browser_root=\"$(bun run ./scripts/provision-derive-browser.ts)\" --for-shard 1 8"; },
       candidate => { candidate.jobs["quint-nightly"]!.steps.find(step => step.run === COMMANDS["quint-nightly"])!.if = "false"; },
       candidate => { candidate.jobs.mutants!.steps.find(step => step.run === COMMANDS.mutants)!.run = `${COMMANDS.mutants} || true`; },
       candidate => { candidate.jobs["property-soak"]!.strategy = { "fail-fast": false, matrix: { shard: [1, 2, 3] } }; },
@@ -758,5 +786,61 @@ describe("nightly verification workflow", () => {
     ]);
     expect(soakTestArguments(["src/a.test.ts"], 1, 100)[3]).toBe(String(MAX_SOAK_TEST_TIMEOUT_MS));
     expect(() => soakTestArguments([], 1, 20)).toThrow("without files");
+  });
+});
+
+describe("CI run scheduling and caches", () => {
+  type Step = { name?: string; uses?: string; if?: unknown; run?: string; with?: Record<string, unknown> };
+  type Job = { "runs-on": string; steps: Step[] };
+  type Workflow = { concurrency?: unknown; jobs: Record<string, Job> };
+  const load = async (): Promise<Workflow> => Bun.YAML.parse(await readFile(ciWorkflowUrl, "utf8")) as Workflow;
+
+  test("cancels only superseded pull-request runs and gives every main push its own group", async () => {
+    // Release admission needs a successful push run on the exact tagged main
+    // commit; a later merge or a rerun must never cancel it.
+    expect((await load()).concurrency).toEqual({
+      group: "ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}",
+      "cancel-in-progress": "${{ github.event_name == 'pull_request' }}",
+    });
+  });
+
+  test("restores the Bun package cache in every Linux job and saves it only from static on main", async () => {
+    const workflow = await load();
+    const key = "bun-install-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}";
+    for (const [id, job] of Object.entries(workflow.jobs)) {
+      if (id === "required") continue;
+      const restores = job.steps.filter((step) => step.uses?.startsWith("actions/cache/restore@") === true);
+      const saves = job.steps.filter((step) => step.uses?.startsWith("actions/cache/save@") === true);
+      expect(job.steps.some((step) => step.uses?.startsWith("actions/cache@") === true && step.with?.path === "~/.bun/install/cache")).toBeFalse();
+      if (job["runs-on"] === "ubuntu-latest") {
+        expect(restores).toHaveLength(1);
+        expect(restores[0]!.with).toEqual({
+          path: "~/.bun/install/cache",
+          key,
+          "restore-keys": "bun-install-${{ runner.os }}-${{ runner.arch }}-\n",
+        });
+        const restoreIndex = job.steps.indexOf(restores[0]!);
+        const installIndex = job.steps.findIndex((step) => step.run?.includes("bun install") === true);
+        expect(restoreIndex).toBeLessThan(installIndex);
+      }
+      expect(saves).toHaveLength(id === "static" ? 1 : 0);
+      if (id === "static") {
+        expect(saves[0]!.if).toBe("github.event_name == 'push'");
+        expect(saves[0]!.with).toEqual({ path: "~/.bun/install/cache", key });
+        expect(job.steps.indexOf(saves[0]!)).toBeGreaterThan(job.steps.findIndex((step) => step.run?.includes("bun install") === true));
+      }
+    }
+  });
+
+  test("scopes pull-request Apalache work inside every quint shard without a new job", async () => {
+    const quint = (await load()).jobs.quint!;
+    const scope = quint.steps.filter((step) => step.run === "bun run ./scripts/verification-quint-scope.ts");
+    expect(scope).toHaveLength(1);
+    expect(scope[0]!.if).toBeUndefined();
+    expect(quint.steps.indexOf(scope[0]!)).toBeLessThan(quint.steps.findIndex((step) => step.run?.includes("verification-tools.ts quint") === true));
+    expect(quint.steps[0]!.with).toEqual({ "persist-credentials": false, "fetch-depth": 2 });
+    const source = await readFile(ciWorkflowUrl, "utf8");
+    // Only the scope script sets the skip variable; no workflow env sets it.
+    expect(source).not.toMatch(/GHOSTGET_QUINT_SKIP_APALACHE\s*:/u);
   });
 });

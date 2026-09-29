@@ -7,6 +7,8 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+- Browser admission refuses a slot whose deadline expires on the final check.
+
 ## 0.18.49
 
 This release aligns the product footer with the header.

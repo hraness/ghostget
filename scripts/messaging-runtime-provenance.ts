@@ -83,11 +83,34 @@ function loadProvenance(vendorDir: string): Provenance {
   return parsed as Provenance;
 }
 
-async function must(command: readonly string[], cwd: string, label: string): Promise<string> {
-  const outcome = await runTool([...command], { cwd, environment: process.env as Record<string, string>, timeoutMs: 15 * 60_000 });
-  if (outcome.kind !== "succeeded") {
-    fail(`${label} failed (${outcome.kind}): ${outcome.stderr || outcome.stdout || outcome.detail}`);
-  }
+/**
+ * Describe a failed command completely: its outcome kind, exit code or
+ * detail, and both streams in full. Printing only the first non-empty stream
+ * hid why the nightly wacli clone failed, since git's "Cloning into" progress
+ * line was all the message kept.
+ */
+export function describeFailure(label: string, outcome: Awaited<ReturnType<typeof runTool>>): string {
+  const status = outcome.kind === "exited" ? `exit code ${String(outcome.exitCode)}`
+    : "detail" in outcome ? outcome.detail : outcome.kind;
+  return [
+    `${label} failed (${outcome.kind}, ${status})`,
+    `--- stderr ---\n${outcome.stderr.trimEnd() || "(empty)"}`,
+    `--- stdout ---\n${outcome.stdout.trimEnd() || "(empty)"}`,
+  ].join("\n");
+}
+
+async function must(
+  command: readonly string[],
+  cwd: string,
+  label: string,
+  extraEnvironment: Readonly<Record<string, string>> = {},
+): Promise<string> {
+  const outcome = await runTool([...command], {
+    cwd,
+    environment: { ...process.env as Record<string, string>, ...extraEnvironment },
+    timeoutMs: 15 * 60_000,
+  });
+  if (outcome.kind !== "succeeded") fail(describeFailure(label, outcome));
   return outcome.stdout.trim();
 }
 
@@ -147,7 +170,10 @@ async function rebuild(name: keyof typeof TARGETS): Promise<void> {
   try {
     const clone = join(work, "source");
     console.log(`cloning ${provenance.upstream.repository} at ${provenance.upstream.baseCommit}`);
-    await must(["git", "clone", "--filter=blob:none", provenance.upstream.repository, clone], work, `${name} clone`);
+    // GIT_TRACE adds git's own command and transport steps to stderr (no
+    // request headers or credentials), so a failed clone names its cause.
+    await must(["git", "clone", "--filter=blob:none", provenance.upstream.repository, clone], work, `${name} clone`,
+      { GIT_TRACE: "1", GIT_TERMINAL_PROMPT: "0" });
     await must(["git", "checkout", provenance.upstream.baseCommit], clone, `${name} base commit`);
     for (const patch of provenance.reviewedPatchStack.patches) {
       const patchPath = join(ROOT, target.vendorDir, patch.file);
