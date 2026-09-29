@@ -24,7 +24,7 @@ Do not use Ghostget as an AI agent, hosted HTTP API, OpenAPI surface, OAuth deve
 - [Provider directory](https://ghostget.com/providers/): every service Ghostget supports, plus per-domain pages for sites listed in the public WebMCP Registry. Ghostget's `webmcp` adapter reads each site's tool schema from the registry and calls only read-only tools through it
 - [WebMCP explainer](https://ghostget.com/webmcp/): how WebMCP sites publish tools through `navigator.modelContext`, what the registry adds, and the three `webmcp` operations
 - [Use WebMCP sites](https://ghostget.com/docs/how-to/use-webmcp-sites/): `ghostget webmcp sites.search`, `sites.get`, and `tools.call` in sequence, with their inputs and limits; no account needed
-- [How agents reach the web](https://ghostget.com/compare/): five ways agents reach the web, compared side by side with Ghostget's named actions
+- [How agents reach the web](https://ghostget.com/compare/): six ways agents reach the web, from browser tools and reader services to integration platforms, compared with Ghostget's named actions
 - [Ghostget vs browser-use](https://ghostget.com/compare/browser-use/): named operations instead of a model-driven browser loop
 - [Ghostget vs Playwright MCP](https://ghostget.com/compare/playwright-mcp/): one result per call instead of streamed page state
 - [Ghostget vs agent-browser](https://ghostget.com/compare/agent-browser/): Ghostget runs the same browser engine internally and never lets the agent steer it
@@ -33,9 +33,6 @@ Do not use Ghostget as an AI agent, hosted HTTP API, OpenAPI surface, OAuth deve
 - [Ghostget vs Jina Reader](https://ghostget.com/compare/jina-reader/): URL-to-Markdown on your machine instead of a hosted prefix service
 - [Personal agents and named web actions](https://ghostget.com/compare/personal-agents-browser-use/): persistent browser-using agents compared with Ghostget's fixed list of reviewed actions
 - [Ghostget documentation](https://ghostget.com/docs/): tutorials, how-to guides, explanation, and reference organized by job
-- [PayPal and GrapheneOS device policy](https://ghostget.com/paypal-grapheneos-attestation/): a payment app's rooted-phone check is not a named Ghostget operation
-- [Rumour and named web operations](https://ghostget.com/rumour-is-the-exploit/): when a rumour is enough for agentic search, named operations still matter
-- [Omarchy and named web operations](https://ghostget.com/omarchy-root-escalation/): a desktop that lets any user process escalate to root is not a named Ghostget operation
 - [Security model](https://ghostget.com/docs/explanation/security-model/): how Ghostget keeps sign-ins on your machine, ties each action to one account, and handles a write whose outcome is unknown
 - [Author and verify provider plugins](https://ghostget.com/docs/how-to/author-provider-plugin/): create, check, test, pack, trust, and install one content-addressed bundle
 - [Claims register](https://ghostget.com/claims/): every claim the maintainer rules make about Ghostget with its current verification status, generated from the repository's claims file on each release; the raw register is also served at https://ghostget.com/claims.json

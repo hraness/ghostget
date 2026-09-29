@@ -1,3 +1,5 @@
+import { isNoindexDocumentPath, NOINDEX_ROBOTS } from "./robots";
+
 export const HTML_MEDIA_TYPE = "text/html" as const;
 export const MARKDOWN_MEDIA_TYPE = "text/markdown" as const;
 const MARKDOWN_CONTENT_TYPE = `${MARKDOWN_MEDIA_TYPE}; charset=utf-8` as const;
@@ -216,10 +218,23 @@ function markdownHeaders(): Headers {
   });
 }
 
-function markdownDocumentLink(markdownPath: string): string {
+function markdownCanonicalPath(markdownPath: string): string {
   const stem = markdownPath.slice(0, -".md".length);
-  const canonicalPath = stem === "/index" ? "/" : `${stem}/`;
-  return `<${CANONICAL_SITE_ORIGIN}${canonicalPath}>; rel="canonical", <${markdownPath}>; rel="alternate"; type="${MARKDOWN_MEDIA_TYPE}"`;
+  return stem === "/index" ? "/" : `${stem}/`;
+}
+
+function markdownDocumentLink(markdownPath: string): string {
+  return `<${CANONICAL_SITE_ORIGIN}${markdownCanonicalPath(markdownPath)}>; rel="canonical", <${markdownPath}>; rel="alternate"; type="${MARKDOWN_MEDIA_TYPE}"`;
+}
+
+/** Headers for one published markdown document, carrying its HTML page's robots directive. */
+function markdownDocumentHeaders(markdownPath: string): Headers {
+  const headers = markdownHeaders();
+  headers.set("Link", markdownDocumentLink(markdownPath));
+  if (isNoindexDocumentPath(markdownCanonicalPath(markdownPath))) {
+    headers.set("X-Robots-Tag", NOINDEX_ROBOTS);
+  }
+  return headers;
 }
 
 async function markdownNotFound(
@@ -273,11 +288,12 @@ export async function handleDocumentNegotiation(
     if (assetUrl === null) return await markdownNotFound(request, url, retrieve);
     const asset = await retrieve(assetUrl);
     if (!asset.ok) return await markdownNotFound(request, url, retrieve);
-    const headers = markdownHeaders();
+    let headers: Headers;
     if (url.pathname === MARKDOWN_NOT_FOUND_PATH) {
+      headers = markdownHeaders();
       headers.set("X-Robots-Tag", "noindex, nofollow");
     } else {
-      headers.set("Link", markdownDocumentLink(url.pathname));
+      headers = markdownDocumentHeaders(url.pathname);
     }
     return new Response(await readBody(asset, request.method), {
       headers,
@@ -311,10 +327,8 @@ export async function handleDocumentNegotiation(
   if (assetPath !== null && assetUrl !== null) {
     const asset = await retrieve(assetUrl);
     if (asset.ok) {
-      const headers = markdownHeaders();
-      headers.set("Link", markdownDocumentLink(assetPath));
       return new Response(await readBody(asset, request.method), {
-        headers,
+        headers: markdownDocumentHeaders(assetPath),
         status: 200,
       });
     }

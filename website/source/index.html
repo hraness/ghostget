@@ -6,13 +6,14 @@
     <meta name="color-scheme" content="light dark">
     <meta name="theme-color" content="#fbf1c7" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">
-    <title>Ghostget: Your agent gets the result without clicking around.</title>
+    <title>Ghostget: let AI agents read web pages and use your accounts</title>
     <meta name="description" content="{{GHOSTGET_DESCRIPTION}}">
     <meta name="application-name" content="Ghostget">
     <meta name="generator" content="Bun 1.3.14">
     <meta name="robots" content="max-image-preview:large">
     <link rel="canonical" href="https://ghostget.com/">
-    <link rel="icon" href="/icon.png" type="image/png" sizes="512x512">
+    <link rel="icon" href="/icon.png" type="image/png" sizes="32x32">
+    <link rel="icon" href="/icon-96.png" type="image/png" sizes="96x96">
     <link rel="apple-touch-icon" href="/apple-icon.png" sizes="180x180">
     <link rel="stylesheet" href="{{CSS_ASSET}}">
     <link rel="sitemap" type="application/xml" href="/sitemap.xml">
@@ -20,7 +21,7 @@
 
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="Ghostget">
-    <meta property="og:title" content="Ghostget: Your agent gets the result without clicking around.">
+    <meta property="og:title" content="Ghostget: let AI agents read web pages and use your accounts">
     <meta property="og:description" content="{{GHOSTGET_DESCRIPTION}}">
     <meta property="og:url" content="https://ghostget.com/">
     <meta property="og:image" content="https://ghostget.com/og.png">
@@ -29,7 +30,7 @@
     <meta property="og:image:height" content="630">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Ghostget: Your agent gets the result without clicking around.">
+    <meta name="twitter:title" content="Ghostget: let AI agents read web pages and use your accounts">
     <meta name="twitter:description" content="{{GHOSTGET_DESCRIPTION}}">
     <meta name="twitter:image" content="https://ghostget.com/og.png">
     <meta name="twitter:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
@@ -70,7 +71,7 @@
           <div class="hraness-marketing-hero__copy">
             <p class="home-eyebrow">Web actions for agents</p>
             <h1 class="hraness-marketing-hero__heading" id="brand-name">Your agent gets the result <span class="hero-heading-accent">without clicking around.</span></h1>
-            <p class="hraness-marketing-hero__summary hero-explainer">Install the CLI or tell your agent to. It reads a page, archives one media item, or acts in an account you connected, and returns the result instead of a browser to steer.</p>
+            <p class="hraness-marketing-hero__summary hero-explainer">A free CLI and TypeScript SDK for Claude Code, Codex, Cursor, and other agents that run commands. It reads a page as Markdown, archives one media item, or acts in an account you connected, and returns the result instead of a browser to steer.</p>
             <div class="hraness-marketing-hero__actions">
               <a class="hraness-marketing-action" data-emphasis="primary" href="#start">Install Ghostget</a>
               <a class="home-text-link" href="/docs/tutorials/getting-started/#demo">See it work <span aria-hidden="true">→</span></a>
@@ -286,19 +287,22 @@ ghostget read https://example.com</code></pre>
         <section aria-labelledby="comparison-title" class="hraness-marketing-section" data-hraness-marketing="section" data-layout="stack" id="how-it-fits">
           <div class="hraness-marketing-section__heading-group">
             <p class="home-eyebrow">Compare</p>
-            <h2 class="hraness-marketing-section__heading" id="comparison-title">How Ghostget compares with browser tools.</h2>
-            <p class="hraness-marketing-section__summary">Most “browser use” tools give the model a browser to drive, on your machine or in the cloud. With Ghostget, the agent asks for a reviewed outcome and gets back one result. <a href="/compare/">Compare the approaches</a> in detail.</p>
+            <h2 class="hraness-marketing-section__heading" id="comparison-title">How Ghostget compares with other ways agents reach the web.</h2>
+            <p class="hraness-marketing-section__summary">Browser tools give the model a browser to drive. Reader services fetch pages on their own servers. Integration platforms manage your sign-ins for you. Ghostget runs reviewed actions on your machine and returns one result. <a href="/compare/">Compare the approaches</a> in detail.</p>
           </div>
           <div class="hraness-marketing-section__body">
             <div aria-labelledby="comparison-title" class="table-scroll" role="region" tabindex="0">
               <table>
                 <thead><tr><th scope="col">Approach</th><th scope="col">Best fit</th><th scope="col">How Ghostget differs</th></tr></thead>
                 <tbody>
+                  <tr><th scope="row">Your agent’s built-in web fetch</th><td>Quick lookups with nothing to install. Claude Code’s WebFetch, for example, returns a small model’s answer about the page.</td><td>Returns the page’s content as Markdown and can save it on your machine.</td></tr>
+                  <tr><th scope="row"><a href="/compare/firecrawl/">Firecrawl</a> and <a href="/compare/jina-reader/">Jina Reader</a></th><td>Hosted URL-to-Markdown, crawling, and search, metered per page or per token</td><td>Reads one page on your machine with no key or meter. No crawl or search.</td></tr>
+                  <tr><th scope="row"><a href="https://github.com/unclecode/crawl4ai">Crawl4AI</a></th><td>Open-source Python crawling of whole sites for RAG pipelines, on your own machine</td><td>Reads one URL at a time, and also runs actions in accounts you connect.</td></tr>
                   <tr><th scope="row"><a href="/compare/browser-use/">browser-use</a></th><td>Open-ended, multi-step browsing where the model observes the page and decides each step</td><td>The model chooses no steps. Each call runs one reviewed action or stops with an error.</td></tr>
                   <tr><th scope="row"><a href="/compare/playwright-mcp/">Playwright MCP</a></th><td>Giving an existing agent live browser controls, with the accessibility tree streamed into context per step</td><td>One result per call. No page state goes back into the agent’s context.</td></tr>
                   <tr><th scope="row"><a href="/compare/agent-browser/">agent-browser</a></th><td>Shell-level browser steering an agent composes itself: open, click, type, snapshot</td><td>Ghostget runs agent-browser internally for pages that need rendering, and the agent can’t steer it.</td></tr>
                   <tr><th scope="row"><a href="/compare/browserbase/">Browserbase + Stagehand</a></th><td>Managed cloud browser sessions at scale, with proxies, stealth, and session replay</td><td>Runs on your machine with no remote browser, and never falls back to a browser when an action is missing or has changed.</td></tr>
-                  <tr><th scope="row"><a href="https://pipedream.com/docs/connect">Pipedream Connect</a></th><td>Hosted integration breadth and managed end-user authentication across thousands of APIs and prebuilt tools</td><td>A smaller local set whose provider actions and implementations are reviewed before they run.</td></tr>
+                  <tr><th scope="row"><a href="https://composio.dev">Composio</a>, <a href="https://www.arcade.dev">Arcade</a>, and <a href="https://pipedream.com/docs/connect">Pipedream Connect</a></th><td>Large app-integration catalogs with managed sign-in, for products whose agents act for many users</td><td>Covers far fewer services. Sign-ins stay on your machine, and each write shows a preview first.</td></tr>
                   <tr><th scope="row"><a href="https://docs.apify.com/integrations/mcp">Apify MCP</a></th><td>Discovering and running eligible Apify Store Actors through a hosted MCP service, with access to results and storage</td><td>Each provider action and implementation must be named and reviewed before it can run.</td></tr>
                   <tr><th scope="row">Ghostget</th><td>Repeated account and page work where you want to know exactly what the agent can do</td><td>Encrypted local copies of reads, a preview and a record for every write, and actions that stop when a service changes.</td></tr>
                 </tbody>
@@ -347,14 +351,11 @@ ghostget read https://example.com</code></pre>
             <div class="section-heading section-heading-wide">
               <p class="eyebrow home-eyebrow">Essays</p>
               <h2 id="arguments-title">Arguments and comparisons</h2>
-              <p>How named actions differ from browser control, virtual machines, device policy, and the other ways people try to limit what an agent can do.</p>
+              <p>How named actions differ from browser control and the other ways agents reach the web.</p>
             </div>
             <div class="card-grid editorial-card-grid">
               {{EDITORIAL_CARDS}}
-              <article class="card"><h3><a href="/compare/">How agents reach the web</a></h3><p>browser-use, Playwright MCP, agent-browser, and hosted browsers compared side by side with Ghostget’s named actions.</p></article>
-              <article class="card"><h3><a href="/paypal-grapheneos-attestation/">PayPal and GrapheneOS attestation</a></h3><p>PayPal crashed on GrapheneOS after a root-detection check. Device-policy attestation is not a named web operation.</p></article>
-              <article class="card"><h3><a href="/rumour-is-the-exploit/">Rumour and named operations</a></h3><p>A rumour of a bug can be enough for agentic search. A search direction is not a named web operation.</p></article>
-              <article class="card"><h3><a href="/omarchy-root-escalation/">Omarchy and named operations</a></h3><p>Omarchy’s default desktop let any user process escalate to root. A host privilege grant is not a named web operation.</p></article>
+              <article class="card"><h3><a href="/compare/">How agents reach the web</a></h3><p>Browser tools, reader services, and integration platforms compared with Ghostget’s named actions.</p></article>
             </div>
           </section>
         </div>
