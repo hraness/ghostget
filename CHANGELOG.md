@@ -7,6 +7,12 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.53
+
+This release adds a headless control owner, `--json` commands for every
+menu-bar control, and an agent-readable TUI. The menu bar is retired in the
+next release.
+
 - Every menu-bar control has a command with `--json` output: `status`,
   `approvals list|show|decide`, `permissions list|set|enable`,
   `connections begin|verify|commit|cancel|disconnect`, `interface activate`,
