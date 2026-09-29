@@ -613,7 +613,7 @@ describe("ghostget.com static site", () => {
     // Task guides are the reader's next step after the FAQ; essays follow them.
     expect(html.indexOf(guidesSection ?? "")).toBeLessThan(html.indexOf(argumentsSection ?? ""));
     expect(html).toContain(
-      '<h1 class="hraness-marketing-hero__heading" id="brand-name">Your agent gets the result <span class="hero-heading-accent">without clicking around.</span></h1>',
+      '<h1 class="hraness-marketing-hero__heading" id="brand-name">wget for the ghost <span class="hero-heading-accent">in the machine.</span></h1>',
     );
     expect(html).not.toContain("Give your coding agent bounded access to the web.");
     expect(html).not.toContain("Your agent calls web actions by name and holds no password.");
@@ -673,7 +673,7 @@ describe("ghostget.com static site", () => {
     expect(preview).toContain('<link rel="canonical" href="https://ghostget.com/">');
     expect(preview).toContain(`<link rel="stylesheet" href="${cssAsset}">`);
     expect(preview).toContain('<body class="preview-body">');
-    expect(preview).toContain("Your agent gets the result without clicking around.");
+    expect(preview).toContain("wget for the ghost in the machine.");
     expect(preview).not.toContain("Give your coding agent bounded access to the web.");
     expect(preview).toContain('class="preview-wordmark">Ghostget</p>');
     expect(preview).not.toMatch(/preview-field|preview-orbit|src="\/favicon\.svg"/u);

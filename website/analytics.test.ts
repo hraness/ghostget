@@ -1,9 +1,13 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  captureCta,
+  captureInstallCommandCopied,
   captureProjectLink,
   createBrowserConfig,
+  LEGACY_SITE_IDS,
   sanitizeCapture,
+  SITE_ID,
 } from "./source/analytics";
 
 const evidence = {
@@ -88,7 +92,7 @@ describe("Ghostget browser analytics", () => {
       content_group: "ghostget",
       page_kind: "product_landing",
       referrer_host: "chatgpt.com",
-      site_id: "wrench",
+      site_id: "ghostget",
       traffic_channel: "ai_referral",
       traffic_source: "chatgpt",
     });
@@ -166,7 +170,7 @@ describe("Ghostget browser analytics", () => {
     }
   });
 
-  test("allows only page lifecycle, web vitals, and the repository event", () => {
+  test("allows only page lifecycle, web vitals, and the named interaction events", () => {
     for (const event of ["$pageview", "$pageleave", "$web_vitals"]) {
       expect(sanitizeCapture({
         event,
@@ -194,6 +198,54 @@ describe("Ghostget browser analytics", () => {
     }, evidence)).toBeNull();
     expect(sanitizeCapture({
       event: "invented event",
+      properties: { token: "phc_public_project_token" },
+    }, evidence)).toBeNull();
+  });
+
+  test("reports the ghostget site id and keeps wrench only as a legacy alias", () => {
+    expect(SITE_ID).toBe("ghostget");
+    expect(LEGACY_SITE_IDS).toEqual(["wrench"]);
+    const capture = sanitizeCapture({
+      event: "$pageview",
+      properties: { site_id: "wrench", token: "phc_public_project_token" },
+    }, evidence);
+    expect(capture?.properties.site_id).toBe("ghostget");
+  });
+
+  test("records CTA clicks and install copies only with bounded names", () => {
+    const captures: unknown[][] = [];
+    const target = {
+      capture: (event: string, properties?: unknown, options?: unknown) => {
+        captures.push([event, properties, options]);
+      },
+    };
+    captureCta(target, "hero-install");
+    captureCta(target, "invented-cta");
+    captureInstallCommandCopied(target, "cli");
+    captureInstallCommandCopied(target, "curl https://example.com | sh");
+    expect(captures).toEqual([
+      ["cta clicked", { cta: "hero-install" }, { send_instantly: true, transport: "sendBeacon" }],
+      ["install command copied", { install_command: "cli" }, undefined],
+    ]);
+
+    for (const cta of ["final-install", "header-install", "hero-install", "hero-see-it-work"]) {
+      expect(sanitizeCapture({
+        event: "cta clicked",
+        properties: { cta, token: "phc_public_project_token" },
+      }, evidence)?.properties.cta).toBe(cta);
+    }
+    for (const command of ["agent_skill", "cli"]) {
+      expect(sanitizeCapture({
+        event: "install command copied",
+        properties: { install_command: command, token: "phc_public_project_token" },
+      }, evidence)?.properties.install_command).toBe(command);
+    }
+    expect(sanitizeCapture({
+      event: "cta clicked",
+      properties: { cta: "someone@example.com", token: "phc_public_project_token" },
+    }, evidence)).toBeNull();
+    expect(sanitizeCapture({
+      event: "install command copied",
       properties: { token: "phc_public_project_token" },
     }, evidence)).toBeNull();
   });

@@ -92,7 +92,7 @@ import {
 /** Alt text for the static `/og.png` card, from the one social-image declaration. */
 export { SOCIAL_IMAGE_ALT };
 export const SITE_ORIGIN = "https://ghostget.com" as const;
-export const SITE_TITLE = "Ghostget: Your agent gets the result without clicking around." as const;
+export const SITE_TITLE = "Ghostget: wget for the ghost in the machine." as const;
 /** The home page title: the product name plus the job and audience searchers use. */
 export const HOME_TITLE = "Ghostget: let AI agents read web pages and use your accounts" as const;
 export const SITE_DESCRIPTION =
