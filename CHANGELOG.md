@@ -7,6 +7,28 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.47
+
+This release downloads paywalled PDFs through your browser sign-in, lists
+your own X following and followers, and makes ghostget.com clearer for search
+and answer engines.
+
+- `ghostget pdf <url>` accepts `--cookie-source chrome` or
+  `--browser-profile` to download a paywalled PDF with the signed-in browser
+  session `ghostget read` already uses. The download must really be a PDF; a
+  publisher login page gets a plain message to open the link in the browser
+  first. Without those options `pdf` works exactly as before.
+- The 1,802 WebMCP Registry domain pages under `/providers/<domain>/` and
+  the five dated news takes stay readable but carry `noindex, follow` and
+  leave the sitemap, which now lists 30 pages. Registry pages and the
+  Markdown versions of both also send it as an `X-Robots-Tag` header.
+  `/providers/`, `/webmcp/`, and the WebMCP sites guide stay indexable.
+- The home page title names what Ghostget does, and the home and
+  `/compare/` comparisons now cover built-in web fetch, Firecrawl, Jina
+  Reader, Crawl4AI, and integration platforms such as Composio, Arcade,
+  and Pipedream Connect, each with an honest best-fit column.
+- The README adds a "When to use something else" table that links those
+  comparisons, and its hero image alt text matches the image.
 - X `contacts.list` runs for the signed-in viewer's own following and
   followers collections through the current first-party GraphQL queries
   (`Following` over GET, `Followers` over POST). Each page returns user ID,
