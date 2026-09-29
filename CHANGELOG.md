@@ -7,6 +7,12 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+- X reads no longer fail now and then with "X initial state.featureSwitch must
+  be an object". When x.com serves its home page without feature settings,
+  Ghostget reloads it once. If the second load is missing them too, the read
+  fails as temporary (`provider-temporary`) instead of as a possible X format
+  change.
+
 ## 0.18.54
 
 This release removes the menu bar. Its controls are `ghostget` commands and
