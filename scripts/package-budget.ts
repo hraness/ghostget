@@ -2181,14 +2181,28 @@
 // Preserve the projections and allowances:
 // 12,133,918 + 12,387 + 4,096 = 12,150,401 packed;
 // 24,025,224 + 353 + 65 = 24,025,642 unpacked.
+// Release 0.18.51 over main 460bdf0 changes release pins and the changelog;
+// website forced-colors styles stay outside the published package. A clean
+// npm 11.19.0 pack --ignore-scripts on darwin arm64 measured 620 files,
+// 12,134,026 packed bytes and 24,025,465 unpacked bytes. Archive SHA-256
+// 7a0dd28e5820275a980779d1eb957da7f16adc3ab13ca273d4ac15aedd29d9e6.
+// Preserve all platform projections and portability allowances:
+// 12,134,026 + 12,387 + 4,096 = 12,150,509 packed;
+// 24,025,465 + 353 + 65 = 24,025,883 unpacked.
+// Integrating main d1d89b8 preserves its GhostGet capitalization edits and
+// reviewed PR-verification scoping. Rebuilt 0.18.51 measures 12,134,057 packed
+// bytes and unchanged 24,025,465 payload bytes / 620 files. Archive SHA-256:
+// 25865a89245a4d5663f4d4a4de18d0214ddb23e8d63db98fc6da15e8e497801b.
+// Preserve allowances: 12,134,057 + 12,387 + 4,096 = 12,150,540 packed;
+// 24,025,465 + 353 + 65 = 24,025,883 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget 0.18.50 release over main 198f9e4",
+  scope: "Ghostget 0.18.51 release over main d1d89b8",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "be18897395dd74b2da8a7d82c1827c740c4977090145e16c4f992addbf8e963d",
-  packedBytes: 12_133_918,
-  unpackedBytes: 24_025_224,
+  archiveSha256: "25865a89245a4d5663f4d4a4de18d0214ddb23e8d63db98fc6da15e8e497801b",
+  packedBytes: 12_134_057,
+  unpackedBytes: 24_025_465,
   entryCount: 620,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
