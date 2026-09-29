@@ -17,7 +17,7 @@
     <link rel="sitemap" type="application/xml" href="/sitemap.xml">
     {{MARKDOWN_ALTERNATE}}
     <meta property="og:type" content="article">
-    <meta property="og:site_name" content="Ghostget">
+    <meta property="og:site_name" content="GhostGet">
     <meta property="og:title" content="{{WHATSAPP_PAGE_TITLE}}">
     <meta property="og:description" content="{{WHATSAPP_PAGE_DESCRIPTION}}">
     <meta property="og:url" content="https://ghostget.com/docs/how-to/export-whatsapp/">
@@ -39,7 +39,7 @@
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
     <header class="topbar guide-topbar">
-      <a aria-label="Ghostget home" class="wordmark hraness-foil-text" data-foil="" href="/"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span> Ghostget</a>
+      <a aria-label="GhostGet home" class="wordmark hraness-foil-text" data-foil="" href="/"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span> GhostGet</a>
       <nav aria-label="Primary">
         <a href="/docs/tutorials/getting-started/">Install</a>
         <a aria-current="location" href="/docs/reference/provider-capabilities/">Providers</a>
@@ -48,12 +48,12 @@
       </nav>
     </header>
     <main class="guide-main" id="main" tabindex="-1">
-      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">Ghostget</a></li><li><a href="/docs/">Docs</a></li><li aria-current="page">WhatsApp</li></ol></nav>
+      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">GhostGet</a></li><li><a href="/docs/">Docs</a></li><li aria-current="page">WhatsApp</li></ol></nav>
       <article class="guide-article">
         <header class="guide-hero provider-guide-hero">
           <p class="eyebrow">How-to guide · WhatsApp local export · {{GHOSTGET_RELEASE}}</p>
-          <h1>Export WhatsApp history for Textbutler</h1>
-          <p class="answer-lede">Ghostget reads an existing account-bound Wacli store and publishes one private bundle for Textbutler (formerly Message Like Me) in the Message Like Me schema-2 format. This export does not pair a device, synchronize WhatsApp, open a network connection, or send a message.</p>
+          <h1>Export WhatsApp history for TextButler</h1>
+          <p class="answer-lede">GhostGet reads an existing account-bound Wacli store and publishes one private bundle for TextButler (formerly Message Like Me) in the Message Like Me schema-2 format. This export does not pair a device, synchronize WhatsApp, open a network connection, or send a message.</p>
           <p class="review-note">The current native export is available on macOS arm64 with official Wacli {{WHATSAPP_WACLI_VERSION}}. The <code>whatsapp-web</code> adapter {{WHATSAPP_ADAPTER_VERSION}} exposes {{WHATSAPP_OBSERVED_OPERATION_COUNT}} generic bounded R1 reads over that local projection. Its separate owner-only automation permissions do not turn those reads into send commands.</p>
         </header>
 
@@ -61,7 +61,7 @@
           <h2 id="export">Write one seven-file private bundle</h2>
           <div class="command-panel"><pre><code>ghostget whatsapp export-message-like-me --auth whatsapp-main \
   --output /absolute/private/path/new-whatsapp-bundle --json</code></pre></div>
-          <p>The destination must be a new absolute directory below an owner-controlled parent. Ghostget writes six NDJSON files plus <code>manifest.json</code> into a private sibling directory, verifies the complete schema and hashes, then publishes all seven files with one atomic rename.</p>
+          <p>The destination must be a new absolute directory below an owner-controlled parent. GhostGet writes six NDJSON files plus <code>manifest.json</code> into a private sibling directory, verifies the complete schema and hashes, then publishes all seven files with one atomic rename.</p>
           <p>The immutable consumer is <a href="https://github.com/hraness/message-like-me/releases/tag/v0.7.0">Message Like Me v0.7.0</a>. The bundle identifies local-message schema <code>2</code>, source <code>wacli-local@1.0.0</code>, provider <code>whatsapp@0.15.0</code>, and network <code>whatsapp</code>.</p>
         </section>
 
@@ -69,7 +69,7 @@
           <h2 id="included">What the bundle contains</h2>
           <p>The export retains locally stored message bodies, bubble boundaries, replies, attachment metadata, and only edit or deletion state the fixed projection can prove. Attachment bytes, media keys, credentials, protocol keys, source database paths, and local media paths stay out of the bundle.</p>
           <p>Message-yourself conversations are excluded for both proven phone-number (PN) and linked-identity (LID) self aliases. Status, broadcast, newsletter, and unsupported non-conversation rows are excluded too.</p>
-          <p>Reaction rows are excluded. Wacli {{WHATSAPP_WACLI_VERSION}} cannot prove whether a locally stored reaction remains active or was removed, so Ghostget emits <code>reaction-state-unproven</code> instead of publishing retained reaction state.</p>
+          <p>Reaction rows are excluded. Wacli {{WHATSAPP_WACLI_VERSION}} cannot prove whether a locally stored reaction remains active or was removed, so GhostGet emits <code>reaction-state-unproven</code> instead of publishing retained reaction state.</p>
         </section>
 
         <section aria-labelledby="completeness">
@@ -84,7 +84,7 @@
             <table>
               <thead><tr><th scope="col">Boundary</th><th scope="col">Reviewed identity</th></tr></thead>
               <tbody>
-                <tr><th scope="row">Ghostget</th><td><code>{{GHOSTGET_RELEASE}}</code></td></tr>
+                <tr><th scope="row">GhostGet</th><td><code>{{GHOSTGET_RELEASE}}</code></td></tr>
                 <tr><th scope="row">Message Like Me</th><td><a href="https://github.com/hraness/message-like-me/releases/tag/v0.7.0">v0.7.0</a></td></tr>
                 <tr><th scope="row">Official Wacli</th><td><a href="https://github.com/openclaw/wacli/releases/tag/v{{WHATSAPP_WACLI_VERSION}}">v{{WHATSAPP_WACLI_VERSION}}</a> at <a href="https://github.com/openclaw/wacli/commit/{{WHATSAPP_WACLI_COMMIT}}"><code>{{WHATSAPP_WACLI_COMMIT}}</code></a></td></tr>
                 <tr><th scope="row">macOS arm64 archive SHA-256</th><td><code>{{WHATSAPP_ARCHIVE_SHA256}}</code></td></tr>
@@ -109,8 +109,8 @@
         </aside>
       </article>
     </main>
-    <aside aria-label="Ghostget project information" class="site-disclosure">
-      <p>Ghostget {{GHOSTGET_VERSION}} · MIT · <a href="{{GHOSTGET_REPOSITORY}}">Source on GitHub</a> · <a href="/about/">About</a> · <a href="/contact/">Contact</a> · <a href="/privacy/">Privacy</a> · <a href="/llms.txt">llms.txt</a></p>
+    <aside aria-label="GhostGet project information" class="site-disclosure">
+      <p>GhostGet {{GHOSTGET_VERSION}} · MIT · <a href="{{GHOSTGET_REPOSITORY}}">Source on GitHub</a> · <a href="/about/">About</a> · <a href="/contact/">Contact</a> · <a href="/privacy/">Privacy</a> · <a href="/llms.txt">llms.txt</a></p>
       <p class="privacy-note">Privacy: cookieless PostHog analytics measure page lifecycle and Core Web Vitals. No person profiles, replay, broad autocapture, or URL queries; Do Not Track is honored.</p>
     </aside>
     {{HRANESS_SITE_FOOTER}}

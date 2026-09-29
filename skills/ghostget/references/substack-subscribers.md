@@ -6,7 +6,7 @@ subscriber at a time without a welcome email.
 
 The auth locator binds one exact `substack:<user-id>` subject. Every
 subscriber operation names one `publication` handle from that viewer's
-dashboard, such as `hraness`. Before any subscriber request, Ghostget reads
+dashboard, such as `hraness`. Before any subscriber request, GhostGet reads
 that publication's subscriber page and requires the viewer to be its author
 and an administrator. A missing, ambiguous, or unowned publication fails as
 an account mismatch.
@@ -31,7 +31,7 @@ printf '%s' '{"publication":"hraness","limit":100}' \
 - Each page after the first starts up to ten rows before the end of the
   previous one. Substack can reorder subscribers who share a signup time
   between requests, and a plain 100-row stride once missed one of 373
-  addresses. Ghostget drops rows the chain already returned, so each page
+  addresses. GhostGet drops rows the chain already returned, so each page
   lists only new addresses.
 - Keep paging until `nextCursor` is `null`. The last page has
   `complete: true` and `stopReason: "provider-exhausted"` only when the
@@ -69,7 +69,7 @@ printf '%s' '{"publication":"hraness","emails":["reader@example.com"],"send_welc
 - Input: `publication`, `emails` with exactly one address that is already
   lowercase and trimmed, and the literal `send_welcome_email: false`. Anything
   else fails before any cookie, keychain, or network access.
-- Before sending, Ghostget checks author and administrator ownership and
+- Before sending, GhostGet checks author and administrator ownership and
   freezes one `operationId`. The operation follows the normal R3 preview and
   one-use confirmation.
 - It sends one `POST <publication>/api/v1/subscriber/add` with
@@ -83,7 +83,7 @@ printf '%s' '{"publication":"hraness","emails":["reader@example.com"],"send_welc
 - Anything else after sending, including a 4xx, a 5xx, a network failure, a
   non-JSON body, or a body other than `{}`, returns `status: "indeterminate"`
   with an error beginning `reconcile-required:`. A 4xx names its status in the
-  error stage, for example `import-rejected, HTTP 400`. Ghostget never records
+  error stage, for example `import-rejected, HTTP 400`. GhostGet never records
   a sent request as `failed`. Never retry that address; check a fresh census
   first.
 

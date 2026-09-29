@@ -9,12 +9,15 @@ the deeper nightly checks and the quarterly review that keeps
 ## Nightly verification
 
 `.github/workflows/verification-nightly.yml` runs at 07:17 UTC every day and on
-manual dispatch. It holds only `contents: read`, pins every action to a full
-commit, and checks out without persisted credentials. It is not a `Required`
-dependency, so a nightly failure blocks no merge or release. A failure is still
-a finding. Triage it with the steps below.
+manual dispatch. Its check jobs hold only `contents: read`, pin every action to
+a full commit, and check out without persisted credentials. It is not a
+`Required` dependency, so a nightly failure blocks no merge or release. A
+failure is still a finding: the run turns red, and the `nightly failure issue`
+job, which holds only `issues: write` and checks out nothing, opens the one
+open `nightly-verification` issue or comments on it with the run link. Triage
+it with the steps below and close the issue once `main` passes again.
 
-It runs three jobs:
+It runs these check jobs:
 
 - **`quint nightly bounds`** runs
   `bun run ./scripts/verification-tools.ts quint-nightly`. For each model in

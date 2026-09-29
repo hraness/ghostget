@@ -106,9 +106,9 @@ describe("webmcp registry snapshot", () => {
 
   test("promises use only for sites with a callable tool", () => {
     const uncallable = site({ readOnlyToolCount: 0, tools: [tool({ readOnly: false })] });
-    expect(webmcpSiteTitle(site())).toBe("Use Example Docs with your agent through Ghostget");
+    expect(webmcpSiteTitle(site())).toBe("Use Example Docs with your agent through GhostGet");
     expect(webmcpSiteHeading(site())).toBe("Use Example Docs with your agent");
-    expect(webmcpSiteTitle(uncallable)).toBe("Example Docs in the WebMCP Registry, read through Ghostget");
+    expect(webmcpSiteTitle(uncallable)).toBe("Example Docs in the WebMCP Registry, read through GhostGet");
     expect(webmcpSiteHeading(uncallable)).toBe("Example Docs in the WebMCP Registry");
     expect(webmcpSiteDescription(site())).toContain("can call 1 read-only tool through");
     expect(webmcpSiteDescription(uncallable)).toContain("None is declared read-only");
@@ -125,7 +125,7 @@ describe("webmcp registry snapshot", () => {
       description: expect.stringContaining("Example Docs"),
       outputFile: "providers/docs.example.com/index.html",
       sourceFile: "provider-webmcp-site.html",
-      title: "Use Example Docs with your agent through Ghostget",
+      title: "Use Example Docs with your agent through GhostGet",
     });
     expect(pages[1]?.canonicalPath).toBe("/providers/sentry.io/");
   });
@@ -214,7 +214,7 @@ describe("webmcp registry snapshot", () => {
     expect(webmcpDisplayName({ name: "TEVEO Official Store | Sportbekleidung" })).toBe("TEVEO Official Store");
     expect(webmcpDisplayName({ name: "Example Docs" })).toBe("Example Docs");
     expect(webmcpSiteTitle(site({ name: "Zapier: Automate AI Workflows, Agents, and Apps" })))
-      .toBe("Use Zapier with your agent through Ghostget");
+      .toBe("Use Zapier with your agent through GhostGet");
   });
 
   test("renders the provider index totals and table", () => {

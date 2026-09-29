@@ -36,7 +36,7 @@ are implemented and proven.
 For Substack specifically, an authorized profile-backed fixture proved 200
 initialization, ordered raw multipart transfer, transcode, status polling, and
 video-attachment creation. The final Note create returned 403 twice, including
-one Ghostget-native attempt, so there is no provider-created video Note or exact
+one GhostGet-native attempt, so there is no provider-created video Note or exact
 readback to graduate. `content.delete@1` is independently observed for cleanup
 of an exact authored personal Note; that does not imply video publication.
 Treat them as unavailable until the installed capability independently says

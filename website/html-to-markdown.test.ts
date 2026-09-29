@@ -8,12 +8,12 @@ describe("HTML main-to-markdown conversion", () => {
       <html><body>
         <main>
           <div aria-hidden="true" class="hero-field"><span>🔧</span></div>
-          <h1>Install Ghostget</h1>
+          <h1>Install GhostGet</h1>
           <a class="button" href="#start">Get started</a>
           <p>Use <code>ghostget doctor</code> and the <a href="/docs/explanation/security-model/">security guide</a>.</p>
           <figure>
             <img alt="A bounded path [with proof]" src="/images/editorial/example.webp">
-            <figcaption><span>One named operation.</span><small>Generated for Ghostget.</small></figcaption>
+            <figcaption><span>One named operation.</span><small>Generated for GhostGet.</small></figcaption>
           </figure>
           <pre><code>ghostget read https://example.com/article</code></pre>
           <ul><li>One <strong>exact</strong> account</li><li>Second</li></ul>
@@ -21,13 +21,13 @@ describe("HTML main-to-markdown conversion", () => {
             <thead><tr><th>Command</th><th>Result</th></tr></thead>
             <tbody><tr><th>ghostget URL</th><td>Durable Markdown</td></tr></tbody>
           </table>
-          <details><summary>Is Ghostget an AI agent?</summary><p>No. Your agent owns the model.</p></details>
+          <details><summary>Is GhostGet an AI agent?</summary><p>No. Your agent owns the model.</p></details>
         </main>
       </body></html>
     `, "https://ghostget.com/docs/tutorials/getting-started/");
 
     expect(markdown).toBe([
-      "# Install Ghostget",
+      "# Install GhostGet",
       "",
       "[Get started](https://ghostget.com/docs/tutorials/getting-started/#start)",
       "",
@@ -35,7 +35,7 @@ describe("HTML main-to-markdown conversion", () => {
       "",
       "![A bounded path \\[with proof\\]](https://ghostget.com/images/editorial/example.webp)",
       "",
-      "One named operation. Generated for Ghostget.",
+      "One named operation. Generated for GhostGet.",
       "",
       "```",
       "ghostget read https://example.com/article",
@@ -48,7 +48,7 @@ describe("HTML main-to-markdown conversion", () => {
       "| --- | --- |",
       "| ghostget URL | Durable Markdown |",
       "",
-      "### Is Ghostget an AI agent?",
+      "### Is GhostGet an AI agent?",
       "",
       "No. Your agent owns the model.",
       "",

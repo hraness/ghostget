@@ -6,8 +6,8 @@
     <meta name="color-scheme" content="light dark">
     <meta name="theme-color" content="#fbf1c7" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">
-    <title>WebMCP for agents: call website-published tools through Ghostget</title>
-    <meta name="description" content="WebMCP lets a website publish tools through navigator.modelContext. Ghostget reads them from the public WebMCP Registry and calls only tools declared read-only.">
+    <title>WebMCP for agents: call website-published tools through GhostGet</title>
+    <meta name="description" content="WebMCP lets a website publish tools through navigator.modelContext. GhostGet reads them from the public WebMCP Registry and calls only tools declared read-only.">
     <meta name="robots" content="max-image-preview:large">
     <link rel="canonical" href="https://ghostget.com/webmcp/">
     <link rel="icon" href="/icon.png" type="image/png" sizes="32x32">
@@ -17,17 +17,17 @@
     <link rel="sitemap" type="application/xml" href="/sitemap.xml">
     {{MARKDOWN_ALTERNATE}}
     <meta property="og:type" content="article">
-    <meta property="og:site_name" content="Ghostget">
-    <meta property="og:title" content="WebMCP for agents: call website-published tools through Ghostget">
-    <meta property="og:description" content="WebMCP lets a website publish tools through navigator.modelContext. Ghostget reads them from the public WebMCP Registry and calls only tools declared read-only.">
+    <meta property="og:site_name" content="GhostGet">
+    <meta property="og:title" content="WebMCP for agents: call website-published tools through GhostGet">
+    <meta property="og:description" content="WebMCP lets a website publish tools through navigator.modelContext. GhostGet reads them from the public WebMCP Registry and calls only tools declared read-only.">
     <meta property="og:url" content="https://ghostget.com/webmcp/">
     <meta property="og:image" content="{{EDITORIAL_IMAGE_URL}}">
     <meta property="og:image:alt" content="{{EDITORIAL_IMAGE_ALT}}">
     <meta property="og:image:width" content="{{EDITORIAL_IMAGE_WIDTH}}">
     <meta property="og:image:height" content="{{EDITORIAL_IMAGE_HEIGHT}}">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="WebMCP for agents: call website-published tools through Ghostget">
-    <meta name="twitter:description" content="WebMCP lets a website publish tools through navigator.modelContext. Ghostget reads them from the public WebMCP Registry and calls only tools declared read-only.">
+    <meta name="twitter:title" content="WebMCP for agents: call website-published tools through GhostGet">
+    <meta name="twitter:description" content="WebMCP lets a website publish tools through navigator.modelContext. GhostGet reads them from the public WebMCP Registry and calls only tools declared read-only.">
     <meta name="twitter:image" content="{{EDITORIAL_IMAGE_URL}}">
     <meta name="twitter:image:alt" content="{{EDITORIAL_IMAGE_ALT}}">
     <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
@@ -39,7 +39,7 @@
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
     <header class="topbar guide-topbar">
-      <a aria-label="Ghostget home" class="wordmark hraness-foil-text" data-foil="" href="/"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span> Ghostget</a>
+      <a aria-label="GhostGet home" class="wordmark hraness-foil-text" data-foil="" href="/"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span> GhostGet</a>
       <nav aria-label="Primary">
         <a href="/docs/tutorials/getting-started/">Install</a>
         <a aria-current="location" href="/docs/reference/provider-capabilities/">Providers</a>
@@ -48,12 +48,12 @@
       </nav>
     </header>
     <main class="guide-main" id="main" tabindex="-1">
-      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">Ghostget</a></li><li aria-current="page">WebMCP</li></ol></nav>
+      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">GhostGet</a></li><li aria-current="page">WebMCP</li></ol></nav>
       <article class="guide-article">
         <header class="guide-hero">
-          <p class="eyebrow">Explainer · Ghostget {{GHOSTGET_VERSION}}</p>
+          <p class="eyebrow">Explainer · GhostGet {{GHOSTGET_VERSION}}</p>
           <h1>Call the tools websites publish through WebMCP</h1>
-          <p class="answer-lede">With WebMCP, a site declares typed tools on <code>navigator.modelContext</code> so an agent can call a named capability with a JSON input instead of scraping the page. The <a href="https://wmcp.ai">WebMCP Registry</a> finds sites that publish those tools and rechecks them daily. Ghostget's built-in <code>webmcp</code> adapter turns the registry into three commands: search the sites, read one site's current tool schema, and call a tool declared read-only.</p>
+          <p class="answer-lede">With WebMCP, a site declares typed tools on <code>navigator.modelContext</code> so an agent can call a named capability with a JSON input instead of scraping the page. The <a href="https://wmcp.ai">WebMCP Registry</a> finds sites that publish those tools and rechecks them daily. GhostGet's built-in <code>webmcp</code> adapter turns the registry into three commands: search the sites, read one site's current tool schema, and call a tool declared read-only.</p>
           {{EDITORIAL_FIGURE}}
           <dl class="registry-stats" aria-label="WebMCP Registry snapshot totals">
             <div class="registry-stat"><dt>{{WEBMCP_REGISTRY_SITE_COUNT}}</dt><dd>registered sites</dd></div>
@@ -72,12 +72,12 @@
         <section aria-labelledby="registry">
           <h2 id="registry">What the WebMCP Registry adds</h2>
           <p><a href="https://wmcp.ai">wmcp.ai</a> crawls the public web, detects sites that register WebMCP tools, and records each tool's name, description, input schema, and annotations against a daily-rechecked listing. Its public REST API returns the site directory and per-domain tool detail, and its MCP endpoint can execute a listed tool in a fresh headless page on the target domain.</p>
-          <p>The registry applies one deliberate gate: a tool can only be invoked when its own annotations declare <code>readOnlyHint</code>. Sites that publish purchase, publish, or otherwise mutating tools stay listed and inspectable, but their state-changing tools cannot be called through the registry. Ghostget applies the same kind of rule to every adapter: each operation is named, typed, and states its side effect.</p>
+          <p>The registry applies one deliberate gate: a tool can only be invoked when its own annotations declare <code>readOnlyHint</code>. Sites that publish purchase, publish, or otherwise mutating tools stay listed and inspectable, but their state-changing tools cannot be called through the registry. GhostGet applies the same kind of rule to every adapter: each operation is named, typed, and states its side effect.</p>
         </section>
 
         <section aria-labelledby="through-ghostget">
-          <h2 id="through-ghostget">What Ghostget adds on top</h2>
-          <p>Ghostget's <code>webmcp</code> adapter is bundled and needs no sign-in, API key, or account. It exposes three public operations over the registry:</p>
+          <h2 id="through-ghostget">What GhostGet adds on top</h2>
+          <p>GhostGet's <code>webmcp</code> adapter is bundled and needs no sign-in, API key, or account. It exposes three public operations over the registry:</p>
           <ul class="guide-list">
             <li><code>ghostget webmcp sites.search</code>: list sites by query, tag, or popularity; returns names, domains, tool counts, and tags.</li>
             <li><code>ghostget webmcp sites.get</code>: fetch one domain's current tools with their input schemas and read-only annotations.</li>
@@ -86,30 +86,30 @@
           <div class="command-panel"><pre><code>ghostget webmcp sites.search --input '{"query":"docs"}' --json
 ghostget webmcp sites.get --input '{"domain":"developers.cloudflare.com"}' --json
 ghostget webmcp tools.call --input '{"domain":"developers.cloudflare.com","tool":"search","input":"{\"query\":\"workers\"}"}' --json</code></pre></div>
-          <p>Each call runs through Ghostget's normal boundary: pinned HTTPS, per-operation deadlines, byte caps, strict response validation, and a durable receipt. No cookies or credentials touch the registry or the target site, and a returned body is treated as untrusted content from the site.</p>
+          <p>Each call runs through GhostGet's normal boundary: pinned HTTPS, per-operation deadlines, byte caps, strict response validation, and a durable receipt. No cookies or credentials touch the registry or the target site, and a returned body is treated as untrusted content from the site.</p>
         </section>
 
         <section aria-labelledby="scale">
           <h2 id="scale">Every listed site has a page</h2>
           <p>The snapshot behind this site lists {{WEBMCP_REGISTRY_SITE_COUNT}} WebMCP-registered domains with {{WEBMCP_REGISTRY_TOOL_COUNT}} published tools, of which {{WEBMCP_REGISTRY_READONLY_TOOL_COUNT}} declare <code>readOnlyHint</code> and are callable through <code>tools.call</code>. The <a href="/providers/">provider directory</a> gives each listed domain its own page with its tools, their read-only status, and the commands to search, inspect, and call it.</p>
-          <p>Because the registry rechecks sites daily, Ghostget does not ship per-site contracts. <code>sites.get</code> returns the schema from the registry's latest check, so your agent sees a site's changed tools after the next check.</p>
+          <p>Because the registry rechecks sites daily, GhostGet does not ship per-site contracts. <code>sites.get</code> returns the schema from the registry's latest check, so your agent sees a site's changed tools after the next check.</p>
         </section>
 
         <section aria-labelledby="limits">
           <h2 id="limits">Limits</h2>
-          <p><strong>Listed is not callable.</strong> Most registered tools do not declare <code>readOnlyHint</code>; the registry refuses to execute them, and Ghostget does not try. A domain page names which tools are callable and which are only listed.</p>
-          <p><strong>Read-only is a hint, not proof.</strong> The registry runs each call in a fresh headless page and gates on the site's own annotation. Ghostget returns the result verbatim inside the receipt; it cannot warrant that the site's tool is truly side-effect-free.</p>
-          <p><strong>The registry is a discovery layer, not the only path.</strong> Ghostget's bundled adapters cover named services directly with account binding, previews, and write confirmation. WebMCP covers the long tail: sites your agent has never seen, with no adapter to install.</p>
+          <p><strong>Listed is not callable.</strong> Most registered tools do not declare <code>readOnlyHint</code>; the registry refuses to execute them, and GhostGet does not try. A domain page names which tools are callable and which are only listed.</p>
+          <p><strong>Read-only is a hint, not proof.</strong> The registry runs each call in a fresh headless page and gates on the site's own annotation. GhostGet returns the result verbatim inside the receipt; it cannot warrant that the site's tool is truly side-effect-free.</p>
+          <p><strong>The registry is a discovery layer, not the only path.</strong> GhostGet's bundled adapters cover named services directly with account binding, previews, and write confirmation. WebMCP covers the long tail: sites your agent has never seen, with no adapter to install.</p>
         </section>
 
         <aside class="guide-callout" aria-labelledby="webmcp-next">
           <h2 id="webmcp-next">Try it against the registry</h2>
-          <p>Install <a href="/docs/tutorials/getting-started/">Ghostget {{GHOSTGET_RELEASE}}</a>, then run <code>ghostget webmcp sites.search --input '{"query":"search"}' --json</code>. Browse the <a href="/providers/">provider directory</a> for every registered domain, follow the <a href="/docs/how-to/use-webmcp-sites/">how-to guide</a> for the full call sequence, and inspect the upstream <a href="https://wmcp.ai">WebMCP Registry</a> directly.</p>
+          <p>Install <a href="/docs/tutorials/getting-started/">GhostGet {{GHOSTGET_RELEASE}}</a>, then run <code>ghostget webmcp sites.search --input '{"query":"search"}' --json</code>. Browse the <a href="/providers/">provider directory</a> for every registered domain, follow the <a href="/docs/how-to/use-webmcp-sites/">how-to guide</a> for the full call sequence, and inspect the upstream <a href="https://wmcp.ai">WebMCP Registry</a> directly.</p>
         </aside>
       </article>
     </main>
-    <aside aria-label="Ghostget project information" class="site-disclosure">
-      <p>Ghostget {{GHOSTGET_VERSION}} · MIT · <a href="{{GHOSTGET_REPOSITORY}}">Source on GitHub</a> · <a href="/about/">About</a> · <a href="/contact/">Contact</a> · <a href="/privacy/">Privacy</a> · <a href="/llms.txt">llms.txt</a></p>
+    <aside aria-label="GhostGet project information" class="site-disclosure">
+      <p>GhostGet {{GHOSTGET_VERSION}} · MIT · <a href="{{GHOSTGET_REPOSITORY}}">Source on GitHub</a> · <a href="/about/">About</a> · <a href="/contact/">Contact</a> · <a href="/privacy/">Privacy</a> · <a href="/llms.txt">llms.txt</a></p>
       <p class="privacy-note">Privacy: cookieless PostHog analytics measure page lifecycle and Core Web Vitals. No person profiles, replay, broad autocapture, or URL queries; Do Not Track is honored.</p>
     </aside>
     {{HRANESS_SITE_FOOTER}}

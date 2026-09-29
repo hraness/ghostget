@@ -7,7 +7,7 @@ copies an endpoint into executable code, replays a request, or generates a
 browser action.
 
 Read [provider-plugins.md](provider-plugins.md) first. Source plugins are trusted
-code in Ghostget's process, not isolated installed extensions.
+code in GhostGet's process, not isolated installed extensions.
 
 ## Contents
 

@@ -2,7 +2,7 @@
 
 This disabled candidate ships starting with 0.18.47.
 The `microsoft-graph-official` plugin reserves two read operations. Both are
-`capture-required`: Ghostget rejects them before reading credentials or making
+`capture-required`: GhostGet rejects them before reading credentials or making
 a network request. The implementation has synthetic tests; an authorized
 account test and a reviewed code change are required before either operation
 can run.
@@ -29,7 +29,7 @@ Each call first checks `/v1.0/me?$select=id` against the exact
 `microsoft-graph:<Graph user ID>` account, then requests one collection page.
 It uses the global `graph.microsoft.com` service and immutable Outlook IDs.
 The existing private schema-1 `oauth-token-file` format supplies the provider,
-subject, exact scope list, access token, and expiry. Ghostget does not register
+subject, exact scope list, access token, and expiry. GhostGet does not register
 a Microsoft application, perform Microsoft sign-in, or refresh these tokens.
 Do not look for, acquire, or import credentials merely to inspect this candidate.
 

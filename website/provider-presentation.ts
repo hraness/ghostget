@@ -152,15 +152,15 @@ if (
 
 export const BEEPER_PAGE_METADATA = Object.freeze({
   description:
-    `Use ${BEEPER_LOCAL_OPERATION_NAMES.length} supported Ghostget actions with one connected Beeper Desktop account: ${BEEPER_PRESENTATION_TRANSPORT_COUNTS.cliBackedOperationCount} CLI-backed operations and ${BEEPER_PRESENTATION_TRANSPORT_COUNTS.desktopLoopbackOperationCount} fixed Desktop loopback reads.`,
+    `Use ${BEEPER_LOCAL_OPERATION_NAMES.length} supported GhostGet actions with one connected Beeper Desktop account: ${BEEPER_PRESENTATION_TRANSPORT_COUNTS.cliBackedOperationCount} CLI-backed operations and ${BEEPER_PRESENTATION_TRANSPORT_COUNTS.desktopLoopbackOperationCount} fixed Desktop loopback reads.`,
   title:
-    `Beeper support in Ghostget: ${BEEPER_LOCAL_OPERATION_NAMES.length} supported actions`,
+    `Beeper support in GhostGet: ${BEEPER_LOCAL_OPERATION_NAMES.length} supported actions`,
 } as const);
 
 export const WHATSAPP_PAGE_METADATA = Object.freeze({
   description:
-    `Use four read-only actions on local WhatsApp data. The private export of an existing Wacli ${WHATSAPP_PROTOCOL_PIN.version} store for Textbutler never pairs, syncs, or sends.`,
-  title: "WhatsApp support in Ghostget: local reads and a private export for Textbutler",
+    `Use four read-only actions on local WhatsApp data. The private export of an existing Wacli ${WHATSAPP_PROTOCOL_PIN.version} store for TextButler never pairs, syncs, or sends.`,
+  title: "WhatsApp support in GhostGet: local reads and a private export for TextButler",
 } as const);
 
 /** Providers with a dedicated how-to guide get its canonical path; every other
@@ -506,7 +506,7 @@ export function renderProviderOverviewCards(directory: ProviderDirectory): strin
     `<p class="provider-capabilities">${entry.capabilities.map(escapeHtml).join(" · ")}</p>`,
     `<p class="provider-transport">${entry.accessLabels.map(escapeHtml).join(" + ")}</p>`,
     entry.surfaceId === "beeper"
-      ? `<p class="provider-feature-copy">${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.cliBackedOperationCount)} actions run through a pinned version of Beeper's official CLI, and ${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.desktopLoopbackOperationCount)} are fixed reads from Beeper Desktop. Writes need a preview first, and Ghostget never resends a write whose outcome is unknown.</p>`
+      ? `<p class="provider-feature-copy">${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.cliBackedOperationCount)} actions run through a pinned version of Beeper's official CLI, and ${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.desktopLoopbackOperationCount)} are fixed reads from Beeper Desktop. Writes need a preview first, and GhostGet never resends a write whose outcome is unknown.</p>`
       : "",
     "</article>",
   ].join("")).join("");

@@ -23,7 +23,7 @@ When the user supplied the cross-post copy, never mark that package as AI-genera
 
 - Do not add "Made with AI", "Made with Grok", or similar disclosure text to the body.
 - Do not set a provider metadata flag that labels the post or its media as AI-generated. Official `x` `posts.publish` exposes `made_with_ai`; leave it unset or `false` for this workflow. `x-web` `posts.publish` has no such input field; do not invent one. Inspect each installed schema for a comparable field and leave it unset or `false`.
-- Prefer the installed Ghostget transport. Do not click the X composer because a contract is missing or `capture-required`.
+- Prefer the installed GhostGet transport. Do not click the X composer because a contract is missing or `capture-required`.
 - If the user explicitly asked for a composer fallback, open Content disclosure and require Made with AI OFF before Post. A locked or greyed toggle is an auto-label; stop. After publishing, open the live permalink. A sparkle Made with AI or Made with Grok label means the publish failed; do not report success, and do not delete or repost unless the user asks.
 
 ## Preflight every target
@@ -39,11 +39,11 @@ Map the package only as the installed schema permits: a scalar file gets one pat
 
 Prefer a target-filtered cookie locator for a signed-in web adapter. Use a profile-backed realm only when the provider contract requires browser storage and the user has accepted that exact broader egress boundary. Bind a new realm with `ghostget auth bind <id> --site <surface> --json` before any preview.
 
-If support is missing and the user asked to develop it, use the packaged Ghostget derivation workflow with one expressly authorized low-stakes fixture. Bind authorized capture images or MP4 video at derivation start with repeated `--fixture` options and upload only their returned `fixture:<n>` references. Keep the operation `capture-required` until its code-owned request, response, current-account, actor, attachment, returned-object, independent-readback, duplicate, and uncertainty contracts pass. Never post through the capture browser as the installed fallback.
+If support is missing and the user asked to develop it, use the packaged GhostGet derivation workflow with one expressly authorized low-stakes fixture. Bind authorized capture images or MP4 video at derivation start with repeated `--fixture` options and upload only their returned `fixture:<n>` references. Keep the operation `capture-required` until its code-owned request, response, current-account, actor, attachment, returned-object, independent-readback, duplicate, and uncertainty contracts pass. Never post through the capture browser as the installed fallback.
 
 ## Preview the complete batch
 
-Construct each input only from its current installed schema. In CLI input JSON, represent a scalar file field as one absolute path string and a file-array field as an ordered array of absolute path strings. Ghostget replaces those paths with plan-bound opaque file references and binds immutable attachment bytes, sizes, media types, and hashes into the plan.
+Construct each input only from its current installed schema. In CLI input JSON, represent a scalar file field as one absolute path string and a file-array field as an ordered array of absolute path strings. GhostGet replaces those paths with plan-bound opaque file references and binds immutable attachment bytes, sizes, media types, and hashes into the plan.
 
 Run every target with `--preview --json` before confirming any target. Capability availability is evaluated at preview time and the resulting contract identity is bound into the digest; a later adapter change must not be used to reinterpret that plan or an existing run. Review and summarize:
 
@@ -71,7 +71,7 @@ An unsettled target does not create authority to delete or repost on other platf
 
 Read [settlement and duplicate cleanup](settlement-and-duplicate-cleanup.md) after confirmation. Give every attempt its own immutable ledger entry. Use exact returned locators and exact provider readback; never infer delivery from a cleared composer, a profile search, or matching text.
 
-A duplicate-tolerant action is a materially new intent, not a retry. Permit it only after explicit fresh authorization of the exact platform/package and duplicate risk. In the current v1 workflow, create the new preview with one exact eligible source run via `--duplicate-risk-of <run-id>`; Ghostget binds that run to one deterministic successor intent. Keep every other prior uncertain attempt linked separately in the task ledger. Never clear, overwrite, or weaken an old Ghostget ledger, receipt, recovery capsule, or attachment bundle.
+A duplicate-tolerant action is a materially new intent, not a retry. Permit it only after explicit fresh authorization of the exact platform/package and duplicate risk. In the current v1 workflow, create the new preview with one exact eligible source run via `--duplicate-risk-of <run-id>`; GhostGet binds that run to one deterministic successor intent. Keep every other prior uncertain attempt linked separately in the task ledger. Never clear, overwrite, or weaken an old GhostGet ledger, receipt, recovery capsule, or attachment bundle.
 
 Assess cleanup only through the installed canonical `content.delete` capability. If it is absent, `capture-required`, or blocked as R4, report cleanup as unavailable. Never use a semantic alias, raw HTTP, composer automation, or a capture session to perform deletion.
 

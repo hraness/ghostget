@@ -1,4 +1,4 @@
-# Local Ghostget development
+# Local GhostGet development
 
 Use a stable lane for real work and a separate worktree lane for development.
 This keeps local source edits, dependencies, builds, and private state from

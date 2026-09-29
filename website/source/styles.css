@@ -1854,7 +1854,7 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 }
 
 
-/* Ghostget binds the shared Hraness product-marketing grammar:
+/* GhostGet binds the shared Hraness product-marketing grammar:
  * one text face, paper surfaces, hairline chrome, and soft radii. The rules
  * below restyle the shared page chrome and then bind the homepage roles. Site
  * CSS sits outside the design-kit cascade layers, so link color stays scoped
@@ -2617,7 +2617,7 @@ body {
   }
 }
 
-/* Homepage: the shared marketing grammar bound to Ghostget content. */
+/* Homepage: the shared marketing grammar bound to GhostGet content. */
 .hraness-marketing-page {
   --hraness-marketing-inverse: var(--code-background);
   --hraness-marketing-inverse-ink: var(--code-foreground);

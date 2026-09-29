@@ -25,7 +25,7 @@ ghostget messaging resolve --input <-|@ABS_PRIVATE_FILE> \
 `routes` returns the V2 bounded artifact and reports completeness. Every list
 or search result is a non-actionable V2 candidate with `resolution-required`
 readiness. Its opaque `routeRef` names the checked provider target retained in
-Ghostget's encrypted private state. The V2 resolve request contains only that
+GhostGet's encrypted private state. The V2 resolve request contains only that
 reference:
 
 ```json
@@ -76,7 +76,7 @@ support reading but cannot support preview or confirmation.
 
 ## Preview an authored turn
 
-The caller supplies one to eight intentional ordered parts. Ghostget preserves
+The caller supplies one to eight intentional ordered parts. GhostGet preserves
 their segmentation and reply targets. V1 adds no delays and never silently
 splits an oversized part.
 
@@ -107,12 +107,12 @@ ghostget confirm DIGEST \
   --json
 ```
 
-Messaging confirmation uses the existing Ghostget mutation kernel. One composite
+Messaging confirmation uses the existing GhostGet mutation kernel. One composite
 turn has one canonical digest, one confirmation claim, one run, and one ordered
-dispatch journal. Before confirmation can dispatch, Ghostget physically creates
+dispatch journal. Before confirmation can dispatch, GhostGet physically creates
 both distinct mode-`0600` sink files as body-free reservations. After the
 provider effect, each final artifact replaces its own reservation atomically;
-the two files are not one filesystem transaction. Ghostget prints the body-free
+the two files are not one filesystem transaction. GhostGet prints the body-free
 terminal receipt, including the run ID, before either final export. If export
 fails, use that run ID with `ghostget runs show` and two fresh private paths.
 Ordinary output contains only hashes, counts, categorical state, and timestamps.
@@ -158,11 +158,11 @@ uncertainty from an approximate match.
 
 Body-bearing or capability-bearing requests come only from stdin or a checked
 owner-only regular file. Exact artifacts go only to explicit absolute
-mode-`0600` output files. Each output must be distinct and outside the Ghostget
+mode-`0600` output files. Each output must be distinct and outside the GhostGet
 state root. Keep message bodies, names, provider coordinates,
 reply references, route and context references, auth selectors, credentials,
 and local paths out of ordinary output, diagnostics, logs, telemetry, and Git.
 
 Archive-only evidence is not live provider state. In particular, an official X
 archive may support local writing-style analysis, but it can never produce a
-Ghostget route or message action.
+GhostGet route or message action.
