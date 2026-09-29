@@ -24,7 +24,7 @@ import {
   symlink,
   writeFile,
 } from "node:fs/promises";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join, relative } from "node:path";
 
@@ -999,6 +999,10 @@ describe("pull-request Apalache scope", () => {
   const manifest = repositoryFile("verification/quint/models.json");
   const packageText = repositoryFile("package.json");
   const lockText = repositoryFile("bun.lock");
+  const quintListing = readdirSync(join(import.meta.dir, "..", "verification/quint"))
+    .sort()
+    .map((file) => `verification/quint/${file}\0`)
+    .join("");
   // A fake Git: `rev-list` answers the parents, `diff` the changed paths, and
   // `show <commit>:<path>` the file at that commit (base or merge), falling
   // back to the checked-in file.
@@ -1009,11 +1013,16 @@ describe("pull-request Apalache scope", () => {
   ) => (argumentsList: readonly string[]): string | null => {
     if (argumentsList[0] === "rev-list") return parents;
     if (argumentsList[0] === "diff") return changed;
+    if (argumentsList[0] === "ls-tree") {
+      const key = `ls-tree:${argumentsList[3]!}`;
+      return Object.hasOwn(files, key) ? files[key]! : quintListing;
+    }
     if (argumentsList[0] === "show") {
       const spec = argumentsList[1]!;
       if (Object.hasOwn(files, spec)) return files[spec]!;
       const path = spec.slice(spec.indexOf(":") + 1);
       if (path === "verification/quint/models.json") return manifest;
+      if (path.startsWith("verification/quint/") && path.endsWith(".qnt")) return repositoryFile(path);
       if (path === "package.json") return packageText;
       if (path === "bun.lock") return lockText;
       return null;
@@ -1076,6 +1085,37 @@ describe("pull-request Apalache scope", () => {
     for (const file of files) {
       expect(decideApalacheScope("pull_request", git(`verification/quint/${file}\0`)).selection).toEqual({ kind: "models", files: [file] });
     }
+  });
+
+  test("checks every model when any model imports another file", () => {
+    const changed = "verification/quint/lock.qnt\0";
+    const fence = repositoryFile("verification/quint/fence.qnt");
+    // No checked-in model imports another file, so a lone model change narrows.
+    for (const file of readdirSync(join(import.meta.dir, "..", "verification/quint")).filter((name) => name.endsWith(".qnt"))) {
+      expect(repositoryFile(`verification/quint/${file}`)).not.toMatch(/\b(?:import|export)\b[^\n]*?\bfrom\s*"/u);
+    }
+    expect(kind(decideApalacheScope("pull_request", git(changed)))).toBe("models");
+    // An unchanged model that imports the changed one widens the selection.
+    for (const statement of [
+      'import lock.* from "./lock"',
+      'import lock as L from "./lock"',
+      'import lock(N = 2) as L from "./lock"',
+      'export lock.* from "./lock"',
+    ]) {
+      expect(kind(decideApalacheScope("pull_request", git(changed, undefined, {
+        [`${merge}:verification/quint/fence.qnt`]: `${statement}\n${fence}`,
+      })))).toBe("all");
+    }
+    // A same-file module import stays narrow.
+    expect(kind(decideApalacheScope("pull_request", git(changed, undefined, {
+      [`${merge}:verification/quint/fence.qnt`]: `${fence}\nmodule extra { import fence.* }\n`,
+    })))).toBe("models");
+    // An unreadable model file or listing, or an empty listing, checks every model.
+    expect(kind(decideApalacheScope("pull_request", git(changed, undefined, {
+      [`${merge}:verification/quint/fence.qnt`]: null,
+    })))).toBe("all");
+    expect(kind(decideApalacheScope("pull_request", git(changed, undefined, { [`ls-tree:${merge}`]: null })))).toBe("all");
+    expect(kind(decideApalacheScope("pull_request", git(changed, undefined, { [`ls-tree:${merge}`]: "" })))).toBe("all");
   });
 
   test("counts package.json only when the Quint pins change", () => {

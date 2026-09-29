@@ -12,7 +12,7 @@
 - `scripts/` – standalone CLI, plugin lifecycle, clean-consumer package, and formal-verification checks.
 - `website/` – the dependency-free, statically generated `ghostget.com` documentation and landing surface; it is excluded from the published package.
 - `verification/` – the claims register, Quint models, Lean proofs, and checker pins behind `docs/assurance.md`; it is excluded from the published package.
-- `.github/workflows/` – read-only Linux and macOS checks, a read-only nightly verification run outside `Required`, checks-gated immutable releases and release-only website production promotion, and Dependabot pull-request auto-merge.
+- `.github/workflows/` – read-only Linux and macOS checks, a nightly verification run outside `Required` whose read-only checks open or update one tracking issue on failure, checks-gated immutable releases and release-only website production promotion, and Dependabot pull-request auto-merge.
 - `README.md`, `CONTRIBUTING.md`, `SECURITY.md`, and `LICENSE` – usage, project policy, security reporting, and terms.
 - `package.json`, `bunfig.toml`, `tsconfig.json`, and `bun.lock` – the standalone Bun package, isolated dependency layout, and frozen dependency graph.
 

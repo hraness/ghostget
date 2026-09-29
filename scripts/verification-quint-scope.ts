@@ -23,8 +23,11 @@ import {
  *   `quintLockClosure` differs between the base parent and the merge commit,
  *   so release version bumps and unrelated dependency updates do not count;
  * - `verification/quint/<file>` for a model file the merge commit's manifest
- *   lists selects only that model, since models import nothing from each
- *   other;
+ *   lists selects only that model, because no `.qnt` file at the merge commit
+ *   imports another file; if any `.qnt` file there names another file in an
+ *   `import` or `export ... from`, or any of them cannot be read, every model
+ *   is selected, so a model is never skipped while it depends on a changed
+ *   file;
  * - every other path in the scope, including the manifest, the checker
  *   scripts, and the workflows, selects every model.
  *
@@ -56,6 +59,29 @@ function manifestModelFiles(text: string | null): ReadonlySet<string> | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * A Quint `import ... from "<file>"` or `export ... from "<file>"` names
+ * another file. The match errs toward finding one (a commented-out import also
+ * counts), which only widens the selection to every model.
+ */
+const CROSS_FILE_IMPORT = /\b(?:import|export)\b[^\n]*?\bfrom\s*"/u;
+
+/**
+ * Whether every `.qnt` file under the model directory at `commit` is readable
+ * and imports no other file. Any Git failure answers false.
+ */
+function modelsAreSelfContained(git: GitRunner, commit: string): boolean {
+  const listing = git(["ls-tree", "--name-only", "-z", commit, MODEL_DIRECTORY]);
+  if (listing === null) return false;
+  const files = listing.split("\0").filter((path) => path.endsWith(".qnt"));
+  if (files.length === 0) return false;
+  for (const path of files) {
+    const text = git(["show", `${commit}:${path}`]);
+    if (text === null || CROSS_FILE_IMPORT.test(text)) return false;
+  }
+  return true;
 }
 
 function projectionChanged(
@@ -111,6 +137,9 @@ export function decideApalacheScope(eventName: string | undefined, git: GitRunne
     return all(`the pull request changes ${path} in the Apalache scope (${QUINT_APALACHE_SCOPE.join(", ")})`);
   }
   if (models.size > 0) {
+    if (!modelsAreSelfContained(git, merge)) {
+      return all("a Quint model at the merge commit imports another file, or a model file could not be read");
+    }
     const files = [...models].sort();
     return {
       selection: Object.freeze({ kind: "models", files: Object.freeze(files) }),
