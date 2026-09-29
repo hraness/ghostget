@@ -41,6 +41,7 @@
     <script type="module" src="{{ANALYTICS_ASSET}}"></script>
     <script type="module" src="{{FOIL_ASSET}}"></script>
     <script type="module" src="{{GHOSTGET_SKILL_INSTALL_ASSET}}"></script>
+    <script type="module" src="{{GHOSTGET_PLATFORM_INSTALL_ASSET}}"></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -192,6 +193,7 @@ This domain is for use in documentation examples without needing permission. Avo
             <p class="home-eyebrow">Get started</p>
             <h2 class="hraness-marketing-install__heading" id="start-heading">Tell your agent, or run two commands.</h2>
             <p class="install-summary">Ask your agent to install GhostGet, or run the commands below with <a href="https://bun.sh/docs/installation">Bun 1.3.14</a> on macOS or Linux. They install the <a href="{{GHOSTGET_PACKAGE_ARTIFACT}}"><code>@hraness/ghostget</code> release archive</a> and read a public page. No account is needed.</p>
+            {{GHOSTGET_PLATFORM_BADGES}}
           </div>
           <div class="hraness-marketing-install__commands">
             <aside class="prompt-card">
@@ -199,9 +201,10 @@ This domain is for use in documentation examples without needing permission. Avo
               <p>“Install GhostGet {{GHOSTGET_RELEASE}}, then use it to read https://example.com and summarize it.”</p>
             </aside>
             <div class="command-stack">
-              <div class="hraness-marketing-proof-frame" data-hraness-marketing="proof-frame" data-install-command="cli">
-                <div aria-hidden="true" class="hraness-marketing-proof-frame__chrome"><span class="hraness-marketing-proof-frame__lights"><span class="hraness-marketing-proof-frame__light"></span><span class="hraness-marketing-proof-frame__light"></span><span class="hraness-marketing-proof-frame__light"></span></span><span class="hraness-marketing-proof-frame__title">Install and read · Terminal</span></div><div class="hraness-marketing-proof-frame__content">
-                <pre tabindex="0" aria-label="Install GhostGet and read a page">{{GHOSTGET_FIRST_READ_CODE}}</pre></div>
+              {{GHOSTGET_PLATFORM_INSTALL}}
+              <div class="hraness-marketing-proof-frame" data-hraness-marketing="proof-frame">
+                <div aria-hidden="true" class="hraness-marketing-proof-frame__chrome"><span class="hraness-marketing-proof-frame__lights"><span class="hraness-marketing-proof-frame__light"></span><span class="hraness-marketing-proof-frame__light"></span><span class="hraness-marketing-proof-frame__light"></span></span><span class="hraness-marketing-proof-frame__title">Then read a page · Terminal</span></div><div class="hraness-marketing-proof-frame__content">
+                <pre tabindex="0" aria-label="Read a public page">{{GHOSTGET_READ_CODE}}</pre></div>
               </div>
             </div>
             <div class="skill-install" data-skill-install data-install-command="agent_skill">

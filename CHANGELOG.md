@@ -24,6 +24,13 @@ Historical entries retain their original delivery coordinates.
   overrides it; `GHOSTGET_MENUBAR` still works as an alias.
 - The menu bar still works in this release and is removed in the next one.
 
+## 0.18.51
+
+This release keeps website action labels readable in forced-colors mode.
+
+- Primary website buttons use system colors when forced colors are active.
+- The site-specific accent text color applies only outside forced-colors mode.
+
 ## 0.18.50
 
 This release delivers the metallic product footer using the current release controls.

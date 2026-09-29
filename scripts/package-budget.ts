@@ -2181,6 +2181,20 @@
 // Preserve the projections and allowances:
 // 12,133,918 + 12,387 + 4,096 = 12,150,401 packed;
 // 24,025,224 + 353 + 65 = 24,025,642 unpacked.
+// Release 0.18.51 over main 460bdf0 changes release pins and the changelog;
+// website forced-colors styles stay outside the published package. A clean
+// npm 11.19.0 pack --ignore-scripts on darwin arm64 measured 620 files,
+// 12,134,026 packed bytes and 24,025,465 unpacked bytes. Archive SHA-256
+// 7a0dd28e5820275a980779d1eb957da7f16adc3ab13ca273d4ac15aedd29d9e6.
+// Preserve all platform projections and portability allowances:
+// 12,134,026 + 12,387 + 4,096 = 12,150,509 packed;
+// 24,025,465 + 353 + 65 = 24,025,883 unpacked.
+// Integrating main d1d89b8 preserves its GhostGet capitalization edits and
+// reviewed PR-verification scoping. Rebuilt 0.18.51 measures 12,134,057 packed
+// bytes and unchanged 24,025,465 payload bytes / 620 files. Archive SHA-256:
+// 25865a89245a4d5663f4d4a4de18d0214ddb23e8d63db98fc6da15e8e497801b.
+// Preserve allowances: 12,134,057 + 12,387 + 4,096 = 12,150,540 packed;
+// 24,025,465 + 353 + 65 = 24,025,883 unpacked.
 // The menu-bar retirement's release-N control surface over main 460bdf0 adds
 // src/control/admin-socket.ts, outputs.ts, registry.ts, registry-words.ts
 // and status-view.ts to the shipped control sources and grows the CLI,
@@ -2201,14 +2215,22 @@
 // Preserve the projections and allowances:
 // 12,152,234 + 12,387 + 4,096 = 12,168,717 packed;
 // 24,093,014 + 353 + 65 = 24,093,432 unpacked.
+// Integrating main 7cca3ef (0.18.51, design-kit v0.29.2) into the same
+// release N. After `bun run build`, npm 11.19.0 pack --ignore-scripts with
+// Node 24.20.0 on darwin arm64 measured 625 entries, 12,152,401 packed bytes, and
+// 24,093,255 unpacked bytes; archive SHA-256
+// 59c8473107b13026150b8d8dd02b0b05831ccdf95d65d6f13a662d7c0a79e125.
+// Preserve the projections and allowances:
+// 12,152,401 + 12,387 + 4,096 = 12,168,884 packed;
+// 24,093,255 + 353 + 65 = 24,093,673 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget menu-bar retirement release-N control surface with tui --snapshot --width over main 460bdf0",
+  scope: "Ghostget menu-bar retirement release-N control surface with tui --snapshot --width over main 7cca3ef",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "636e8e4c92e97e72b08090ac36acb11da0b2d4a3906bfbfd095d266ce4803a2f",
-  packedBytes: 12_152_234,
-  unpackedBytes: 24_093_014,
+  archiveSha256: "59c8473107b13026150b8d8dd02b0b05831ccdf95d65d6f13a662d7c0a79e125",
+  packedBytes: 12_152_401,
+  unpackedBytes: 24_093_255,
   entryCount: 625,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
