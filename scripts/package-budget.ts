@@ -2282,14 +2282,23 @@
 // reproduced by a second pack. Preserve the projections and allowances:
 // 12,151,211 + 12,387 + 4,096 = 12,167,694 packed;
 // 24,041,958 + 353 + 65 = 24,042,376 unpacked.
+// Release 0.18.55 over main 692d023 (X bootstrap reload) moves the active
+// version pins, the changelog and the renamed version chunk.
+// After `bun run build`, npm 11.19.0 pack --ignore-scripts with Node 24.20.0
+// on darwin arm64 measured 624 entries, 12,151,243 packed bytes, and
+// 24,042,061 unpacked bytes; archive SHA-256
+// ca1e3aa8059933d3dfe8c5475b9c25b123f1106d0ca091c7651bed5159fe7d8c,
+// reproduced by a second pack. Preserve the projections and allowances:
+// 12,151,243 + 12,387 + 4,096 = 12,167,726 packed;
+// 24,042,061 + 353 + 65 = 24,042,479 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget X bootstrap feature-switch reload over main 64151f9",
+  scope: "Ghostget 0.18.55 release over main 692d023",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "97f60a554bcca2d94d66654f69575a93ff15a0322c8deb91a3bcbb76d8c70b20",
-  packedBytes: 12_151_211,
-  unpackedBytes: 24_041_958,
+  archiveSha256: "ca1e3aa8059933d3dfe8c5475b9c25b123f1106d0ca091c7651bed5159fe7d8c",
+  packedBytes: 12_151_243,
+  unpackedBytes: 24_042_061,
   entryCount: 624,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
