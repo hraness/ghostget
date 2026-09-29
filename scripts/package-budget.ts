@@ -2172,14 +2172,23 @@
 // Preserve the existing platform projections and portability allowances:
 // 12,133,765 + 12,387 + 4,096 = 12,150,248 packed;
 // 24,024,705 + 353 + 65 = 24,025,123 unpacked.
+// Release 0.18.50 over main 198f9e4 retains the metallic footer and the
+// current release controls after the unpublished 0.18.49 request. A clean
+// npm 11.19.0 pack --ignore-scripts on darwin arm64 measured 12,133,918
+// packed bytes and 24,025,224 payload bytes across the unchanged 620 files.
+// Archive SHA-256
+// be18897395dd74b2da8a7d82c1827c740c4977090145e16c4f992addbf8e963d.
+// Preserve the projections and allowances:
+// 12,133,918 + 12,387 + 4,096 = 12,150,401 packed;
+// 24,025,224 + 353 + 65 = 24,025,642 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget 0.18.49 release over main cf63f0a",
+  scope: "Ghostget 0.18.50 release over main 198f9e4",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "2d3a2a7b776bc784fd00a00ecc205433ae33be634c2e18faf94aeaea9ed1c6d0",
-  packedBytes: 12_133_765,
-  unpackedBytes: 24_024_705,
+  archiveSha256: "be18897395dd74b2da8a7d82c1827c740c4977090145e16c4f992addbf8e963d",
+  packedBytes: 12_133_918,
+  unpackedBytes: 24_025_224,
   entryCount: 620,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
