@@ -8,9 +8,12 @@ on:
 permissions:
   contents: read
 
+# Pull requests cancel superseded runs. Main runs queue instead: a release is
+# admitted only on one complete CI attempt for its exact commit, and the
+# slowest job outlasts the usual gap between merges.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # PR wall-clock is the slowest job. This workflow runs the complete Linux
 # `bun run check` work as a disjoint union of parallel jobs and retains
