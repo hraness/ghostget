@@ -2105,14 +2105,25 @@
 // Retain the same platform projections and allowances:
 // 12,125,923 + 12,387 + 4,096 = 12,142,406 packed;
 // 23,941,366 + 353 + 65 = 23,941,784 unpacked.
+//
+// The README gains a "When to use something else" table that links the
+// comparison hub and corrects the hero image alt text: 1,018 README bytes
+// over main d426704 and no other packed file changes. After `bun run build`,
+// a clean npm 11.19.0 pack --ignore-scripts with Node 24.18.1 on darwin
+// arm64 measured 618 entries, 12,126,287 packed bytes, and 23,942,384
+// unpacked bytes (exactly 23,941,366 + 1,018); archive SHA-256
+// 785b8fa60c329d7ac46bc8fcf4d959b5fa9d96455bba9e7cdea63f6a3827c4f6.
+// Retain the same platform projections and allowances:
+// 12,126,287 + 12,387 + 4,096 = 12,142,770 packed;
+// 23,942,384 + 353 + 65 = 23,942,802 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget 0.18.46 release over merged main 95c6a2c",
+  scope: "README alternatives table over main d426704",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "25cfe9120e4cf43087a79e5bf302cb0683719a7db8267ed97503e75da5883185",
-  packedBytes: 12_125_923,
-  unpackedBytes: 23_941_366,
+  archiveSha256: "785b8fa60c329d7ac46bc8fcf4d959b5fa9d96455bba9e7cdea63f6a3827c4f6",
+  packedBytes: 12_126_287,
+  unpackedBytes: 23_942_384,
   entryCount: 618,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

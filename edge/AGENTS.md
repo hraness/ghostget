@@ -1,6 +1,7 @@
 # Contents
 
 - `negotiation.ts` – Edge-safe Accept parsing and markdown, 406, and 404 negotiation.
+- `robots.ts` – the canonical paths that stay readable but carry `noindex, follow`; the website build imports it for page robots and the sitemap.
 - `tsconfig.json` – Web Worker lib and no Bun, Node, or website types.
 - `../middleware.ts` – Vercel Edge entry that imports only this directory.
 
