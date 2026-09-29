@@ -2130,15 +2130,27 @@
 // Retain the same platform projections and portability allowances:
 // 12,132,235 + 12,387 + 4,096 = 12,148,718 packed;
 // 23,980,585 + 353 + 65 = 23,981,003 unpacked.
+//
+// Signed-in `ghostget pdf <url>` downloads add src/pdf-auth.ts to the packed
+// source and a lazy import from cli.ts; no dist chunk changes. Over merged
+// main 65944e7 (which carries the X contacts.list snapshot above), the new
+// source file grows the inventory to 620 entries. After `bun run build`, a
+// clean npm 11.19.0 pack --ignore-scripts with Node 24.20.0 on darwin arm64
+// measured 620 entries, 12,133,122 packed bytes, and 24,023,022 unpacked
+// bytes; archive SHA-256
+// e34c1d14165fdc4985280f7d56626bcd17055de9e2906bc9db1569807ed568ab.
+// Retain the same platform projections and portability allowances:
+// 12,133,122 + 12,387 + 4,096 = 12,149,605 packed;
+// 24,023,022 + 353 + 65 = 24,023,440 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "X contacts.list follow-collection qualification over merged main 46e31838 (Ghostget 0.18.46)",
+  scope: "Ghostget signed-in PDF downloads over merged main 65944e7",
   command: "npm pack --ignore-scripts",
-  npmVersion: "11.16.0",
+  npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "9641f93ab7dd2c52174cf2ddf3e41f407ebca562c46e0dd0af2e6cd01447c2de",
-  packedBytes: 12_132_235,
-  unpackedBytes: 23_980_585,
-  entryCount: 619,
+  archiveSha256: "e34c1d14165fdc4985280f7d56626bcd17055de9e2906bc9db1569807ed568ab",
+  packedBytes: 12_133_122,
+  unpackedBytes: 24_023_022,
+  entryCount: 620,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,

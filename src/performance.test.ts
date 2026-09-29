@@ -192,7 +192,7 @@ describe("Ghostget hardening performance gates", () => {
     const introSource = readFileSync(join(import.meta.dir, "cli-intro.ts"), "utf8");
     const styleSource = readFileSync(join(import.meta.dir, "cli-style.ts"), "utf8");
     expect(runtimeImportDeclarations(cliSource)).toEqual([
-      'import { ghostgetBareUsage, ghostgetHelpRequest } from "./usage";',
+      'import { ghostgetBareUsage, ghostgetHelpRequest, hasPdfSignInOptions } from "./usage";',
       'import { cliStyle, renderCliError } from "./cli-style";',
       'import { terminalIntro } from "./cli-intro";',
       'import { GHOSTGET_VERSION } from "./version";',

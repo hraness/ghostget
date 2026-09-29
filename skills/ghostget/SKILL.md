@@ -36,6 +36,7 @@ automation.
 
 - Capture a URL: `ghostget <url>` or `ghostget clip <url>`.
 - Read without persistence: `ghostget read <url>`.
+- Save a PDF as a note: `ghostget pdf <file-or-url>`. For a paywalled paper the user can open through a library or university sign-in, add that browser: `ghostget pdf <url> --cookie-source chrome` (or `--browser-profile <name>`, `--auth <id>`, `--cookies-file <path>`). Ghostget then downloads over HTTPS itself, sends each site only its own cookies, and fails with "does not seem to have access" when the site returns a sign-in page, or with "no ... sign-in was found" when that browser or profile has none for the site (`ghostget browsers` lists profiles); ask the user to open the link in that browser first rather than retrying. Without these options the download stays anonymous.
 - Archive media: `ghostget archive <url>` or `ghostget audio|video|transcript <url>`.
 - Discover supported article embeds through the provider's bounded semantic media read, then archive each exact returned finite item separately. Do not treat a collection page as one media item or scrape its DOM to manufacture asset routes.
 - Inspect support: `ghostget plugin list`, `ghostget plugin show <id>`, and `ghostget capabilities [adapter]`. For a typed, schema-backed projection use `ghostget contracts catalog --json`; check a read-only collection plan with `ghostget contracts check --plan <file> --json`.
