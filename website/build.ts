@@ -28,6 +28,7 @@ import {
   readClaimsRegisterSource,
 } from "./claims-register";
 import { product, type PortfolioProductId } from "@hraness/design-kit/portfolio";
+import { highlightCode, type SyntaxLanguage } from "@hraness/design-kit/syntax-highlighting";
 import { renderStatusPageHtml, type StatusPageLink } from "@hraness/design-kit";
 import {
   EDITORIAL_ARTICLE_IMAGE_SIZES,
@@ -1011,6 +1012,20 @@ function renderTemplate(
     if (rendered.includes(placeholder)) {
       rendered = rendered.replaceAll(placeholder, escapeHtml(value));
     }
+  }
+  const codeExamples = new Map<string, readonly [string, SyntaxLanguage]>([
+    ["{{GHOSTGET_READ_CODE}}", ["ghostget read https://example.com", "shell"]],
+    ["{{GHOSTGET_FIRST_READ_CODE}}", [`${installCommand}\nghostget read https://example.com`, "shell"]],
+    ["{{GHOSTGET_SKILL_CODE}}", [skillInstallCommands.npx, "shell"]],
+    ["{{GHOSTGET_CAPABILITIES_CODE}}", ["ghostget capabilities --json", "shell"]],
+    ["{{GHOSTGET_SDK_CODE}}", ['import { isProviderPluginId } from "@hraness/ghostget"', "typescript"]],
+  ]);
+  for (const [placeholder, [source, language]] of codeExamples) {
+    if (!rendered.includes(placeholder)) continue;
+    const code = highlightCode(source, language, { styles: "classes" });
+    const tag = placeholder === "{{GHOSTGET_READ_CODE}}" ? "span" : "code";
+    const markup = `<${tag} class="${code.className}" data-language="${code.language}">${code.html}</${tag}>`;
+    rendered = rendered.replaceAll(placeholder, () => markup);
   }
   if (page !== undefined && rendered.includes("{{WEBMCP_")) {
     const webmcpValues = options.webmcpValues(page.canonicalPath);

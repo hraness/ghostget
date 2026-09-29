@@ -3525,3 +3525,14 @@ body {
   overflow-wrap: break-word;
 }
 
+
+/* Use the shared frame for shell examples while preserving selectable command text. */
+.hraness-marketing-proof-frame__content > pre:not(.proof-transcript) {
+  margin: 0;
+  padding: 1rem;
+  overflow-x: auto;
+  white-space: pre;
+  overflow-wrap: normal;
+  background: var(--code-background);
+  color: var(--code-foreground);
+}
