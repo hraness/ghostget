@@ -79,7 +79,7 @@ reader services, and integration platforms with GhostGet in more detail.
 | Save and search pages | [Create a Markdown vault](#save-and-search-pages) |
 | Download one accessible video or audio item | [Capture and archives guide](https://ghostget.com/docs/how-to/capture-and-archive/) |
 | Connect Gmail, Beeper, X, or another service | [Connect one service](#connect-one-service) |
-| Review accounts, permissions, and approvals | [Menu-bar and terminal controls](docs/menubar-release.md) |
+| Review accounts, permissions, and approvals | [Terminal controls](docs/controls.md) |
 | Use GhostGet from TypeScript | [SDK and code mode](#sdk-and-code-mode) |
 
 ### Save and search pages
@@ -152,9 +152,8 @@ Use `ghostget tui` or `ghostget status` to review accounts, permissions,
 pending approvals and saved outputs. Every control has a command with `--json`
 output, and decisions ask you at the terminal; see the
 [CLI parity guide](docs/cli-parity.md). `ghostget control serve` keeps a
-control owner running without a window. The menu bar (`ghostget menubar`)
-still works in this release and will be removed in the next one; see the
-[menu bar guide](docs/menubar-release.md) and the limited 1Password X-token
+control owner running without a window; the menu bar has been retired. See
+the [controls guide](docs/controls.md) and the limited 1Password X-token
 import. GhostGet is not a general password
 manager.
 
@@ -1482,8 +1481,8 @@ dependency, and execution closure separately.
 
 ## Optional updates and support
 
-The website footer and menu companion offer the same optional support. The menu
-also links to free GhostGet product updates. Select a link to open Hraness
+The website footer and `ghostget support` offer the same optional support,
+including free GhostGet product updates. Select a link to open Hraness
 Accounts, then review and confirm signup or payment in the browser.
 
 GhostGet stays free to use. After useful standalone work, the CLI may write a

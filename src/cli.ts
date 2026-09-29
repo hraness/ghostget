@@ -281,8 +281,8 @@ export async function runGhostgetCliProcess(
       return;
     }
     if (rawArguments[0] === "menubar") {
-      const { runMenubarCommand } = await import("./control/menubar-cli");
-      process.exitCode = await runMenubarCommand(rawArguments, process.env, resolvedOutput);
+      const { runRetiredMenubarCommand } = await import("./control/retire-tray");
+      process.exitCode = await runRetiredMenubarCommand(rawArguments.slice(1), process.env, resolvedOutput);
       return;
     }
   } catch {

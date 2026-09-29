@@ -45,7 +45,7 @@ Platforms whose agents cannot execute local commands cannot reach Ghostget.
 - The agent never handles raw authenticated traffic: cookies, tokens,
   profiles, selectors, and shell commands stay inside Ghostget. Connected
   accounts are admitted only through the operator's local control client
-  (menu bar or TUI), which also owns operation permissions and approvals.
+  (`ghostget` control commands or TUI), which also owns operation permissions and approvals.
 - Mutations require an exact preview and confirmation. An indeterminate
   dispatch is never retried; it is reconciled from separately obtained
   evidence.

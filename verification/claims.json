@@ -584,9 +584,9 @@
     {
       "guide": "AGENTS.md",
       "anchor": "No writes on read",
-      "digest": "9404228819ce247f0922561863a4f36f84cbe071fa0a6aa4d9ce43751cbb8d16",
+      "digest": "60e82065129c0dcb3faa5540e64502ec93039b6de2c966216817c54aeeccfedd",
       "claims": [
-        "menu-bar-snapshot-read-only",
+        "tui-snapshot-read-only",
         "no-writes-on-read-paths",
         "read-path-auth-check-read-only",
         "read-path-preparation-read-only",
@@ -673,7 +673,7 @@
     {
       "guide": "src/control/AGENTS.md",
       "anchor": "`protocol.ts` is the",
-      "digest": "6d1a785864e434177dc83c059c5857ff0c5eaf8b98bf59820246d0bccbfade35",
+      "digest": "eb8d556f3a5ff6948cdeaeb60f60d15a3659908c7b42d38d657d64938f0317eb",
       "claims": [
         "agent-channel-cannot-escalate",
         "control-protocol-bounded-reject-drift",
@@ -1339,7 +1339,6 @@
       "status": "evidenced",
       "evidence": [
         "src/control/interface-cli.test.ts",
-        "src/control/menubar-cli.test.ts",
         "src/control/registry-helper.test.ts",
         "src/storage-state-home.test.ts"
       ],
@@ -1557,11 +1556,11 @@
     },
     {
       "id": "control-single-helper-owner",
-      "statement": "The menu and TUI share exactly one helper owner per state home; a second controller does not acquire custody.",
+      "statement": "The control verbs and TUI share exactly one helper owner per state home; a second controller does not acquire custody.",
       "area": "control",
       "source": {
         "path": "src/control/AGENTS.md",
-        "quote": "The menu and TUI share one helper owner per state home."
+        "quote": "The control verbs and TUI share one helper owner per state home."
       },
       "layer": "stateful-model",
       "status": "evidenced",
@@ -2799,7 +2798,6 @@
       "status": "evidenced",
       "evidence": [
         "src/confirmed-write-program.test.ts",
-        "src/control/menubar-cli.test.ts",
         "src/control/registry-helper.test.ts",
         "src/messaging-runtime-composite.test.ts",
         "src/operation-authority.property.test.ts",
@@ -3554,7 +3552,7 @@
       "notVerified": [
         "Evidence is by named example. Whole-state-tree fingerprints taken before and after cover a cache read (hit, miss, first read, and a leftover admission claim whose owner is dead), a revalidation, a capability read, and `invoke --cache-only`; omni materialization, control inspection, confirmation preparation, and the operation-permission description are checked only for not creating an incarnation. No static or exhaustive check shows that every command that reads is write-free; a new read path is covered only once it takes the typed `AuthIncarnationReader` capability and has its own test.",
         "The D14 exemptions are writes by design and are tested as the only permitted changes: a cache read may create and release its own admission claim, remove a claim whose recorded owner is proven dead, and create the projection encryption key and its store-key marker when they are absent.",
-        "Only the menu-bar snapshot, its account and permission listings, the auth checks of cache reads, live-read publication, and omni materialization, read-path invocation preparation, confirmation preparation, and the operation-permission account identity take a typed read capability; explicit invocation preparation, including the messaging route, context, and action preparations, still creates a missing auth incarnation as an admitted execution path."
+        "Only the control snapshot, its account and permission listings, the auth checks of cache reads, live-read publication, and omni materialization, read-path invocation preparation, confirmation preparation, and the operation-permission account identity take a typed read capability; explicit invocation preparation, including the messaging route, context, and action preparations, still creates a missing auth incarnation as an admitted execution path."
       ]
     },
     {
@@ -3578,16 +3576,16 @@
       "notVerified": [
         "Only the enumerated example cases are checked; the type assertions run under `bun run typecheck`.",
         "The brand exists only in the type system; code that casts through `unknown` can still forge a capability.",
-        "Only the menu-bar snapshot, its account and permission listings, the auth checks of cache reads, live-read publication, and omni materialization, read-path invocation preparation, confirmation preparation, and the operation-permission account identity take the typed capability; other read paths are not covered."
+        "Only the control snapshot, its account and permission listings, the auth checks of cache reads, live-read publication, and omni materialization, read-path invocation preparation, confirmation preparation, and the operation-permission account identity take the typed capability; other read paths are not covered."
       ]
     },
     {
-      "id": "menu-bar-snapshot-read-only",
-      "statement": "The menu-bar snapshot and its account and permission listings take no admission and create no state; auth incarnations are created only by account saves, the control-service startup backfill, and admitted execution paths.",
+      "id": "tui-snapshot-read-only",
+      "statement": "The control snapshot that `ghostget status` and `ghostget tui --snapshot` read, and its account and permission listings, take no admission and create no state; auth incarnations are created only by account saves, the control-service startup backfill, and admitted execution paths.",
       "area": "storage",
       "source": {
         "path": "AGENTS.md",
-        "quote": "The menu-bar snapshot and its account and permission listings take no admission and create no state; account saves, the control-service startup backfill, and admitted execution paths create auth incarnations."
+        "quote": "The control snapshot that `ghostget status` and `ghostget tui --snapshot` read, and its account and permission listings, take no admission and create no state; account saves, the control-service startup backfill, and admitted execution paths create auth incarnations."
       },
       "layer": "property",
       "status": "evidenced",

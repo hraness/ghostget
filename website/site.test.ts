@@ -588,10 +588,11 @@ describe("ghostget.com static site", () => {
     expect(html).toContain('class="syntax-code language-shell"');
     expect(html).toContain('class="syntax-code language-typescript"');
     expect(html).toContain('class="hraness-marketing-proof-frame__chrome"');
-    expect(html).toContain("ghostget menubar");
-    expect(html).toContain("Review connected accounts, permissions, pending approvals, and recent activity in your menu bar or terminal");
+    expect(html).not.toContain("ghostget menubar");
+    expect(html).toContain("ghostget status");
+    expect(html).toContain("Review connected accounts, permissions, pending approvals, recent activity, and saved output files from the terminal");
     expect(html).toContain("ghostget tui");
-    expect(html).toContain("Only one control client runs at a time");
+    expect(html).toContain("ghostget control serve");
     expect(html).toContain('class="table-scroll" role="region" tabindex="0"');
     expect(html).toContain('<a class="skip-link" href="#main">');
     expect(html.match(/data-analytics-event="project link opened"/gu)).toHaveLength(2);
