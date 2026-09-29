@@ -6,7 +6,7 @@ import type { ControlSnapshot } from "./protocol";
 /**
  * One read-only status model shared by `ghostget status`, `ghostget tui
  * --snapshot` and `ghostget tui --json`. It carries every state the retired
- * menu bar showed, so an agent or a person sees the same facts in text or JSON.
+ * retired menu bar showed, so an agent or a person sees the same facts in text or JSON.
  * Nothing here performs an action; each row names the verb that does.
  */
 export const STATUS_SCHEMA = "ghostget.status/1";

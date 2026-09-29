@@ -29,7 +29,7 @@ Pasted text is ignored. Keep this panel open for your agent's approval requests.
 
 The TUI uses a running control owner (ghostget control serve) when there is
 one. Otherwise it starts its own, and only one can run at a time:
-  ghostget control stop     (or ghostget menubar stop)
+  ghostget control stop
   ghostget tui
 
 First page read (no account needed): ghostget read https://example.com
@@ -69,7 +69,7 @@ export class TuiController {
   }
   private async request(request: ControlRequest): Promise<ControlResponse> {
     try { return await this.helper.request(request, request.action === "connection.verify" ? VERIFY_REQUEST_TIMEOUT_MS : request.action === "snapshot" ? SNAPSHOT_REQUEST_TIMEOUT_MS : REQUEST_TIMEOUT_MS); }
-    catch { return { ok: false, code: "CONTROL_DISCONNECTED", message: "The local helper is unavailable. Stop the menu bar or quit the other controller, then restart ghostget tui." }; }
+    catch { return { ok: false, code: "CONTROL_DISCONNECTED", message: "The local helper is unavailable. Stop the control owner (ghostget control stop) or quit the other controller, then restart ghostget tui." }; }
   }
   /** Background refreshes set refreshing instead of busy so navigation stays
    * live; mutations still wait for a settled foreground state. */
@@ -422,7 +422,7 @@ export async function runTuiCommand(args: readonly string[], environment: Contro
     } else await runInteractiveTui(helper, terminal, accountId, browserChoices(environment));
     return 0;
   } catch {
-    output.stderr("Ghostget's terminal controls could not start or stopped unexpectedly. Stop other controllers with ghostget control stop (or ghostget menubar stop), then try ghostget tui again.\n");
+    output.stderr("Ghostget's terminal controls could not start or stopped unexpectedly. Stop other controllers with ghostget control stop, then try ghostget tui again.\n");
     return 1;
   } finally { await helper?.close(); }
 }

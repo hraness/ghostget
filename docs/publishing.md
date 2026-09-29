@@ -142,10 +142,10 @@ providers retain their existing installation, identity, and live admission
 requirements. Publishing the CLI does not establish live provider qualification.
 
 The canonical release pipeline publishes the CLI from an exact source checkout.
-The menu-bar companion is a TypeScript adapter over the shared desktop-foundation
-runner in [`menubar-release.md`](menubar-release.md); the pinned companion
-artifact resolves from that foundation release, and Ghostget publishes no
-platform sidecar of its own.
+Local controls are terminal commands ([`controls.md`](controls.md)); the
+signed macOS cookie reader resolves the shared helper from the pinned
+desktop-foundation release, and Ghostget publishes no platform sidecar of its
+own.
 There is no desktop app bundle or native installer. Native provider checks retain
 only their own installation and live admission requirements.
 

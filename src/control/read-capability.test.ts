@@ -75,7 +75,7 @@ function fingerprint(root: string): readonly string[] {
   return lines;
 }
 
-describe("menu-bar snapshot read path", () => {
+describe("control snapshot read path (status and TUI)", () => {
   test("writes no incarnation and reclaims no orphaned admission claim", () => {
     const { root, environment } = fixture();
     const control = service(environment);

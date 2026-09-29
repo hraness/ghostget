@@ -2215,20 +2215,24 @@
 // Preserve the projections and allowances:
 // 12,151,310 + 12,387 + 4,096 = 12,167,793 packed;
 // 24,090,676 + 353 + 65 = 24,091,094 unpacked.
-// The same release N with `tui --snapshot` wrapped to --width (review fix)
-// grows src/control/tui.ts, tui-model.ts and the changelog. After
-// `bun run build`, npm 11.19.0 pack --ignore-scripts with Node 24.20.0 on
-// darwin arm64 measured 625 entries, 12,152,234 packed bytes, and 24,093,014
+// The menu-bar retirement's release-N+1 removal drops
+// src/control/menubar-cli.ts and menubar-icon.ts from the shipped control
+// sources, adds src/control/retire-tray.ts, and rewrites the menu bar copy
+// in the CLI, TUI, skill and changelog payloads. After `bun run build`,
+// npm 11.19.0 pack --ignore-scripts with Node 24.20.0 on darwin arm64
+// measured 624 entries, 12,136,066 packed bytes, and 24,033,028
 // unpacked bytes; archive SHA-256
-// 636e8e4c92e97e72b08090ac36acb11da0b2d4a3906bfbfd095d266ce4803a2f.
+// 6411d6c143bc28cedb5e04a42a81097aa5b6255376907731b9ddd84c0f5fea04.
 // Preserve the projections and allowances:
-// 12,152,234 + 12,387 + 4,096 = 12,168,717 packed;
-// 24,093,014 + 353 + 65 = 24,093,432 unpacked.
-// Integrating main 7cca3ef (0.18.51, design-kit v0.29.2) into the same
-// release N. After `bun run build`, npm 11.19.0 pack --ignore-scripts with
-// Node 24.20.0 on darwin arm64 measured 625 entries, 12,152,401 packed bytes, and
-// 24,093,255 unpacked bytes; archive SHA-256
-// 59c8473107b13026150b8d8dd02b0b05831ccdf95d65d6f13a662d7c0a79e125.
+// 12,136,066 + 12,387 + 4,096 = 12,152,549 packed;
+// 24,033,028 + 353 + 65 = 24,033,446 unpacked.
+// Release N+1 with the review fixes over it (tui --snapshot --width,
+// retiring every legacy login item, the menubar doctor receipt) grows
+// src/control/tui.ts, tui-model.ts, retire-tray.ts, registry.ts and the
+// changelog. After `bun run build`, npm 11.19.0 pack --ignore-scripts with
+// Node 24.20.0 on darwin arm64 measured 624 entries, 12,138,017 packed
+// bytes, and 24,039,661 unpacked bytes; archive SHA-256
+// 735918ce13357c4b4c39d1ba869d818a556cfc7e79054e137ca1ef6a0c2d5a6a.
 // Preserve the projections and allowances:
 // 12,152,401 + 12,387 + 4,096 = 12,168,884 packed;
 // 24,093,255 + 353 + 65 = 24,093,673 unpacked.
@@ -2248,15 +2252,26 @@
 // reproduced by a second pack. Preserve the projections and allowances:
 // 12,152,562 + 12,387 + 4,096 = 12,169,045 packed;
 // 24,093,786 + 353 + 65 = 24,094,204 unpacked.
+// Release N+1 of the menu-bar retirement over main 58e7abc (0.18.53) drops
+// src/control/menubar-cli.ts and menubar-icon.ts from the shipped control
+// sources, adds src/control/retire-tray.ts, and rewrites the menu bar copy in
+// the CLI, TUI, skill and changelog payloads. After `bun run build`, npm
+// 11.19.0 pack --ignore-scripts with Node 24.20.0 on darwin arm64 measured
+// 624 entries, 12,138,305 packed bytes, and 24,040,509 unpacked bytes;
+// archive SHA-256
+// 1638bc653d9fa0cf5cc071e502227244f26feadf9003e6cf4e4ada80275025a0,
+// reproduced by a second pack. Preserve the projections and allowances:
+// 12,138,305 + 12,387 + 4,096 = 12,154,788 packed;
+// 24,040,509 + 353 + 65 = 24,040,927 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget 0.18.53 release over main dbbd1a5",
+  scope: "Ghostget menu-bar retirement release-N+1 menu bar removal over main 58e7abc",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "0a73250d6047e0ed5dca98bceefdeec458828c784fa9355716312afbf88242bd",
-  packedBytes: 12_152_562,
-  unpackedBytes: 24_093_786,
-  entryCount: 625,
+  archiveSha256: "1638bc653d9fa0cf5cc071e502227244f26feadf9003e6cf4e4ada80275025a0",
+  packedBytes: 12_138_305,
+  unpackedBytes: 24_040_509,
+  entryCount: 624,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,

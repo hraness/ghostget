@@ -66,7 +66,6 @@ Control GhostGet
   ghostget control serve|stop         Run the control owner without a window
   ghostget approvals|permissions|connections
                                       Every control action as a command
-  ghostget menubar                    Show GhostGet in the menu bar
   ghostget doctor                     Check everything GhostGet needs
 
 Extend GhostGet
@@ -454,8 +453,8 @@ const advancedHelp = `GhostGet advanced commands
   ghostget runs show|reconcile       Inspect or settle one run
   ghostget operator doctor           Same as ghostget doctor
 
-The TUI uses a running control owner. Stop the menu bar first with
-ghostget menubar stop. Setup guide: https://ghostget.com/getting-started
+The TUI uses a running control owner (ghostget control serve) when there
+is one. Setup guide: https://ghostget.com/getting-started
 `;
 
 type HelpTopic =

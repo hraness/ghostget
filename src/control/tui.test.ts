@@ -308,8 +308,8 @@ describe("terminal lifecycle and CLI", () => {
   });
   test("helper collision is plain actionable output and the helper closes", async () => {
     let closed = false; const errors: string[] = [];
-    const client: HelperClient = { request: async () => ({ ok: false, code: "CONTROL_ALREADY_RUNNING", message: "Stop the menu bar with ghostget menubar stop, then start ghostget tui." }), close: async () => { closed = true; } };
+    const client: HelperClient = { request: async () => ({ ok: false, code: "CONTROL_ALREADY_RUNNING", message: "Stop the control owner with ghostget control stop, then start ghostget tui." }), close: async () => { closed = true; } };
     expect(await runTuiCommand(["tui", "--snapshot"], {}, { stdout: () => {}, stderr: (text) => errors.push(text) }, { helper: () => client })).toBe(1);
-    expect(errors.join("")).toContain("ghostget menubar stop"); expect(closed).toBe(true);
+    expect(errors.join("")).toContain("ghostget control stop"); expect(closed).toBe(true);
   });
 });

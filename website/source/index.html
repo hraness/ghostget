@@ -239,14 +239,14 @@ This domain is for use in documentation examples without needing permission. Avo
 
         <section aria-labelledby="control-heading" class="hraness-marketing-section" data-hraness-marketing="section" data-layout="split" id="control-panel">
           <div class="hraness-marketing-section__heading-group">
-            <p class="home-eyebrow">Menu bar and terminal</p>
+            <p class="home-eyebrow">Terminal controls</p>
             <h2 class="hraness-marketing-section__heading" id="control-heading">Review accounts and approvals.</h2>
-            <p class="hraness-marketing-section__summary">Review connected accounts, permissions, pending approvals, and recent activity in your menu bar or terminal. The menu also opens recent output files. Your agent keeps using the same CLI and SDK.</p>
+            <p class="hraness-marketing-section__summary">Review connected accounts, permissions, pending approvals, recent activity, and saved output files from the terminal. Your agent reads the same state with <code>--json</code>.</p>
           </div>
           <div class="hraness-marketing-section__body">
             <div class="hraness-marketing-prose">
-              <p>Run <code>ghostget menubar</code> for the macOS companion. It is unsigned; <code>ghostget menubar doctor</code> explains setup.</p>
-              <p>For terminal controls, stop the menu with <code>ghostget menubar stop</code>, then run <code>ghostget tui</code>. Only one control client runs at a time; public-page reads need neither.</p>
+              <p>Run <code>ghostget status</code> for one screen of accounts, approvals, and outputs. <code>ghostget control serve</code> keeps the control owner running without a window, and <code>ghostget control install</code> starts it at login. Every grant asks you at the terminal.</p>
+              <p>Prefer the keyboard? Run <code>ghostget tui</code>. Tab moves between six sections, Enter opens actions, and <code>?</code> shows help. Public-page reads need neither.</p>
             </div>
           </div>
         </section>

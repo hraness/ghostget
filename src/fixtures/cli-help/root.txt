@@ -34,7 +34,6 @@ Control GhostGet
   ghostget control serve|stop         Run the control owner without a window
   ghostget approvals|permissions|connections
                                       Every control action as a command
-  ghostget menubar                    Show GhostGet in the menu bar
   ghostget doctor                     Check everything GhostGet needs
 
 Extend GhostGet
