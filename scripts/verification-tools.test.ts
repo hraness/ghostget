@@ -42,6 +42,8 @@ import {
   LEAN_DIFFERENTIAL_TESTS,
   PLATFORM_KEYS,
   QUINT,
+  QUINT_APALACHE_SCOPE,
+  QUINT_CI_SHARD_COUNT,
   QUINT_CONCURRENCY,
   QUINT_REPLAY_SCRIPT,
   QUINT_REPLAY_TIMEOUT_MS,
@@ -51,6 +53,7 @@ import {
   VERIFICATION_ARTIFACTS,
   admitArchive,
   apalacheVerdict,
+  assignQuintWorkShards,
   axiomAuditArguments,
   axiomAuditFindings,
   jdkIdentityLines,
@@ -64,12 +67,15 @@ import {
   parseAxiomAudit,
   parseLeanProofs,
   parseQuintModels,
+  parseSkipApalache,
   parseVerificationMode,
   pathReplacements,
   pinnedArchives,
   pinnedArchivesDigest,
   platformKey,
+  quintApalacheScopeChanged,
   quintBounds,
+  quintModelWeight,
   quintReplayCommand,
   quintReplayTests,
   quintRunArguments,
@@ -77,6 +83,8 @@ import {
   quintSimulationVerdict,
   quintTraceArguments,
   quintTypecheckVerdict,
+  quintWorkForShard,
+  quintWorkUnits,
   readQuintModels,
   requireFinished,
   requireVerdict,
@@ -92,6 +100,7 @@ import {
   type PinnedArchive,
   type ToolOutcome,
 } from "./verification-tools.js";
+import { decideApalacheScope } from "./verification-quint-scope.js";
 import {
   applySourceMutant,
   mutantRunVerdict,
@@ -346,8 +355,9 @@ describe("verification CI job", () => {
     expect(upload[0]!.if).toBe("always()");
     expect(boundSum).toBeLessThanOrEqual(job["timeout-minutes"]! - 2);
     expect(JSON.stringify(job)).not.toContain("secrets.");
+    // An action may name one subdirectory action, such as actions/cache/restore.
     for (const match of source.matchAll(/^\s*(?:- )?uses: (\S+)/gmu)) {
-      expect(match[1]).toMatch(/^[A-Za-z0-9-]+\/[A-Za-z0-9-]+@[0-9a-f]{40}$/u);
+      expect(match[1]).toMatch(/^[A-Za-z0-9-]+\/[A-Za-z0-9-]+(?:\/[A-Za-z0-9-]+)?@[0-9a-f]{40}$/u);
     }
   });
 
@@ -929,6 +939,105 @@ const apalacheViolation: CheckerResult = Object.freeze({ exitCode: 12, stdout: A
 const lineSoup = (lines: readonly string[]): fc.Arbitrary<string> =>
   fc.array(fc.oneof(fc.constantFrom(...lines), fc.string({ maxLength: 30 })), { maxLength: 30 })
     .map((parts) => parts.join("\n"));
+
+describe("quint shard packing", () => {
+  test("splits fence.qnt by check and keeps its invariant check alone on one shard", async () => {
+    const models = await readQuintModels();
+    const units = quintWorkUnits(models);
+    const fence = units.filter((unit) => unit.model.file === "fence.qnt");
+    const fenceModel = models.find((model) => model.file === "fence.qnt")!;
+    expect(fence.filter((unit) => unit.core)).toHaveLength(1);
+    expect(fence.filter((unit) => unit.replay)).toHaveLength(1);
+    expect(fence.flatMap((unit) => unit.mutants)).toHaveLength(fenceModel.mutants.length);
+    expect(fence.find((unit) => unit.core)!.mutants).toEqual([]);
+    expect(fence.find((unit) => unit.core)!.replay).toBeFalse();
+    // An unsplit model stays one unit with every part.
+    const lock = units.filter((unit) => unit.model.file === "lock.qnt");
+    expect(lock).toHaveLength(1);
+    expect(lock[0]!.core && lock[0]!.replay).toBeTrue();
+    const shards = assignQuintWorkShards(models, QUINT_CI_SHARD_COUNT);
+    const fenceShard = shards.findIndex((shard) => shard.some((unit) => unit.core && unit.model.file === "fence.qnt"));
+    expect(shards[fenceShard]).toHaveLength(1);
+    expect(quintWorkForShard(models, { shard: fenceShard + 1, shardCount: QUINT_CI_SHARD_COUNT })).toEqual(shards[fenceShard]!);
+    // The model weight still sums a split model's parts, and promotion.qnt is measured.
+    expect(quintModelWeight("fence.qnt")).toBeGreaterThan(1150);
+    expect(quintModelWeight("promotion.qnt")).toBe(300);
+  });
+
+  test("packs every part exactly once for any shard count", async () => {
+    const models = await readQuintModels();
+    const expected = quintWorkUnits(models).map((unit) => unit.weight).sort((left, right) => left - right);
+    for (let count = 1; count <= 16; count += 1) {
+      const shards = assignQuintWorkShards(models, count);
+      expect(shards).toHaveLength(count);
+      expect(shards.flat().map((unit) => unit.weight).sort((left, right) => left - right)).toEqual(expected);
+      expect(assignQuintWorkShards(models, count)).toEqual(shards);
+    }
+  });
+
+  test("rejects split weights that drift from the manifest", async () => {
+    const models = await readQuintModels();
+    expect(() => quintWorkUnits(models.filter((model) => model.file !== "fence.qnt"))).toThrow("does not list");
+    const renamed = models.map((model) => model.file === "fence.qnt"
+      ? { ...model, mutants: model.mutants.map((mutant, index) => index === 0 ? { ...mutant, step: "stepRenamed" } : mutant) }
+      : model);
+    expect(() => quintWorkUnits(renamed)).toThrow("does not list");
+  });
+});
+
+describe("pull-request Apalache scope", () => {
+  const base = "a".repeat(40);
+  const head = "b".repeat(40);
+  const merge = "c".repeat(40);
+  const git = (changed: string | null, parents = `${merge} ${base} ${head}\n`) => (argumentsList: readonly string[]) =>
+    argumentsList[0] === "rev-list" ? parents : changed;
+
+  test("covers the models, checker scripts, Quint pin, and workflow", () => {
+    for (const path of [
+      "verification/quint/fence.qnt",
+      "verification/quint/models.json",
+      "scripts/verification-tools.ts",
+      "scripts/verification-itf.ts",
+      "scripts/verification-quint-scope.ts",
+      "package.json",
+      "bun.lock",
+      ".github/workflows/ci.yml",
+    ]) {
+      expect(quintApalacheScopeChanged(["README.md", path])).toBeTrue();
+    }
+    expect(quintApalacheScopeChanged(["src/cli.ts", "website/index.html", "verification/claims.json", "docs/assurance.md"])).toBeFalse();
+    expect(quintApalacheScopeChanged([])).toBeFalse();
+    expect(QUINT_APALACHE_SCOPE).toContain("verification/quint/");
+  });
+
+  test("skips only on a pull-request merge commit whose diff misses the scope", () => {
+    expect(decideApalacheScope("pull_request", git("src/cli.ts\0website/index.html\0")).skip).toBeTrue();
+    expect(decideApalacheScope("pull_request", git("src/cli.ts\0verification/quint/fence.qnt\0")).skip).toBeFalse();
+    expect(decideApalacheScope("push", git("src/cli.ts\0")).skip).toBeFalse();
+    expect(decideApalacheScope("schedule", git("src/cli.ts\0")).skip).toBeFalse();
+    expect(decideApalacheScope(undefined, git("src/cli.ts\0")).skip).toBeFalse();
+    expect(decideApalacheScope("pull_request", git(null)).skip).toBeFalse();
+    expect(decideApalacheScope("pull_request", git("src/cli.ts\0", `${merge} ${base}\n`)).skip).toBeFalse();
+    expect(decideApalacheScope("pull_request", git("src/cli.ts\0", "")).skip).toBeFalse();
+    expect(decideApalacheScope("pull_request", () => null).skip).toBeFalse();
+  });
+
+  test("diffs the merge commit against its first (base) parent", () => {
+    const calls: string[][] = [];
+    decideApalacheScope("pull_request", (argumentsList) => {
+      calls.push([...argumentsList]);
+      return argumentsList[0] === "rev-list" ? `${merge} ${base} ${head}\n` : "";
+    });
+    expect(calls[1]).toEqual(["diff", "--no-renames", "--name-only", "-z", base, merge]);
+  });
+
+  test("parses the skip variable strictly", () => {
+    expect(parseSkipApalache(undefined)).toBeFalse();
+    expect(parseSkipApalache("")).toBeFalse();
+    expect(parseSkipApalache("1")).toBeTrue();
+    for (const value of ["0", "true", "yes", " 1", "1\n"]) expect(() => parseSkipApalache(value)).toThrow("must be unset or 1");
+  });
+});
 
 describe("checker verdicts", () => {
   test("prints Quint's reproduction line for the decimal seed", () => {

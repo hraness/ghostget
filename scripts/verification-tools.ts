@@ -1600,25 +1600,22 @@ export function quintReplayCommand(bun: string, models: readonly QuintModel[]): 
 // ---------------------------------------------------------------------------
 
 /**
- * The number of parallel `quint` jobs PR CI runs. Each job checks the models
- * `quintModelsForShard` assigns to it at the CI bounds; together they check
- * exactly what `bun run verify:quint` checks in one process.
+ * The number of parallel `quint` jobs PR CI runs. Each job runs the work
+ * units `quintWorkForShard` assigns to it at the CI bounds; together they
+ * check exactly what `bun run verify:quint` checks in one process.
  */
 export const QUINT_CI_SHARD_COUNT = 4;
 const MAX_QUINT_SHARD_COUNT = 16;
 const DEFAULT_QUINT_MODEL_WEIGHT = 60;
 
 // Wall seconds one model took in the CI profile on GitHub-hosted ubuntu-latest
-// (run 36028981199): typecheck, seeded simulations, the Apalache check of every
-// invariant and mutant, and its ITF replay test. Used only to pack shards;
-// every model still runs exactly once. A model without a reading takes the
-// default weight until its first CI log.
+// (run 36028981199; promotion.qnt from run 36511561912): typecheck, seeded
+// simulations, the Apalache check of every invariant and mutant, and its ITF
+// replay test. Used only to pack shards; every model still runs exactly once.
+// A model without a reading takes the default weight until its first CI log.
 const MEASURED_QUINT_MODEL_WEIGHTS = Object.freeze({
-  // With the subject dimension, fence.qnt's six Apalache checks and its
-  // replay approach the quint step's former 20-minute budget on a shared
-  // 4-vCPU runner (run 36093627910); it packs alone onto the lightest shard.
-  "fence.qnt": 1150,
   "release.qnt": 330,
+  "promotion.qnt": 300,
   "state-claim.qnt": 170,
   "media.qnt": 155,
   "path-claim.qnt": 140,
@@ -1627,11 +1624,113 @@ const MEASURED_QUINT_MODEL_WEIGHTS = Object.freeze({
   "lock.qnt": 20,
 });
 
+// A model listed here packs by check instead of as one unit: its core work
+// (typecheck, every seeded simulation, and the Apalache check of every
+// invariant), its ITF replay run, and each listed mutant's Apalache check are
+// separate units, so a slow invariant check runs alone on its shard while its
+// mutants and replay run elsewhere. fence.qnt's fenceSafety check alone takes
+// 15-23 minutes, and its five mutant checks took another 7-10 minutes in
+// series behind it (runs 36511561912 and 36507515053), which pushed the fence
+// shard past its step bound on main (run 36342247630). Mutants a model does
+// not list here stay in its core unit. Weights are wall seconds from those
+// runs; every listed mutant must exist in the manifest.
+const MEASURED_QUINT_SPLIT_WEIGHTS: Readonly<Record<string, Readonly<{
+  core: number;
+  replay: number;
+  mutants: Readonly<Record<string, number>>;
+}>>> = Object.freeze({
+  "fence.qnt": Object.freeze({
+    core: 1150,
+    replay: 200,
+    mutants: Object.freeze({
+      "stepHashKeyed fenceSafety": 245,
+      "stepUnelected fenceSafety": 205,
+      "stepElectInFlight fenceSafety": 70,
+      "stepSubjectBlind fenceSafety": 35,
+      "stepCallerRelease fenceSafety": 20,
+    }),
+  }),
+});
+
 export type QuintShard = Readonly<{ shard: number; shardCount: number }>;
+export type QuintMutant = QuintModel["mutants"][number];
+
+/**
+ * One schedulable part of a model's `verify:quint` work. `core` is the
+ * typecheck, every seeded simulation (invariants and mutants), and the
+ * Apalache check of every invariant; `mutants` are the mutants whose Apalache
+ * checks this unit runs; `replay` runs the model's ITF replay test.
+ */
+export type QuintWork = Readonly<{
+  model: QuintModel;
+  core: boolean;
+  mutants: readonly QuintMutant[];
+  replay: boolean;
+  weight: number;
+}>;
 
 export function quintModelWeight(file: string): number {
+  const split = MEASURED_QUINT_SPLIT_WEIGHTS[file];
+  if (split !== undefined) {
+    return split.core + split.replay + Object.values(split.mutants).reduce((sum, weight) => sum + weight, 0);
+  }
   return MEASURED_QUINT_MODEL_WEIGHTS[file as keyof typeof MEASURED_QUINT_MODEL_WEIGHTS]
     ?? DEFAULT_QUINT_MODEL_WEIGHT;
+}
+
+function mutantKey(mutant: QuintMutant): string {
+  return `${mutant.step} ${mutant.invariant}`;
+}
+
+/** Every model's work units, in manifest order; each model's parts appear in exactly one unit. */
+export function quintWorkUnits(models: readonly QuintModel[]): readonly QuintWork[] {
+  if (new Set(models.map((model) => model.file)).size !== models.length) {
+    throw new Error("the model inventory lists a file twice");
+  }
+  const files = new Set(models.map((model) => model.file));
+  for (const file of Object.keys(MEASURED_QUINT_SPLIT_WEIGHTS)) {
+    if (!files.has(file)) throw new Error(`the split weights name ${file}, which the model inventory does not list`);
+  }
+  return Object.freeze(models.flatMap((model): QuintWork[] => {
+    const split = MEASURED_QUINT_SPLIT_WEIGHTS[model.file];
+    if (split === undefined) {
+      return [Object.freeze({ model, core: true, mutants: model.mutants, replay: true, weight: quintModelWeight(model.file) })];
+    }
+    const known = new Set(model.mutants.map(mutantKey));
+    for (const key of Object.keys(split.mutants)) {
+      if (!known.has(key)) throw new Error(`the split weights for ${model.file} name mutant ${key}, which the manifest does not list`);
+    }
+    const separate = model.mutants.filter((mutant) => split.mutants[mutantKey(mutant)] !== undefined);
+    return [
+      Object.freeze({
+        model,
+        core: true,
+        mutants: Object.freeze(model.mutants.filter((mutant) => split.mutants[mutantKey(mutant)] === undefined)),
+        replay: false,
+        weight: split.core,
+      }),
+      Object.freeze({ model, core: false, mutants: Object.freeze([]), replay: true, weight: split.replay }),
+      ...separate.map((mutant) => Object.freeze({
+        model,
+        core: false,
+        mutants: Object.freeze([mutant]),
+        replay: false,
+        weight: split.mutants[mutantKey(mutant)]!,
+      })),
+    ];
+  }));
+}
+
+/** A short description of one unit for the shard log. */
+export function describeQuintWork(unit: QuintWork): string {
+  const parts = [
+    ...(unit.core ? ["core"] : []),
+    ...(unit.mutants.length > 0 && !unit.core ? unit.mutants.map((mutant) => `mutant ${mutant.step}`) : []),
+    ...(unit.replay ? ["replay"] : []),
+  ];
+  return unit.core && unit.replay && unit.mutants.length === unit.model.mutants.length
+    ? unit.model.file
+    : `${unit.model.file} (${parts.join(", ")})`;
 }
 
 function positiveShardInteger(value: unknown, label: string): number {
@@ -1658,70 +1757,128 @@ export function parseQuintShard(shard: unknown, shardCount: unknown): QuintShard
 }
 
 /**
- * Pack the models into `shardCount` shards by measured weight, heaviest
+ * Pack the work units into `shardCount` shards by measured weight, heaviest
  * first onto the lightest shard, so the slowest shard is as short as the
- * heaviest model allows. The packing is a deterministic partition: every
- * model lands in exactly one shard, and each shard keeps manifest order.
+ * heaviest unit allows. The packing is a deterministic partition: every unit
+ * lands in exactly one shard, and each shard keeps manifest order.
  */
-export function assignQuintModelShards(
+export function assignQuintWorkShards(
   models: readonly QuintModel[],
   shardCount: number,
-): readonly (readonly QuintModel[])[] {
+): readonly (readonly QuintWork[])[] {
   if (!Number.isInteger(shardCount) || shardCount < 1 || shardCount > MAX_QUINT_SHARD_COUNT) {
     throw new Error(`shardCount must be an integer from 1 to ${String(MAX_QUINT_SHARD_COUNT)}`);
   }
-  if (new Set(models.map((model) => model.file)).size !== models.length) {
-    throw new Error("the model inventory lists a file twice");
-  }
+  const units = quintWorkUnits(models);
   const shards: number[][] = Array.from({ length: shardCount }, () => []);
   const weights = Array.from({ length: shardCount }, () => 0);
-  const ordered = models.map((model, index) => ({ model, index })).sort((left, right) => {
-    const delta = quintModelWeight(right.model.file) - quintModelWeight(left.model.file);
-    return delta !== 0 ? delta : left.model.file.localeCompare(right.model.file);
+  // Units sort by weight, then by manifest position, so ties stay deterministic.
+  const ordered = units.map((unit, index) => ({ unit, index })).sort((left, right) => {
+    const delta = right.unit.weight - left.unit.weight;
+    return delta !== 0 ? delta : left.index - right.index;
   });
-  for (const { index } of ordered) {
+  for (const { unit, index } of ordered) {
     let lightest = 0;
     for (let candidate = 1; candidate < shardCount; candidate += 1) {
       if (weights[candidate]! < weights[lightest]!) lightest = candidate;
     }
     shards[lightest]!.push(index);
-    weights[lightest]! += quintModelWeight(models[index]!.file);
+    weights[lightest]! += unit.weight;
   }
   return Object.freeze(shards.map((indices) =>
-    Object.freeze([...indices].sort((left, right) => left - right).map((index) => models[index]!))
+    Object.freeze([...indices].sort((left, right) => left - right).map((index) => units[index]!))
   ));
 }
 
-/** The models one CI shard checks; a shard that would check nothing is a misconfiguration. */
-export function quintModelsForShard(models: readonly QuintModel[], shard: QuintShard): readonly QuintModel[] {
-  const selected = assignQuintModelShards(models, shard.shardCount)[shard.shard - 1];
+/** The work units one CI shard runs; a shard that would run nothing is a misconfiguration. */
+export function quintWorkForShard(models: readonly QuintModel[], shard: QuintShard): readonly QuintWork[] {
+  const selected = assignQuintWorkShards(models, shard.shardCount)[shard.shard - 1];
   if (selected === undefined || selected.length === 0) {
-    throw new Error(`quint shard ${String(shard.shard)}/${String(shard.shardCount)} has no models`);
+    throw new Error(`quint shard ${String(shard.shard)}/${String(shard.shardCount)} has no work`);
   }
   return selected;
 }
 
+// ---------------------------------------------------------------------------
+// Pull-request Apalache scope
+// ---------------------------------------------------------------------------
+
 /**
- * Typecheck every model, require each invariant to pass seeded simulation and
- * bounded Apalache checking, require both checkers to find every mutant, and
- * run every model's replay test. Each model's checks form one job and the
- * replay run forms another; at most `QUINT_CONCURRENCY` jobs run at once.
+ * The environment variable that lets one pull-request `quint` shard skip its
+ * Apalache checks. Only the CI workflow sets it, only on a `pull_request`
+ * event, and only when `quintApalacheScopeChanged` finds no changed path in
+ * `QUINT_APALACHE_SCOPE`. Push CI on `main` and the nightly run never set it,
+ * so release admission, which reads the exact main commit's push CI, still
+ * sees every Apalache verdict.
  */
-export async function verifyQuint(context: RunContext, shard: QuintShard | null = null): Promise<void> {
+export const QUINT_SKIP_APALACHE_VARIABLE = "GHOSTGET_QUINT_SKIP_APALACHE";
+
+/**
+ * Every path an Apalache verdict depends on: the models and their manifest,
+ * the checker pins, bounds, invocation, and counterexample parsing in the
+ * `scripts/verification-*` files (the scope script among them), the Quint
+ * pin in the package manifest and lockfile, and the CI workflow. Each entry
+ * is a path prefix, so the scope errs toward running Apalache.
+ */
+export const QUINT_APALACHE_SCOPE = Object.freeze([
+  "verification/quint/",
+  "scripts/verification-",
+  "package.json",
+  "bun.lock",
+  ".github/workflows/ci.yml",
+]);
+
+/** Whether a change to these repository paths can change an Apalache verdict. */
+export function quintApalacheScopeChanged(paths: readonly string[]): boolean {
+  return paths.some((path) => QUINT_APALACHE_SCOPE.some((entry) => path.startsWith(entry)));
+}
+
+/** Parse the skip variable strictly: unset or empty runs Apalache, `1` skips it, and anything else is an error. */
+export function parseSkipApalache(value: string | undefined): boolean {
+  if (value === undefined || value === "") return false;
+  if (value === "1") return true;
+  throw new Error(`${QUINT_SKIP_APALACHE_VARIABLE} must be unset or 1`);
+}
+
+/**
+ * Run the work units: typecheck every core model, require each invariant to
+ * pass seeded simulation and bounded Apalache checking, require both checkers
+ * to find every mutant, and run every selected model's replay test. Each unit
+ * forms one job and the replay run forms another; at most `QUINT_CONCURRENCY`
+ * jobs run at once. With `skipApalache`, which only a pull-request shard
+ * outside `QUINT_APALACHE_SCOPE` sets, the typecheck, simulations, and replay
+ * still run and every Apalache check is skipped and recorded as skipped.
+ */
+export async function verifyQuint(
+  context: RunContext,
+  shard: QuintShard | null = null,
+  skipApalache = false,
+): Promise<void> {
   const manifest = await readQuintModels(context.root);
-  const models = shard === null ? manifest : quintModelsForShard(manifest, shard);
+  const units = shard === null ? quintWorkUnits(manifest) : quintWorkForShard(manifest, shard);
   if (shard !== null) {
-    context.log(`quint shard ${String(shard.shard)}/${String(shard.shardCount)}: ${models.map((model) => model.file).join(", ")}`);
+    context.log(`quint shard ${String(shard.shard)}/${String(shard.shardCount)}: ${units.map(describeQuintWork).join(", ")}`);
   }
   const nightly = context.profile === "nightly";
+  if (skipApalache && nightly) throw new Error(`the nightly profile never skips Apalache; unset ${QUINT_SKIP_APALACHE_VARIABLE}`);
+  if (skipApalache) {
+    context.log(
+      `${QUINT_SKIP_APALACHE_VARIABLE}=1: this pull request changes no path in the Apalache scope, so this shard skips every Apalache check; push CI on main runs them all`,
+    );
+  }
   const node = requireExecutable("node");
   const quint = join(context.root, QUINT.cli);
   const quintDirectory = join(context.root, "verification", "quint");
   const version = await quintVersion(context, node);
-  const [apalachePath, jdkPath] = await admitAll(context, [APALACHE.archive, JDK.archives[context.platform]]);
-  const jdk = await prepareJdk(context, jdkPath!);
-  const apalache = await extractArchive(context, apalachePath!, APALACHE.archive, join(context.work, "tools"), "apalache");
-  const apalacheJar = join(apalache, "lib", "apalache.jar");
+  const runsApalache = !skipApalache && units.some((unit) => unit.core || unit.mutants.length > 0);
+  let apalacheJar = "";
+  let jdk: Awaited<ReturnType<typeof prepareJdk>> | null = null;
+  if (runsApalache) {
+    const [apalachePath, jdkPath] = await admitAll(context, [APALACHE.archive, JDK.archives[context.platform]]);
+    jdk = await prepareJdk(context, jdkPath!);
+    const apalache = await extractArchive(context, apalachePath!, APALACHE.archive, join(context.work, "tools"), "apalache");
+    apalacheJar = join(apalache, "lib", "apalache.jar");
+  }
   const irDirectory = join(context.work, "quint-ir");
   await mkdir(irDirectory, { recursive: true });
   const quintRun = (step: string, logName: string, argumentsList: readonly string[]) =>
@@ -1739,6 +1896,7 @@ export async function verifyQuint(context: RunContext, shard: QuintShard | null 
     next: string,
     invariant: string,
   ) => {
+    if (jdk === null) throw new Error("Apalache was not prepared for this shard");
     const outDirectory = await mkdtemp(join(context.work, "apalache-out-"));
     const result = await runLogged(context, step, logName, [
       jdk.java,
@@ -1760,83 +1918,112 @@ export async function verifyQuint(context: RunContext, shard: QuintShard | null 
     });
     return { result, outDirectory };
   };
-  const checkModel = async (model: QuintModel): Promise<Record<string, unknown>> => {
+  // Two units of one model may share a shard; compile its IR once.
+  const compiledIr = new Map<string, Promise<string>>();
+  const compileModel = (model: QuintModel): Promise<string> => {
+    const existing = compiledIr.get(model.file);
+    if (existing !== undefined) return existing;
+    const compiling = (async () => {
+      // Quint writes the IR with an asynchronous stdout write and then exits,
+      // which cuts a macOS pipe off at 64 KiB. A file receives every byte.
+      const irPath = join(irDirectory, `${model.module}.qnt.json`);
+      const compiled = await runLogged(context, `quint compile ${model.file}`, `quint-compile-${model.module}`, [
+        "/bin/sh", "-c", 'out="$1"; shift; exec "$@" > "$out"', "sh", irPath,
+        node, quint, "compile", "--target", "json", "--main", model.module, model.file,
+      ], { cwd: quintDirectory, environment: quintEnvironment(context, node), timeoutMs: QUINT_TIMEOUT_MS });
+      let ir: unknown;
+      try {
+        ir = JSON.parse(await readFile(irPath, "utf8")) as unknown;
+      } catch {
+        ir = null;
+      }
+      if (compiled.exitCode !== 0 || compiled.stdout !== "" || !isPlainObject(ir)) {
+        throw new Error(`quint compile ${model.file} did not produce its JSON IR`);
+      }
+      return irPath;
+    })();
+    compiledIr.set(model.file, compiling);
+    return compiling;
+  };
+  const checkUnit = async (unit: QuintWork): Promise<Record<string, unknown>> => {
+    const model = unit.model;
     const name = model.module;
     const bounds = quintBounds(model, context.profile);
-    if (nightly && model.nightly === undefined) context.log(`${model.file}: no nightly bounds recorded; repeating the CI bounds`);
-    const typecheck = await quintRun(`quint typecheck ${model.file}`, `quint-typecheck-${name}`, ["typecheck", model.file]);
-    requireLoggedVerdict(context, `quint typecheck ${model.file}`, "pass", quintTypecheckVerdict(typecheck), typecheck);
-    for (const invariant of model.invariants) {
-      const step = `quint run ${name} ${model.step} ${invariant}`;
-      const result = await quintRun(step, `quint-run-${name}-${invariant}`, quintRunArguments(model, model.step, invariant, context.profile));
-      requireLoggedVerdict(context, step, "pass", quintSimulationVerdict(result), result);
-      context.log(`${step}: no violation in ${String(bounds.simulation.maxSamples)} samples of up to ${String(bounds.simulation.maxSteps)} steps (seed ${bounds.simulation.seed})`);
+    if (unit.core) {
+      if (nightly && model.nightly === undefined) context.log(`${model.file}: no nightly bounds recorded; repeating the CI bounds`);
+      const typecheck = await quintRun(`quint typecheck ${model.file}`, `quint-typecheck-${name}`, ["typecheck", model.file]);
+      requireLoggedVerdict(context, `quint typecheck ${model.file}`, "pass", quintTypecheckVerdict(typecheck), typecheck);
+      for (const invariant of model.invariants) {
+        const step = `quint run ${name} ${model.step} ${invariant}`;
+        const result = await quintRun(step, `quint-run-${name}-${invariant}`, quintRunArguments(model, model.step, invariant, context.profile));
+        requireLoggedVerdict(context, step, "pass", quintSimulationVerdict(result), result);
+        context.log(`${step}: no violation in ${String(bounds.simulation.maxSamples)} samples of up to ${String(bounds.simulation.maxSteps)} steps (seed ${bounds.simulation.seed})`);
+      }
+      // Every mutant's simulation belongs to the core unit; a mutant unit
+      // carries only that mutant's Apalache check.
+      for (const mutant of model.mutants) {
+        const step = `quint run ${name} ${mutant.step} ${mutant.invariant}`;
+        const result = await quintRun(step, `quint-mutant-${name}-${mutant.step}-${mutant.invariant}`, quintRunArguments(model, mutant.step, mutant.invariant, context.profile));
+        requireLoggedVerdict(context, step, "violation", quintSimulationVerdict(result), result);
+        context.log(`${step}: the seeded defect violates ${mutant.invariant}, as required`);
+      }
     }
-    for (const mutant of model.mutants) {
-      const step = `quint run ${name} ${mutant.step} ${mutant.invariant}`;
-      const result = await quintRun(step, `quint-mutant-${name}-${mutant.step}-${mutant.invariant}`, quintRunArguments(model, mutant.step, mutant.invariant, context.profile));
-      requireLoggedVerdict(context, step, "violation", quintSimulationVerdict(result), result);
-      context.log(`${step}: the seeded defect violates ${mutant.invariant}, as required`);
-    }
-    // Quint writes the IR with an asynchronous stdout write and then exits,
-    // which cuts a macOS pipe off at 64 KiB. A file receives every byte.
-    const irPath = join(irDirectory, `${name}.qnt.json`);
-    const compiled = await runLogged(context, `quint compile ${model.file}`, `quint-compile-${name}`, [
-      "/bin/sh", "-c", 'out="$1"; shift; exec "$@" > "$out"', "sh", irPath,
-      node, quint, "compile", "--target", "json", "--main", model.module, model.file,
-    ], { cwd: quintDirectory, environment: quintEnvironment(context, node), timeoutMs: QUINT_TIMEOUT_MS });
-    let ir: unknown;
-    try {
-      ir = JSON.parse(await readFile(irPath, "utf8")) as unknown;
-    } catch {
-      ir = null;
-    }
-    if (compiled.exitCode !== 0 || compiled.stdout !== "" || !isPlainObject(ir)) {
-      throw new Error(`quint compile ${model.file} did not produce its JSON IR`);
-    }
-    for (const invariant of model.invariants) {
-      const step = `apalache check ${name} ${model.step} ${invariant}`;
-      const { result } = await apalacheRun(
-        step, `apalache-${name}-${invariant}`, bounds.apalache.length, model.init, irPath, model.step, invariant,
-      );
-      requireLoggedVerdict(context, step, "pass", apalacheVerdict(result, bounds.apalache.length), result);
-      context.log(`${step}: no violation up to length ${String(bounds.apalache.length)}`);
-    }
-    for (const mutant of model.mutants) {
-      const step = `apalache check ${name} ${mutant.step} ${mutant.invariant}`;
-      const { result, outDirectory } = await apalacheRun(
-        step, `apalache-mutant-${name}-${mutant.step}-${mutant.invariant}`, bounds.apalache.length, model.init, irPath, mutant.step, mutant.invariant,
-      );
-      requireLoggedVerdict(context, step, "violation", apalacheVerdict(result, bounds.apalache.length), result);
-      const counterexample = await apalacheCounterexample(outDirectory, `${name}.qnt.json`);
-      await writeFile(join(context.artifacts, `apalache-mutant-${name}-${mutant.step}-${mutant.invariant}.itf.json`), counterexample);
-      context.log(`${step}: the seeded defect violates ${mutant.invariant}, as required`);
+    if (!skipApalache) {
+      if (unit.core || unit.mutants.length > 0) {
+        const irPath = await compileModel(model);
+        if (unit.core) {
+          for (const invariant of model.invariants) {
+            const step = `apalache check ${name} ${model.step} ${invariant}`;
+            const { result } = await apalacheRun(
+              step, `apalache-${name}-${invariant}`, bounds.apalache.length, model.init, irPath, model.step, invariant,
+            );
+            requireLoggedVerdict(context, step, "pass", apalacheVerdict(result, bounds.apalache.length), result);
+            context.log(`${step}: no violation up to length ${String(bounds.apalache.length)}`);
+          }
+        }
+        for (const mutant of unit.mutants) {
+          const step = `apalache check ${name} ${mutant.step} ${mutant.invariant}`;
+          const { result, outDirectory } = await apalacheRun(
+            step, `apalache-mutant-${name}-${mutant.step}-${mutant.invariant}`, bounds.apalache.length, model.init, irPath, mutant.step, mutant.invariant,
+          );
+          requireLoggedVerdict(context, step, "violation", apalacheVerdict(result, bounds.apalache.length), result);
+          const counterexample = await apalacheCounterexample(outDirectory, `${name}.qnt.json`);
+          await writeFile(join(context.artifacts, `apalache-mutant-${name}-${mutant.step}-${mutant.invariant}.itf.json`), counterexample);
+          context.log(`${step}: the seeded defect violates ${mutant.invariant}, as required`);
+        }
+      }
     }
     return {
       model: model.file,
-      invariants: model.invariants,
-      mutants: model.mutants.map((mutant) => mutant.step),
+      core: unit.core,
+      invariants: unit.core ? model.invariants : [],
+      mutants: unit.mutants.map((mutant) => mutant.step),
       profile: context.profile,
-      simulation: bounds.simulation,
-      apalache: bounds.apalache,
-      replay: { test: model.replay.test, target: model.replay.target },
+      simulation: unit.core ? bounds.simulation : null,
+      apalache: skipApalache ? "skipped" : bounds.apalache,
+      replay: unit.replay ? { test: model.replay.test, target: model.replay.target } : null,
     };
   };
+  const replayModels = units.filter((unit) => unit.replay).map((unit) => unit.model);
+  const checkedUnits = units.filter((unit) => unit.core || (!skipApalache && unit.mutants.length > 0));
   const summary: Record<string, unknown>[] = [];
   await runAtMost([
-    () => runQuintReplays(context, models),
-    ...models.map((model, index) => async () => {
-      summary[index] = await checkModel(model);
+    ...(replayModels.length > 0 ? [() => runQuintReplays(context, replayModels)] : []),
+    ...checkedUnits.map((unit, index) => async () => {
+      summary[index] = await checkUnit(unit);
     }),
   ], QUINT_CONCURRENCY);
   await writeFile(join(context.artifacts, "toolchain.json"), `${JSON.stringify({
     quint: version,
-    apalache: `${APALACHE.version} (build ${APALACHE.build})`,
-    jdk: `${JDK.vendorVersion} (${JDK.runtimeVersion})`,
-    archives: [APALACHE.archive, JDK.archives[context.platform]].map((archive) => ({
-      name: archive.name, bytes: archive.bytes, sha256: archive.sha256,
-    })),
-    models: summary,
+    apalache: runsApalache ? `${APALACHE.version} (build ${APALACHE.build})` : "skipped",
+    jdk: runsApalache ? `${JDK.vendorVersion} (${JDK.runtimeVersion})` : "skipped",
+    archives: runsApalache
+      ? [APALACHE.archive, JDK.archives[context.platform]].map((archive) => ({
+        name: archive.name, bytes: archive.bytes, sha256: archive.sha256,
+      }))
+      : [],
+    replays: replayModels.map((model) => model.replay.test),
+    units: summary,
   }, null, 2)}\n`);
 }
 
@@ -2222,6 +2409,8 @@ export async function runVerification(
   shard: QuintShard | null = null,
 ): Promise<void> {
   if (shard !== null && mode !== "quint") throw new Error(`verify:${mode} does not shard`);
+  const skipApalache = parseSkipApalache(process.env[QUINT_SKIP_APALACHE_VARIABLE]);
+  if (skipApalache && mode !== "quint") throw new Error(`verify:${mode} never skips Apalache; unset ${QUINT_SKIP_APALACHE_VARIABLE}`);
   const platform = platformKey();
   const cacheDirectory = verificationCacheDirectory();
   const artifacts = join(root, VERIFICATION_ARTIFACTS, mode);
@@ -2255,7 +2444,7 @@ export async function runVerification(
       log: (line) => console.log(sanitizeCheckerOutput(line, replacements)),
     };
     try {
-      if (mode === "quint" || mode === "quint-nightly") await verifyQuint(context, shard);
+      if (mode === "quint" || mode === "quint-nightly") await verifyQuint(context, shard, skipApalache);
       else await verifyLean(context);
     } catch (error) {
       throw new Error(sanitizeCheckerOutput(errorMessage(error), replacements));

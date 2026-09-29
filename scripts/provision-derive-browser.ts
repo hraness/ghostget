@@ -1,5 +1,5 @@
-import { chmod, lstat, mkdir, mkdtemp, open, realpath, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { chmod, lstat, mkdir, mkdtemp, open, realpath, rename, rm, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import {
   browserFileSha256, browserTree, browserTreeSha256, deriveBrowserArchiveUrl,
@@ -29,10 +29,73 @@ async function command(argv: readonly string[], cwd: string): Promise<string> {
   return result.stdout;
 }
 
+/**
+ * The private parent of every retained root. It is keyed by nothing but the
+ * current user, so each pinned archive gets one stable directory beneath it.
+ */
+export function deriveBrowserCacheParent(
+  environment: Readonly<Record<string, string | undefined>> = process.env,
+  home: string = homedir(),
+): string {
+  const configured = environment.GHOSTGET_DERIVE_BROWSER_CACHE;
+  if (configured !== undefined && configured !== "") {
+    if (!configured.startsWith("/")) throw new Error("GHOSTGET_DERIVE_BROWSER_CACHE must be an absolute path");
+    return configured;
+  }
+  return join(home, ".cache", "ghostget-derive-browser");
+}
+
+/** The content-addressed root name: one directory per pinned platform archive. */
+export function deriveBrowserRootName(platform: string, archiveSha256: string): string {
+  if (!/^[a-z0-9-]+$/u.test(platform) || !/^[0-9a-f]{64}$/u.test(archiveSha256)) {
+    throw new Error("native fixture browser pin is malformed");
+  }
+  return `${platform}-${archiveSha256}`;
+}
+
+function errorCode(error: unknown): string | undefined {
+  return typeof error === "object" && error !== null && "code" in error ? String(error.code) : undefined;
+}
+
+/**
+ * Provision the pinned browser once per archive pin. A retained root is reused
+ * only after DeriveBrowserToolchain.load rechecks its archive, executable,
+ * payload, and receipt; an invalid retained root fails closed and is never
+ * repaired or replaced here. A new root is assembled in a private sibling and
+ * renamed into place, so a concurrent provisioner either wins the rename or
+ * reuses the winner's verified root.
+ */
 export async function provisionDeriveBrowser(): Promise<string> {
   if (process.env[deriveBrowserRootVariable]) return (await DeriveBrowserToolchain.load()).root;
   const artifact = deriveBrowserArtifact();
-  const root = await realpath(await mkdtemp(join(tmpdir(), "ghostget-derive-toolchain-")));
+  const configuredParent = deriveBrowserCacheParent();
+  await mkdir(configuredParent, { recursive: true, mode: 0o700 });
+  const parent = await realpath(configuredParent);
+  await chmod(parent, 0o700);
+  const stable = join(parent, deriveBrowserRootName(artifact.platform, artifact.archiveSha256));
+  try {
+    await lstat(stable);
+    return (await DeriveBrowserToolchain.load(stable)).root;
+  } catch (error) {
+    if (errorCode(error) !== "ENOENT") throw error;
+  }
+  const staging = await realpath(await mkdtemp(join(parent, ".staging-")));
+  try {
+    await assemble(staging, artifact);
+    try {
+      await rename(staging, stable);
+    } catch (error) {
+      const code = errorCode(error);
+      if (code !== "EEXIST" && code !== "ENOTEMPTY") throw error;
+      return (await DeriveBrowserToolchain.load(stable)).root;
+    }
+  } finally {
+    await rm(staging, { recursive: true, force: true });
+  }
+  return (await DeriveBrowserToolchain.load(stable)).root;
+}
+
+async function assemble(root: string, artifact: ReturnType<typeof deriveBrowserArtifact>): Promise<void> {
   await chmod(root, 0o700);
   const archive = join(root, "browser.zip");
   const payload = join(root, "payload");
@@ -78,7 +141,6 @@ export async function provisionDeriveBrowser(): Promise<string> {
     directory: { device: stat.dev.toString(), inode: stat.ino.toString(), uid: Number(stat.uid) },
   };
   await writeFile(join(root, "receipt.json"), `${JSON.stringify(receipt)}\n`, { flag: "wx", mode: 0o600 });
-  return (await DeriveBrowserToolchain.load(root)).root;
 }
 
 if (import.meta.main) {

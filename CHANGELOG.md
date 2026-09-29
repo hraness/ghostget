@@ -7,6 +7,14 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+- Local browser admission refuses a slot when the caller's deadline expires
+  on the final availability check's clock reading, instead of returning an
+  admission at the deadline.
+- The native derivation fixture browser is provisioned once per pinned
+  archive into `~/.cache/ghostget-derive-browser/<platform>-<archive SHA-256>`
+  and reused after full reverification, rather than downloaded into a new
+  temporary directory on every run.
+
 ## 0.18.49
 
 This release aligns the product footer with the header.

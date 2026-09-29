@@ -177,7 +177,7 @@
     {
       "guide": "AGENTS.md",
       "anchor": "CI covers the complete",
-      "digest": "d44cdc0e8a4ce9b2e907f6f9007aa9e36eb9b39de6dcbc2ceb479e67d3d3e296",
+      "digest": "7d4d31d38dc45eba65c7cd60d42060ec9cfec99948c079c1d02c19c7df67d530",
       "claims": [
         "ci-source-coverage-contract"
       ]
@@ -513,7 +513,7 @@
     {
       "guide": "AGENTS.md",
       "anchor": "An owner release",
-      "digest": "cdbd3411cd40ef8f519acc94dac9981ce62d3dbdfea5870c8b142516f1bfb729",
+      "digest": "66138239e7bf28abd582c1e89cdef4171f01e94f5b5edc72b13b4d9697ade4ef",
       "exempt": "Delegation of owner authority to agents; it governs who acts, while the readback and tag claims cover what must hold."
     },
     {

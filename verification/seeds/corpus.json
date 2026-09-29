@@ -1,6 +1,17 @@
 {
   "schema": "ghostget-property-seeds-v1",
   "properties": {
+    "browser-admission/stateful-model": {
+      "file": "src/browser-admission.model.test.ts",
+      "entries": [
+        {
+          "kind": "counterexample",
+          "seed": -1818327600,
+          "origin": "Required run 36502730766 (job 109197101186, CI path 7:1:1:4:...:15 before the boundary example was added) shrank an acquisition whose capture deadline expired on the final availability check's clock reading; main push 36415572995 and nightly 36444112581 failed on the same boundary.",
+          "regression": "refuses an admission when the capture deadline expires on the final clock reading (CI seed -1818327600)"
+        }
+      ]
+    },
     "contracts-invoke-read/output-round-trip": {
       "file": "src/contracts-invoke-read.test.ts",
       "entries": [
