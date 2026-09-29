@@ -13,6 +13,10 @@ This release adds a headless control owner, `--json` commands for every
 menu-bar control, and an agent-readable TUI. The menu bar is retired in the
 next release.
 
+The v0.18.52 tag was not released: its Release run stopped because main's
+package-budget definitions changed after the tagged commit. This release also
+ships the 0.18.52 share card.
+
 - Every menu-bar control has a command with `--json` output: `status`,
   `approvals list|show|decide`, `permissions list|set|enable`,
   `connections begin|verify|commit|cancel|disconnect`, `interface activate`,

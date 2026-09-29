@@ -2243,20 +2243,20 @@
 // Release 0.18.53 over main dbbd1a5 (menu-bar retirement release N) moves
 // the active version pins, the changelog and the renamed version chunk.
 // After `bun run build`, npm 11.19.0 pack --ignore-scripts with Node 24.20.0
-// on darwin arm64 measured 625 entries, 12,152,524 packed bytes, and
-// 24,093,625 unpacked bytes; archive SHA-256
-// 7c80bf1b7e7349c07ac0e791ef7333e71af23b9e1a11d0db68860780571603f0,
+// on darwin arm64 measured 625 entries, 12,152,599 packed bytes, and
+// 24,093,808 unpacked bytes; archive SHA-256
+// 62c48e73e055555dd4efe9049af0d931381ff5ef21f8b789f3ddfb5aac2745e7,
 // reproduced by a second pack. Preserve the projections and allowances:
-// 12,152,524 + 12,387 + 4,096 = 12,169,007 packed;
-// 24,093,625 + 353 + 65 = 24,094,043 unpacked.
+// 12,152,599 + 12,387 + 4,096 = 12,169,082 packed;
+// 24,093,808 + 353 + 65 = 24,094,226 unpacked.
 export const repairPackageMeasurement = Object.freeze({
   scope: "Ghostget 0.18.53 release over main dbbd1a5",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "7c80bf1b7e7349c07ac0e791ef7333e71af23b9e1a11d0db68860780571603f0",
-  packedBytes: 12_152_524,
-  unpackedBytes: 24_093_625,
+  archiveSha256: "62c48e73e055555dd4efe9049af0d931381ff5ef21f8b789f3ddfb5aac2745e7",
+  packedBytes: 12_152_599,
+  unpackedBytes: 24_093_808,
   entryCount: 625,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
