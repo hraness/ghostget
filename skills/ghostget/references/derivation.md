@@ -50,7 +50,7 @@ ghostget derive start example-web https://example.com/feed/ \
   --headed
 ```
 
-Ghostget copies at most 20 PNG, JPEG, GIF, WebP, or MP4 files into the mode-private
+GhostGet copies at most 20 PNG, JPEG, GIF, WebP, or MP4 files into the mode-private
 derivation directory, records only their byte counts, detected media types,
 SHA-256 hashes, and `fixture:<n>` references, and never retains their original
 paths. Upload only a start-bound reference to a current snapshot file input:
@@ -60,7 +60,7 @@ ghostget derive browser <id> -- upload @e5 fixture:1
 ```
 
 If the accessible attach control is a button backed by a hidden input, use the
-fixed `@single-file-input` reference. Ghostget first proves that the current page
+fixed `@single-file-input` reference. GhostGet first proves that the current page
 contains exactly one HTML file input; it never accepts a caller-selected CSS
 selector:
 
@@ -69,7 +69,7 @@ ghostget derive browser <id> -- upload @single-file-input fixture:1
 ```
 
 When a site keeps its file input behind a closed native chooser, bind the
-visible upload control from a fresh snapshot and let Ghostget attach only the
+visible upload control from a fresh snapshot and let GhostGet attach only the
 staged fixture through its code-owned chooser bridge:
 
 ```bash
@@ -82,7 +82,7 @@ then disables interception and closes the private CDP connection before
 returning.
 
 If the composer contains multiple file inputs but exactly one advertises an
-image accept type, use the fixed `@single-image-input` reference. Ghostget proves
+image accept type, use the fixed `@single-image-input` reference. GhostGet proves
 that the current page contains exactly one matching image input before upload:
 
 ```sh
@@ -90,7 +90,7 @@ ghostget derive browser <id> -- upload @single-image-input fixture:1
 ```
 
 If the composer contains multiple file inputs but exactly one advertises a
-video accept type, use the fixed `@single-video-input` reference. Ghostget proves
+video accept type, use the fixed `@single-video-input` reference. GhostGet proves
 that the current page contains exactly one matching
 `input[type=file][accept*='video']` before upload:
 
@@ -98,9 +98,9 @@ that the current page contains exactly one matching
 ghostget derive browser <id> -- upload @single-video-input fixture:1
 ```
 
-Raw paths, arbitrary selectors, and unstaged references are rejected. Ghostget
+Raw paths, arbitrary selectors, and unstaged references are rejected. GhostGet
 re-verifies the private copy immediately before and after upload and resolves
-only that Ghostget-owned copy for the persistent browser daemon; finish/discard
+only that GhostGet-owned copy for the persistent browser daemon; finish/discard
 removes it with the rest of the private derivation state. The ordinary
 `upload` form also keeps its browser batch alive for one fixed five-second
 settling interval so page code can consume the selected file before the short
@@ -137,7 +137,7 @@ task-private MV3 request guard and a task-private CONNECT proxy. The extension
 blocks HTTP, HTTPS, WS, and WSS by default and admits HTTPS/WSS only for the
 session's exact validated `--domains`; the proxy independently resolves every
 CONNECT target, rejects private or reserved answers, and pins the public
-address used for the connection while leaving TLS end to end. Ghostget verifies
+address used for the connection while leaving TLS end to end. GhostGet verifies
 the exact extension files, enabled ruleset, regex support, match outcomes,
 proxy policy, helper identity, and private control channel before the first
 provider navigation and again before each later browser batch. Each DNR check
@@ -150,18 +150,18 @@ sessions without this boundary are non-executable and may only be listed or
 discarded. Path-backed profile sessions remain the separately disclosed,
 unfiltered-egress boundary described below.
 
-After that private readiness check, Ghostget binds the requested batch to a
+After that private readiness check, GhostGet binds the requested batch to a
 second, code-derived agent-browser session that connects only through the exact
 verified loopback CDP WebSocket GUID. The owner session retains the guarded
 Chrome process; the pin carries every provider navigation, snapshot reference,
 HAR command, cookie command, staged upload, and native-chooser click. Every pin
-invocation includes that exact private CDP URL, and Ghostget rejects caller CDP or
+invocation includes that exact private CDP URL, and GhostGet rejects caller CDP or
 session arguments. It also requires every returned command lifecycle to retain
 one losslessly parsed Chrome `u64` launch identity, exactly one page, and no
 browser launch, relaunch, or background restart.
 
 Every mutating pin command is sent alone and must first return agent-browser's
-exact pending-confirmation envelope. Ghostget then binds the unchanged daemon
+exact pending-confirmation envelope. GhostGet then binds the unchanged daemon
 PID, boot identity, process-start identity, browser identity, page URL, and DNR
 worker before issuing a bare `confirm` command with no CDP or other launch
 arguments. A fixed launch-mutator tripwire is explicitly denied by the action
@@ -245,7 +245,7 @@ candidate only by its zero-based array index, fixed `:candidate-field`
 locations, sorted structural value types, and truncation state. Probe matches
 never label or echo a candidate name and never return provider values. The
 independently sanitized `structure` remains unchanged, so a name already in
-Ghostget's reviewed structural vocabulary may still appear there. Matching is
+GhostGet's reviewed structural vocabulary may still appear there. Matching is
 exact and case-sensitive over
 own keys in bounded parsed JSON request bodies, JSON-valued query fields, and
 JSON responses. Credential subtrees and dynamic-map key positions remain
@@ -297,7 +297,7 @@ ghostget derive finish <id> \
 ```
 
 The selected hostname must be covered by the immutable `--domains` admission
-from `derive start`. Ghostget rejects an invalid or unadmitted finish origin
+from `derive start`. GhostGet rejects an invalid or unadmitted finish origin
 before it seals the recorder or mutates scaffold output. The selected origin is
 the target for both sanitized evidence reports and `wrench-adapter.json`.
 `--platform` independently selects reviewed surface metadata; it does not

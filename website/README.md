@@ -1,6 +1,6 @@
 # ghostget.com
 
-This directory owns the public Ghostget landing page. It is a deterministic,
+This directory owns the public GhostGet landing page. It is a deterministic,
 dependency-free static build whose release facts come from the repository-root
 package metadata. The published `@hraness/ghostget` package excludes this entire
 directory through its explicit `files` allowlist.
@@ -17,11 +17,11 @@ changed carry the legacy `site_id` `wrench`, so a query that spans the change
 should match both ids. The bootstrap never loads under Do Not Track. Set
 `NEXT_PUBLIC_POSTHOG_KEY` to the shared project's public `phc_` token; `NEXT_PUBLIC_POSTHOG_HOST` defaults to
 `https://us.i.posthog.com`.
-The product-specific Ghostget mailing-list form renders on production builds.
+The product-specific GhostGet mailing-list form renders on production builds.
 Local and Preview builds keep the shared footer visible without rendering a
 signup form.
 The form retains the existing internal `wrench` audience ID so its subscribers
-remain attached to the same list; the public name and origin are Ghostget.
+remain attached to the same list; the public name and origin are GhostGet.
 No personal API key is used by the runtime build.
 
 ```sh
@@ -89,7 +89,7 @@ Retained evidence is not standing mutation authority. At setup, after a control-
 and during drift recovery, fresh administrator readback must reconfirm the permanent
 rulesets and target refs, the sole App `4783991` `Integration` bypass, the
 App's exact permission set, and that installation `158077029` still selects
-only Ghostget repository ID `1316443113`. It must also reconfirm the main-only
+only GhostGet repository ID `1316443113`. It must also reconfirm the main-only
 `production-ref-writer-key` environment, no required deployment reviewers or
 wait timer, `prevent_self_review=false`, disabled administrator bypass, exactly four App
 identity variables and the one private-key secret. Control changes include
@@ -116,7 +116,7 @@ Root `middleware.ts` imports only `edge/negotiation.ts` for Accept q-values,
 
 For v0.16.13 and later, the bounded production build verifies immutable Release metadata, bot/source receipt, exactly five asset descriptors, and manifest/archive digests. It trusts the authenticated canonical workflow admission. Independent promotion CI verifies Sigstore provenance; the Vercel build does not run a local cryptographic Sigstore verifier. Historical assetless Releases retain their npm manifest check.
 
-The shared footer also links to optional Ghostget development support on Hraness
+The shared footer also links to optional GhostGet development support on Hraness
 Accounts. The link contains only the public product identity and web source. The
 existing production-only newsletter form remains the signup surface; previews
 keep that form disabled. Signup and payment require browser confirmation.

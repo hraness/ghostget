@@ -1,6 +1,6 @@
 Usage: ghostget <command> [options]
 
-Ghostget gives your AI agent named web actions: read a page, archive one
+GhostGet gives your AI agent named web actions: read a page, archive one
 media item, or use a connected account, without credentials or a browser to
 steer.
 
@@ -28,12 +28,12 @@ Run actions
   ghostget confirm <digest>           Run a previewed change once
   ghostget runs list                  Review past runs
 
-Control Ghostget
-  ghostget menubar                    Show Ghostget in the menu bar
+Control GhostGet
+  ghostget menubar                    Show GhostGet in the menu bar
   ghostget tui                        Open the keyboard control panel
-  ghostget doctor                     Check everything Ghostget needs
+  ghostget doctor                     Check everything GhostGet needs
 
-Extend Ghostget
+Extend GhostGet
   ghostget adapter|plugin|contracts   Add and check site support
   ghostget derive                     Record a site's API from a browser
   ghostget web|interface|platforms    Web rules, API drafts, site policy

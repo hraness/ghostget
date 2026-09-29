@@ -1,6 +1,6 @@
 Usage: ghostget support [--json]
 
-See optional product updates and ways to support Ghostget. Nothing is paid
+See optional product updates and ways to support GhostGet. Nothing is paid
 or signed up for through these commands.
 
 Commands

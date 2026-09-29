@@ -44,7 +44,7 @@ export const editorialImages = [
     alt: "Many branching browser windows contrasted with one bounded operation path and receipt",
     canonicalPath: "/compare/personal-agents-browser-use/",
     caption: "General browser paths and one named operation solve different jobs.",
-    cardDescription: "Why Ghostget exposes named operations instead of falling back to general browser control.",
+    cardDescription: "Why GhostGet exposes named operations instead of falling back to general browser control.",
     cardTitle: "Browser-using agents and named operations",
     credit,
     derivatives: [
@@ -70,7 +70,7 @@ export const editorialImages = [
       receipt: "editorial-provenance/personal-agents-browser-use/receipt.json",
     },
     src: "/images/editorial/personal-agents-browser-use.webp",
-    title: "Browser-using personal agents, and which web operations Ghostget attests",
+    title: "Browser-using personal agents, and which web operations GhostGet attests",
     width: 1536,
   },
   {
@@ -142,10 +142,10 @@ export const editorialImages = [
   {
     alt: "A dark field of faint site tiles each bearing a socket mark, crossed by one ivory channel whose gold thread lights a subset of sockets",
     canonicalPath: "/webmcp/",
-    caption: "Many sites publish their own tools; Ghostget calls only the ones declared read-only.",
-    cardDescription: "How WebMCP sites publish tools, what the public registry adds, and the three commands Ghostget runs against it.",
+    caption: "Many sites publish their own tools; GhostGet calls only the ones declared read-only.",
+    cardDescription: "How WebMCP sites publish tools, what the public registry adds, and the three commands GhostGet runs against it.",
     cardTitle: "WebMCP sites and the tools your agent can call",
-    credit: "Editorial illustration generated with Slopcamera.",
+    credit: "Editorial illustration generated with SlopCamera.",
     derivatives: [
       {
         height: 216,
@@ -171,7 +171,7 @@ export const editorialImages = [
       receipt: "editorial-provenance/webmcp/receipt.json",
     },
     src: "/images/editorial/webmcp.webp",
-    title: "WebMCP for agents: call website-published tools through Ghostget",
+    title: "WebMCP for agents: call website-published tools through GhostGet",
     width: 1536,
   },
 ] as const satisfies readonly EditorialImage[];

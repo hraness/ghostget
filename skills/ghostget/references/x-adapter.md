@@ -111,7 +111,7 @@ ghostget x-web articles.read \
   --auth x-main --json
 ```
 
-This is an R1 read with no mutation dispatch. Ghostget resolves the current
+This is an R1 read with no mutation dispatch. GhostGet resolves the current
 viewer before the Article query, requires the result to echo the requested ID
 and viewer-owner ID, and accepts only `lifecycle: "Draft"` with
 `published: false`. The closed output includes the exact ID, owner ID, private
