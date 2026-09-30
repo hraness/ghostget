@@ -481,25 +481,39 @@ const designKitMarketingStylesImports = {
   "./site-shell.css": "@hraness/design-kit/site-shell.css",
 } as const;
 
-/** Inline the pinned marketing grammar's bounded imports before bundling. */
-export function compileDesignKitMarketingStyles(
+/** Resolve one complete, explicitly registered public stylesheet profile. */
+function compileDesignKitStyles(
   grammar: string,
-  imports: Readonly<Record<keyof typeof designKitMarketingStylesImports, string>>,
+  expectedImports: readonly string[],
+  imports: Readonly<Record<string, string>>,
 ): string {
-  const remaining = new Set(Object.keys(designKitMarketingStylesImports));
+  const remaining = new Set(expectedImports);
   const compiled = grammar.replace(
     /^[\t ]*@import\s+(["'])([^"'\r\n]+)\1\s*;[\t ]*$/gmu,
     (_statement: string, _quote: string, source: string): string => {
-      if (!remaining.delete(source as keyof typeof designKitMarketingStylesImports)) {
+      if (!remaining.delete(source) || typeof imports[source] !== "string") {
         throw new Error(`Unsupported or repeated marketing stylesheet import: ${source}`);
       }
-      return imports[source as keyof typeof designKitMarketingStylesImports].trim();
+      return imports[source].trim();
     },
   );
   if (remaining.size !== 0 || /@import\b/iu.test(compiled)) {
     throw new Error("Marketing stylesheet imports must match the complete pinned public CSS exports.");
   }
   return compiled.trim();
+}
+
+/** Inline the pinned marketing grammar's bounded imports before bundling. */
+export function compileDesignKitMarketingStyles(
+  grammar: string,
+  imports: Readonly<Record<keyof typeof designKitMarketingStylesImports, string>>,
+): string {
+  return compileDesignKitStyles(grammar, Object.keys(designKitMarketingStylesImports), imports);
+}
+
+/** The shared shell is emitted once after its retained bytes match the public export. */
+function compileDesignKitPlainSiteStyles(grammar: string): string {
+  return compileDesignKitStyles(grammar, ["./site-shell.css"], { "./site-shell.css": "" });
 }
 
 async function readUiStylesheet(): Promise<string> {
@@ -1382,7 +1396,7 @@ export async function buildWebsite(
       "./syntax-highlighting.css": syntax,
       "./site-shell.css": siteShell,
     })),
-    readFile(designKitPlainSiteStylesPath, "utf8"),
+    readFile(designKitPlainSiteStylesPath, "utf8").then(compileDesignKitPlainSiteStyles),
     readFile(designKitPlainPublicationStylesPath, "utf8"),
     readFile(fileURLToPath(import.meta.resolve("@hraness/design-kit/status-page.css")), "utf8"),
     readFile(fileURLToPath(import.meta.resolve("@hraness/design-kit/mockups.css")), "utf8"),

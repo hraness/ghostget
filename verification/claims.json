@@ -118,7 +118,7 @@
         },
         {
           "name": "hraness-launch",
-          "digest": "9f91591b9e13af3ae8971516ae68b46f3cb2e604ad21c60046cbe72316ac7009",
+          "digest": "a3ab882bdc9403441f635f765ee3599f88a2c2c1261706f467b24f58f9b951ec",
           "reason": "Synced Hraness launch-kit policy for mockups, the launch post, social kit, and film. website/launch/launch.test.ts pins the launch facts to the provider directory, this register, the homepage, and package.json; no automated check covers the prose rules."
         },
         {
