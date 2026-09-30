@@ -2131,14 +2131,16 @@ describe("npm publication contract", () => {
       );
       const manifestText = manifestBytes.toString("utf8");
       expect(manifestText).not.toContain('"private"');
-      const manifestWithoutClosingBrace = manifestText.trimEnd().slice(0, -1);
+      const packedManifest = JSON.parse(manifestText) as Record<string, unknown>;
       const manifestPaddedSize = Math.ceil(manifestEntry.size / 512) * 512;
       const runPrivateVariant = async (
         value: string,
         accepted: boolean,
       ): Promise<void> => {
+        // Isolate the identity mutation from the production byte ceiling;
+        // pretty-printing can exhaust its reviewed metadata headroom.
         const variantManifest = Buffer.from(
-          `${manifestWithoutClosingBrace},\n  "private": ${value}\n}\n`,
+          `${JSON.stringify({ ...packedManifest, private: JSON.parse(value) })}\n`,
           "utf8",
         );
         const variantPaddedSize = Math.ceil(variantManifest.length / 512) * 512;
