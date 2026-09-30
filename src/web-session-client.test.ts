@@ -273,6 +273,28 @@ describe("public web asset upload transport", () => {
     expect(headers.has("authorization")).toBeFalse();
   });
 
+  test("uploads only the requested view when binary bytes use shared memory", async () => {
+    const shared = new Uint8Array(new SharedArrayBuffer(7));
+    shared.set([99, 98, 1, 2, 3, 97, 96]);
+    let posted: Uint8Array | undefined;
+    expect(await uploadPublicWebAsset(new URL("https://uploads.example.test/"), {
+      allowedOrigin: "https://uploads.example.test",
+      body: shared.subarray(2, 5),
+      contentType: "application/octet-stream",
+      expectedStatus: 201,
+      maxBytes: 3,
+      timeoutMs: 1_000,
+      dependencies: {
+        fetch: async (url, init) => {
+          // Exercise the real Fetch BodyInit boundary, including view offsets.
+          posted = new Uint8Array(await new Request(url, init).arrayBuffer());
+          return new Response(null, { status: 201 });
+        },
+      },
+    })).toEqual({ status: 201 });
+    expect(posted).toEqual(new Uint8Array([1, 2, 3]));
+  });
+
   test("rejects escaped origins, oversized bodies, and unreviewed statuses", async () => {
     const base = {
       allowedOrigin: "https://uploads.example.test",

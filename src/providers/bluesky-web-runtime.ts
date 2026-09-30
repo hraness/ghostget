@@ -905,7 +905,7 @@ async function videoServiceJson(
       : { jobId: input.jobId }),
   });
   const headers = new Headers({ accept: "application/json" });
-  let body: Uint8Array | undefined;
+  let body: Uint8Array<ArrayBuffer> | undefined;
   if (input.kind === "upload") {
     headers.set("authorization", `Bearer ${input.token}`);
     headers.set("content-type", "video/mp4");
