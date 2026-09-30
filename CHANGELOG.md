@@ -7,7 +7,7 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
-## 0.18.59
+## 0.18.60
 
 Supported global CLI installs update to the latest stable release before an
 ordinary command, with at most one automatic check per day.
@@ -17,6 +17,16 @@ ordinary command, with at most one automatic check per day.
   nested clients, help, and gateway-only sessions. Exact pins need `update enable`.
 - Verify the immutable release archive before the owning package manager runs,
   and wait until other commands using that installation have finished.
+
+## 0.18.59
+
+This release publishes the GhostGet launch homepage and the Introducing
+GhostGet post on ghostget.com.
+
+- Index the Introducing GhostGet post after an independent review, with
+  claims register totals read from the verification register.
+- List Sponge on the Built on GhostGet page.
+- Drop the caveat post from the generated social launch kit.
 
 ## 0.18.58
 
