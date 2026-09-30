@@ -31,6 +31,9 @@ import {
 import { QUINT_CI_SHARD_COUNT, assignQuintWorkShards, readQuintModels } from "./verification-tools.js";
 import { assertProperty } from "../src/test-support.js";
 
+const CHECKER_CACHE_SAVE_IF = "github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && steps.checker_downloads.outputs.cache-hit != 'true'";
+const CHECKER_CACHE_PATH = "~/.cache/ghostget-verification/downloads";
+
 const repositoryRoot = fileURLToPath(new URL("..", import.meta.url));
 const packageManifestUrl = new URL("../package.json", import.meta.url);
 const ciWorkflowUrl = new URL("../.github/workflows/ci.yml", import.meta.url);
@@ -221,6 +224,12 @@ describe("complete local and release check composition", () => {
     const savesPackageCache = (id: string, step: Step): boolean =>
       id === "static" && step.if === "github.event_name == 'push'"
       && step.run === undefined && step.uses?.startsWith("actions/cache/save@") === true;
+    // Saving admitted downloads is auxiliary: no executable check may inherit
+    // this main-only cache condition, and retained diagnostics stay last.
+    const savesCheckerCache = (id: string, step: Step): boolean =>
+      (id === "verification" || id === "quint") && step.if === CHECKER_CACHE_SAVE_IF
+      && step.run === undefined && step.uses?.startsWith("actions/cache/save@") === true
+      && step.with?.path === CHECKER_CACHE_PATH;
     const validate = (candidate: Workflow): void => {
       if (!isDeepStrictEqual(Object.keys(candidate.jobs).sort(), [...Object.keys(sourceJobs), "required"].sort())) {
         throw new Error("Source CI job inventory changed");
@@ -230,7 +239,7 @@ describe("complete local and release check composition", () => {
         if (job === undefined || !isDeepStrictEqual([job.name, job["runs-on"], job["timeout-minutes"]], metadata)
           || job.if !== undefined || job["continue-on-error"] !== undefined
           || job.steps.some((step, index) => (step.if !== undefined && !retainsOutput(id, step, index, job.steps.length)
-            && !savesPackageCache(id, step))
+            && !savesPackageCache(id, step) && !savesCheckerCache(id, step))
             || step["continue-on-error"] !== undefined)) {
           throw new Error(`Source CI job ${id} is conditional or changed its execution boundary`);
         }
@@ -285,6 +294,9 @@ describe("complete local and release check composition", () => {
       candidate => { candidate.jobs.verification!.steps.at(-1)!.if = "success() || failure()"; },
       candidate => { candidate.jobs.static!.steps.find(step => step.uses?.startsWith("actions/cache/save@") === true)!.if = "always()"; },
       candidate => { candidate.jobs.static!.steps.find(step => step.uses?.startsWith("actions/cache/save@") === true)!.run = "true"; },
+      candidate => { candidate.jobs.verification!.steps.find(step => step.uses?.startsWith("actions/cache/save@"))!.if = "always()"; },
+      candidate => { candidate.jobs.quint!.steps.find(step => step.uses?.startsWith("actions/cache/save@"))!.run = "true"; },
+      candidate => { candidate.jobs.verification!.steps.find(step => step.uses?.startsWith("actions/cache/save@"))!.with!.path = "~/.aws"; },
       candidate => { candidate.jobs.static!.steps.find(step => step.run === "bun run check:static")!.if = "github.event_name == 'push'"; },
       candidate => { candidate.jobs.package!.steps.push({ ...candidate.jobs.static!.steps.find(step => step.uses?.startsWith("actions/cache/save@") === true)! }); },
       candidate => { candidate.jobs.verification!.steps.at(-1)!.run = "true"; },
@@ -619,10 +631,10 @@ const nightlyWorkflowUrl = new URL("../.github/workflows/verification-nightly.ym
 const NIGHTLY_SOAK_SHARDS = 6;
 
 describe("nightly verification workflow", () => {
-  type Step = { name?: string; uses?: string; if?: unknown; run?: string; with?: Record<string, unknown>; env?: Record<string, unknown>; "timeout-minutes"?: number };
+  type Step = { id?: string; name?: string; uses?: string; if?: unknown; run?: string; with?: Record<string, unknown>; env?: Record<string, unknown>; "timeout-minutes"?: number };
   type Job = { name?: string; permissions?: unknown; environment?: unknown; needs?: unknown; if?: unknown; "continue-on-error"?: unknown; "timeout-minutes"?: number; strategy?: unknown; steps: Step[] };
   type Workflow = { name?: string; on?: Record<string, unknown>; permissions?: unknown; concurrency?: unknown; jobs: Record<string, Job> };
-  const PINNED_ACTION = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+@[0-9a-f]{40}$/u;
+  const PINNED_ACTION = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)?@[0-9a-f]{40}$/u;
   const COMMANDS = {
     "quint-nightly": "bun run ./scripts/verification-tools.ts quint-nightly",
     "property-soak": `bun run ./scripts/verification-soak.ts \${{ matrix.shard }} ${String(NIGHTLY_SOAK_SHARDS)}`,
@@ -673,7 +685,10 @@ describe("nightly verification workflow", () => {
         if (step.run?.includes("${{ inputs") === true || step.run?.includes("${{ github.event") === true) {
           throw new Error(`nightly job ${id} interpolates dispatch input into a shell command`);
         }
-        if (step.if !== undefined && !(step.if === "always()" && step.uses?.startsWith("actions/upload-artifact@") === true)) {
+        const savesCheckerCache = id === "quint-nightly" && step.run === undefined
+          && step.uses?.startsWith("actions/cache/save@") === true && step.if === CHECKER_CACHE_SAVE_IF
+          && step.with?.path === CHECKER_CACHE_PATH;
+        if (step.if !== undefined && !(step.if === "always()" && step.uses?.startsWith("actions/upload-artifact@") === true) && !savesCheckerCache) {
           throw new Error(`nightly job ${id} conditions a check step`);
         }
       }
@@ -689,10 +704,14 @@ describe("nightly verification workflow", () => {
         throw new Error(`nightly job ${id} does not run ${command} exactly once`);
       }
     }
-    const cache = candidate.jobs["quint-nightly"]?.steps.filter((step) => step.uses?.startsWith("actions/cache@") === true) ?? [];
-    const ciCache = ciStep("actions/cache@");
-    if (cache.length !== 1 || ciCache === undefined || cache[0]!.uses !== ciCache.uses || !isDeepStrictEqual(cache[0]!.with, ciCache.with)) {
-      throw new Error("the nightly Quint job must share the CI checker cache key");
+    for (const mode of ["restore", "save"]) {
+      const prefix = `actions/cache/${mode}@`;
+      const cache = candidate.jobs["quint-nightly"]?.steps.filter((step) => step.uses?.startsWith(prefix) === true) ?? [];
+      const ciCache = ci.jobs.quint?.steps.find(step => step.uses?.startsWith(prefix) === true && step.with?.path === CHECKER_CACHE_PATH);
+      if (cache.length !== 1 || ciCache === undefined || cache[0]!.uses !== ciCache.uses
+        || cache[0]!.id !== ciCache.id || cache[0]!.if !== ciCache.if || !isDeepStrictEqual(cache[0]!.with, ciCache.with)) {
+        throw new Error("the nightly Quint job must share the CI checker cache key and write policy");
+      }
     }
     const soak = candidate.jobs["property-soak"];
     const shards = Array.from({ length: NIGHTLY_SOAK_SHARDS }, (_, index) => index + 1);
@@ -772,7 +791,10 @@ describe("nightly verification workflow", () => {
       candidate => { candidate.jobs["quint-nightly"]!.steps[0]!.uses = "actions/checkout@v7"; },
       candidate => { candidate.jobs["quint-nightly"]!.steps[0]!.with = {}; },
       candidate => { candidate.jobs["quint-nightly"]!.steps.find(step => step.uses?.startsWith("oven-sh/setup-bun@"))!.with = { "bun-version": "latest" }; },
-      candidate => { candidate.jobs["quint-nightly"]!.steps.find(step => step.uses?.startsWith("actions/cache@"))!.with!.key = "ghostget-verification-nightly"; },
+      candidate => { candidate.jobs["quint-nightly"]!.steps.find(step => step.uses?.startsWith("actions/cache/restore@"))!.with!.key = "ghostget-verification-nightly"; },
+      candidate => { candidate.jobs["quint-nightly"]!.steps.find(step => step.uses?.startsWith("actions/cache/restore@"))!.id = "wrong"; },
+      candidate => { candidate.jobs["quint-nightly"]!.steps.find(step => step.uses?.startsWith("actions/cache/save@"))!.if = "always()"; },
+      candidate => { candidate.jobs["quint-nightly"]!.steps.find(step => step.uses?.startsWith("actions/cache/save@"))!.run = "true"; },
       candidate => { candidate.jobs["quint-nightly"]!.steps.find(step => step.run === COMMANDS["quint-nightly"])!.run = "bun run ./scripts/verification-tools.ts quint"; },
       candidate => { candidate.jobs["property-soak"]!.steps = candidate.jobs["property-soak"]!.steps.filter(step => step.run?.includes("provision-derive-browser") !== true); },
       candidate => { candidate.jobs["property-soak"]!.steps.find(step => step.run?.includes("provision-derive-browser") === true)!.run = "fixture_browser_root=\"$(bun run ./scripts/provision-derive-browser.ts)\" --for-shard 1 8"; },
@@ -852,8 +874,13 @@ describe("CI run scheduling and caches", () => {
     const key = "bun-install-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}";
     for (const [id, job] of Object.entries(workflow.jobs)) {
       if (id === "required") continue;
-      const restores = job.steps.filter((step) => step.uses?.startsWith("actions/cache/restore@") === true);
-      const saves = job.steps.filter((step) => step.uses?.startsWith("actions/cache/save@") === true);
+      const allRestores = job.steps.filter((step) => step.uses?.startsWith("actions/cache/restore@") === true);
+      const allSaves = job.steps.filter((step) => step.uses?.startsWith("actions/cache/save@") === true);
+      const checker = id === "verification" || id === "quint";
+      expect(allRestores).toHaveLength((job["runs-on"] === "ubuntu-latest" ? 1 : 0) + (checker ? 1 : 0));
+      expect(allSaves).toHaveLength(id === "static" || checker ? 1 : 0);
+      const restores = allRestores.filter(step => step.with?.path === "~/.bun/install/cache");
+      const saves = allSaves.filter(step => step.with?.path === "~/.bun/install/cache");
       expect(job.steps.some((step) => step.uses?.startsWith("actions/cache@") === true && step.with?.path === "~/.bun/install/cache")).toBeFalse();
       if (job["runs-on"] === "ubuntu-latest") {
         expect(restores).toHaveLength(1);

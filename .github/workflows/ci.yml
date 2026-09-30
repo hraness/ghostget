@@ -320,11 +320,14 @@ jobs:
       # every run, so the cache only saves downloads. The key ends in
       # pinnedArchivesDigest() from scripts/verification-tools.ts, so any
       # change to a pinned name, URL, size, or digest starts a fresh cache.
-      - name: Cache pinned checker downloads
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      # Lean and Quint populate different archives. Separate immutable keys
+      # keep the first finisher from defining the other job's cache contents.
+      - name: Restore pinned checker downloads
+        id: checker_downloads
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ghostget-verification/downloads
-          key: ghostget-verification-${{ runner.os }}-${{ runner.arch }}-pins-72eb5177a24cbf8d
+          key: ghostget-verification-lean-${{ runner.os }}-${{ runner.arch }}-pins-72eb5177a24cbf8d
       # The Rust oracle under verification/oracles/ builds with the runner's
       # rustup at the exact toolchain its rust-toolchain.toml names, and
       # verify:oracles checks both versions again. `cargo build --locked`
@@ -356,6 +359,12 @@ jobs:
         timeout-minutes: 10
       - run: bun run verify:oracles
         timeout-minutes: 8
+      - name: Save pinned checker downloads on main
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && steps.checker_downloads.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ghostget-verification/downloads
+          key: ${{ steps.checker_downloads.outputs.cache-primary-key }}
       - name: Retain checker output
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -423,11 +432,12 @@ jobs:
       # every run, so the cache only saves downloads. The key ends in
       # pinnedArchivesDigest() from scripts/verification-tools.ts, so any
       # change to a pinned name, URL, size, or digest starts a fresh cache.
-      - name: Cache pinned checker downloads
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - name: Restore pinned checker downloads
+        id: checker_downloads
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ghostget-verification/downloads
-          key: ghostget-verification-${{ runner.os }}-${{ runner.arch }}-pins-72eb5177a24cbf8d
+          key: ghostget-verification-quint-${{ runner.os }}-${{ runner.arch }}-pins-72eb5177a24cbf8d
       # One shard of `bun run verify:quint`: the same typecheck, seeded
       # simulation, Apalache, mutant, and ITF replay checks at the same bounds,
       # over the models scripts/verification-tools.ts assigns to this shard.
@@ -436,6 +446,12 @@ jobs:
       # leave five job minutes for setup and retaining diagnostic artifacts.
       - run: bun run ./scripts/verification-tools.ts quint ${{ matrix.shard }} 4
         timeout-minutes: 40
+      - name: Save pinned checker downloads on main
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && steps.checker_downloads.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ghostget-verification/downloads
+          key: ${{ steps.checker_downloads.outputs.cache-primary-key }}
       - name: Retain checker output
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
