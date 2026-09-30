@@ -353,9 +353,19 @@ const CHAT_COLUMNS = Object.freeze([
 function assertColumns(database: Database, table: "messages" | "chats", expected: typeof MESSAGE_COLUMNS | typeof CHAT_COLUMNS): void {
   const actual = rows(database.query(`PRAGMA table_xinfo('${table}')`).iterate(), expected.length);
   if (actual.length !== expected.length) fail("schema-mismatch");
-  for (const [index, tuple] of expected.entries()) {
-    const row = actual[index]!;
+  // Pinned wacli migrations append columns with ALTER TABLE ADD COLUMN, so a
+  // migrated store need not have the fresh schema's physical column order.
+  // Every projection names its columns explicitly. Require the exact complete
+  // set and all reviewed attributes, while still checking actual cid order.
+  const remaining = new Map<string, (typeof expected)[number]>(
+    expected.map((tuple) => [tuple[0], tuple]),
+  );
+  for (const [index, row] of actual.entries()) {
     exactRowKeys(row, ["cid", "name", "type", "notnull", "dflt_value", "pk", "hidden"]);
+    if (typeof row.name !== "string") fail("schema-mismatch");
+    const tuple = remaining.get(row.name);
+    if (tuple === undefined) fail("schema-mismatch");
+    remaining.delete(row.name);
     const [name, type, notnull, defaultValue, pk] = tuple;
     if (
       !pragmaInteger(row.cid, BigInt(index))
@@ -367,6 +377,7 @@ function assertColumns(database: Database, table: "messages" | "chats", expected
       || !pragmaInteger(row.hidden, 0n)
     ) fail("schema-mismatch");
   }
+  if (remaining.size !== 0) fail("schema-mismatch");
 }
 
 function assertIndexes(database: Database): void {

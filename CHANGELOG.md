@@ -7,6 +7,10 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+- WhatsApp reads accept databases updated by the pinned Wacli's supported
+  migrations. Columns added during an upgrade can appear in a different order;
+  reads still reject missing or extra columns and changed column constraints.
+
 - X following and follower reads no longer fail when someone's display name
   contains a control character. That person comes through with their ID and
   handle and no display name; empty, oversized or non-text names still fail.

@@ -12,6 +12,7 @@ import { join } from "node:path";
 
 import { describe, expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
+import { assertAsyncProperty, fc } from "../test-support";
 
 import { projectWhatsAppMessageExportSessionFromBoundCwd } from "./whatsapp-interaction-projection-helper";
 
@@ -58,6 +59,9 @@ function privateDirectory(): string {
 function createStore(options: {
   readonly extraMessageColumn?: boolean;
   readonly journalMode?: "DELETE" | "WAL";
+  readonly messageSchemaLayout?: "tombstone-migration" | "media-unavailable-repair";
+  readonly changedMessageColumn?: "type" | "nullable" | "default" | "name" | "primary-key";
+  readonly schemaColumnOrder?: Readonly<{ chats: readonly number[]; messages: readonly number[] }>;
 } = {}): string {
   const path = privateDirectory();
   const session = new Database(join(path, "session.db"), { create: true, strict: true });
@@ -81,7 +85,7 @@ function createStore(options: {
   const messages = new Database(join(path, "wacli.db"), { create: true, strict: true });
   try {
     messages.exec(`PRAGMA journal_mode = ${options.journalMode ?? "DELETE"}; PRAGMA foreign_keys = ON`);
-    messages.exec(`
+    let schema = `
       CREATE TABLE chats (
         jid TEXT PRIMARY KEY, kind TEXT NOT NULL, name TEXT,
         last_message_ts INTEGER, archived INTEGER NOT NULL DEFAULT 0,
@@ -108,7 +112,50 @@ function createStore(options: {
       );
       CREATE INDEX idx_messages_chat_ts ON messages(chat_jid, ts);
       CREATE INDEX idx_messages_ts ON messages(ts);
-    `);
+    `;
+    // These layouts are produced by the exact pinned wacli's migration/repair
+    // tests, not arbitrary schemas. ALTER ADD COLUMN appends to existing order:
+    // openclaw/wacli@a020de724180d31eccfa5241d45443402d62fb06,
+    // internal/store/schema_test.go:
+    // TestOpenMigratesLegacyMessageTombstonesWithoutPayloadLoss and
+    // TestOpenRepairsRecordedMediaUnavailableMigrationMissingColumn.
+    const appendedColumns = options.messageSchemaLayout === "tombstone-migration"
+      ? ["deleted_at INTEGER", "deletion_reason TEXT", "payload_purged_at INTEGER"]
+      : options.messageSchemaLayout === "media-unavailable-repair"
+        ? ["media_unavailable_at INTEGER"]
+        : [];
+    for (const definition of appendedColumns) {
+      schema = schema.replace(`${definition},`, "");
+    }
+    if (options.changedMessageColumn === "type") {
+      schema = schema.replace("edited_ts INTEGER NOT NULL DEFAULT 0", "edited_ts TEXT NOT NULL DEFAULT 0");
+    } else if (options.changedMessageColumn === "nullable") {
+      schema = schema.replace("edited_ts INTEGER NOT NULL DEFAULT 0", "edited_ts INTEGER DEFAULT 0");
+    } else if (options.changedMessageColumn === "default") {
+      schema = schema.replace("edited_ts INTEGER NOT NULL DEFAULT 0", "edited_ts INTEGER NOT NULL DEFAULT 1");
+    } else if (options.changedMessageColumn === "name") {
+      schema = schema.replace("edited_ts INTEGER NOT NULL DEFAULT 0", "unreviewed_edited_ts INTEGER NOT NULL DEFAULT 0");
+    } else if (options.changedMessageColumn === "primary-key") {
+      schema = schema.replace("rowid INTEGER PRIMARY KEY AUTOINCREMENT", "rowid INTEGER");
+    }
+    if (options.schemaColumnOrder !== undefined) {
+      for (const table of ["chats", "messages"] as const) {
+        const order = options.schemaColumnOrder[table];
+        schema = schema.replace(new RegExp(`CREATE TABLE ${table} \\(([\\s\\S]+?)\\n      \\);`, "u"), (_, body: string) => {
+          const definitions = body.split(",").map((definition) => definition.trim());
+          if (new Set(order).size !== order.length || order.some((index) => index < 0 || index >= order.length)) {
+            throw new Error("fixture column order is not a permutation");
+          }
+          return `CREATE TABLE ${table} (\n        ${[
+            ...order.map((index) => definitions[index]), ...definitions.slice(order.length),
+          ].join(",\n        ")}\n      );`;
+        });
+      }
+    }
+    messages.exec(schema);
+    for (const definition of appendedColumns) {
+      messages.exec(`ALTER TABLE messages ADD COLUMN ${definition}`);
+    }
     const insertChat = messages.query("INSERT INTO chats(jid, kind) VALUES (?1, ?2)");
     insertChat.run("15557654321@s.whatsapp.net", "dm");
     insertChat.run("120363123456789012@g.us", "group");
@@ -222,6 +269,75 @@ async function messageResponse(path: string, value: WhatsAppMessageExportProject
 }
 
 describe("WhatsApp content-free interaction projection helper", () => {
+  test("preserves the exact interaction projection for complete column permutations", async () => {
+    await assertAsyncProperty(fc.asyncProperty(
+      fc.shuffledSubarray(Array.from({ length: 9 }, (_, index) => index), { minLength: 9, maxLength: 9 }),
+      fc.shuffledSubarray(Array.from({ length: 36 }, (_, index) => index), { minLength: 36, maxLength: 36 }),
+      async (chats, messages) => {
+        const path = createStore({ schemaColumnOrder: { chats, messages } });
+        try {
+          expect(await response(path, request(path, { limit: 3 }))).toMatchObject({
+            status: "succeeded",
+            projectionGeneration: { schemaFingerprint: WHATSAPP_INTERACTION_PROJECTION_SCHEMA_FINGERPRINT },
+            interactions: [{ rowid: "1" }, { rowid: "2" }, { rowid: "3" }],
+            nextCursor: null,
+            localInsertPageComplete: true,
+          });
+        } finally {
+          rmSync(path, { recursive: true, force: true });
+        }
+      },
+    ), { numRuns: 16 });
+  });
+
+  for (const messageSchemaLayout of ["tombstone-migration", "media-unavailable-repair"] as const) {
+    test(`accepts the pinned wacli ${messageSchemaLayout} without projecting content`, async () => {
+      const path = createStore({ messageSchemaLayout });
+      try {
+        const first = await response(path, request(path));
+        expect(first.status).toBe("succeeded");
+        if (first.status !== "succeeded") throw new Error("Expected migrated projection");
+        expect(first.interactions.map((item) => item.rowid)).toEqual(["1", "2"]);
+        expect(first.nextCursor).toBe("2");
+        const last = await response(path, request(path, {
+          cursor: first.checkpoint.cursor,
+          cursorAnchor: first.checkpoint.anchor,
+        }));
+        expect(last).toMatchObject({
+          status: "succeeded", interactions: [{ rowid: "3" }],
+          nextCursor: null, localInsertPageComplete: true,
+        });
+        expect(JSON.stringify([first, last])).not.toContain("private body");
+      } finally {
+        rmSync(path, { recursive: true, force: true });
+      }
+    });
+
+    for (const changedMessageColumn of ["type", "nullable", "default", "name", "primary-key"] as const) {
+      test(`rejects changed column ${changedMessageColumn} after ${messageSchemaLayout}`, async () => {
+        const path = createStore({ messageSchemaLayout, changedMessageColumn });
+        try {
+          expect(await response(path, request(path))).toMatchObject({
+            status: "failed", errorCode: "schema-mismatch",
+          });
+        } finally {
+          rmSync(path, { recursive: true, force: true });
+        }
+      });
+    }
+
+    test(`rejects unreviewed columns after ${messageSchemaLayout}`, async () => {
+      const path = createStore({ messageSchemaLayout, extraMessageColumn: true });
+      try {
+        expect(await response(path, request(path))).toMatchObject({
+          status: "failed", errorCode: "schema-mismatch",
+        });
+      } finally {
+        rmSync(path, { recursive: true, force: true });
+      }
+    });
+  }
+
   test("pages all locally stored inserts by rowid without projecting content", async () => {
     const path = createStore();
     try {
@@ -409,6 +525,20 @@ describe("WhatsApp content-free interaction projection helper", () => {
 });
 
 describe("WhatsApp Message Like Me fixed projection helper", () => {
+  for (const messageSchemaLayout of ["tombstone-migration", "media-unavailable-repair"] as const) {
+    test(`accepts the pinned wacli ${messageSchemaLayout} for the shared export helper`, async () => {
+      const path = createStore({ messageSchemaLayout });
+      try {
+        expect(await messageResponse(path, messageRequest(path, { limit: 2 }))).toMatchObject({
+          status: "succeeded", messages: [{ rowid: "1" }, { rowid: "2" }],
+          nextCursor: "2", localInsertPageComplete: false,
+        });
+      } finally {
+        rmSync(path, { recursive: true, force: true });
+      }
+    });
+  }
+
   test("pages full DM/group rows while excluding non-conversation surfaces and private storage fields", async () => {
     const path = createStore();
     try {
@@ -520,76 +650,78 @@ describe("WhatsApp Message Like Me fixed projection helper", () => {
     }
   });
 
-  test("serves every cursor from one integrity-checked helper session", async () => {
-    const path = createStore();
-    try {
-      const initial = messageRequest(path, { limit: 1 });
-      const result = await runWhatsAppMessageExportSessionHelperChild({
-        command: [process.execPath, "--no-env-file", "--no-install", "--no-macros",
-          "--no-addons", `--config=${config}`, helper],
-        cwd: path,
-        environment: { PATH: "/usr/bin:/bin", LANG: "C.UTF-8", LC_ALL: "C.UTF-8", TZ: "UTC" },
-        stdin: `${JSON.stringify({
-          operation: "message-like-me.export-session",
-          request: initial,
-        })}\n`,
-        timeoutMs: 10_000,
-        maxOutputBytes: 1024 * 1024,
-        maxStderrBytes: 16 * 1024,
-      });
-      expect(result).toMatchObject({ exitCode: 0, stderr: "" });
-      const frames = await consumeSessionFrames(result);
-      expect(frames).toHaveLength(4);
-      const pages = frames.slice(0, -1);
-      expect(pages).toHaveLength(3);
-      let requestValue = initial;
-      const projected = pages.map((page) => {
-        const frame = page as Readonly<Record<string, unknown>>;
-        const selfJids = frame.selfJids as readonly string[];
-        const parsed = parseWhatsAppMessageExportProjectionResponse({
-          schemaVersion: 1,
-          status: "succeeded",
-          projectionGeneration: frame.projectionGeneration,
-          accountJidAliases: {
-            pnJid: selfJids.find((jid) => jid.endsWith("@s.whatsapp.net")),
-            lidJid: selfJids.find((jid) => jid.endsWith("@lid")) ?? null,
-          },
-          nonConversationChatsExcluded: frame.nonConversationChatsExcluded,
-          messages: frame.messages,
-          nextCursor: frame.terminal ? null : (frame.checkpoint as { cursor: string }).cursor,
-          localInsertPageComplete: frame.terminal,
-          checkpoint: frame.checkpoint,
-        }, requestValue);
-        if (parsed.status !== "succeeded") {
-          throw new Error("expected a successful session page");
-        }
-        requestValue = {
-          ...requestValue,
-          cursor: parsed.checkpoint.cursor,
-          cursorAnchor: parsed.checkpoint.anchor,
-          expectedGeneration: parsed.projectionGeneration,
-        };
-        return parsed;
-      });
-      expect(projected.map((page) => page.messages[0]?.messageId)).toEqual([
-        "MSG-1",
-        "MSG-2",
-        "MSG-3",
-      ]);
-      expect(projected.at(-1)).toMatchObject({
-        localInsertPageComplete: true,
-        nextCursor: null,
-      });
-      expect(frames.at(-1)).toMatchObject({
-        kind: "seal",
-        pages: 3,
-        messages: 3,
-        framesSha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
-      });
-    } finally {
-      rmSync(path, { recursive: true, force: true });
-    }
-  });
+  for (const messageSchemaLayout of [undefined, "tombstone-migration", "media-unavailable-repair"] as const) {
+    test(`serves every cursor from one integrity-checked ${messageSchemaLayout ?? "fresh"} helper session`, async () => {
+      const path = createStore(messageSchemaLayout === undefined ? {} : { messageSchemaLayout });
+      try {
+        const initial = messageRequest(path, { limit: 1 });
+        const result = await runWhatsAppMessageExportSessionHelperChild({
+          command: [process.execPath, "--no-env-file", "--no-install", "--no-macros",
+            "--no-addons", `--config=${config}`, helper],
+          cwd: path,
+          environment: { PATH: "/usr/bin:/bin", LANG: "C.UTF-8", LC_ALL: "C.UTF-8", TZ: "UTC" },
+          stdin: `${JSON.stringify({
+            operation: "message-like-me.export-session",
+            request: initial,
+          })}\n`,
+          timeoutMs: 10_000,
+          maxOutputBytes: 1024 * 1024,
+          maxStderrBytes: 16 * 1024,
+        });
+        expect(result).toMatchObject({ exitCode: 0, stderr: "" });
+        const frames = await consumeSessionFrames(result);
+        expect(frames).toHaveLength(4);
+        const pages = frames.slice(0, -1);
+        expect(pages).toHaveLength(3);
+        let requestValue = initial;
+        const projected = pages.map((page) => {
+          const frame = page as Readonly<Record<string, unknown>>;
+          const selfJids = frame.selfJids as readonly string[];
+          const parsed = parseWhatsAppMessageExportProjectionResponse({
+            schemaVersion: 1,
+            status: "succeeded",
+            projectionGeneration: frame.projectionGeneration,
+            accountJidAliases: {
+              pnJid: selfJids.find((jid) => jid.endsWith("@s.whatsapp.net")),
+              lidJid: selfJids.find((jid) => jid.endsWith("@lid")) ?? null,
+            },
+            nonConversationChatsExcluded: frame.nonConversationChatsExcluded,
+            messages: frame.messages,
+            nextCursor: frame.terminal ? null : (frame.checkpoint as { cursor: string }).cursor,
+            localInsertPageComplete: frame.terminal,
+            checkpoint: frame.checkpoint,
+          }, requestValue);
+          if (parsed.status !== "succeeded") {
+            throw new Error("expected a successful session page");
+          }
+          requestValue = {
+            ...requestValue,
+            cursor: parsed.checkpoint.cursor,
+            cursorAnchor: parsed.checkpoint.anchor,
+            expectedGeneration: parsed.projectionGeneration,
+          };
+          return parsed;
+        });
+        expect(projected.map((page) => page.messages[0]?.messageId)).toEqual([
+          "MSG-1",
+          "MSG-2",
+          "MSG-3",
+        ]);
+        expect(projected.at(-1)).toMatchObject({
+          localInsertPageComplete: true,
+          nextCursor: null,
+        });
+        expect(frames.at(-1)).toMatchObject({
+          kind: "seal",
+          pages: 3,
+          messages: 3,
+          framesSha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
+        });
+      } finally {
+        rmSync(path, { recursive: true, force: true });
+      }
+    });
+  }
 
   test("streams 501 rows in two pages with one snapshot integrity proof", async () => {
     const path = createStore();
