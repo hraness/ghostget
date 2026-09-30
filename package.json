@@ -721,6 +721,7 @@
     "@types/react-dom": "19.2.3",
     "agent-browser": "0.32.3",
     "fast-check": "^4.8.0",
+    "posthog-js": "1.422.5",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "satori": "0.33.4"

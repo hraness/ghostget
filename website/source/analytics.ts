@@ -1,544 +1,46 @@
-// Events recorded before this id changed carry the legacy site_id "wrench".
-// Until the shared PostHog site registry lists "wrench" as a legacy alias of
-// "ghostget", queries that span the change must match both ids.
-export const SITE_ID = "ghostget" as const;
-export const LEGACY_SITE_IDS = ["wrench"] as const;
-const CANONICAL_DOMAIN = "ghostget.com" as const;
-const CANONICAL_ORIGIN = `https://${CANONICAL_DOMAIN}` as const;
-const SCHEMA_VERSION = 1 as const;
-const NOT_FOUND_PATH = "/not-found" as const;
-const POSTHOG_SDK_VERSION = "1.412.1" as const;
-const CANONICAL_ROUTES = new Map<string, Readonly<{ canonicalPath: string; pageKind: string }>>([
-  ["/", { canonicalPath: "/", pageKind: "product_landing" }],
-  ["/about", { canonicalPath: "/about/", pageKind: "about" }],
-  ["/contact", { canonicalPath: "/contact/", pageKind: "contact" }],
-  ["/docs", { canonicalPath: "/docs/", pageKind: "docs_index" }],
-  ["/docs/tutorials/getting-started", {
-    canonicalPath: "/docs/tutorials/getting-started/",
-    pageKind: "getting_started",
-  }],
-  ["/docs/how-to/capture-and-archive", {
-    canonicalPath: "/docs/how-to/capture-and-archive/",
-    pageKind: "capture_and_archives",
-  }],
-  ["/docs/how-to/connect-beeper", {
-    canonicalPath: "/docs/how-to/connect-beeper/",
-    pageKind: "provider_beeper",
-  }],
-  ["/docs/how-to/export-whatsapp", {
-    canonicalPath: "/docs/how-to/export-whatsapp/",
-    pageKind: "provider_whatsapp",
-  }],
-  ["/docs/how-to/author-provider-plugin", {
-    canonicalPath: "/docs/how-to/author-provider-plugin/",
-    pageKind: "plugin_authoring",
-  }],
-  ["/docs/explanation/security-model", {
-    canonicalPath: "/docs/explanation/security-model/",
-    pageKind: "security",
-  }],
-  ["/docs/reference/provider-capabilities", {
-    canonicalPath: "/docs/reference/provider-capabilities/",
-    pageKind: "provider_capabilities",
-  }],
-  ["/privacy", { canonicalPath: "/privacy/", pageKind: "privacy" }],
-  ["/compare", { canonicalPath: "/compare/", pageKind: "compare_index" }],
-  ["/compare/browser-use", {
-    canonicalPath: "/compare/browser-use/",
-    pageKind: "compare_browser_use",
-  }],
-  ["/compare/browserbase", {
-    canonicalPath: "/compare/browserbase/",
-    pageKind: "compare_browserbase",
-  }],
-  ["/compare/playwright-mcp", {
-    canonicalPath: "/compare/playwright-mcp/",
-    pageKind: "compare_playwright_mcp",
-  }],
-  ["/compare/agent-browser", {
-    canonicalPath: "/compare/agent-browser/",
-    pageKind: "compare_agent_browser",
-  }],
-  ["/compare/personal-agents-browser-use", {
-    canonicalPath: "/compare/personal-agents-browser-use/",
-    pageKind: "compare_personal_agents_browser_use",
-  }],
-  ["/agentic-web-spoofing", {
-    canonicalPath: "/agentic-web-spoofing/",
-    pageKind: "agentic_web_spoofing",
-  }],
-  ["/vms-cannot-contain-agents", {
-    canonicalPath: "/vms-cannot-contain-agents/",
-    pageKind: "vms_cannot_contain_agents",
-  }],
-  ["/paypal-grapheneos-attestation", {
-    canonicalPath: "/paypal-grapheneos-attestation/",
-    pageKind: "paypal_grapheneos_attestation",
-  }],
-  ["/rumour-is-the-exploit", {
-    canonicalPath: "/rumour-is-the-exploit/",
-    pageKind: "rumour_is_the_exploit",
-  }],
-  ["/omarchy-root-escalation", {
-    canonicalPath: "/omarchy-root-escalation/",
-    pageKind: "omarchy_root_escalation",
-  }],
-]);
+// ghostget.com browser analytics. The pinned posthog-js build is bundled into
+// this module, so the page never loads remote SDK code. The event contract and
+// every scrub rule live in `analytics-contract.ts`.
+import posthog from "posthog-js/dist/module.no-external";
+import "posthog-js/dist/web-vitals.js";
+import {
+  ANALYTICS_ROUTE_META,
+  CANONICAL_DOMAIN,
+  INSTALL_COPIED_EVENT,
+  PLACEMENTS,
+  captureCta,
+  captureInstallCommandCopied,
+  captureOutboundLink,
+  createBrowserConfig,
+  createExceptionReporter,
+  doNotTrackEnabled,
+  normalizeHost,
+  placementForPath,
+  resolveRoute,
+  type BrowserEvidence,
+  type PostHogCaptureTarget,
+} from "./analytics-contract";
 
-const ALLOWED_EVENTS = new Set([
-  "$pageleave",
-  "$pageview",
-  "$web_vitals",
-  "cta clicked",
-  "install command copied",
-  "project link opened",
-]);
-export const CTA_IDS = new Set([
-  "final-install",
-  "header-install",
-  "hero-install",
-  "hero-see-it-work",
-]);
-export const INSTALL_COMMANDS = new Set(["agent_skill", "cli"]);
-export const INSTALL_COPIED_EVENT = "ghostget:install-command-copied" as const;
-const QUERY_ATTRIBUTION_KEYS = new Set([
-  "_kx",
-  "dclid",
-  "epik",
-  "fbclid",
-  "gad_source",
-  "gbraid",
-  "gclid",
-  "gclsrc",
-  "igshid",
-  "irclid",
-  "li_fat_id",
-  "mc_cid",
-  "msclkid",
-  "qclid",
-  "rdt_cid",
-  "sccid",
-  "ttclid",
-  "twclid",
-  "utm_campaign",
-  "utm_content",
-  "utm_medium",
-  "utm_source",
-  "utm_term",
-  "wbraid",
-]);
-const CURRENT_URL_KEYS = new Set([
-  "$current_url",
-  "$initial_current_url",
-  "$session_entry_url",
-  "current_url",
-  "href",
-  "url",
-  "url.full",
-]);
-const REFERRER_KEYS = new Set(["$initial_referrer", "$referrer", "referrer"]);
-const SAFE_CUSTOM_PROPERTIES = new Set([
-  "cta",
-  "install_command",
-  "target_host",
-  "target_id",
-  "target_kind",
-  "target_path",
-]);
-const MAX_PROPERTIES = 64;
-const MAX_DEPTH = 4;
-const MAX_STRING_LENGTH = 2_048;
+export * from "./analytics-contract";
 
-type AnalyticsCapture = Readonly<{
-  event: string;
-  properties: Readonly<Record<string, unknown>>;
-  timestamp?: string;
-  uuid?: string;
-}>;
-
-type BrowserEvidence = Readonly<{
-  href: string;
-  referrer: string;
-}>;
-
-type PostHogCaptureOptions = Readonly<{
-  send_instantly: true;
-  transport: "sendBeacon";
-}>;
-
-type PostHogCaptureTarget = Readonly<{
-  capture?: (
-    event: string,
-    properties?: Readonly<Record<string, unknown>>,
-    options?: PostHogCaptureOptions,
-  ) => void;
-}>;
-
-type PostHogQueue = unknown[] & PostHogCaptureTarget & {
-  __SV?: number;
-  _i?: unknown[];
-  init?: (token: string, config: Readonly<Record<string, unknown>>, name?: string) => void;
-  people?: unknown[] & { toString?: () => string };
-  toString?: (stub?: number) => string;
-  [key: string]: unknown;
-};
-
-declare global {
-  interface Window {
-    posthog?: PostHogQueue;
-  }
+function metaContent(documentValue: Document, name: string): string | null {
+  return documentValue.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content.trim() ?? null;
 }
 
-function unknownRecord(value: unknown): Readonly<Record<string, unknown>> | null {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
-  return value as Readonly<Record<string, unknown>>;
-}
-
-export function normalizePathname(pathname: string): string {
-  const withoutQuery = pathname.split(/[?#]/u, 1)[0] ?? "/";
-  const leading = withoutQuery.startsWith("/") ? withoutQuery : `/${withoutQuery}`;
-  const collapsed = leading.replace(/\/{2,}/gu, "/");
-  return collapsed.length > 1 ? collapsed.replace(/\/+$/u, "") : "/";
-}
-
-function canonicalRoute(rawUrl: string): { canonicalPath: string; pageKind: string } | null {
-  try {
-    const url = new URL(rawUrl, `${CANONICAL_ORIGIN}/`);
-    if (url.hostname.toLowerCase().replace(/\.$/u, "") !== CANONICAL_DOMAIN) return null;
-    const pathname = normalizePathname(url.pathname);
-    return CANONICAL_ROUTES.get(pathname)
-      ?? { canonicalPath: NOT_FOUND_PATH, pageKind: "not_found" };
-  } catch {
-    return null;
-  }
-}
-
-function canonicalUrl(pathname: string): string {
-  return `${CANONICAL_ORIGIN}${pathname}`;
-}
-
-function normalizedPropertyName(key: string): string {
-  return key.toLowerCase().replace(/^\$/u, "").replace(/^(?:initial|session_entry)_/u, "");
-}
-
-function isQueryAttributionKey(key: string): boolean {
-  return QUERY_ATTRIBUTION_KEYS.has(normalizedPropertyName(key));
-}
-
-function isPathnameKey(key: string): boolean {
-  return /^(?:\$)?(?:(?:initial|session_entry|prev_pageview)_)?pathname$/u.test(key.toLowerCase());
-}
-
-function stripUrlDetail(value: string, originOnly: boolean): string {
-  try {
-    const url = new URL(value);
-    return originOnly ? url.origin : `${url.origin}${normalizePathname(url.pathname)}`;
-  } catch {
-    return "";
-  }
-}
-
-function redactText(value: string): string {
-  return value
-    .replace(/\b(?:phc|phx|phs|pha|phr)_[A-Za-z0-9_-]+\b/gu, "[credential]")
-    .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+\b/giu, "Bearer [credential]")
-    .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/gu, "[credential]")
-    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/giu, "[email]")
-    .replace(/(https?:\/\/[^\s?#)]+)(?:\?[^\s#)]*)?(?:#[^\s)]*)?/giu, "$1")
-    .replace(/([/][^\s?#)]+)\?[^\s#)]*/gu, "$1")
-    .replace(/\b(api[_-]?key|access[_-]?token|auth(?:orization)?|secret|password)=([^\s&]+)/giu, "$1=[redacted]")
-    .slice(0, MAX_STRING_LENGTH);
-}
-
-function sanitizeString(key: string, value: string, route: { canonicalPath: string }): string {
-  if (REFERRER_KEYS.has(key)) return stripUrlDetail(value, true);
-  if (CURRENT_URL_KEYS.has(key)) return canonicalUrl(route.canonicalPath);
-  if (isPathnameKey(key)) return route.canonicalPath;
-  return redactText(value);
-}
-
-function sanitizeValue(
-  key: string,
-  value: unknown,
-  route: { canonicalPath: string },
-  depth: number,
-  seen: WeakSet<object>,
-): unknown {
-  if (isQueryAttributionKey(key)) return undefined;
-  if (typeof value === "string") return sanitizeString(key, value, route);
-  if (value === null || typeof value === "boolean") return value;
-  if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
-  if (depth >= MAX_DEPTH || value === null || typeof value !== "object") return undefined;
-  if (seen.has(value)) return undefined;
-  seen.add(value);
-  if (Array.isArray(value)) {
-    return value.slice(0, 20).map((item) => sanitizeValue(key, item, route, depth + 1, seen));
-  }
-  const result: Record<string, unknown> = {};
-  for (const [nestedKey, nestedValue] of Object.entries(value).slice(0, MAX_PROPERTIES)) {
-    const safeValue = sanitizeValue(nestedKey, nestedValue, route, depth + 1, seen);
-    if (safeValue !== undefined) result[nestedKey] = safeValue;
-  }
-  return result;
-}
-
-function trafficForReferrer(referrer: string): Readonly<Record<string, string>> {
-  if (!referrer) return { traffic_channel: "direct", traffic_source: "direct" };
-  let hostname: string;
-  try {
-    hostname = new URL(referrer).hostname.toLowerCase().replace(/^www\./u, "");
-  } catch {
-    return { traffic_channel: "referral", traffic_source: "unknown" };
-  }
-  if (hostname === CANONICAL_DOMAIN) {
-    return { referrer_host: hostname, traffic_channel: "internal", traffic_source: "internal" };
-  }
-  const knownSources = [
-    ["ai_referral", "chatgpt", ["chatgpt.com", "chat.openai.com"]],
-    ["ai_referral", "claude", ["claude.ai"]],
-    ["ai_referral", "perplexity", ["perplexity.ai"]],
-    ["ai_referral", "gemini", ["gemini.google.com"]],
-    ["organic_search", "google", ["google.com", "google.co.uk", "google.ca", "google.com.au"]],
-    ["organic_search", "bing", ["bing.com"]],
-    ["organic_search", "duckduckgo", ["duckduckgo.com"]],
-    ["social", "reddit", ["reddit.com"]],
-    ["social", "x", ["x.com", "twitter.com", "t.co"]],
-    ["social", "linkedin", ["linkedin.com"]],
-  ] as const;
-  for (const [channel, source, domains] of knownSources) {
-    if (domains.some((domain) => hostname === domain || hostname.endsWith(`.${domain}`))) {
-      return { referrer_host: hostname, traffic_channel: channel, traffic_source: source };
-    }
-  }
-  return { referrer_host: hostname, traffic_channel: "referral", traffic_source: hostname };
-}
-
-export function sanitizeCapture(
-  value: unknown,
-  evidence: BrowserEvidence,
-): AnalyticsCapture | null {
-  const capture = unknownRecord(value);
-  if (capture === null || typeof capture.event !== "string" || !ALLOWED_EVENTS.has(capture.event)) {
-    return null;
-  }
-  const properties = unknownRecord(capture.properties);
-  if (properties === null) return null;
-  if (capture.event === "cta clicked" && !(typeof properties.cta === "string" && CTA_IDS.has(properties.cta))) {
-    return null;
-  }
-  if (
-    capture.event === "install command copied"
-    && !(typeof properties.install_command === "string" && INSTALL_COMMANDS.has(properties.install_command))
-  ) {
-    return null;
-  }
-  const token = properties.token;
-  if (typeof token !== "string" || !/^phc_[A-Za-z0-9_-]+$/u.test(token)) return null;
-  const rawUrl = typeof properties.$current_url === "string" ? properties.$current_url : evidence.href;
-  const route = canonicalRoute(rawUrl);
-  if (route === null) return null;
-  const safeProperties: Record<string, unknown> = {};
-  const seen = new WeakSet<object>();
-  for (const [key, propertyValue] of Object.entries(properties).slice(0, MAX_PROPERTIES)) {
-    const safeValue = sanitizeValue(key, propertyValue, route, 0, seen);
-    if (safeValue !== undefined) safeProperties[key] = safeValue;
-  }
-  const rawReferrer = typeof properties.$referrer === "string" ? properties.$referrer : evidence.referrer;
-  return {
-    event: capture.event,
-    properties: {
-      ...safeProperties,
-      ...trafficForReferrer(rawReferrer),
-      $current_url: canonicalUrl(route.canonicalPath),
-      $pathname: route.canonicalPath,
-      $process_person_profile: false,
-      analytics_schema_version: SCHEMA_VERSION,
-      canonical_domain: CANONICAL_DOMAIN,
-      canonical_path: route.canonicalPath,
-      content_group: "ghostget",
-      page_kind: route.pageKind,
-      site_id: SITE_ID,
-      token,
-    },
-    ...(typeof capture.timestamp === "string" ? { timestamp: capture.timestamp } : {}),
-    ...(typeof capture.uuid === "string" ? { uuid: capture.uuid } : {}),
-  };
-}
-
-export function createBrowserConfig(host: string, evidence: BrowserEvidence): Readonly<Record<string, unknown>> {
-  return {
-    advanced_disable_feature_flags: true,
-    advanced_disable_feature_flags_on_first_load: true,
-    advanced_disable_flags: true,
-    api_host: host,
-    autocapture: false,
-    before_send: (capture: unknown) => sanitizeCapture(capture, evidence),
-    capture_dead_clicks: false,
-    capture_exceptions: false,
-    capture_heatmaps: false,
-    capture_pageleave: true,
-    capture_pageview: true,
-    capture_performance: {
-      network_timing: false,
-      web_vitals: true,
-      web_vitals_allowed_metrics: ["LCP", "CLS", "FCP", "INP"],
-      web_vitals_attribution: false,
-    },
-    cookieless_mode: "always",
-    cross_subdomain_cookie: false,
-    custom_personal_data_properties: ["email", "token", "code", "key", "secret"],
-    defaults: "2026-05-30",
-    disable_capture_url_hashes: true,
-    disable_conversations: true,
-    disable_product_tours: true,
-    disable_session_recording: true,
-    disable_surveys: true,
-    disable_surveys_automatic_display: true,
-    disableDeviceModel: true,
-    enable_recording_console_log: false,
-    internal_or_test_user_hostname: null,
-    mask_all_element_attributes: true,
-    mask_all_text: true,
-    mask_personal_data_properties: true,
-    persistence: "memory",
-    person_profiles: "never",
-    properties_string_max_length: MAX_STRING_LENGTH,
-    rageclick: false,
-    rate_limiting: { events_burst_limit: 12, events_per_second: 2 },
-    respect_dnt: true,
-    strict_script_versioning: true,
-    ui_host: host.includes("eu.i.posthog.com") ? "https://eu.posthog.com" : "https://us.posthog.com",
-  };
-}
-
-export function captureProjectLink(
-  posthog: PostHogCaptureTarget,
-  properties: Readonly<Record<string, string>>,
-): void {
-  posthog.capture?.("project link opened", properties, {
-    send_instantly: true,
-    transport: "sendBeacon",
-  });
-}
-
-export function captureCta(posthog: PostHogCaptureTarget, cta: string): void {
-  if (!CTA_IDS.has(cta)) return;
-  posthog.capture?.("cta clicked", { cta }, {
-    send_instantly: true,
-    transport: "sendBeacon",
-  });
-}
-
-export function captureInstallCommandCopied(posthog: PostHogCaptureTarget, command: string): void {
-  if (!INSTALL_COMMANDS.has(command)) return;
-  posthog.capture?.("install command copied", { install_command: command });
-}
-
-/**
- * The snippet stub only queues calls made before the SDK loads. Once `array.js`
- * loads, PostHog replaces `window.posthog` with the real instance and never
- * drains the stub again, so interaction handlers must resolve the current
- * instance at call time instead of holding the stub.
- */
-export function liveCaptureTarget(
-  windowValue: Readonly<{ posthog?: PostHogCaptureTarget }>,
-  stub: PostHogCaptureTarget,
-): PostHogCaptureTarget {
-  return {
-    capture: (event, properties, options) => {
-      const current = windowValue.posthog ?? stub;
-      if (options === undefined) current.capture?.(event, properties);
-      else current.capture?.(event, properties, options);
-    },
-  };
-}
-
-function stubMethod(target: PostHogQueue, method: string): void {
-  target[method] = (...args: unknown[]) => target.push([method, ...args]);
-}
-
-function installPostHogQueue(documentValue: Document, windowValue: Window): PostHogQueue {
-  if (windowValue.posthog?.__SV === 1) return windowValue.posthog;
-  const queue = (windowValue.posthog ?? []) as PostHogQueue;
-  queue._i = queue._i ?? [];
-  queue.init = (token, config, name) => {
-    if (documentValue.querySelector('script[data-ghostget-posthog-sdk="true"]') === null) {
-      const script = documentValue.createElement("script");
-      const apiHost = typeof config.api_host === "string" ? config.api_host : "https://us.i.posthog.com";
-      const assetHost = apiHost.replace(".i.posthog.com", "-assets.i.posthog.com");
-      script.async = true;
-      script.crossOrigin = "anonymous";
-      script.dataset.ghostgetPosthogSdk = "true";
-      script.src = `${assetHost}/static/${POSTHOG_SDK_VERSION}/array.js`;
-      documentValue.head.append(script);
-    }
-    const instance = name === undefined
-      ? queue
-      : ((queue[name] = []) as unknown as PostHogQueue);
-    instance.people = instance.people ?? [];
-    instance.toString = (stub = 0) => `${name ?? "posthog"}${stub === 0 ? " (stub)" : ""}`;
-    instance.people.toString = () => `${name ?? "posthog"}.people (stub)`;
-    const methods = [
-      "capture",
-      "captureException",
-      "clear_opt_in_out_capturing",
-      "createPersonProfile",
-      "debug",
-      "get_distinct_id",
-      "get_session_id",
-      "get_session_replay_url",
-      "getFeatureFlag",
-      "getFeatureFlagResult",
-      "group",
-      "has_opted_in_capturing",
-      "has_opted_out_capturing",
-      "identify",
-      "isFeatureEnabled",
-      "loadToolbar",
-      "onFeatureFlags",
-      "onSessionId",
-      "opt_in_capturing",
-      "opt_out_capturing",
-      "register",
-      "register_once",
-      "reloadFeatureFlags",
-      "reset",
-      "set_config",
-      "startSessionRecording",
-      "stopSessionRecording",
-      "unregister",
-    ];
-    for (const method of methods) stubMethod(instance, method);
-    queue._i?.push([token, config, name]);
-  };
-  queue.__SV = 1;
-  windowValue.posthog = queue;
-  return queue;
-}
-
-/**
- * PostHog ignores `respect_dnt` when `cookieless_mode` is "always", so the
- * bootstrap checks Do Not Track itself and never loads the SDK when it is set.
- */
-export function doNotTrackEnabled(
-  navigatorValue: Readonly<{ doNotTrack?: string | null | undefined; msDoNotTrack?: string | null | undefined }> | undefined,
-  windowValue: Readonly<{ doNotTrack?: string | null | undefined }> | undefined,
-): boolean {
-  return [navigatorValue?.doNotTrack, navigatorValue?.msDoNotTrack, windowValue?.doNotTrack].some(
-    (value) => typeof value === "string" && ["1", "yes", "true"].includes(value.trim().toLowerCase()),
-  );
-}
-
-function metaContent(documentValue: Document, name: string): string {
-  return documentValue.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content.trim() ?? "";
+function placementFor(element: Element): string {
+  const explicit = element.closest<HTMLElement>("[data-analytics-placement]")?.dataset.analyticsPlacement;
+  if (explicit !== undefined && PLACEMENTS.has(explicit)) return explicit;
+  if (element.closest("header, nav") !== null) return "nav";
+  if (element.closest("footer") !== null) return "footer";
+  return placementForPath(window.location.pathname);
 }
 
 function initializeBrowserAnalytics(): void {
-  const key = metaContent(document, "ghostget-posthog-key");
-  const host = metaContent(document, "ghostget-posthog-host");
+  const key = metaContent(document, "ghostget-posthog-key") ?? "";
+  const host = metaContent(document, "ghostget-posthog-host") ?? "";
   if (
     window.location.protocol !== "https:"
-    || window.location.hostname.toLowerCase().replace(/\.$/u, "") !== CANONICAL_DOMAIN
+    || normalizeHost(window.location.hostname) !== CANONICAL_DOMAIN
     || !/^phc_[A-Za-z0-9_-]+$/u.test(key)
     || !/^https:\/\/(?:eu|us)\.i\.posthog\.com$/u.test(host)
     || doNotTrackEnabled(
@@ -547,42 +49,47 @@ function initializeBrowserAnalytics(): void {
     )
   ) return;
 
-  const evidence = { href: window.location.href, referrer: document.referrer } as const;
-  const queue = installPostHogQueue(document, window);
-  queue.init?.(key, createBrowserConfig(host, evidence));
-  const posthog = liveCaptureTarget(window, queue);
+  const evidence: BrowserEvidence = {
+    href: window.location.href,
+    referrer: document.referrer,
+    route: metaContent(document, ANALYTICS_ROUTE_META),
+  };
+  posthog.init(key, createBrowserConfig(host, evidence) as Parameters<typeof posthog.init>[1]);
+  const target = posthog as unknown as PostHogCaptureTarget;
+
+  const route = resolveRoute(window.location.href, evidence);
+  if (route?.pageKind === "not_found") posthog.capture("page not found");
+
+  const reportException = createExceptionReporter(posthog);
+  window.addEventListener("error", (event) => {
+    if (event.error instanceof Error) reportException(event.error, "window_error");
+  });
+  window.addEventListener("unhandledrejection", (event) => {
+    reportException(event.reason, "unhandled_rejection");
+  });
 
   document.addEventListener(INSTALL_COPIED_EVENT, (event) => {
-    const command = event instanceof CustomEvent ? unknownRecord(event.detail)?.command : undefined;
-    if (typeof command === "string") captureInstallCommandCopied(posthog, command);
+    const detail = event instanceof CustomEvent ? event.detail as unknown : undefined;
+    const command = detail !== null && typeof detail === "object" ? (detail as { command?: unknown }).command : undefined;
+    if (typeof command === "string" && event.target instanceof Element) {
+      captureInstallCommandCopied(target, command, placementFor(event.target));
+    }
   });
 
   document.addEventListener("copy", () => {
     const anchor = document.getSelection()?.anchorNode;
     const element = anchor instanceof Element ? anchor : anchor?.parentElement;
-    const command = element?.closest<HTMLElement>("[data-install-command]")?.dataset.installCommand;
-    if (command !== undefined) captureInstallCommandCopied(posthog, command);
+    const control = element?.closest<HTMLElement>("[data-install-command]");
+    const command = control?.dataset.installCommand;
+    if (control && command !== undefined) captureInstallCommandCopied(target, command, placementFor(control));
   });
 
   document.addEventListener("click", (event) => {
     if (event.button !== 0 || !(event.target instanceof Element)) return;
     const cta = event.target.closest<HTMLAnchorElement>("a[data-analytics-cta]")?.dataset.analyticsCta;
-    if (cta !== undefined) captureCta(posthog, cta);
-    const link = event.target.closest<HTMLAnchorElement>("a[data-analytics-event]");
-    if (link?.dataset.analyticsEvent !== "project link opened") return;
-    const analyticsId = link.dataset.analyticsId;
-    const analyticsKind = link.dataset.analyticsKind;
-    const properties: Record<string, string> = {};
-    if (analyticsId && SAFE_CUSTOM_PROPERTIES.has("target_id")) properties.target_id = analyticsId.slice(0, 64);
-    if (analyticsKind && SAFE_CUSTOM_PROPERTIES.has("target_kind")) properties.target_kind = analyticsKind.slice(0, 64);
-    try {
-      const targetUrl = new URL(link.href, window.location.href);
-      if (SAFE_CUSTOM_PROPERTIES.has("target_host")) properties.target_host = targetUrl.hostname.toLowerCase();
-      if (SAFE_CUSTOM_PROPERTIES.has("target_path")) properties.target_path = normalizePathname(targetUrl.pathname);
-    } catch {
-      // A malformed link contributes no destination dimensions.
-    }
-    captureProjectLink(posthog, properties);
+    if (cta !== undefined) captureCta(target, cta);
+    const link = event.target.closest<HTMLAnchorElement>("a[href]");
+    if (link !== null) captureOutboundLink(target, link.href, placementFor(link));
   });
 }
 
