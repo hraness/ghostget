@@ -256,6 +256,7 @@ describe("checker pins", () => {
 
 describe("verification CI job", () => {
   type Step = {
+    id?: string;
     name?: string;
     uses?: string;
     run?: string;
@@ -272,23 +273,37 @@ describe("verification CI job", () => {
   test("caches only pinned downloads under a key derived from the pins", async () => {
     const source = await workflowSource();
     const workflow = Bun.YAML.parse(source) as Workflow;
-    const job = workflow.jobs.verification;
-    if (job === undefined) throw new Error("ci.yml has no verification job");
-    const cache = job.steps.filter((step) => step.uses?.startsWith("actions/cache@") === true);
-    expect(cache).toHaveLength(1);
     const pins = pinnedArchives().map(({ name, url, bytes, sha256 }) => ({ name, url, bytes, sha256 }));
     const digest = createHash("sha256").update(JSON.stringify(pins)).digest("hex").slice(0, 16);
     expect(pinnedArchivesDigest()).toBe(digest);
-    expect(cache[0]!.with).toEqual({
-      path: `${verificationCacheDirectory({}, "~")}/downloads`,
-      key: `ghostget-verification-\${{ runner.os }}-\${{ runner.arch }}-pins-${digest}`,
-    });
+    for (const id of ["verification", "quint"]) {
+      const job = workflow.jobs[id];
+      if (job === undefined) throw new Error(`ci.yml has no ${id} job`);
+      const path = `${verificationCacheDirectory({}, "~")}/downloads`;
+      const cache = job.steps.filter(step => step.with?.path === path);
+      expect(cache).toHaveLength(2);
+      const [restore, save] = cache;
+      expect(restore!.uses).toBe("actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9");
+      expect(restore!.id).toBe("checker_downloads");
+      expect(restore!.if).toBeUndefined();
+      const profile = id === "verification" ? "lean" : "quint";
+      expect(restore!.with).toEqual({ path, key: `ghostget-verification-${profile}-\${{ runner.os }}-\${{ runner.arch }}-pins-${digest}` });
+      expect(save!.uses).toBe("actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9");
+      expect(save!.if).toBe("github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && steps.checker_downloads.outputs.cache-hit != 'true'");
+      expect(save!.with).toEqual({ path, key: "${{ steps.checker_downloads.outputs.cache-primary-key }}" });
+      const firstCheck = job.steps.findIndex(step => step.run === "bun run verify:claims" || step.run?.startsWith("bun run ./scripts/verification-tools.ts quint ") === true);
+      const lastCheck = job.steps.findLastIndex(step => step.run !== undefined);
+      expect(job.steps.indexOf(restore!)).toBeLessThan(firstCheck);
+      expect(job.steps.indexOf(save!)).toBeGreaterThan(lastCheck);
+    }
     // Any single pin change, including a digest or size change at the same version, changes the key.
     const archive = pinnedArchives()[0]!;
     for (const changed of [{ ...archive, sha256: "0".repeat(64) }, { ...archive, bytes: archive.bytes + 1 }]) {
       const repinned = [changed, ...pinnedArchives().slice(1)].map(({ name, url, bytes, sha256 }) => ({ name, url, bytes, sha256 }));
       expect(createHash("sha256").update(JSON.stringify(repinned)).digest("hex").slice(0, 16)).not.toBe(digest);
     }
+    const job = workflow.jobs.verification!;
+    const cache = job.steps.filter(step => step.uses?.startsWith("actions/cache/restore@") === true && step.with?.path === `${verificationCacheDirectory({}, "~")}/downloads`);
     const verify = job.steps.findIndex((step) => step.run === "bun run verify:claims");
     const install = job.steps.findIndex((step) => step.run === "bun install --frozen-lockfile --ignore-scripts");
     expect(install).toBeGreaterThanOrEqual(0);
