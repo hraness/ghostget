@@ -27,8 +27,8 @@ ghostget apple-photos export-contact-evidence \
 
 There is no database-file, Contacts-root, SQL, query, output-path, network, or
 media option. The command discovers the current Apple Contacts stores from the
-fixed account root. It does not authenticate, connect, sync, download, modify,
-or ask Photos to materialize an asset.
+fixed account root. It does not authenticate, connect, sync, download, write
+Photos or Contacts database/WAL data, or ask Photos to materialize an asset.
 
 ## Exact evidence boundary
 
@@ -36,6 +36,10 @@ GhostGet accepts only owned real directories and owned single-link regular
 SQLite files within reviewed byte and count bounds. It opens each source
 read-only with trusted schemas disabled and uses SQLite `VACUUM INTO` to create
 one mode-`0600` database in a mode-`0700` operation-owned temporary directory.
+SQLite's normal WAL reader coordination can update reader marks in an existing
+shared-memory (`-shm`) sidecar and change that sidecar's modification and change
+times. Read-only access preserves database and WAL data; it does not promise
+unchanged shared-memory bytes or timestamps.
 The source's device, inode, birth time, owner, type, link count, and permission
 mode must agree before and after capture. Live size and modification-time churn
 is allowed. Apple Contacts databases use the same boundary. GhostGet runs

@@ -2318,14 +2318,23 @@
 // Preserve projections and allowances:
 // 12,151,810 + 12,387 + 4,096 = 12,168,293 packed;
 // 24,043,910 + 353 + 65 = 24,044,328 unpacked.
+// SQLite WAL reader-coordination documentation over main 661b3622 adds
+// exactly 638 README/reference payload bytes. A fresh build and two official
+// Node 24.20.0/npm 11.19.0 packs --ignore-scripts on darwin arm64 with zlib
+// 1.3.2.1-motley-42c2f19 measured 624 entries, 12,152,057 packed and
+// 24,044,661 unpacked bytes; byte-identical archive SHA-256
+// e7469d0797d591820a0f362b39f9a271342ef65b766bab507790b7156a89e5d7.
+// Preserve the same projections and allowances:
+// 12,152,057 + 12,387 + 4,096 = 12,168,540 packed;
+// 24,044,661 + 353 + 65 = 24,045,079 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget WhatsApp migration-layout repair over main 3acaa55",
+  scope: "Ghostget WhatsApp repair and SQLite coordination docs over main 661b3622",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "0d42ab201427f4b0660a8aaa022aaefea477d2c4126d718c8015444d21e88d8e",
-  packedBytes: 12_151_810,
-  unpackedBytes: 24_043_910,
+  archiveSha256: "e7469d0797d591820a0f362b39f9a271342ef65b766bab507790b7156a89e5d7",
+  packedBytes: 12_152_057,
+  unpackedBytes: 24_044_661,
   entryCount: 624,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

@@ -650,11 +650,16 @@ ghostget apple-photos export-contact-evidence --json \
 
 GhostGet opens each owned source database read-only and uses SQLite `VACUUM INTO`
 to create one self-contained database in a new private temporary directory. It
-binds each source's physical identity before and after capture while allowing
-ordinary live size and modification-time changes. It applies the same capture
-boundary to every current Apple Contacts database discovered under the
-account's fixed AddressBook root, validates and queries only the captured
-databases, and removes them after ordinary success or handled failure.
+does not write SQLite database or WAL data. SQLite's normal WAL reader
+coordination can update reader marks in an existing shared-memory (`-shm`)
+sidecar, which can also change that sidecar's modification and change times.
+Read-only database access does not promise unchanged shared-memory bytes or
+timestamps. GhostGet binds each source's physical identity before and after
+capture while allowing ordinary live size and modification-time changes. It
+applies the same capture boundary to every current Apple Contacts database
+discovered under the account's fixed AddressBook root, validates and queries
+only the captured databases, and removes them after ordinary success or handled
+failure.
 Symlinks, hardlinks, owner or identity changes, size overruns, missing tables,
 and relevant Core Data column drift fail closed.
 
