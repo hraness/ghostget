@@ -11,7 +11,7 @@ import {
   type HranessMailingListConfig,
 } from "@hraness/site-footer";
 import { product } from "@hraness/design-kit/portfolio";
-import { portfolio } from "./portfolio-copy";
+import { marketing, portfolio } from "./portfolio-copy";
 import { HranessSiteFooter } from "@hraness/site-footer/react";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -53,7 +53,7 @@ import {
   socialImageFit,
   socialImageSiteDetails,
 } from "@hraness/web-discovery/social-image/card";
-import { SOCIAL_IMAGE_DESCRIPTION, socialSite } from "./social-image";
+import { SOCIAL_IMAGE_BRAND_MARK, SOCIAL_IMAGE_DESCRIPTION, SOCIAL_IMAGE_HOME_PAGE, socialSite } from "./social-image";
 import { BLOG_POSTS, blogPostPath, blogSitemapPaths } from "./blog";
 import {
   parseWebmcpRegistrySnapshot,
@@ -385,10 +385,9 @@ describe("ghostget.com static site", () => {
     const cssAsset = /<link rel="stylesheet" href="([^"?]+)">/u.exec(html)?.[1];
     expect(cssAsset).toMatch(/^\/assets\/styles-[a-f0-9]{12}\.css$/u);
     const builtCss = await readFile(join(websiteRoot, "dist", cssAsset!.slice(1)), "utf8");
-    const siteShellCss = await readFile(join(websiteRoot, "vendor/hraness-site-shell/site-shell.css"), "utf8");
-    expect(createHash("sha256").update(siteShellCss).digest("hex")).toBe("ff45b53be4d26f70c14a5749e75ed03236299d8d36c10ed01680a62d04573e33");
-    expect(builtCss).toContain(siteShellCss.trim());
+    const siteShellCss = await readFile(new URL(import.meta.resolve("@hraness/design-kit/site-shell.css")), "utf8");
     expect(builtCss.split(siteShellCss.trim())).toHaveLength(2);
+    expect(builtCss).not.toContain('@import "./site-shell.css"');
     for (const document of [...pages.map((page) => page.html), notFound]) {
       expect(document).toContain('<body class="hraness-site-shell">');
     }
@@ -2249,26 +2248,40 @@ describe("ghostget.com static site", () => {
     expect(product("wrench").oneLiner).toBe(
       SOCIAL_IMAGE_DESCRIPTION.replace("use accounts.", "use connected accounts"),
     );
-    expect(socialSite.icon?.kind).toBe("mark");
+    // The card copies the sticky header: the foil mark and name over the
+    // site's Design Kit palette, with no tile icon or wash.
+    expect(socialSite.icon).toBeUndefined();
+    expect(socialSite.theme).toBeUndefined();
+    expect(socialSite.palette).toBe("gruvbox");
+    const homeHtml = await readFile(join(websiteRoot, "source/index.html"), "utf8");
+    expect(homeHtml).toContain('data-palette="gruvbox"');
+    expect(socialSite.brand).toBe("GhostGet");
     const markSvg = await readFile(join(websiteRoot, "public/marks/wrench.svg"), "utf8");
-    expect(socialSite.icon?.src).toBe(`data:image/svg+xml;base64,${Buffer.from(markSvg, "utf8").toString("base64")}`);
-    expect(socialSite.theme).toEqual({ accent: "#2474d4", background: "#fbf1c7", foreground: "#393533", muted: "#584f48", wash: "#d99a4a" });
+    expect(SOCIAL_IMAGE_BRAND_MARK).toBe(markSvg);
+    expect(socialSite.brandMark).toBe(markSvg);
     const generator = await readFile(join(websiteRoot, "../scripts/generate-og.tsx"), "utf8");
-    expect(generator).toContain("createSocialImageCard(socialImageSiteDetails(socialSite))");
+    expect(generator).toContain("createSocialImageCard(socialImageSiteDetails(socialSite, SOCIAL_IMAGE_HOME_PAGE))");
     expect(generator).not.toMatch(/<svg|<div|theme:/u);
   });
 
   test("fits the home social card's copy as written", () => {
-    const details = socialImageSiteDetails(socialSite);
+    expect(SOCIAL_IMAGE_HOME_PAGE).toEqual({ headline: marketing.hero.heading, layout: "product" });
+    const details = socialImageSiteDetails(socialSite, SOCIAL_IMAGE_HOME_PAGE);
     const fit = socialImageFit(details);
-    // v0.12.0 findings include the review codes (reduced description,
-    // trailing ellipsis, repeated tagline, eyebrow checks) that strict ignores.
-    expect(fit.findings).toEqual([]);
-    expect(fit.issues).toEqual([]);
     expect(fit.layout).toBe("product");
-    expect(fit.removed).toEqual([]);
-    expect(fit.description?.cut).toBe("none");
+    expect(fit.headline.lines).toEqual(["Your agent gets the result", "without clicking around."]);
     expect(fit.headline.reduced).toBe(false);
+    expect(fit.description?.lines.join(" ")).toBe(SOCIAL_IMAGE_DESCRIPTION);
+    expect(fit.description?.cut).toBe("none");
+    expect(fit.removed).toEqual([]);
+    // The product layout shows the tagline beneath the hero headline by
+    // design; v0.13.0 still reports that as a repeated tagline, and nothing else.
+    expect(fit.findings.map(({ code }) => code)).toEqual(["description-repeats-tagline"]);
+    expect(fit.issues.filter((issue) => !issue.includes("repeats the site tagline"))).toEqual([]);
     expect(() => createSocialImageCard({ ...details, strict: true })).not.toThrow();
+    // The tagline alone would need three lines as the headline.
+    expect(socialImageFit(socialImageSiteDetails(socialSite)).findings.map(({ code }) => code)).toEqual([
+      "home-headline-three-lines",
+    ]);
   });
 });

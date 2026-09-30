@@ -8,9 +8,9 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { resolvedLaunchBeats } from "./beats.ts";
 import { LAUNCH_FILM } from "./film.ts";
-import { LAUNCH_CLAIMS_NOT_VERIFIED, LAUNCH_MEASURED_READS, LAUNCH_RELEASE_VERSION, LAUNCH_SERVICE_COUNT } from "./facts.ts";
+import { LAUNCH_CLAIMS_CONFIG_READBACK, LAUNCH_CLAIMS_EVIDENCED, LAUNCH_CLAIMS_NOT_VERIFIED, LAUNCH_CLAIMS_TOTAL, LAUNCH_MEASURED_READS, LAUNCH_RELEASE_VERSION, LAUNCH_SERVICE_COUNT } from "./facts.ts";
 import { LAUNCH_MOCKUP_IDS } from "./mockups.tsx";
-import { launchServicesFrom, renderLaunchBeatsHtml, renderLaunchMockupSlots } from "./render.tsx";
+import { launchServicesFrom, renderLaunchBeatsHtml, renderLaunchFactSlots, renderLaunchMockupSlots } from "./render.tsx";
 import { launchMessaging, renderSocialKitMarkdown, socialKit } from "./social-kit.ts";
 import { SITE_DESCRIPTION } from "../build.ts";
 
@@ -33,6 +33,21 @@ describe("launch facts", () => {
   test("not-verified claim count equals the claims register", async () => {
     const register = JSON.parse(await readFile(join(repositoryRoot, "verification/claims.json"), "utf8")) as { claims: { status: string }[] };
     expect(register.claims.filter((claim) => claim.status === "not-verified").length).toBe(LAUNCH_CLAIMS_NOT_VERIFIED);
+  });
+
+  test("claims register totals equal the claims register", async () => {
+    const register = JSON.parse(await readFile(join(repositoryRoot, "verification/claims.json"), "utf8")) as { claims: { status: string; layer: string }[] };
+    expect(register.claims.length).toBe(LAUNCH_CLAIMS_TOTAL);
+    expect(register.claims.filter((claim) => claim.status === "evidenced").length).toBe(LAUNCH_CLAIMS_EVIDENCED);
+    expect(register.claims.filter((claim) => claim.status === "not-verified" && claim.layer === "configuration-readback").length).toBe(LAUNCH_CLAIMS_CONFIG_READBACK);
+  });
+
+  test("the longer version takes its register counts from the facts module", async () => {
+    const fragment = await readFile(join(repositoryRoot, "website/source/blog/introducing-ghostget.html"), "utf8");
+    const rendered = renderLaunchFactSlots(fragment);
+    expect(rendered).not.toContain("{{LAUNCH_FACT:");
+    expect(rendered).toContain(`lists ${LAUNCH_CLAIMS_TOTAL} claims: ${LAUNCH_CLAIMS_EVIDENCED} evidenced and ${LAUNCH_CLAIMS_NOT_VERIFIED} not verified`);
+    expect(() => renderLaunchFactSlots("{{LAUNCH_FACT:unknownFact}}")).toThrow(/Unknown launch fact/u);
   });
 
   test("measured reads match the homepage table", async () => {
@@ -86,10 +101,10 @@ describe("launch beats and mockups", () => {
 });
 
 describe("social kit", () => {
-  test("one post per promotional beat on each thread platform, within limits", () => {
-    const promotionalBeats = resolvedLaunchBeats.filter((beat) => beat.part !== "limits");
+  test("one post per social beat on each thread platform, within limits", () => {
+    const socialBeatCount = resolvedLaunchBeats.filter((beat) => beat.part !== "limits").length;
     for (const [posts, limit] of [[socialKit.x, 280], [socialKit.bluesky, 300], [socialKit.threads, 500]] as const) {
-      expect(posts.length).toBe(promotionalBeats.length);
+      expect(posts.length).toBe(socialBeatCount);
       for (const post of posts) expect([...post].length).toBeLessThanOrEqual(limit);
     }
   });
@@ -97,6 +112,17 @@ describe("social kit", () => {
   test("the committed kit matches the beats", async () => {
     const committed = await readFile(join(repositoryRoot, "kb/launch/social-kit.md"), "utf8");
     expect(committed).toBe(renderSocialKitMarkdown());
+  });
+
+  test("posts carry claims only; caveats and limits stay in the launch post", () => {
+    const kit = JSON.stringify(socialKit);
+    for (const caveat of ["use browser automation", "does not get past", "not everything it stores is encrypted", "claims register"]) {
+      expect(kit).not.toContain(caveat);
+    }
+    const limitsPost = resolvedLaunchBeats.find((beat) => beat.part === "limits")!.post;
+    for (const entries of [socialKit.x, socialKit.bluesky, socialKit.threads, [socialKit.linkedin], socialKit.showHnFacts]) {
+      for (const entry of entries) expect(JSON.stringify(entry)).not.toContain(JSON.stringify(limitsPost).slice(1, -1));
+    }
   });
 
   test("no Mastodon", () => {

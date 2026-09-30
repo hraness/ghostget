@@ -6,10 +6,10 @@ Posts go out from the @hraness account. Each post matches one section of https:/
 
 ## X thread
 
-Post 1 of 9, 196 characters
+Post 1 of 9, 202 characters
 
 ```text
-GhostGet is wget for the ghost in the machine. It gives the AI agent on your computer named web actions: read a page, save a media item, or use an account you connected, all without your password.
+GhostGet is wget for the ghost in the machine. It gives the AI agent on your computer named web actions: read a page, save a media item, or use an account you connected, without giving it your password.
 ```
 
 Post 2 of 9, 183 characters
@@ -30,22 +30,22 @@ Post 4 of 9, 184 characters
 GhostGet has actions for 21 services, including Gmail, Beeper, WhatsApp, LinkedIn, X, Reddit, GitHub, and YouTube. You connect each account yourself, on the service's own sign-in page.
 ```
 
-Post 5 of 9, 177 characters
+Post 5 of 9, 186 characters
 
 ```text
-Sometimes a post goes through but the answer gets lost on the way back. GhostGet writes down every send before it leaves and will not send it again until it knows what happened.
+Sometimes a post goes through but the answer gets lost on the way back. GhostGet writes down every send before it leaves and never sends it again on its own until it knows what happened.
 ```
 
-Post 6 of 9, 187 characters
+Post 6 of 9, 196 characters
 
 ```text
-Anything beyond a read starts as a preview that shows the account, the recipient, and the exact text. Your agent can prepare it. Nothing is sent until someone confirms that exact preview.
+Anything beyond a read starts as a preview that shows the service, the account, and exactly what will be sent. Your agent can prepare it. Nothing is sent until someone confirms that exact preview.
 ```
 
-Post 7 of 9, 200 characters
+Post 7 of 9, 171 characters
 
 ```text
-GhostGet is for Claude Code, Codex, Cursor, and other agents that run commands on your Mac or Linux machine. If you need an agent to click through any site or fill in any form, use browser automation.
+GhostGet is for Claude Code, Codex, Cursor, and other agents that run commands on your Mac or Linux machine and need to read the web and use the accounts you already have.
 ```
 
 Post 8 of 9, 192 characters
@@ -64,10 +64,10 @@ https://ghostget.com/blog/introducing-ghostget/
 
 ## Bluesky thread
 
-Post 1 of 9, 196 characters
+Post 1 of 9, 202 characters
 
 ```text
-GhostGet is wget for the ghost in the machine. It gives the AI agent on your computer named web actions: read a page, save a media item, or use an account you connected, all without your password.
+GhostGet is wget for the ghost in the machine. It gives the AI agent on your computer named web actions: read a page, save a media item, or use an account you connected, without giving it your password.
 ```
 
 Post 2 of 9, 183 characters
@@ -88,22 +88,22 @@ Post 4 of 9, 184 characters
 GhostGet has actions for 21 services, including Gmail, Beeper, WhatsApp, LinkedIn, X, Reddit, GitHub, and YouTube. You connect each account yourself, on the service's own sign-in page.
 ```
 
-Post 5 of 9, 177 characters
+Post 5 of 9, 186 characters
 
 ```text
-Sometimes a post goes through but the answer gets lost on the way back. GhostGet writes down every send before it leaves and will not send it again until it knows what happened.
+Sometimes a post goes through but the answer gets lost on the way back. GhostGet writes down every send before it leaves and never sends it again on its own until it knows what happened.
 ```
 
-Post 6 of 9, 187 characters
+Post 6 of 9, 196 characters
 
 ```text
-Anything beyond a read starts as a preview that shows the account, the recipient, and the exact text. Your agent can prepare it. Nothing is sent until someone confirms that exact preview.
+Anything beyond a read starts as a preview that shows the service, the account, and exactly what will be sent. Your agent can prepare it. Nothing is sent until someone confirms that exact preview.
 ```
 
-Post 7 of 9, 200 characters
+Post 7 of 9, 171 characters
 
 ```text
-GhostGet is for Claude Code, Codex, Cursor, and other agents that run commands on your Mac or Linux machine. If you need an agent to click through any site or fill in any form, use browser automation.
+GhostGet is for Claude Code, Codex, Cursor, and other agents that run commands on your Mac or Linux machine and need to read the web and use the accounts you already have.
 ```
 
 Post 8 of 9, 192 characters
@@ -122,10 +122,10 @@ https://ghostget.com/blog/introducing-ghostget/
 
 ## Threads thread
 
-Post 1 of 9, 196 characters
+Post 1 of 9, 202 characters
 
 ```text
-GhostGet is wget for the ghost in the machine. It gives the AI agent on your computer named web actions: read a page, save a media item, or use an account you connected, all without your password.
+GhostGet is wget for the ghost in the machine. It gives the AI agent on your computer named web actions: read a page, save a media item, or use an account you connected, without giving it your password.
 ```
 
 Post 2 of 9, 183 characters
@@ -146,22 +146,22 @@ Post 4 of 9, 184 characters
 GhostGet has actions for 21 services, including Gmail, Beeper, WhatsApp, LinkedIn, X, Reddit, GitHub, and YouTube. You connect each account yourself, on the service's own sign-in page.
 ```
 
-Post 5 of 9, 177 characters
+Post 5 of 9, 186 characters
 
 ```text
-Sometimes a post goes through but the answer gets lost on the way back. GhostGet writes down every send before it leaves and will not send it again until it knows what happened.
+Sometimes a post goes through but the answer gets lost on the way back. GhostGet writes down every send before it leaves and never sends it again on its own until it knows what happened.
 ```
 
-Post 6 of 9, 187 characters
+Post 6 of 9, 196 characters
 
 ```text
-Anything beyond a read starts as a preview that shows the account, the recipient, and the exact text. Your agent can prepare it. Nothing is sent until someone confirms that exact preview.
+Anything beyond a read starts as a preview that shows the service, the account, and exactly what will be sent. Your agent can prepare it. Nothing is sent until someone confirms that exact preview.
 ```
 
-Post 7 of 9, 200 characters
+Post 7 of 9, 171 characters
 
 ```text
-GhostGet is for Claude Code, Codex, Cursor, and other agents that run commands on your Mac or Linux machine. If you need an agent to click through any site or fill in any form, use browser automation.
+GhostGet is for Claude Code, Codex, Cursor, and other agents that run commands on your Mac or Linux machine and need to read the web and use the accounts you already have.
 ```
 
 Post 8 of 9, 192 characters
@@ -181,7 +181,7 @@ https://ghostget.com/blog/introducing-ghostget/
 ## LinkedIn post
 
 ```text
-GhostGet is wget for the ghost in the machine. It gives the AI agent on your computer named web actions: read a page, save a media item, or use an account you connected, all without your password.
+GhostGet is wget for the ghost in the machine. It gives the AI agent on your computer named web actions: read a page, save a media item, or use an account you connected, without giving it your password.
 
 Ask for a page and your agent gets Markdown with its source attached. A Wikipedia article came back as 15,021 bytes where the raw page served 145,617 bytes of HTML, 9.7 times smaller.
 
@@ -189,11 +189,11 @@ A signed-in browser lets an agent click anything you can. With GhostGet it asks 
 
 GhostGet has actions for 21 services, including Gmail, Beeper, WhatsApp, LinkedIn, X, Reddit, GitHub, and YouTube. You connect each account yourself, on the service's own sign-in page.
 
-Sometimes a post goes through but the answer gets lost on the way back. GhostGet writes down every send before it leaves and will not send it again until it knows what happened.
+Sometimes a post goes through but the answer gets lost on the way back. GhostGet writes down every send before it leaves and never sends it again on its own until it knows what happened.
 
-Anything beyond a read starts as a preview that shows the account, the recipient, and the exact text. Your agent can prepare it. Nothing is sent until someone confirms that exact preview.
+Anything beyond a read starts as a preview that shows the service, the account, and exactly what will be sent. Your agent can prepare it. Nothing is sent until someone confirms that exact preview.
 
-GhostGet is for Claude Code, Codex, Cursor, and other agents that run commands on your Mac or Linux machine. If you need an agent to click through any site or fill in any form, use browser automation.
+GhostGet is for Claude Code, Codex, Cursor, and other agents that run commands on your Mac or Linux machine and need to read the web and use the accounts you already have.
 
 The plan is for GhostGet to stay small. Your agent does the thinking, and GhostGet runs only actions someone has reviewed. Each new service arrives as reviewed actions with their own previews.
 
@@ -217,13 +217,13 @@ Topics: Developer Tools, Artificial Intelligence, Open Source
 ## Show HN and first comment fact sheet
 
 - wget for the ghost in the machine
-- GhostGet is wget for the ghost in the machine. It gives the AI agent on your computer named web actions: read a page, save a media item, or use an account you connected, all without your password.
+- GhostGet is wget for the ghost in the machine. It gives the AI agent on your computer named web actions: read a page, save a media item, or use an account you connected, without giving it your password.
 - Ask for a page and your agent gets Markdown with its source attached. A Wikipedia article came back as 15,021 bytes where the raw page served 145,617 bytes of HTML, 9.7 times smaller.
 - A signed-in browser lets an agent click anything you can. With GhostGet it asks for one named action, like listing your Gmail contacts, and gets the result. It never sees a cookie, token, or login.
 - GhostGet has actions for 21 services, including Gmail, Beeper, WhatsApp, LinkedIn, X, Reddit, GitHub, and YouTube. You connect each account yourself, on the service's own sign-in page.
-- Sometimes a post goes through but the answer gets lost on the way back. GhostGet writes down every send before it leaves and will not send it again until it knows what happened.
-- Anything beyond a read starts as a preview that shows the account, the recipient, and the exact text. Your agent can prepare it. Nothing is sent until someone confirms that exact preview.
-- GhostGet is for Claude Code, Codex, Cursor, and other agents that run commands on your Mac or Linux machine. If you need an agent to click through any site or fill in any form, use browser automation.
+- Sometimes a post goes through but the answer gets lost on the way back. GhostGet writes down every send before it leaves and never sends it again on its own until it knows what happened.
+- Anything beyond a read starts as a preview that shows the service, the account, and exactly what will be sent. Your agent can prepare it. Nothing is sent until someone confirms that exact preview.
+- GhostGet is for Claude Code, Codex, Cursor, and other agents that run commands on your Mac or Linux machine and need to read the web and use the accounts you already have.
 - GhostGet is free, MIT licensed, and runs on macOS and Linux. The first step reads a public page and needs no account. Latest release: v0.18.58.
 - Latest release: v0.18.58. https://ghostget.com/blog/introducing-ghostget/
 
@@ -233,11 +233,11 @@ Topics: Developer Tools, Artificial Intelligence, Open Source
 2. Your agent reads the page, not the HTML (#beat-read-the-page)
 3. Named actions instead of a signed-in browser (#beat-named-actions)
 4. Works with the accounts you already use (#beat-your-accounts)
-5. A lost reply never turns into a double post (#beat-no-double-posts)
+5. A lost reply never turns into an automatic double post (#beat-no-double-posts)
 6. Nothing goes out until you say so (#beat-preview-then-confirm)
 7. For people who run an agent on their own computer (#beat-who-its-for)
 8. A small, reviewed layer between agents and your accounts (#beat-stay-small)
-9. What GhostGet will not do (#beat-limits)
+9. What GhostGet will not do (#beat-limits), launch post only
 10. Free, open source, and on your machine (#beat-status)
 
 ## Facts and their records
@@ -248,4 +248,7 @@ Topics: Developer Tools, Artificial Intelligence, Open Source
 - measuredOn: September 22, 2026. website/source/index.html, Measured table summary
 - serviceCount: 21. website/provider-presentation.ts createProviderDirectory().providerCount
 - claimsNotVerified: 19. verification/claims.json, status not-verified
+- claimsTotal: 247. verification/claims.json, every claim
+- claimsEvidenced: 228. verification/claims.json, status evidenced
+- claimsConfigReadback: 15. verification/claims.json, layer configuration-readback
 - status: Latest release: v0.18.58. package.json version

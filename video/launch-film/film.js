@@ -222,11 +222,14 @@ function mark(t) {
 
 /** Camera target for a step, in window coordinates. */
 function stepCamera(step, baseZoom, content, rects) {
+  const focus = rects.get(step.focus);
+  // Push in over the fitted view, but never past the zoom that still shows the whole focus.
+  const fit = Math.min(L.win.w * 0.92 / focus.w, L.win.h * 0.92 / focus.h);
   return camera({
     viewport: { w: L.win.w, h: L.win.h },
     content,
-    focus: rects.get(step.focus),
-    zoom: Math.max(baseZoom, Math.min(baseZoom * (step.zoom ?? 1.45), 1.4)),
+    focus,
+    zoom: Math.max(baseZoom, Math.min(baseZoom * (step.zoom ?? 1.45), fit, 1.4)),
     anchor: 0.45,
   });
 }
@@ -254,7 +257,13 @@ function walk(t) {
   surface.style.transform = "";
   for (const el of surface.querySelectorAll("[data-film-state]")) el.removeAttribute("data-film-state");
   surface.style.minHeight = "";
-  const content = { w: surface.offsetWidth, h: surface.offsetHeight };
+  // The GhostGet surface (.gg-film, 2240px in gg-film.css) is wider than the 1280px
+  // .win-surface box, so measure the overflow too; offsetWidth alone clamps the camera
+  // to the first 1280px and it never reaches the third panel.
+  const content = {
+    w: Math.max(surface.offsetWidth, surface.scrollWidth),
+    h: Math.max(surface.offsetHeight, surface.scrollHeight),
+  };
   const baseZoom = L.win.w / content.w;
   // Measure every target while the camera is reset; the transform below would skew the rects.
   const rects = new Map();

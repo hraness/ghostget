@@ -31,7 +31,7 @@ The motion helpers come from `@hraness/slopcamera/local/html-film` and are bundl
 
 Not rendered yet. The source builds (`bun run build`) and stills render, but the full render has not run, so the post's `website/launch/film.ts` record stays `null` and the post embeds no video. After a render, copy the delivered files to `website/source/media/launch/` and fill in that record; the launch test then checks every file it names exists.
 
-Fix before rendering: at 1920x1080 the walk camera does not reach the third panel. Stills at 15.5 s (Act) and 19.2 s (Confirm) show the same framing, with the Read panel cut at the left and the agent panel cut at the right, and the Confirm step never shows the preview. Check `stepCamera` against the 2240 px surface in `gg-film.css`, then re-still at 9, 15.5 and 19.2 s.
+The walk camera measured the 1280 px `.win-surface` box instead of the 2240 px `.gg-film` surface inside it, so it clamped short of the third panel and the Confirm step never showed the preview. `film.js` now measures the surface's scroll size and caps each step's push-in at the zoom that still shows the whole focus panel. This is fixed in source and not yet checked in stills: re-still at 9, 15.5 and 19.2 s (`bun run build && slopcamera html still --input out/scene.json --at 9,15.5,19.2 --output out/stills`) before the full render.
 
 ## Make the film
 

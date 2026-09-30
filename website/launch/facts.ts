@@ -28,6 +28,15 @@ export const LAUNCH_SERVICE_COUNT = 21 as const;
 /** Claims in verification/claims.json that name no automated check. */
 export const LAUNCH_CLAIMS_NOT_VERIFIED = 19 as const;
 
+/** Every claim in verification/claims.json. */
+export const LAUNCH_CLAIMS_TOTAL = 247 as const;
+
+/** Claims in verification/claims.json with status evidenced. */
+export const LAUNCH_CLAIMS_EVIDENCED = 228 as const;
+
+/** Claims in verification/claims.json whose layer is configuration-readback: repository and hosting settings an administrator reads back. */
+export const LAUNCH_CLAIMS_CONFIG_READBACK = 15 as const;
+
 function bytes(value: number): string {
   return `${value.toLocaleString("en-US")} bytes`;
 }
@@ -58,6 +67,9 @@ export const launchFacts = Object.freeze({
   measuredOn: { value: LAUNCH_MEASURED_ON, source: "website/source/index.html, Measured table summary" },
   serviceCount: { value: String(LAUNCH_SERVICE_COUNT), source: "website/provider-presentation.ts createProviderDirectory().providerCount" },
   claimsNotVerified: { value: String(LAUNCH_CLAIMS_NOT_VERIFIED), source: "verification/claims.json, status not-verified" },
+  claimsTotal: { value: String(LAUNCH_CLAIMS_TOTAL), source: "verification/claims.json, every claim" },
+  claimsEvidenced: { value: String(LAUNCH_CLAIMS_EVIDENCED), source: "verification/claims.json, status evidenced" },
+  claimsConfigReadback: { value: String(LAUNCH_CLAIMS_CONFIG_READBACK), source: "verification/claims.json, layer configuration-readback" },
   status: { value: LAUNCH_RELEASE.status, source: "package.json version" },
 } satisfies LaunchFacts);
 
