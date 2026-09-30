@@ -476,27 +476,42 @@ export function compileUiStylesheet(
 
 const designKitMarketingStylesImports = {
   "./syntax-highlighting.css": "@hraness/design-kit/syntax-highlighting.css",
+  "./site-shell.css": "@hraness/design-kit/site-shell.css",
 } as const;
 
-/** Inline the pinned marketing grammar's bounded imports before bundling. */
-export function compileDesignKitMarketingStyles(
+/** Resolve one complete, explicitly registered public stylesheet profile. */
+function compileDesignKitStyles(
   grammar: string,
-  imports: Readonly<Record<keyof typeof designKitMarketingStylesImports, string>>,
+  expectedImports: readonly string[],
+  imports: Readonly<Record<string, string>>,
 ): string {
-  const remaining = new Set(Object.keys(designKitMarketingStylesImports));
+  const remaining = new Set(expectedImports);
   const compiled = grammar.replace(
     /^[\t ]*@import\s+(["'])([^"'\r\n]+)\1\s*;[\t ]*$/gmu,
     (_statement: string, _quote: string, source: string): string => {
-      if (!remaining.delete(source as keyof typeof designKitMarketingStylesImports)) {
+      if (!remaining.delete(source) || typeof imports[source] !== "string") {
         throw new Error(`Unsupported or repeated marketing stylesheet import: ${source}`);
       }
-      return imports[source as keyof typeof designKitMarketingStylesImports].trim();
+      return imports[source].trim();
     },
   );
   if (remaining.size !== 0 || /@import\b/iu.test(compiled)) {
     throw new Error("Marketing stylesheet imports must match the complete pinned public CSS exports.");
   }
   return compiled.trim();
+}
+
+/** Inline the pinned marketing grammar's bounded imports before bundling. */
+export function compileDesignKitMarketingStyles(
+  grammar: string,
+  imports: Readonly<Record<keyof typeof designKitMarketingStylesImports, string>>,
+): string {
+  return compileDesignKitStyles(grammar, Object.keys(designKitMarketingStylesImports), imports);
+}
+
+/** The shared shell is emitted once after its retained bytes match the public export. */
+function compileDesignKitPlainSiteStyles(grammar: string): string {
+  return compileDesignKitStyles(grammar, ["./site-shell.css"], { "./site-shell.css": "" });
 }
 
 async function readUiStylesheet(): Promise<string> {
@@ -1359,7 +1374,13 @@ export async function buildWebsite(
     ]).then((parts) => parts.map((part) => part.trimEnd()).join("\n\n")),
     readFile(join(repositoryRoot, "website/vendor/paper-theme/paper-theme.css"), "utf8"),
     readFile(join(repositoryRoot, "website/vendor/marketing-forced-colors/marketing-forced-colors.css"), "utf8"),
-    readFile(join(repositoryRoot, "website/vendor/hraness-site-shell/site-shell.css"), "utf8"),
+    Promise.all([
+      readFile(join(repositoryRoot, "website/vendor/hraness-site-shell/site-shell.css"), "utf8"),
+      readFile(fileURLToPath(import.meta.resolve(designKitMarketingStylesImports["./site-shell.css"])), "utf8"),
+    ]).then(([retained, published]) => {
+      if (retained !== published) throw new Error("The retained site shell must match the pinned public CSS export.");
+      return retained;
+    }),
     readFile(fileURLToPath(import.meta.resolve("@hraness/design-kit/palette-system.css")), "utf8"),
     readFile(fileURLToPath(import.meta.resolve("@hraness/design-kit/palette-bridge.css")), "utf8"),
     readUiStylesheet(),
@@ -1370,8 +1391,9 @@ export async function buildWebsite(
       readFile(fileURLToPath(import.meta.resolve(designKitMarketingStylesImports["./syntax-highlighting.css"])), "utf8"),
     ]).then(([grammar, syntax]) => compileDesignKitMarketingStyles(grammar, {
       "./syntax-highlighting.css": syntax,
+      "./site-shell.css": "",
     })),
-    readFile(designKitPlainSiteStylesPath, "utf8"),
+    readFile(designKitPlainSiteStylesPath, "utf8").then(compileDesignKitPlainSiteStyles),
     readFile(designKitPlainPublicationStylesPath, "utf8"),
     readFile(fileURLToPath(import.meta.resolve("@hraness/design-kit/status-page.css")), "utf8"),
     readFile(fileURLToPath(import.meta.resolve("@hraness/design-kit/mockups.css")), "utf8"),

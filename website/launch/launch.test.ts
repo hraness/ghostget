@@ -86,9 +86,10 @@ describe("launch beats and mockups", () => {
 });
 
 describe("social kit", () => {
-  test("one post per beat on each thread platform, within limits", () => {
+  test("one post per promotional beat on each thread platform, within limits", () => {
+    const promotionalBeats = resolvedLaunchBeats.filter((beat) => beat.part !== "limits");
     for (const [posts, limit] of [[socialKit.x, 280], [socialKit.bluesky, 300], [socialKit.threads, 500]] as const) {
-      expect(posts.length).toBe(resolvedLaunchBeats.length);
+      expect(posts.length).toBe(promotionalBeats.length);
       for (const post of posts) expect([...post].length).toBeLessThanOrEqual(limit);
     }
   });

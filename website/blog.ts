@@ -578,6 +578,11 @@ export const BUILT_ON_RELATIONS: Readonly<Record<string, Readonly<{ href: string
   // Registered in design-kit v0.18.2. The hub lists it once a GhostGet release
   // emits the text-only capture bundle Sponge imports; no release does yet.
   "contract:sponge:wrench:imports-captures-from": null,
+  // The current registry records this integration. The hub waits for a
+  // reviewed consumer post to link before publishing an entry for it.
+  "runtime:sponge:wrench:captures-signed-in-pages-through": null,
+  // The companion skills package still needs a reviewed consumer post here.
+  "runtime:ghostget-skills:wrench:uses": null,
 };
 
 export function ghostgetRelations(): readonly PortfolioRelatedItem[] {

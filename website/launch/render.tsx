@@ -48,6 +48,7 @@ export function renderLaunchFilmHtml(): string {
     <ArticleVideo
       video={LAUNCH_FILM}
       width="wide"
+      caption={null}
     />,
   );
 }

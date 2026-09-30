@@ -388,6 +388,7 @@ describe("ghostget.com static site", () => {
     const siteShellCss = await readFile(join(websiteRoot, "vendor/hraness-site-shell/site-shell.css"), "utf8");
     expect(createHash("sha256").update(siteShellCss).digest("hex")).toBe("ff45b53be4d26f70c14a5749e75ed03236299d8d36c10ed01680a62d04573e33");
     expect(builtCss).toContain(siteShellCss.trim());
+    expect(builtCss.split(siteShellCss.trim())).toHaveLength(2);
     for (const document of [...pages.map((page) => page.html), notFound]) {
       expect(document).toContain('<body class="hraness-site-shell">');
     }
@@ -440,8 +441,10 @@ describe("ghostget.com static site", () => {
       "utf8",
     )).trim();
     expect(marketingGrammar).toMatch(/^@import\b/iu);
-    const grammarWithoutImport = marketingGrammar.replace(/^@import[^\n]*\n/u, "").trim();
-    expect(builtCss.split(grammarWithoutImport)).toHaveLength(2);
+    expect([...marketingGrammar.matchAll(/^@import\s+["']([^"']+)["'];/gmu)].map(match => match[1]))
+      .toEqual(["./syntax-highlighting.css", "./site-shell.css"]);
+    const grammarWithoutImports = marketingGrammar.replace(/^@import[^\n]*\n/gmu, "").trim();
+    expect(builtCss.split(grammarWithoutImports)).toHaveLength(2);
 
     expect(vercel.git).toEqual({
       deploymentEnabled: {
@@ -1428,7 +1431,7 @@ describe("ghostget.com static site", () => {
     expect(gettingStarted?.html).not.toContain('class="editorial-figure"');
     expect(gettingStarted?.html).toContain("successful Wrench 0.13.5 run on August 25, 2026");
     expect(gettingStarted?.html).toContain("before the project became GhostGet");
-    expect(gettingStarted?.html).toContain("The terminal text is actual CLI output");
+    expect(gettingStarted?.html).not.toContain("The terminal text is actual CLI output");
 
     const privacy = pages.find((page) => page.definition.canonicalPath === "/privacy/");
     expect(privacy?.html).toContain("The CLI stores state on the operator's machine");
