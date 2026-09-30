@@ -2243,7 +2243,7 @@ describe("ghostget.com static site", () => {
     expect(socialSite.domain).toBe(new URL(SITE_ORIGIN).host);
     expect(socialSite.description).toBe(SOCIAL_IMAGE_DESCRIPTION);
     expect(product("wrench").oneLiner).toBe(
-      SOCIAL_IMAGE_DESCRIPTION.replace("use accounts", "use connected accounts"),
+      SOCIAL_IMAGE_DESCRIPTION.replace("use accounts.", "use connected accounts"),
     );
     expect(socialSite.icon?.kind).toBe("mark");
     const markSvg = await readFile(join(websiteRoot, "public/marks/wrench.svg"), "utf8");
@@ -2257,6 +2257,9 @@ describe("ghostget.com static site", () => {
   test("fits the home social card's copy as written", () => {
     const details = socialImageSiteDetails(socialSite);
     const fit = socialImageFit(details);
+    // v0.12.0 findings include the review codes (reduced description,
+    // trailing ellipsis, repeated tagline, eyebrow checks) that strict ignores.
+    expect(fit.findings).toEqual([]);
     expect(fit.issues).toEqual([]);
     expect(fit.layout).toBe("product");
     expect(fit.removed).toEqual([]);
