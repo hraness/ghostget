@@ -855,10 +855,10 @@ describe("ghostget.com static site", () => {
     expect(sitemap).not.toContain("/preview/");
     expect(llms).not.toContain("/preview/");
     expect(indexNowKey).toBe("dc84ee4863539f2fff50ef5f0a164168\n");
-    expect(createHash("sha256").update(favicon).digest("hex")).toBe("09931384427416761a2e2d064d41532b8432dfb3c2d2f60d02bb54ed460ee3b4");
+    expect(createHash("sha256").update(favicon).digest("hex")).toBe("a795c6c0a0728691fc8afebfa78ad729716154ef998d51160fc6ebbe14fdd64d");
     expect(favicon).toEqual(await readFile(join(websiteRoot, "public/icon.png")));
     const favicon96 = await readFile(join(websiteRoot, "dist/icon-96.png"));
-    expect(createHash("sha256").update(favicon96).digest("hex")).toBe("75e83da4bcd511434a5753b0af5dc3e8ff458013de60575b3ee76d9678919b0b");
+    expect(createHash("sha256").update(favicon96).digest("hex")).toBe("0f385d285a7490f8133b821db62c8225b17d7ed18a173e46f521048dd4ef7623");
     expect(favicon96).toEqual(await readFile(join(websiteRoot, "public/icon-96.png")));
     expect(await readFile(join(websiteRoot, "dist/apple-icon.png"))).toEqual(await readFile(join(websiteRoot, "public/apple-icon.png")));
     expect(html).toContain('<link rel="apple-touch-icon" href="/apple-icon.png" sizes="180x180">');
