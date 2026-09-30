@@ -319,6 +319,8 @@ function sanitizeValue(
   depth: number,
   seen: WeakSet<object>,
 ): unknown {
+  // The SDK derives search-engine query text from the original referrer URL.
+  if (/^\$?(?:(?:initial|session_entry|prev_pageview)_)?ph_keyword$/iu.test(key)) return undefined;
   const name = normalizedPropertyName(key);
   if (DROPPED_PROPERTIES.has(name) || PERSONAL_PROPERTIES.has(name.replace(/-/gu, "_"))) return undefined;
   if (ATTRIBUTION_PARAMETERS.has(name) && (route.stripAttribution || typeof value !== "string")) return undefined;

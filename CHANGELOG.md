@@ -18,6 +18,12 @@ ordinary command, with at most one automatic check per day.
 - Verify the immutable release archive before the owning package manager runs,
   and wait until other commands using that installation have finished.
 
+## 0.18.62
+
+Keep search queries out of website analytics.
+
+- Remove search-referrer query text from analytics SDK keyword properties, including nested and historical attribution.
+
 ## 0.18.61
 
 Retry schema-v2 analytics.
