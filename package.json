@@ -1,6 +1,6 @@
 {
   "name": "@hraness/ghostget",
-  "version": "0.18.60",
+  "version": "0.18.63",
   "description": "GhostGet gives your AI agent named web actions: read a page, archive one media item, or use a connected account, without credentials or a browser to steer.",
   "license": "MIT",
   "type": "module",
@@ -710,7 +710,7 @@
     "@hraness/cli-update": "https://github.com/hraness/cli-update/releases/download/v0.1.0/hraness-cli-update-0.1.0.tgz"
   },
   "devDependencies": {
-    "@hraness/design-kit": "github:hraness/design-kit#v0.31.0",
+    "@hraness/design-kit": "github:hraness/design-kit#v0.33.0",
     "@hraness/direct": "https://github.com/hraness/direct/releases/download/v0.7.21/hraness-direct-0.7.21.tgz",
     "@hraness/site-footer": "github:hraness/site-footer#v0.20.1",
     "@hraness/ui": "github:hraness/ui#v0.5.18",
@@ -723,6 +723,7 @@
     "@types/react-dom": "19.2.3",
     "agent-browser": "0.32.3",
     "fast-check": "^4.8.0",
+    "posthog-js": "1.422.5",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "satori": "0.33.4"

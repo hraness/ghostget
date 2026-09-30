@@ -106,8 +106,8 @@
 
         <section aria-labelledby="website-analytics">
           <h2 id="website-analytics">ghostget.com measures pages, not people</h2>
-          <p>ghostget.com is a static documentation site. On the canonical production host only, an optional PostHog bootstrap can record page view, page leave, Core Web Vitals, the two explicit GitHub repository links on the home page, clicks on the home page install and getting-started links, and copies of the install commands. A click or copy event carries only a fixed name for the link or command, never the copied text. The runtime is cookieless, personless, memory-only, DNT-aware, query-free, and restricted to that host.</p>
-          <p>URL query strings, fragments, and common attribution parameters are stripped before an event can leave the browser. The site does not use replay, identity, feature flags, broad autocapture, console capture, or person profiles. It does not record form input, local file paths, CLI state, or provider account material. JavaScript is optional, and every public page remains readable without it.</p>
+          <p>ghostget.com is a static documentation site. On the canonical production host only, an optional PostHog bootstrap can record page view, page leave, Core Web Vitals, bounded browser errors, not-found pages, clicks on links to other sites, clicks on the home page install and getting-started links, and copies of the install commands. A click or copy event carries only a fixed name for the link, its destination host, or the install method, never the copied text. The analytics library is bundled with the site and loads no remote code. The runtime is cookieless, personless, memory-only, DNT-aware, and restricted to that host.</p>
+          <p>Campaign tags (<code>utm_*</code>) and ad click identifiers such as <code>gclid</code> are kept so campaigns can be measured. Every other URL query parameter and every fragment is stripped before an event can leave the browser, and error reports drop query strings, email addresses, and credentials. The site does not use replay, identity, feature flags, broad autocapture, console capture, or person profiles. It does not record form input, local file paths, CLI state, or provider account material. JavaScript is optional, and every public page remains readable without it.</p>
         </section>
 
         <section aria-labelledby="website-mailing-list">
@@ -129,7 +129,7 @@
     </main>
     <aside aria-label="GhostGet project information" class="site-disclosure">
       <p>GhostGet {{GHOSTGET_VERSION}} · MIT · <a href="{{GHOSTGET_REPOSITORY}}">Source on GitHub</a> · <a href="/about/">About</a> · <a href="/contact/">Contact</a> · <a href="/privacy/">Privacy</a> · <a href="/llms.txt">llms.txt</a></p>
-      <p class="privacy-note">Privacy: cookieless PostHog analytics measure page lifecycle and Core Web Vitals. No person profiles, replay, broad autocapture, or URL queries; Do Not Track is honored.</p>
+      <p class="privacy-note">Privacy: cookieless PostHog analytics measure page lifecycle and Core Web Vitals. No person profiles, replay, broad autocapture, or URL queries beyond campaign tags; Do Not Track is honored.</p>
     </aside>
     {{HRANESS_SITE_FOOTER}}
   </body>

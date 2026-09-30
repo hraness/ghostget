@@ -2343,15 +2343,32 @@
 // Preserve the same projections and allowances:
 // 12,152,422 + 12,387 + 4,096 = 12,168,905 packed;
 // 24,045,779 + 353 + 65 = 24,046,197 unpacked.
+// The 0.18.60 observability release retains 624 entries after its version
+// bump, changelog, and rebuilt dist. Two official Node 24.20.0/npm 11.19.0
+// packs --ignore-scripts on darwin arm64 with zlib 1.3.2.1-motley-42c2f19
+// measured 12,152,630 packed and 24,046,313 unpacked bytes; byte-identical
+// archive SHA-256 3b8b932ef3cc79e037cef6ea6b8cdad7778e897f363c00024dfd6d9d426bb030.
+// Preserve the same projections and allowances:
+// 12,152,630 + 12,387 + 4,096 = 12,169,113 packed;
+// 24,046,313 + 353 + 65 = 24,046,731 unpacked.
+// The 0.18.62 updater release over 0.18.61 main adds src/update.ts and
+// the immutable shared updater dependency while retaining the new analytics
+// and marketing source. Two official Node 24.20.0/npm 11.19.0 packs
+// --ignore-scripts on darwin arm64 with zlib 1.3.2.1-motley-42c2f19
+// measured 625 entries, 12,154,748 packed and 24,053,537 unpacked bytes;
+// byte-identical SHA-256 c4184a9c6bb812cc7b3b8dab258a9f44271268f68ca769d47429e56fa63b25b1.
+// Preserve the same projections and allowances:
+// 12,154,748 + 12,387 + 4,096 = 12,171,231 packed;
+// 24,053,537 + 353 + 65 = 24,053,955 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget 0.18.59 launch-post release over main 5f3ddda8",
+  scope: "Ghostget 0.18.62 CLI updater release over reviewed 0.18.61 main",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "d9d35f8fb9db0f7346ce378e4e079fdf67286c33a2d4b577d65717c71dd11063",
-  packedBytes: 12_152_422,
-  unpackedBytes: 24_045_779,
-  entryCount: 624,
+  archiveSha256: "c4184a9c6bb812cc7b3b8dab258a9f44271268f68ca769d47429e56fa63b25b1",
+  packedBytes: 12_154_748,
+  unpackedBytes: 24_053_537,
+  entryCount: 625,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,

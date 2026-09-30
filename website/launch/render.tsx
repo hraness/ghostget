@@ -47,9 +47,9 @@ export function renderLaunchFilmHtml(): string {
   if (LAUNCH_FILM === null) return "";
   return renderToStaticMarkup(
     <ArticleVideo
-      caption="The GhostGet launch film: the same illustrations as this post, in motion, with captions."
       video={LAUNCH_FILM}
       width="wide"
+      caption={null}
     />,
   );
 }

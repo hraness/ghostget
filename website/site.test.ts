@@ -208,13 +208,13 @@ describe("ghostget.com static site", () => {
     expect(packageFiles).not.toContain("vercel.json");
     expect(manifest).toMatchObject({
       devDependencies: {
-        "@hraness/design-kit": "github:hraness/design-kit#v0.31.0",
+        "@hraness/design-kit": "github:hraness/design-kit#v0.33.0",
 
         "@hraness/site-footer": "github:hraness/site-footer#v0.20.1",
         "@hraness/ui": "github:hraness/ui#v0.5.18",
       },
     });
-    expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.31.0"');
+    expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.33.0"');
     expect(lockfile).toContain('"@hraness/ui": "github:hraness/ui#v0.5.18"');
 
     expect(lockfile).toContain('"@hraness/site-footer": "github:hraness/site-footer#v0.20.1"');
@@ -440,8 +440,10 @@ describe("ghostget.com static site", () => {
       "utf8",
     )).trim();
     expect(marketingGrammar).toMatch(/^@import\b/iu);
-    const grammarWithoutImport = marketingGrammar.replace(/^(?:@import[^\n]*\n)+/u, "").trim();
-    expect(builtCss.split(grammarWithoutImport)).toHaveLength(2);
+    expect([...marketingGrammar.matchAll(/^@import\s+["']([^"']+)["'];/gmu)].map(match => match[1]))
+      .toEqual(["./syntax-highlighting.css", "./site-shell.css"]);
+    const grammarWithoutImports = marketingGrammar.replace(/^@import[^\n]*\n/gmu, "").trim();
+    expect(builtCss.split(grammarWithoutImports)).toHaveLength(2);
 
     expect(vercel.git).toEqual({
       deploymentEnabled: {
@@ -602,8 +604,9 @@ describe("ghostget.com static site", () => {
     expect(html).toContain("ghostget control serve");
     expect(html).toContain('class="table-scroll" role="region" tabindex="0"');
     expect(html).toContain('<a class="skip-link" href="#main">');
-    expect(html.match(/data-analytics-event="project link opened"/gu)).toHaveLength(2);
-    // The two analytics-tagged GitHub links plus the untagged content-footer link.
+    // Outbound clicks are classified by destination host, so links carry no analytics tags.
+    expect(html).not.toContain("data-analytics-event");
+    // The navigation and maker GitHub links plus the content-footer link.
     expect(html.match(new RegExp(`href="${REPOSITORY_URL}"`, "gu"))).toHaveLength(3);
     expect(html).toContain("Privacy: cookieless PostHog analytics");
     expect(html).toContain('href="/compare/personal-agents-browser-use/"');
@@ -853,10 +856,10 @@ describe("ghostget.com static site", () => {
     expect(sitemap).not.toContain("/preview/");
     expect(llms).not.toContain("/preview/");
     expect(indexNowKey).toBe("dc84ee4863539f2fff50ef5f0a164168\n");
-    expect(createHash("sha256").update(favicon).digest("hex")).toBe("09931384427416761a2e2d064d41532b8432dfb3c2d2f60d02bb54ed460ee3b4");
+    expect(createHash("sha256").update(favicon).digest("hex")).toBe("a795c6c0a0728691fc8afebfa78ad729716154ef998d51160fc6ebbe14fdd64d");
     expect(favicon).toEqual(await readFile(join(websiteRoot, "public/icon.png")));
     const favicon96 = await readFile(join(websiteRoot, "dist/icon-96.png"));
-    expect(createHash("sha256").update(favicon96).digest("hex")).toBe("75e83da4bcd511434a5753b0af5dc3e8ff458013de60575b3ee76d9678919b0b");
+    expect(createHash("sha256").update(favicon96).digest("hex")).toBe("0f385d285a7490f8133b821db62c8225b17d7ed18a173e46f521048dd4ef7623");
     expect(favicon96).toEqual(await readFile(join(websiteRoot, "public/icon-96.png")));
     expect(await readFile(join(websiteRoot, "dist/apple-icon.png"))).toEqual(await readFile(join(websiteRoot, "public/apple-icon.png")));
     expect(html).toContain('<link rel="apple-touch-icon" href="/apple-icon.png" sizes="180x180">');
@@ -1045,7 +1048,7 @@ describe("ghostget.com static site", () => {
       { key: "X-Frame-Options", value: "DENY" },
       {
         key: "Content-Security-Policy",
-        value: "form-action 'self' https://account.hraness.com; frame-src 'self'; script-src 'self' 'unsafe-inline' https://*.posthog.com https://*.posthogusercontent.com",
+        value: "form-action 'self' https://account.hraness.com; frame-src 'self'; script-src 'self' 'unsafe-inline'",
       },
     ]);
     const frameDenyPattern = /^\/((?!preview\/$).*)$/u;
@@ -1429,7 +1432,7 @@ describe("ghostget.com static site", () => {
     expect(gettingStarted?.html).not.toContain('class="editorial-figure"');
     expect(gettingStarted?.html).toContain("successful Wrench 0.13.5 run on August 25, 2026");
     expect(gettingStarted?.html).toContain("before the project became GhostGet");
-    expect(gettingStarted?.html).toContain("The terminal text is actual CLI output");
+    expect(gettingStarted?.html).not.toContain("The terminal text is actual CLI output");
 
     const privacy = pages.find((page) => page.definition.canonicalPath === "/privacy/");
     expect(privacy?.html).toContain("The CLI stores state on the operator's machine");

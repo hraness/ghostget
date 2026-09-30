@@ -1,7 +1,10 @@
 # GhostGet website identity
 
-The header uses the owner’s 👻 identity. The supplied browser and Apple touch PNGs are checked by the hashes below. `icon-96.png` is `apple-icon.png` downscaled with `sips -z 96 96`, because search engines prefer a favicon whose size is a multiple of 48 pixels.
+The favicon silhouette comes from the actual header mark, `public/marks/wrench.svg`. Browser variants render it in pure white on transparency. Apple touch variants use the same white mark on black. The visible bounds are centered horizontally and vertically and fill the square on their longest axis, preserving the aspect ratio with no added padding.
 
-`icon.png` (32 by 32) SHA-256: `09931384427416761a2e2d064d41532b8432dfb3c2d2f60d02bb54ed460ee3b4`.
-`icon-96.png` (96 by 96) SHA-256: `75e83da4bcd511434a5753b0af5dc3e8ff458013de60575b3ee76d9678919b0b`.
-`apple-icon.png` (180 by 180) SHA-256: `50d6298e3b24d79afc8fa7f36d9fc0196dfbf73301f3bd9f8e17ef99495cc915`.
+| File | Size | SHA-256 |
+| --- | --- | --- |
+| public/marks/wrench.svg | SVG | `0ae1e9e855306a4f879a06476e562603f8c0e1c742a8cdc3d8b94e90627f17ce` |
+| public/icon.png | 32×32 | `a795c6c0a0728691fc8afebfa78ad729716154ef998d51160fc6ebbe14fdd64d` |
+| public/icon-96.png | 96×96 | `0f385d285a7490f8133b821db62c8225b17d7ed18a173e46f521048dd4ef7623` |
+| public/apple-icon.png | 180×180 | `d385a07bd4ec45e0cac21855b4e9490b8838940df4ecd23a1cc567dc57722778` |
