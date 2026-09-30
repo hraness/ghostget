@@ -9,11 +9,11 @@ Historical entries retain their original delivery coordinates.
 
 ## 0.18.61
 
-Publishes guarded schema-v2 website analytics. The 0.18.60 annotated tag failed ref admission before publication and is retained unchanged.
+Retry schema-v2 analytics with a lightweight tag.
 
 ## 0.18.60
 
-This source adds schema version 2 website analytics with guarded campaign attribution and corrected public route reporting.
+Annotated-tag admission failed before publication; tag unchanged.
 
 - Bundle the pinned analytics SDK, add bounded redacted exceptions and page-not-found reporting, and report GhostGet under its own site identity.
 - Remove credentials and sensitive properties recursively, collapse private routes, and strip their current and historical attribution.
