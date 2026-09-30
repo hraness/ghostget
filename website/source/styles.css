@@ -3417,6 +3417,10 @@ body {
 }
 
 /* Related products: plain rows. */
+.ghostget-related-apps {
+  --hraness-marketing-grid-columns: 2;
+}
+
 .hraness-marketing-card-row .hraness-marketing-card {
   box-shadow: none;
 }
