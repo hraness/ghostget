@@ -8,12 +8,13 @@
 import { assertLaunchKit, buildSocialKit, type LaunchMessaging } from "@hraness/design-kit/launch";
 import { resolvedLaunchBeats } from "./beats.ts";
 import { LAUNCH_CANONICAL_URL, LAUNCH_RELEASE, launchFacts } from "./facts.ts";
+import { marketing } from "../portfolio-copy";
 
-/** Tagline from the owner brief and homepage hero; meta equals the site description (checked in tests). */
+/** Keep the dated launch brief's tagline; current identity and meta come from the portfolio. */
 export const launchMessaging = Object.freeze({
-  names: Object.freeze({ name: "GhostGet" }),
+  names: Object.freeze({ name: marketing.names.name }),
   tagline: "wget for the ghost in the machine",
-  meta: "GhostGet gives your AI agent named web actions: read a page, archive one media item, or use a connected account, without credentials or a browser to steer.",
+  meta: marketing.meta,
 }) satisfies LaunchMessaging;
 
 export const socialKit = buildSocialKit(resolvedLaunchBeats, launchMessaging, LAUNCH_RELEASE, LAUNCH_CANONICAL_URL);
