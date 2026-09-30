@@ -2944,7 +2944,7 @@ A state home in gateway-only mode restricts Ghostget command routing to policy-a
 
 #### `analytics-allowlist-byte-ceiling`
 
-Analytics events come from a checked allowlist (page lifecycle, web vitals, the two GitHub links, four named CTA clicks, two named install-command copies) with a byte ceiling per event, canonical-host-only, cookieless, personless, and query-free.
+Analytics events come from a checked allowlist (page lifecycle, web vitals, budgeted redacted exceptions, page-not-found events, the two GitHub links, four named CTA clicks, two named install-command copies) with a byte ceiling per event, canonical-host-only, cookieless, and personless. Only the portfolio attribution query parameters are retained.
 
 - Evidenced by example test.
 - Source: `AGENTS.md`: “Analytics and metering events come from a checked allowlist with a byte ceiling per event.”

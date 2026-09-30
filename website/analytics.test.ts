@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import fc from "fast-check";
+import { assertProperty } from "../src/test-support";
 
 import {
   ANALYTICS_ROUTE_META,
@@ -252,7 +253,7 @@ describe("ghostget.com analytics contract", () => {
   });
 
   test("sanitized output never carries an email or a phc token outside the token property", () => {
-    fc.assert(fc.property(
+    assertProperty(fc.property(
       fc.dictionary(fc.string({ maxLength: 12 }), fc.oneof(fc.string(), fc.emailAddress(), fc.constant("phx_secretvalue"))),
       (extra) => {
         const capture = sanitizeCapture({
