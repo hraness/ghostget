@@ -32,11 +32,11 @@ Explicit focused local/native and coupled reproductions still apply under
 
 `scripts/release-source-ci.ts` reads GitHub's current run attempt directly. It
 requires the exact repository, active workflow ID/path, main-push source and tree,
-all eleven successful jobs, and ten actual checkout logs. Each source job records
-its exact workflow/lock hashes, Node/npm/Bun versions and GitHub-hosted platform
-before its frozen install. Admission also requires both successful
-exact-source CodeQL jobs and current main analyses for Actions
-and JavaScript/TypeScript, plus the successful
+all nineteen successful jobs, and eighteen actual checkout logs. Each source job
+records its exact workflow/lock hashes, Node/npm/Bun versions and GitHub-hosted platform
+before its frozen install. Admission also requires all four successful
+exact-source CodeQL jobs and current main analyses for Actions,
+JavaScript/TypeScript, Python, and Rust, plus the successful
 security comparison on the merged PR's identical tree. Any present main comparison must succeed;
 analysis result counts are recorded without asserting that no alerts exist.
 The CodeQL app's check must identify that exact PR through its returned PR
@@ -59,9 +59,10 @@ permissions for these API reads. Publication and attestation permissions stay
 unchanged.
 
 PR #272 moved the repository-owned Swift menu into the pinned shared desktop
-foundation. The current repository has no tracked Swift source; GitHub's
-default setup scans Actions and JavaScript/TypeScript. Admission requires
-exactly those two jobs and analyses, with missing or extra languages rejected.
+foundation. The current repository has no tracked Swift source; its verification
+oracles added in PRs #357 and #358 include Python and Rust. GitHub's default setup
+scans Actions, JavaScript/TypeScript, Python, and Rust. Admission requires exactly
+those four jobs and analyses, with missing or extra languages rejected.
 The shared foundation owns its native source checks and published artifacts.
 Reintroducing another source language requires a reviewed coverage update.
 
