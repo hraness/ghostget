@@ -95,7 +95,7 @@ export function exampleCatalog(): ContractCatalogV1 {
   return {
     ok: true,
     contract: CONTRACT_CATALOG_V1,
-    ghostget: { version: "0.18.58" },
+    ghostget: { version: "0.18.59" },
     generatedAt: "2026-09-21T20:00:00.000Z",
     vocabulary: catalogVocabularyValue,
     adapters: [

@@ -7,6 +7,13 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.59
+
+This release redraws the ghostget.com share card to match the site header.
+
+- The card shows the header's mark and the GhostGet name over the site's
+  palette, with the homepage headline above the one-line description.
+
 ## 0.18.58
 
 This release aligns GhostGet's website copy with the shared Hraness portfolio.
