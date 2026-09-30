@@ -7,6 +7,14 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.60
+
+This release publishes schema version 2 website analytics with guarded campaign attribution and corrected public route reporting.
+
+- Bundle the pinned analytics SDK, add bounded redacted exceptions and page-not-found reporting, and report GhostGet under its own site identity.
+- Remove credentials and sensitive properties recursively, collapse private routes, and strip their current and historical attribution.
+- Align website privacy and verification claims with the implemented contract.
+
 ## 0.18.59
 
 This release publishes the GhostGet launch homepage and the Introducing
