@@ -928,7 +928,7 @@
     {
       "guide": "website/AGENTS.md",
       "anchor": "Keep analytics canonical-host-only,",
-      "digest": "7648ce653c3aaa6f12e6d0fbbe441227c2c82aad42b9ebce17ed98e5b9d2264e",
+      "digest": "ecd60a698093267d53dfe30e5af5528b9ffe124e38549e9e1871d0fea7ce60ca",
       "claims": [
         "analytics-allowlist-byte-ceiling"
       ]
@@ -4322,7 +4322,7 @@
     },
     {
       "id": "analytics-allowlist-byte-ceiling",
-      "statement": "Analytics events come from a checked allowlist (page lifecycle, web vitals, the two GitHub links, four named CTA clicks, two named install-command copies) with a byte ceiling per event, canonical-host-only, cookieless, personless, and query-free.",
+      "statement": "Analytics events come from a checked allowlist (page lifecycle, web vitals, budgeted redacted exceptions, page-not-found events, the two GitHub links, four named CTA clicks, two named install-command copies) with a byte ceiling per event, canonical-host-only, cookieless, and personless. Only the portfolio attribution query parameters are retained.",
       "area": "website",
       "source": {
         "path": "AGENTS.md",

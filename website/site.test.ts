@@ -604,8 +604,9 @@ describe("ghostget.com static site", () => {
     expect(html).toContain("ghostget control serve");
     expect(html).toContain('class="table-scroll" role="region" tabindex="0"');
     expect(html).toContain('<a class="skip-link" href="#main">');
-    expect(html.match(/data-analytics-event="project link opened"/gu)).toHaveLength(2);
-    // The two analytics-tagged GitHub links plus the untagged content-footer link.
+    // Outbound clicks are classified by destination host, so links carry no analytics tags.
+    expect(html).not.toContain("data-analytics-event");
+    // The navigation and maker GitHub links plus the content-footer link.
     expect(html.match(new RegExp(`href="${REPOSITORY_URL}"`, "gu"))).toHaveLength(3);
     expect(html).toContain("Privacy: cookieless PostHog analytics");
     expect(html).toContain('href="/compare/personal-agents-browser-use/"');
@@ -1047,7 +1048,7 @@ describe("ghostget.com static site", () => {
       { key: "X-Frame-Options", value: "DENY" },
       {
         key: "Content-Security-Policy",
-        value: "form-action 'self' https://account.hraness.com; frame-src 'self'; script-src 'self' 'unsafe-inline' https://*.posthog.com https://*.posthogusercontent.com",
+        value: "form-action 'self' https://account.hraness.com; frame-src 'self'; script-src 'self' 'unsafe-inline'",
       },
     ]);
     const frameDenyPattern = /^\/((?!preview\/$).*)$/u;
