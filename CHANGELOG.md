@@ -9,11 +9,13 @@ Historical entries retain their original delivery coordinates.
 
 ## 0.18.61
 
-Retry schema-v2 analytics with a lightweight tag.
+Retry schema-v2 analytics.
+
+- Use a lightweight tag.
 
 ## 0.18.60
 
-Annotated-tag admission failed before publication; tag unchanged.
+Annotated tag rejected before publication; tag unchanged.
 
 - Bundle the pinned analytics SDK, add bounded redacted exceptions and page-not-found reporting, and report GhostGet under its own site identity.
 - Remove credentials and sensitive properties recursively, collapse private routes, and strip their current and historical attribution.
