@@ -6,13 +6,13 @@ import { createSocialImageCard, socialImageSiteDetails } from "@hraness/web-disc
 import { Resvg } from "@resvg/resvg-js";
 import satori from "satori";
 
-import { socialSite } from "../website/social-image";
+import { SOCIAL_IMAGE_HOME_PAGE, socialSite } from "../website/social-image";
 
 const repositoryRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const outputPath = process.argv[2] ?? join(repositoryRoot, "website", "public", "og.png");
 
-// The site card: no page copy, so the shared template draws the product layout.
-const card = createSocialImageCard(socialImageSiteDetails(socialSite));
+// The site card: the hero headline over the tagline, in the product layout.
+const card = createSocialImageCard(socialImageSiteDetails(socialSite, SOCIAL_IMAGE_HOME_PAGE));
 
 const svg = await satori(card.element, {
   fonts: card.fonts.map((font) => ({
