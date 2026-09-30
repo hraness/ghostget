@@ -7,6 +7,7 @@ import {
   articleProvenanceSentence,
   assertArticleAdmissions,
   articleProvenanceFromAdmission,
+  escapeArticleHtml,
   type ArticleAdmission,
 } from "@hraness/design-kit";
 import {
@@ -150,6 +151,15 @@ describe("Built on GhostGet hub", () => {
       expect(entries).toContain(`>${relation.name}</h3>`);
       expect(entries).toContain(`href="${post.href}"`);
     }
+  });
+
+  test("lists Sponge with its registry relationship sentence", () => {
+    const sponge = ghostgetRelations().find((item) => item.relationId === "runtime:sponge:wrench:captures-signed-in-pages-through");
+    expect(sponge).toBeDefined();
+    expect(BUILT_ON_RELATIONS[sponge!.relationId]).not.toBeNull();
+    const entries = renderBuiltOnEntries();
+    expect(entries).toContain('<h3 id="sponge">Sponge</h3>');
+    expect(entries).toContain(escapeArticleHtml(sponge!.relationship));
   });
 
   test("stops the build on a relation nobody has reviewed for the hub", () => {

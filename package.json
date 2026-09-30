@@ -708,7 +708,7 @@
     "@steipete/sweet-cookie": "0.4.3"
   },
   "devDependencies": {
-    "@hraness/design-kit": "github:hraness/design-kit#v0.29.2",
+    "@hraness/design-kit": "github:hraness/design-kit#v0.31.0",
     "@hraness/direct": "https://github.com/hraness/direct/releases/download/v0.7.21/hraness-direct-0.7.21.tgz",
     "@hraness/site-footer": "github:hraness/site-footer#v0.20.1",
     "@hraness/ui": "github:hraness/ui#v0.5.18",

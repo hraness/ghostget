@@ -208,13 +208,13 @@ describe("ghostget.com static site", () => {
     expect(packageFiles).not.toContain("vercel.json");
     expect(manifest).toMatchObject({
       devDependencies: {
-        "@hraness/design-kit": "github:hraness/design-kit#v0.29.2",
+        "@hraness/design-kit": "github:hraness/design-kit#v0.31.0",
 
         "@hraness/site-footer": "github:hraness/site-footer#v0.20.1",
         "@hraness/ui": "github:hraness/ui#v0.5.18",
       },
     });
-    expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.29.2"');
+    expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.31.0"');
     expect(lockfile).toContain('"@hraness/ui": "github:hraness/ui#v0.5.18"');
 
     expect(lockfile).toContain('"@hraness/site-footer": "github:hraness/site-footer#v0.20.1"');
@@ -385,9 +385,9 @@ describe("ghostget.com static site", () => {
     const cssAsset = /<link rel="stylesheet" href="([^"?]+)">/u.exec(html)?.[1];
     expect(cssAsset).toMatch(/^\/assets\/styles-[a-f0-9]{12}\.css$/u);
     const builtCss = await readFile(join(websiteRoot, "dist", cssAsset!.slice(1)), "utf8");
-    const siteShellCss = await readFile(join(websiteRoot, "vendor/hraness-site-shell/site-shell.css"), "utf8");
-    expect(createHash("sha256").update(siteShellCss).digest("hex")).toBe("ff45b53be4d26f70c14a5749e75ed03236299d8d36c10ed01680a62d04573e33");
-    expect(builtCss).toContain(siteShellCss.trim());
+    const siteShellCss = await readFile(new URL(import.meta.resolve("@hraness/design-kit/site-shell.css")), "utf8");
+    expect(builtCss.split(siteShellCss.trim())).toHaveLength(2);
+    expect(builtCss).not.toContain('@import "./site-shell.css"');
     for (const document of [...pages.map((page) => page.html), notFound]) {
       expect(document).toContain('<body class="hraness-site-shell">');
     }
@@ -440,7 +440,7 @@ describe("ghostget.com static site", () => {
       "utf8",
     )).trim();
     expect(marketingGrammar).toMatch(/^@import\b/iu);
-    const grammarWithoutImport = marketingGrammar.replace(/^@import[^\n]*\n/u, "").trim();
+    const grammarWithoutImport = marketingGrammar.replace(/^(?:@import[^\n]*\n)+/u, "").trim();
     expect(builtCss.split(grammarWithoutImport)).toHaveLength(2);
 
     expect(vercel.git).toEqual({

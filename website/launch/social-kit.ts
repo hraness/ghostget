@@ -5,7 +5,7 @@
  *
  * `bun run launch:kit` writes it to kb/launch/social-kit.md.
  */
-import { assertLaunchKit, buildSocialKit, type LaunchMessaging } from "@hraness/design-kit/launch";
+import { assertLaunchKit, buildSocialKit, isSocialBeat, type LaunchMessaging } from "@hraness/design-kit/launch";
 import { resolvedLaunchBeats } from "./beats.ts";
 import { LAUNCH_CANONICAL_URL, LAUNCH_RELEASE, launchFacts } from "./facts.ts";
 import { marketing } from "../portfolio-copy";
@@ -65,7 +65,7 @@ export function renderSocialKitMarkdown(): string {
     "",
     "## Beats",
     "",
-    ...resolvedLaunchBeats.map((beat, index) => `${index + 1}. ${beat.headline} (#beat-${beat.id})`),
+    ...resolvedLaunchBeats.map((beat, index) => `${index + 1}. ${beat.headline} (#beat-${beat.id})${isSocialBeat(beat) ? "" : ", launch post only"}`),
     "",
     "## Facts and their records",
     "",
