@@ -26,6 +26,26 @@ import {
 import { PUBLIC_PAGES } from "./build";
 
 const websiteRoot = import.meta.dir;
+
+test("search-referrer queries never survive in SDK keyword properties", async () => {
+  const query = "wire-private-search-canary";
+  const keywords = Object.fromEntries([
+    "ph_keyword", "$initial_ph_keyword", "$session_entry_ph_keyword", "$prev_pageview_ph_keyword", "$INITIAL_PH_KEYWORD",
+  ].map((key) => [key, query]));
+  const evidence = evidenceFor("/docs/", "https://ghostget.com/docs/");
+  const sanitized = sanitizeCapture({ event: "$pageview", properties: {
+    token, $current_url: evidence.href, $referrer: `https://www.google.com/search?q=${query}`,
+    $search_engine: "google", ...keywords, diagnostic: { ...keywords, safe: 42 },
+  } }, evidence);
+  expect(sanitized?.properties).toMatchObject({
+    $referrer: "https://www.google.com", $search_engine: "google", traffic_channel: "organic_search", traffic_source: "google", diagnostic: { safe: 42 },
+  });
+  expect(JSON.stringify(sanitized)).not.toContain(query);
+  const sdk = await runHarness(evidence.href, `https://www.google.com/search?q=${query}`, "/docs/");
+  expect(sdk.received.some((capture) => capture.properties.ph_keyword === query)).toBe(true);
+  expect(JSON.stringify(sdk.returned)).not.toContain(query);
+});
+
 const token = "phc_public_project_token";
 const home: BrowserEvidence = {
   href: "https://ghostget.com/?utm_source=news#fragment",
