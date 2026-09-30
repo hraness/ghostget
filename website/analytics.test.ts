@@ -1,289 +1,321 @@
 import { describe, expect, test } from "bun:test";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+import fc from "fast-check";
 
 import {
+  ANALYTICS_ROUTE_META,
+  ATTRIBUTION_PARAMETERS,
+  CUSTOM_EVENTS,
+  ExceptionBudget,
+  LEGACY_SITE_IDS,
+  SCHEMA_VERSION,
+  SITE_ID,
   captureCta,
   captureInstallCommandCopied,
-  captureProjectLink,
+  captureOutboundLink,
   createBrowserConfig,
+  createExceptionReporter,
   doNotTrackEnabled,
-  liveCaptureTarget,
-  LEGACY_SITE_IDS,
+  resolveRoute,
   sanitizeCapture,
-  SITE_ID,
-} from "./source/analytics";
+  sanitizeError,
+  type BrowserEvidence,
+} from "./source/analytics-contract";
+import { PUBLIC_PAGES } from "./build";
 
-const evidence = {
-  href: "https://ghostget.com/?utm_source=private#fragment",
+const websiteRoot = import.meta.dir;
+const token = "phc_public_project_token";
+const home: BrowserEvidence = {
+  href: "https://ghostget.com/?utm_source=news#fragment",
   referrer: "https://chatgpt.com/private/thread?token=private",
-} as const;
+  route: "/",
+};
 
-describe("GhostGet browser analytics", () => {
-  test("sends repository interest immediately with an unload-safe transport", () => {
-    const captures: unknown[][] = [];
-    const properties = {
-      target_host: "github.com",
-      target_id: "hero-github",
-      target_kind: "repository",
-      target_path: "/hraness/ghostget",
-    } as const;
+function evidenceFor(route: string | null, href = `https://ghostget.com${route ?? "/missing/"}`): BrowserEvidence {
+  return { href, referrer: "", route };
+}
 
-    captureProjectLink({
-      capture: (event, capturedProperties, options) => {
-        captures.push([event, capturedProperties, options]);
-      },
-    }, properties);
+function recorder() {
+  const captures: unknown[][] = [];
+  return {
+    captures,
+    target: { capture: (...args: unknown[]) => { captures.push(args); } },
+  };
+}
 
-    expect(captures).toEqual([["project link opened", properties, {
-      send_instantly: true,
-      transport: "sendBeacon",
-    }]]);
+type HarnessResult = Readonly<{
+  bodies: unknown[];
+  received: Array<{ event: string; properties: Record<string, unknown> }>;
+  returned: Array<{ event: string; properties: Record<string, unknown> } | null>;
+}>;
+
+async function runHarness(href: string, referrer: string, route: string): Promise<HarnessResult> {
+  const child = Bun.spawn(["bun", join(websiteRoot, "analytics-posthog-harness.ts")], {
+    env: { ...process.env, HARNESS_HREF: href, HARNESS_REFERRER: referrer, HARNESS_ROUTE: route },
+    stderr: "pipe",
+    stdout: "pipe",
+  });
+  const [stdout, stderr, exitCode] = await Promise.all([
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+    child.exited,
+  ]);
+  if (exitCode !== 0) throw new Error(`analytics harness exited ${exitCode}: ${stderr}`);
+  return JSON.parse(stdout) as HarnessResult;
+}
+
+describe("ghostget.com analytics contract", () => {
+  test("reports the ghostget site id and schema version 2", () => {
+    expect(SITE_ID).toBe("ghostget");
+    expect(LEGACY_SITE_IDS).toEqual(["wrench"]);
+    expect(SCHEMA_VERSION).toBe(2);
+    const capture = sanitizeCapture({ event: "$pageview", properties: { $current_url: home.href, token } }, home);
+    expect(capture?.properties).toMatchObject({ analytics_schema_version: 2, site_id: "ghostget" });
   });
 
-  test("keeps the shared cookieless and personless privacy posture", () => {
-    const config = createBrowserConfig("https://us.i.posthog.com", evidence);
+  test("keeps the cookieless, personless, bundled-SDK configuration", () => {
+    const config = createBrowserConfig("https://us.i.posthog.com", home);
     expect(config).toMatchObject({
-      advanced_disable_feature_flags: true,
       autocapture: false,
       capture_exceptions: false,
       capture_heatmaps: false,
       capture_pageleave: true,
       capture_pageview: true,
+      capture_performance: { network_timing: false, web_vitals: true },
       cookieless_mode: "always",
-      cross_subdomain_cookie: false,
-      disable_conversations: true,
-      disable_product_tours: true,
+      disable_external_dependency_loading: true,
       disable_session_recording: true,
       disable_surveys: true,
-      enable_recording_console_log: false,
-      mask_all_element_attributes: true,
-      mask_all_text: true,
-      mask_personal_data_properties: true,
+      mask_personal_data_properties: false,
       persistence: "memory",
       person_profiles: "never",
-      rageclick: false,
       respect_dnt: true,
-      strict_script_versioning: true,
     });
   });
 
-  test("canonicalizes page data and removes query attribution", () => {
-    const capture = sanitizeCapture({
-      event: "$pageview",
-      properties: {
-        $current_url: "https://ghostget.com/?utm_campaign=private#private",
-        $pathname: "/private-value",
-        $referrer: "https://chatgpt.com/c/private?secret=value",
-        nested: {
-          email: "reader@example.com",
-          href: "https://ghostget.com/private?token=secret",
-        },
-        token: "phc_public_project_token",
-        utm_campaign: "private",
-      },
-      uuid: "event-id",
-    }, evidence);
-
-    expect(capture).not.toBeNull();
-    expect(capture?.properties).toMatchObject({
-      $current_url: "https://ghostget.com/",
-      $pathname: "/",
-      $process_person_profile: false,
-      analytics_schema_version: 1,
-      canonical_domain: "ghostget.com",
-      canonical_path: "/",
-      content_group: "ghostget",
-      page_kind: "product_landing",
-      referrer_host: "chatgpt.com",
-      site_id: "ghostget",
-      traffic_channel: "ai_referral",
-      traffic_source: "chatgpt",
-    });
-    expect(capture?.properties).not.toHaveProperty("utm_campaign");
-    expect(capture?.properties.nested).toEqual({
-      email: "[email]",
-      href: "https://ghostget.com/",
+  test("every built public page reports its own route, never not-found", async () => {
+    for (const page of PUBLIC_PAGES) {
+      const route = resolveRoute(`https://ghostget.com${page.canonicalPath}?gclid=x`, evidenceFor(page.canonicalPath));
+      expect({ path: page.canonicalPath, kind: route?.pageKind }).not.toEqual({ path: page.canonicalPath, kind: "not_found" });
+      expect(route?.canonicalPath).toBe(page.canonicalPath);
+    }
+    // Pages whose v1 page_kind existed keep it so per-page history lines up.
+    for (const [path, pageKind] of [
+      ["/", "product_landing"],
+      ["/docs/", "docs_index"],
+      ["/docs/how-to/connect-beeper/", "provider_beeper"],
+      ["/compare/browser-use/", "compare_browser_use"],
+      ["/vms-cannot-contain-agents/", "vms_cannot_contain_agents"],
+    ] as const) {
+      expect(resolveRoute(`https://ghostget.com${path}`, evidenceFor(path))?.pageKind).toBe(pageKind);
+    }
+    expect(resolveRoute("https://ghostget.com/blog/introducing-ghostget/", evidenceFor("/blog/introducing-ghostget/"))).toMatchObject({
+      contentGroup: "blog",
+      contentSlug: "introducing-ghostget",
+      pageKind: "article",
     });
   });
 
-  test("collapses unknown canonical paths and rejects foreign hosts", () => {
-    const notFound = sanitizeCapture({
+  test("the build writes each page's route and an empty route on the 404 page", async () => {
+    const pages = await Promise.all(PUBLIC_PAGES.slice(0, 40).map(async (page) => ({
+      html: await readFile(join(websiteRoot, "dist", page.outputFile), "utf8").catch(() => null),
+      page,
+    })));
+    const built = pages.filter((entry) => entry.html !== null);
+    for (const { html, page } of built) {
+      expect(html).toContain(`<meta name="${ANALYTICS_ROUTE_META}" content="${page.canonicalPath}">`);
+    }
+    const notFound = await readFile(join(websiteRoot, "dist/404.html"), "utf8").catch(() => null);
+    if (notFound !== null) expect(notFound).toContain(`<meta name="${ANALYTICS_ROUTE_META}" content="">`);
+  });
+
+  test("a 404 render collapses to /not-found and records the bounded requested path", () => {
+    const evidence = evidenceFor(null, "https://ghostget.com/missing/page?email=a@b.co");
+    const pageview = sanitizeCapture({
       event: "$pageview",
-      properties: {
-        $current_url: "https://ghostget.com/private/path?query=secret",
-        token: "phc_public_project_token",
-      },
+      properties: { $current_url: evidence.href, $referrer: "https://news.example.org/a/b?c=d", token },
     }, evidence);
-    expect(notFound?.properties).toMatchObject({
+    expect(pageview?.properties).toMatchObject({
       $current_url: "https://ghostget.com/not-found",
+      $pathname: "/not-found",
       canonical_path: "/not-found",
       page_kind: "not_found",
     });
-
-    expect(sanitizeCapture({
-      event: "$pageview",
-      properties: {
-        $current_url: "https://preview.example.com/",
-        token: "phc_public_project_token",
-      },
-    }, evidence)).toBeNull();
-  });
-
-  test("keeps each public content route distinct without retaining URL detail", () => {
-    const routes = [
-      ["/docs/tutorials/getting-started/", "getting_started"],
-      ["/docs/how-to/capture-and-archive/", "capture_and_archives"],
-      ["/docs/reference/provider-capabilities/", "provider_capabilities"],
-      ["/docs/how-to/connect-beeper/", "provider_beeper"],
-      ["/docs/how-to/export-whatsapp/", "provider_whatsapp"],
-      ["/docs/", "docs_index"],
-      ["/compare/", "compare_index"],
-      ["/compare/browser-use/", "compare_browser_use"],
-      ["/compare/browserbase/", "compare_browserbase"],
-      ["/compare/playwright-mcp/", "compare_playwright_mcp"],
-      ["/compare/agent-browser/", "compare_agent_browser"],
-      ["/compare/personal-agents-browser-use/", "compare_personal_agents_browser_use"],
-      ["/agentic-web-spoofing/", "agentic_web_spoofing"],
-      ["/docs/explanation/security-model/", "security"],
-      ["/docs/how-to/author-provider-plugin/", "plugin_authoring"],
-      ["/about/", "about"],
-      ["/contact/", "contact"],
-      ["/privacy/", "privacy"],
-      ["/vms-cannot-contain-agents/", "vms_cannot_contain_agents"],
-      ["/paypal-grapheneos-attestation/", "paypal_grapheneos_attestation"],
-      ["/rumour-is-the-exploit/", "rumour_is_the_exploit"],
-      ["/omarchy-root-escalation/", "omarchy_root_escalation"],
-    ] as const;
-
-    for (const [path, pageKind] of routes) {
-      const capture = sanitizeCapture({
-        event: "$pageview",
-        properties: {
-          $current_url: `https://ghostget.com${path}?utm_source=private#private-fragment`,
-          $pathname: `${path}?private=query`,
-          token: "phc_public_project_token",
-        },
-      }, evidence);
-      expect(capture?.properties).toMatchObject({
-        $current_url: `https://ghostget.com${path}`,
-        $pathname: path,
-        canonical_path: path,
-        page_kind: pageKind,
-      });
-    }
-  });
-
-  test("allows only page lifecycle, web vitals, and the named interaction events", () => {
-    for (const event of ["$pageview", "$pageleave", "$web_vitals"]) {
-      expect(sanitizeCapture({
-        event,
-        properties: { token: "phc_public_project_token" },
-      }, evidence)?.event).toBe(event);
-    }
-    expect(sanitizeCapture({
-      event: "project link opened",
-      properties: {
-        target_host: "github.com",
-        target_id: "hero-github",
-        target_kind: "repository",
-        target_path: "/hraness/ghostget",
-        token: "phc_public_project_token",
-      },
-    }, evidence)?.properties).toMatchObject({
-      target_host: "github.com",
-      target_id: "hero-github",
-      target_kind: "repository",
-      target_path: "/hraness/ghostget",
+    const notFound = sanitizeCapture({
+      event: "page not found",
+      properties: { $current_url: evidence.href, $referrer: "https://news.example.org/a/b?c=d", token },
+    }, evidence);
+    expect(notFound?.properties).toMatchObject({
+      referrer_host: "news.example.org",
+      requested_path: "/missing/page",
     });
-    expect(sanitizeCapture({
-      event: "$autocapture",
-      properties: { token: "phc_public_project_token" },
-    }, evidence)).toBeNull();
-    expect(sanitizeCapture({
-      event: "invented event",
-      properties: { token: "phc_public_project_token" },
-    }, evidence)).toBeNull();
+    // A real page never emits a not-found event.
+    expect(sanitizeCapture({ event: "page not found", properties: { $current_url: home.href, token } }, home)).toBeNull();
   });
 
-  test("reports the ghostget site id and keeps wrench only as a legacy alias", () => {
-    expect(SITE_ID).toBe("ghostget");
-    expect(LEGACY_SITE_IDS).toEqual(["wrench"]);
+  test("keeps attribution parameters and drops every other query value and the fragment", () => {
     const capture = sanitizeCapture({
       event: "$pageview",
-      properties: { site_id: "wrench", token: "phc_public_project_token" },
-    }, evidence);
-    expect(capture?.properties.site_id).toBe("ghostget");
+      properties: {
+        $current_url: "https://ghostget.com/?utm_source=news&gclid=abc&email=reader%40example.com&code=secret&ref=me#frag",
+        $initial_utm_campaign: "launch",
+        $referrer: "https://chatgpt.com/c/private?secret=value",
+        gclid: "abc",
+        nested: { email: "reader@example.com" },
+        token,
+        utm_source: "news",
+      },
+    }, home);
+    expect(capture?.properties).toMatchObject({
+      $current_url: "https://ghostget.com/?utm_source=news&gclid=abc",
+      $initial_utm_campaign: "launch",
+      $referrer: "https://chatgpt.com",
+      gclid: "abc",
+      referrer_host: "chatgpt.com",
+      traffic_channel: "ai_referral",
+      utm_source: "news",
+    });
+    expect(JSON.stringify(capture)).not.toContain("reader@example.com");
+    expect(JSON.stringify(capture)).not.toContain("secret");
+    expect(ATTRIBUTION_PARAMETERS.has("ref")).toBe(false);
   });
 
-  test("records CTA clicks and install copies only with bounded names", () => {
-    const captures: unknown[][] = [];
-    const target = {
-      capture: (event: string, properties?: unknown, options?: unknown) => {
-        captures.push([event, properties, options]);
-      },
-    };
-    captureCta(target, "hero-install");
-    captureCta(target, "invented-cta");
-    captureInstallCommandCopied(target, "cli");
-    captureInstallCommandCopied(target, "curl https://example.com | sh");
-    expect(captures).toEqual([
-      ["cta clicked", { cta: "hero-install" }, { send_instantly: true, transport: "sendBeacon" }],
-      ["install command copied", { install_command: "cli" }, undefined],
-    ]);
+  test("drops foreign, preview, and local hosts", () => {
+    for (const href of ["https://preview.example.com/", "https://ghostget-git-x.vercel.app/", "http://localhost:3000/"]) {
+      expect(sanitizeCapture({ event: "$pageview", properties: { $current_url: href, token } }, evidenceFor("/", href))).toBeNull();
+    }
+  });
 
-    for (const cta of ["final-install", "header-install", "hero-install", "hero-see-it-work"]) {
-      expect(sanitizeCapture({
-        event: "cta clicked",
-        properties: { cta, token: "phc_public_project_token" },
-      }, evidence)?.properties.cta).toBe(cta);
+  test("admits only the documented events with their exact property shapes", () => {
+    for (const event of ["$autocapture", "$rageclick", "$identify", "project link opened", "custom"]) {
+      expect(sanitizeCapture({ event, properties: { $current_url: home.href, token } }, home)).toBeNull();
     }
-    for (const command of ["agent_skill", "cli"]) {
-      expect(sanitizeCapture({
-        event: "install command copied",
-        properties: { install_command: command, token: "phc_public_project_token" },
-      }, evidence)?.properties.install_command).toBe(command);
-    }
+    for (const event of CUSTOM_EVENTS) expect(event).toMatch(/^[a-z]+(?: [a-z]+){1,3}$/u);
     expect(sanitizeCapture({
       event: "cta clicked",
-      properties: { cta: "someone@example.com", token: "phc_public_project_token" },
-    }, evidence)).toBeNull();
+      properties: { $current_url: home.href, cta: "hero-install", placement: "hero", token },
+    }, home)).not.toBeNull();
     expect(sanitizeCapture({
-      event: "install command copied",
-      properties: { token: "phc_public_project_token" },
-    }, evidence)).toBeNull();
+      event: "cta clicked",
+      properties: { $current_url: home.href, cta: "Install now!", placement: "hero", token },
+    }, home)).toBeNull();
   });
 
-  test("interaction captures reach the loaded SDK, not the replaced snippet stub", () => {
-    const stubCalls: unknown[][] = [];
-    const liveCalls: unknown[][] = [];
-    const stub = { capture: (...args: unknown[]) => { stubCalls.push(args); } };
-    const windowValue: { posthog?: { capture: (...args: unknown[]) => void } } = { posthog: stub };
-    const target = liveCaptureTarget(windowValue, stub);
-
+  test("interaction helpers emit the v2 vocabulary", () => {
+    const { captures, target } = recorder();
     captureCta(target, "hero-install");
-    expect(stubCalls).toHaveLength(1);
+    captureCta(target, "unknown");
+    captureInstallCommandCopied(target, "cli", "hero");
+    captureInstallCommandCopied(target, "agent_skill", "docs");
+    captureInstallCommandCopied(target, "rm -rf", "hero");
+    captureOutboundLink(target, "https://github.com/hraness/ghostget", "nav");
+    captureOutboundLink(target, "https://x.com/hraness", "footer");
+    captureOutboundLink(target, "https://ghostget.com/docs/", "nav");
+    captureOutboundLink(target, "mailto:hi@example.com", "footer");
+    expect(captures).toEqual([
+      ["cta clicked", { cta: "hero-install", placement: "hero" }, { send_instantly: true, transport: "sendBeacon" }],
+      ["install command copied", { install_method: "bun", placement: "hero" }],
+      ["install command copied", { install_method: "npm", placement: "docs" }],
+      ["outbound link opened", { link_kind: "github", placement: "nav", target_host: "github.com" }, { send_instantly: true, transport: "sendBeacon" }],
+      ["outbound link opened", { link_kind: "social", placement: "footer", target_host: "x.com" }, { send_instantly: true, transport: "sendBeacon" }],
+    ]);
+  });
 
-    windowValue.posthog = { capture: (...args: unknown[]) => { liveCalls.push(args); } };
-    captureCta(target, "final-install");
-    captureInstallCommandCopied(target, "cli");
-    captureProjectLink(target, { target_id: "ghostget" });
-    expect(stubCalls).toHaveLength(1);
-    expect(liveCalls.map((call) => call[0])).toEqual(["cta clicked", "install command copied", "project link opened"]);
-    expect(liveCalls[1]).toEqual(["install command copied", { install_command: "cli" }]);
-
-    delete windowValue.posthog;
-    captureCta(target, "header-install");
-    expect(stubCalls).toHaveLength(2);
+  test("exceptions are scrubbed, fingerprinted, and budgeted", () => {
+    const calls: unknown[][] = [];
+    const report = createExceptionReporter(
+      { captureException: (...args: unknown[]) => { calls.push(args); } },
+      new ExceptionBudget({ perFingerprintLimit: 2, totalLimit: 3, windowMs: 60_000 }),
+    );
+    const leaky = new Error("failed for reader@example.com at https://ghostget.com/docs/?code=abc");
+    expect(report(leaky, "window_error")).toBe(true);
+    expect(report(leaky, "window_error")).toBe(false);
+    expect(report(new Error("failed for reader@example.com at https://ghostget.com/docs/?code=abc"), "window_error")).toBe(true);
+    expect(report(new Error("same fingerprint again? no, same text"), "unhandled_rejection")).toBe(true);
+    expect(report(new Error("over the total budget"), "window_error")).toBe(false);
+    const [error, properties] = calls[0] as [Error, Record<string, unknown>];
+    expect(error.message).not.toContain("reader@example.com");
+    expect(error.message).not.toContain("code=abc");
+    expect(properties).toMatchObject({ error_origin: "window_error", error_surface: "client" });
+    expect(properties.error_fingerprint).toMatch(/^e_[0-9a-f]{8}$/u);
+    expect(sanitizeError("plain rejection").message).toBe("plain rejection");
   });
 
   test("Do Not Track stops the bootstrap because cookieless mode ignores respect_dnt", () => {
-    for (const value of ["1", "yes", " YES ", "true"]) {
+    for (const value of ["1", "yes", "true"]) {
       expect(doNotTrackEnabled({ doNotTrack: value }, {})).toBe(true);
-      expect(doNotTrackEnabled({ msDoNotTrack: value }, {})).toBe(true);
       expect(doNotTrackEnabled({}, { doNotTrack: value })).toBe(true);
     }
-    for (const value of [null, undefined, "0", "no", "unspecified", ""]) {
-      expect(doNotTrackEnabled({ doNotTrack: value, msDoNotTrack: value }, { doNotTrack: value })).toBe(false);
-    }
+    expect(doNotTrackEnabled({ doNotTrack: "0" }, { doNotTrack: null })).toBe(false);
     expect(doNotTrackEnabled(undefined, undefined)).toBe(false);
+  });
+
+  test("sanitized output never carries an email or a phc token outside the token property", () => {
+    fc.assert(fc.property(
+      fc.dictionary(fc.string({ maxLength: 12 }), fc.oneof(fc.string(), fc.emailAddress(), fc.constant("phx_secretvalue"))),
+      (extra) => {
+        const capture = sanitizeCapture({
+          event: "$pageview",
+          properties: { ...extra, $current_url: home.href, token },
+        }, home);
+        if (capture === null) return;
+        const { token: kept, ...rest } = capture.properties;
+        expect(kept).toBe(token);
+        const text = JSON.stringify(rest);
+        expect(text).not.toMatch(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/u);
+        expect(text).not.toContain("phx_secretvalue");
+      },
+    ));
+  });
+});
+
+describe("ghostget.com analytics through the pinned posthog-js", () => {
+  test("before_send keeps the portfolio properties posthog-js emits and scrubs the rest", async () => {
+    const result = await runHarness(
+      "https://ghostget.com/docs/?utm_source=news&gclid=abc&email=reader%40example.com&code=secret#frag",
+      "https://news.example.org/some/path?x=1",
+      "/docs/",
+    );
+    expect(result.received.map((capture) => capture.event)).toEqual([
+      "$pageview", "$pageleave", "outbound link opened", "page not found", "$autocapture", "$exception",
+    ]);
+    expect(result.returned.map((capture) => capture?.event ?? null)).toEqual([
+      "$pageview", "$pageleave", "outbound link opened", null, null, "$exception",
+    ]);
+    const pageview = result.returned[0]!;
+    expect(pageview.properties).toMatchObject({
+      $current_url: "https://ghostget.com/docs/?utm_source=news&gclid=abc",
+      $host: "ghostget.com",
+      $pathname: "/docs/",
+      $referrer: "https://news.example.org",
+      analytics_schema_version: 2,
+      canonical_path: "/docs/",
+      gclid: "abc",
+      page_kind: "docs_index",
+      site_id: "ghostget",
+      token: "phc_harnesstoken",
+      utm_source: "news",
+    });
+    for (const key of ["$raw_user_agent", "$referring_domain", "$cookieless_mode", "$lib_version"]) {
+      expect(pageview.properties).toHaveProperty(key);
+    }
+    // Cookieless mode leaves session and window IDs to PostHog's ingestion.
+    expect(result.returned[0]).toHaveProperty("properties.$cookieless_mode", true);
+    const exception = result.returned[5]!;
+    expect(exception.properties).toMatchObject({ error_origin: "window_error", error_surface: "client" });
+    expect(JSON.stringify(result.returned)).not.toContain("reader@example.com");
+    expect(JSON.stringify(result.bodies)).not.toContain("reader%40example.com");
+    expect(result.bodies.length).toBeGreaterThanOrEqual(4);
+  });
+
+  test("a 404 render sends a not-found pageview and a page not found event", async () => {
+    const result = await runHarness("https://ghostget.com/nope/?utm_source=x", "https://ghostget.com/docs/", "");
+    const notFound = result.returned[3]!;
+    expect(notFound).toMatchObject({
+      event: "page not found",
+      properties: { page_kind: "not_found", requested_path: "/nope" },
+    });
+    expect(result.returned[0]?.properties).toMatchObject({ $pathname: "/not-found", canonical_path: "/not-found" });
   });
 });

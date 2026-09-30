@@ -97,6 +97,7 @@ import {
 import webmcpRegistrySource from "./source/webmcp-registry.json";
 import { isNoindexDocumentPath, NOINDEX_ROBOTS } from "../edge/robots";
 import { SOCIAL_IMAGE_ALT } from "./social-image";
+import { ANALYTICS_ROUTE_META } from "./source/analytics-contract";
 import {
   parseWebmcpRegistrySnapshot,
   substituteTemplateValues,
@@ -978,6 +979,13 @@ function renderTemplate(
   }
   rendered = replaceHtmlRequired(rendered, "{{POSTHOG_HOST}}", escapeHtml(options.postHogHost));
   rendered = replaceHtmlRequired(rendered, "{{POSTHOG_KEY}}", escapeHtml(options.postHogKey));
+  // The analytics client classifies a page from this build-time route, so a
+  // new public page can never be reported as a not-found render. The 404
+  // template renders without a page and so carries an empty route.
+  rendered = rendered.replace(
+    /<meta name="ghostget-posthog-key" content="[^"]*">/u,
+    (meta) => `${meta}\n    <meta name="${ANALYTICS_ROUTE_META}" content="${escapeHtml(page?.canonicalPath ?? "")}">`,
+  );
   if (page?.canonicalPath === "/" || page?.canonicalPath === "/docs/reference/provider-capabilities/" || page?.canonicalPath === "/providers/") {
     rendered = replaceRequired(
       rendered,
