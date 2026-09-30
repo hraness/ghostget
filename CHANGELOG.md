@@ -7,6 +7,12 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.60
+
+GhostGet's favicon now uses the latest header mark.
+
+- Use a centered white mark that fills the icon with no added padding.
+
 ## 0.18.59
 
 This release publishes the GhostGet launch homepage and the Introducing
