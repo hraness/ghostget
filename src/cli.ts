@@ -114,7 +114,7 @@ export function isImmediateGhostgetVersionRequest(
     && (second === undefined || second === "--json");
 }
 
-/** `ghostget 0.18.57`, or `{"name":"ghostget","version":"0.18.57"}` with `--json`. */
+/** `ghostget 0.18.58`, or `{"name":"ghostget","version":"0.18.58"}` with `--json`. */
 export function ghostgetVersionText(rawArguments: readonly string[]): string {
   return rawArguments.includes("--json")
     ? `${JSON.stringify({ name: "ghostget", version: GHOSTGET_VERSION })}\n`
