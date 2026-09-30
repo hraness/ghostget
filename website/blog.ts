@@ -54,6 +54,7 @@ const BLOG_PARTY: ArticleParty = {
   sameAs: ["https://github.com/hraness"],
 };
 const AI_REVIEWER = "Claude Opus 5.5 (claude-opus-5-5) editorial review" as const;
+const INDEPENDENT_AI_REVIEWER = "Claude Opus 5.5 (claude-opus-5-5) independent review" as const;
 const REVIEWED_ON: ArticleIsoDate = "2026-09-24";
 const REASSESS_ON: ArticleIsoDate = "2026-11-05";
 const OWNER = "Hraness, maintainers of hraness/ghostget" as const;
@@ -156,7 +157,7 @@ export const BLOG_POSTS: readonly BlogPost[] = [
     dek: "GhostGet lets your AI agent work in your own accounts through named, reviewed actions, without handing it your passwords, tokens, or a signed-in browser.",
     eyebrow: "Introducing",
     published: "2026-09-24",
-    updated: "2026-09-29",
+    updated: "2026-09-30",
     keywords: ["ghostget", "agents", "accounts", "previews", "verification", "claims register"],
     bodyFile: "introducing-ghostget.html",
     sources: introducingSources,
@@ -180,11 +181,12 @@ export const BLOG_POSTS: readonly BlogPost[] = [
         "On 2026-09-27 a fact check against verification/claims.json at origin/main found the register lists 246 claims, 227 evidenced, 0 planned, and 19 not verified; statements that claims were still planned were re-dated to 2026-09-24 and the current status added.",
         "On 2026-09-28 the opening line and a section on the internal browser were added; the section restates the agent-browser comparison page and the agent-browser 0.32.3 pin in package.json, and names no new capability.",
         "On 2026-09-29 the opening was rebuilt as standalone beats, each with a code-built illustration labelled as one, and the earlier sections moved under 'The longer version' unchanged. Every number in the beats resolves from website/launch/facts.ts, which launch.test.ts pins to the provider directory, verification/claims.json, the homepage Measured table, and package.json; the X, Bluesky, Threads, and LinkedIn posts in kb/launch/social-kit.md are cut from the same beats. An independent Claude Opus 5.5 (claude-opus-5-5) review on 2026-09-29 re-read the new opening against facts.ts and the source, removed a line about how the post is laid out, restored the wget line to the first beat, and kept the scores at 11 of 12: the beats add no claim the longer version does not already source, and maintenance stays at 1 because the longer version still carries dated counts.",
+        "On 2026-09-30 an independent AI review by a Claude Opus 5.5 (claude-opus-5-5) agent that neither drafted nor edited the post re-scored the rebuilt opening against origin/main 9ebaf16 and the live page at 10 of 12 with no zero: reader utility 2, original evidence 2, factual confidence 1, host fit 2, voice integrity 2, maintenance value 1. It confirmed every beat number against facts.ts and its source, and lowered factual confidence for three wordings the maintainers then corrected: the no-double-posts beat now says a lost reply never becomes an automatic double post, matching the documented duplicate-risk re-send; the preview beat names the service, the account, and what will be sent instead of a recipient; and the first beat says the agent is never handed the password. The current claims register counts in the longer version now render from website/launch/facts.ts, pinned to verification/claims.json by launch.test.ts, and the 2026-09-24 snapshot stays dated. The social kit, regenerated with design-kit v0.31.0, carries no limits beat; the limits stay in this post.",
       ],
-      scores: { readerUtility: 2, originalEvidence: 2, factualConfidence: 2, hostFit: 2, voiceIntegrity: 2, maintenanceValue: 1 },
+      scores: { readerUtility: 2, originalEvidence: 2, factualConfidence: 1, hostFit: 2, voiceIntegrity: 2, maintenanceValue: 1 },
       owner: OWNER,
       drafting: "ai-from-source",
-      review: review(),
+      review: { reviewer: INDEPENDENT_AI_REVIEWER, reviewerType: "ai", reviewedOn: "2026-09-30" },
       humanReview: null,
       reassessOn: REASSESS_ON,
       harmIfWrong: "A reader could connect an account believing a write or storage guarantee exists that does not, such as encrypted Gmail credentials or WhatsApp sending.",
@@ -200,10 +202,10 @@ export const BLOG_POSTS: readonly BlogPost[] = [
   {
     slug: "built-on-ghostget",
     title: "Products built on GhostGet",
-    dek: "PeopleBlade reads contacts and messages through GhostGet, and TextButler imports the Beeper history that GhostGet exports.",
+    dek: "PeopleBlade reads contacts and messages through GhostGet, TextButler imports the Beeper history that GhostGet exports, and Sponge captures signed-in pages through it.",
     eyebrow: "Integration",
     published: "2026-09-24",
-    updated: "2026-09-26",
+    updated: "2026-09-30",
     keywords: ["ghostget", "integrations", "peopleblade", "textbutler", "local-first"],
     bodyFile: "built-on-ghostget.html",
     sources: builtOnSources,
@@ -223,6 +225,7 @@ export const BLOG_POSTS: readonly BlogPost[] = [
         "On 2026-09-24 relatedFor('wrench') in design-kit v0.17.0 returned exactly two relations with detail sentences: PeopleBlade provider transport and the TextButler private bundle export.",
         "A Sponge relation exists in code but was not registered on the portfolio registry's main branch on 2026-09-24, so the hub leaves it out until it is.",
         "On 2026-09-26 a Claude Opus 5.5 (claude-opus-5-5) AI editorial review rewrote headings and prose for clarity and re-read the diff against the source; it changed no facts, numbers, commands, links, or dates of record.",
+        "On 2026-09-30, by owner decision, the hub lists Sponge along the registered relation runtime:sponge:wrench:captures-signed-in-pages-through (design-kit v0.30.3), quoting its registry detail sentence and linking to Sponge's canonical page from the registry because no public post about the integration exists yet. The GhostGet Skills relation registered in design-kit v0.31.0 is classified and left off the hub.",
       ],
       scores: { readerUtility: 1, originalEvidence: 1, factualConfidence: 2, hostFit: 2, voiceIntegrity: 1, maintenanceValue: 2 },
       owner: OWNER,
@@ -578,6 +581,16 @@ export const BUILT_ON_RELATIONS: Readonly<Record<string, Readonly<{ href: string
   // Registered in design-kit v0.18.2. The hub lists it once a GhostGet release
   // emits the text-only capture bundle Sponge imports; no release does yet.
   "contract:sponge:wrench:imports-captures-from": null,
+  // Registered in design-kit v0.30.3. Listed by owner decision on 2026-09-30;
+  // the link is Sponge's canonical page from the portfolio registry until a
+  // public "How Sponge uses GhostGet" post exists.
+  "runtime:sponge:wrench:captures-signed-in-pages-through": {
+    href: "https://hraness.com/writing/the-knowledge-pack",
+    label: "Sponge, a local research service that keeps its sources and writes cited reports",
+  },
+  // Registered in design-kit v0.31.0. GhostGet Skills is a thin wrapper around
+  // the CLI rather than a product built on GhostGet; unlisted until a consumer post exists.
+  "runtime:ghostget-skills:wrench:uses": null,
 };
 
 export function ghostgetRelations(): readonly PortfolioRelatedItem[] {

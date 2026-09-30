@@ -7,6 +7,7 @@ import { LaunchBeats } from "@hraness/design-kit/react/server";
 import { ArticleVideo } from "@hraness/design-kit/react/server";
 import { renderToStaticMarkup } from "react-dom/server";
 import { resolvedLaunchBeats } from "./beats.ts";
+import { launchFacts } from "./facts.ts";
 import { LAUNCH_FILM } from "./film.ts";
 import { LaunchMockup, type LaunchService } from "./mockups.tsx";
 
@@ -53,9 +54,19 @@ export function renderLaunchFilmHtml(): string {
   );
 }
 
-/** Fill `{{LAUNCH_BEATS}}` and `{{LAUNCH_FILM}}` in a post body, then any mockup slots. */
+/** `{{LAUNCH_FACT:key}}`: one value from the launch facts module in the post's own prose. */
+const FACT_SLOT = /\{\{LAUNCH_FACT:([A-Za-z]+)\}\}/gu;
+
+export function renderLaunchFactSlots(fragment: string): string {
+  return fragment.replace(FACT_SLOT, (_slot, key: string) => {
+    if (!Object.hasOwn(launchFacts, key)) throw new Error(`Unknown launch fact ${key}.`);
+    return launchFacts[key as keyof typeof launchFacts].value;
+  });
+}
+
+/** Fill `{{LAUNCH_BEATS}}`, `{{LAUNCH_FILM}}`, and `{{LAUNCH_FACT:key}}` in a post body, then any mockup slots. */
 export function renderLaunchPostBody(fragment: string, services: readonly LaunchService[]): string {
-  let body = fragment;
+  let body = renderLaunchFactSlots(fragment);
   if (body.includes("{{LAUNCH_BEATS}}")) body = body.replace("{{LAUNCH_BEATS}}", () => renderLaunchBeatsHtml(services));
   if (body.includes("{{LAUNCH_FILM}}")) body = body.replace("{{LAUNCH_FILM}}", () => renderLaunchFilmHtml());
   return renderLaunchMockupSlots(body, services);
