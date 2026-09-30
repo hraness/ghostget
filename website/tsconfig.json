@@ -8,6 +8,8 @@
     "./production-release-verifier.ts",
     "./production-release-verifier.test.ts",
     "./source/**/*.ts",
+    "./launch/**/*.ts",
+    "./launch/**/*.tsx",
     "./html-to-markdown.ts",
     "./html-to-markdown.test.ts",
     "./analytics.test.ts",

@@ -117,6 +117,11 @@
           "reason": "Synced Hraness article policy for blog posts. website/blog.test.ts checks each post's review record, score, and provenance note and keeps non-indexable posts out of discovery; no automated check covers the prose rules."
         },
         {
+          "name": "hraness-launch",
+          "digest": "9f91591b9e13af3ae8971516ae68b46f3cb2e604ad21c60046cbe72316ac7009",
+          "reason": "Synced Hraness launch-kit policy for mockups, the launch post, social kit, and film. website/launch/launch.test.ts pins the launch facts to the provider directory, this register, the homepage, and package.json; no automated check covers the prose rules."
+        },
+        {
           "name": "hraness-delivery",
           "digest": "a4e0480f3225579f69f3098d42f490c0190b555b60bbfd45659cd2e179df14b0",
           "reason": "Synced Hraness delivery and workstation laws, including production-data preservation, runtime-enforced approvals, and delivery-gate guards; no automated check in this repository covers them."

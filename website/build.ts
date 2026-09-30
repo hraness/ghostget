@@ -18,6 +18,22 @@ import {
 } from "@hraness/site-footer";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { LAUNCH_SERVICE_COUNT } from "./launch/facts.ts";
+
+/**
+ * The launch renderer (website/launch/render.tsx) uses the design kit's React
+ * entry, which needs the DOM lib that the root typecheck leaves out. It is
+ * loaded through this typed seam; website/tsconfig.json typechecks the module
+ * itself, and website/launch/launch.test.ts checks it against this shape.
+ */
+export type LaunchRenderer = Readonly<{
+  launchServicesFrom(entries: readonly Readonly<{ name: string; supportedActionCount: number }>[]): readonly Readonly<{ name: string; actions: number }>[];
+  renderLaunchMockupSlots(html: string, services: readonly Readonly<{ name: string; actions: number }>[]): string;
+  renderLaunchPostBody(fragment: string, services: readonly Readonly<{ name: string; actions: number }>[]): string;
+}>;
+const LAUNCH_RENDER_MODULE: string = "./launch/render.tsx";
+const launchRenderer = (await import(LAUNCH_RENDER_MODULE)) as LaunchRenderer;
+const { launchServicesFrom, renderLaunchMockupSlots, renderLaunchPostBody } = launchRenderer;
 import { ghostgetSupportProfile } from "../src/support-profile";
 
 import { AskAiAboutThis } from "./ask-ai-runtime.js";
@@ -903,7 +919,9 @@ function renderTemplate(
   const { packageIdentity: identity } = options;
   const installCommand = `bun add --global ${versionedPackageArtifactUrl(identity)}`;
   const skillInstallCommands = agentSkillInstallCommands(identity);
-  let rendered = template;
+  let rendered = template.includes("{{LAUNCH_MOCKUP:")
+    ? renderLaunchMockupSlots(template, launchServicesFrom(options.providerDirectory.entries))
+    : template;
   rendered = replaceHtmlRequired(rendered, "{{ANALYTICS_ASSET}}", escapeHtml(options.analyticsAsset));
   rendered = replaceHtmlRequired(rendered, "{{CSS_ASSET}}", escapeHtml(options.cssAsset));
   rendered = replaceHtmlRequired(rendered, "{{FOIL_ASSET}}", escapeHtml(options.foilAsset));
@@ -1252,7 +1270,7 @@ function renderBlogPages(
       ogType: "article",
       publishedTime: `${post.published}T00:00:00.000Z`,
       title: post.title,
-    }, renderBlogPostMain(post, fragment));
+    }, renderBlogPostMain(post, renderLaunchPostBody(fragment, launchServicesFrom(options.providerDirectory.entries))));
     pages.push({
       html: indexable
         ? renderTemplate(filled, options, page, blogPostJsonLd(post, BLOG_SITE, shared, HRANESS_ORGANIZATION_ID))
@@ -1321,6 +1339,7 @@ export async function buildWebsite(
     designKitPlainSiteCss,
     designKitPlainPublicationCss,
     designKitStatusPageCss,
+    designKitMockupsCss,
     hranessSiteFooterCss,
     blogShell,
     blogFragments,
@@ -1334,7 +1353,10 @@ export async function buildWebsite(
     readFile(join(sourceRoot, "404.html"), "utf8"),
     readFile(join(sourceRoot, "404.md"), "utf8"),
     readFile(join(sourceRoot, "llms.txt"), "utf8"),
-    readFile(join(sourceRoot, "styles.css"), "utf8"),
+    Promise.all([
+      readFile(join(sourceRoot, "styles.css"), "utf8"),
+      readFile(join(websiteRoot, "launch/mockups.css"), "utf8"),
+    ]).then((parts) => parts.map((part) => part.trimEnd()).join("\n\n")),
     readFile(join(repositoryRoot, "website/vendor/paper-theme/paper-theme.css"), "utf8"),
     readFile(join(repositoryRoot, "website/vendor/marketing-forced-colors/marketing-forced-colors.css"), "utf8"),
     readFile(join(repositoryRoot, "website/vendor/hraness-site-shell/site-shell.css"), "utf8"),
@@ -1352,6 +1374,7 @@ export async function buildWebsite(
     readFile(designKitPlainSiteStylesPath, "utf8"),
     readFile(designKitPlainPublicationStylesPath, "utf8"),
     readFile(fileURLToPath(import.meta.resolve("@hraness/design-kit/status-page.css")), "utf8"),
+    readFile(fileURLToPath(import.meta.resolve("@hraness/design-kit/mockups.css")), "utf8"),
     readFile(
       fileURLToPath(import.meta.resolve("@hraness/site-footer/stylex.css")),
       "utf8",
@@ -1413,7 +1436,7 @@ export async function buildWebsite(
   const postHog = postHogEnvironment(environment);
   // The UI facade establishes its complete layer order before the static
   // marketing grammar and footer. Product tokens and composition follow them.
-  const compiledCss = `${uiCss}\n\n${designKitFontsCss.trim()}\n\n${designKitTypographyCss.trim()}\n\n${designKitProductMarketingCss.trim()}\n\n${designKitPlainSiteCss.trim()}\n\n${designKitPlainPublicationCss.trim()}\n\n${designKitStatusPageCss.trim()}\n\n${hranessSiteFooterCss.trim()}\n\n${paperThemeCss.trim()}\n\n${paletteSystemCss.trim()}\n\n${paletteBridgeCss.replace('@import "./palette-system.css";', "").trim()}\n\n${siteShellCss.trim()}\n\n${css.trimEnd()}\n\n${marketingPreset.files.get("product-marketing-preset.css")!.toString("utf8")}\n\n${marketingForcedColorsCss.trim()}\n`;
+  const compiledCss = `${uiCss}\n\n${designKitFontsCss.trim()}\n\n${designKitTypographyCss.trim()}\n\n${designKitProductMarketingCss.trim()}\n\n${designKitPlainSiteCss.trim()}\n\n${designKitPlainPublicationCss.trim()}\n\n${designKitStatusPageCss.trim()}\n\n${designKitMockupsCss.trim()}\n\n${hranessSiteFooterCss.trim()}\n\n${paperThemeCss.trim()}\n\n${paletteSystemCss.trim()}\n\n${paletteBridgeCss.replace('@import "./palette-system.css";', "").trim()}\n\n${siteShellCss.trim()}\n\n${css.trimEnd()}\n\n${marketingPreset.files.get("product-marketing-preset.css")!.toString("utf8")}\n\n${marketingForcedColorsCss.trim()}\n`;
   const cssAsset = `/assets/styles-${contentHash(compiledCss)}.css`;
   const analyticsAsset = `/assets/analytics-${contentHash(analytics)}.js`;
   const skillInstallAsset = `/assets/skill-install-${contentHash(skillInstall)}.js`;
@@ -1423,6 +1446,11 @@ export async function buildWebsite(
   const providerDirectory = createProviderDirectory(attestation);
   const beeperFacts = createBeeperPresentationFacts(providerDirectory);
   const whatsappFacts = createWhatsAppPresentationFacts(providerDirectory, attestation);
+  if (providerDirectory.providerCount !== LAUNCH_SERVICE_COUNT) {
+    throw new Error(
+      `The launch facts say ${LAUNCH_SERVICE_COUNT} services but the provider directory lists ${providerDirectory.providerCount}. Update website/launch/facts.ts.`,
+    );
+  }
   const renderOptions = {
     analyticsAsset,
     attestation,
@@ -1552,6 +1580,9 @@ export async function buildWebsite(
     copyFile(join(publicRoot, "icon-96.png"), join(outputRoot, "icon-96.png")),
     copyFile(join(publicRoot, "apple-icon.png"), join(outputRoot, "apple-icon.png")),
     copyFile(join(publicRoot, "og.png"), join(outputRoot, "og.png")),
+    cp(join(publicRoot, "launch"), join(outputRoot, "launch"), { force: false, recursive: true }).catch((error: unknown) => {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }),
     ...DEMO_PUBLIC_FILES.map((file) => copyFile(
       join(publicRoot, file),
       join(outputRoot, file),
