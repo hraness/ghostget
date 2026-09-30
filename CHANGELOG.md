@@ -5,6 +5,8 @@ a version is publicly released after its exact canonical GitHub archive and
 provenance are published in an immutable Release. npm mirrors are optional.
 Historical entries retain their original delivery coordinates.
 
+## Unreleased
+
 ## 0.18.57
 
 This release lets WhatsApp interaction counts work after supported linked-device
