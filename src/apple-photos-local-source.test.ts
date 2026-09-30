@@ -7,6 +7,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readdirSync,
+  readFileSync,
   realpathSync,
   renameSync,
   rmSync,
@@ -35,6 +36,7 @@ type Fixture = Readonly<{
   library: string;
   temporary: string;
   photosPath: string;
+  contactPaths: readonly string[];
   photos: Database;
   contacts: readonly Database[];
 }>;
@@ -184,6 +186,7 @@ function fixture(options: Readonly<{ schemaDrift?: boolean }> = {}): Fixture {
     library,
     temporary,
     photosPath,
+    contactPaths: Object.freeze(contactPaths),
     photos,
     contacts: Object.freeze(contacts),
   });
@@ -202,6 +205,25 @@ function dependencies(value: Fixture) {
 function close(value: Fixture): void {
   value.photos.close(false);
   for (const database of value.contacts) database.close(false);
+}
+
+type SourceFileKind = "database" | "wal" | "shm";
+
+function sourceBytesUnchanged(
+  kind: SourceFileKind,
+  before: Buffer,
+  after: Buffer,
+): boolean {
+  if (kind !== "shm") return before.equals(after);
+  // SQLite WAL-index aReadMark[1..4] occupies bytes 104..119. A read-only
+  // connection can update these reader marks and the sidecar's timestamps.
+  // Slot 0, both index headers, checkpoint state, locks, and hash tables must
+  // remain unchanged in this otherwise quiescent fixture.
+  // https://sqlite.org/walformat.html#wal_index_format
+  return before.length >= 120
+    && before.length === after.length
+    && before.subarray(0, 104).equals(after.subarray(0, 104))
+    && before.subarray(120).equals(after.subarray(120));
 }
 
 afterEach(() => {
@@ -255,6 +277,23 @@ describe("Apple Photos local source", () => {
     );
   });
 
+  test("source byte guard permits only WAL shared-memory reader marks", () => {
+    const before = Buffer.alloc(32_768);
+    for (const kind of ["database", "wal", "shm"] as const) {
+      expect(sourceBytesUnchanged(kind, before, Buffer.from(before))).toBeTrue();
+      for (const offset of [0, 96, 100, 103, 104, 119, 120, 128, 136, 32_767]) {
+        const after = Buffer.from(before);
+        after[offset] = 1;
+        expect(sourceBytesUnchanged(kind, before, after)).toBe(
+          kind === "shm" && offset >= 104 && offset < 120,
+        );
+      }
+      expect(sourceBytesUnchanged(kind, before, before.subarray(0, -1))).toBeFalse();
+      expect(sourceBytesUnchanged(kind, before, Buffer.concat([before, Buffer.alloc(1)]))).toBeFalse();
+    }
+    expect(sourceBytesUnchanged("shm", Buffer.alloc(119), Buffer.alloc(119))).toBeFalse();
+  });
+
   test("reads exact WAL-backed contact matches without projecting private fields", async () => {
     const value = fixture();
     const environment = { GHOSTGET_STATE_HOME: join(value.root, "state") };
@@ -265,12 +304,15 @@ describe("Apple Photos local source", () => {
     );
     let observedSnapshotLease = false;
     const capturedNames = new Set<string>();
-    const sourceFiles = [
-      value.photosPath,
-      `${value.photosPath}-wal`,
-      `${value.photosPath}-shm`,
-    ];
-    const before = sourceFiles.map((path) => lstatSync(path, { bigint: true }));
+    const sourceFiles = [value.photosPath, ...value.contactPaths].flatMap((path) => [
+      { path, kind: "database" as const },
+      { path: `${path}-wal`, kind: "wal" as const },
+      { path: `${path}-shm`, kind: "shm" as const },
+    ]);
+    const before = sourceFiles.map(({ path }) => ({
+      metadata: lstatSync(path, { bigint: true }),
+      bytes: readFileSync(path),
+    }));
     const result = await exportApplePhotosContactEvidence({
       library: value.library,
       stateEnvironment: environment,
@@ -289,7 +331,10 @@ describe("Apple Photos local source", () => {
         },
       },
     });
-    const after = sourceFiles.map((path) => lstatSync(path, { bigint: true }));
+    const after = sourceFiles.map(({ path }) => ({
+      metadata: lstatSync(path, { bigint: true }),
+      bytes: readFileSync(path),
+    }));
     expect(result.output.source).toMatchObject({
       id: "apple-photos-local",
       version: "1.0.0",
@@ -357,11 +402,16 @@ describe("Apple Photos local source", () => {
       "ZLOCATIONDATA",
     ]) expect(wire).not.toContain(forbidden);
     for (const [index, prior] of before.entries()) {
-      expect(after[index]?.dev).toBe(prior.dev);
-      expect(after[index]?.ino).toBe(prior.ino);
-      expect(after[index]?.size).toBe(prior.size);
-      expect(after[index]?.mtimeNs).toBe(prior.mtimeNs);
-      expect(after[index]?.ctimeNs).toBe(prior.ctimeNs);
+      const observed = after[index]!;
+      const { kind } = sourceFiles[index]!;
+      for (const field of ["dev", "ino", "size", "birthtimeNs", "mode", "nlink", "uid"] as const) {
+        expect(observed.metadata[field]).toBe(prior.metadata[field]);
+      }
+      expect(sourceBytesUnchanged(kind, prior.bytes, observed.bytes)).toBeTrue();
+      if (kind !== "shm") {
+        expect(observed.metadata.mtimeNs).toBe(prior.metadata.mtimeNs);
+        expect(observed.metadata.ctimeNs).toBe(prior.metadata.ctimeNs);
+      }
     }
     expect(readdirSync(value.temporary)).toEqual([]);
     expect([...capturedNames].sort()).toEqual([
