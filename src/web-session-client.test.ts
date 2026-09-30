@@ -287,7 +287,8 @@ describe("public web asset upload transport", () => {
       dependencies: {
         fetch: async (url, init) => {
           // Exercise the real Fetch BodyInit boundary, including view offsets.
-          posted = new Uint8Array(await new Request(url, init).arrayBuffer());
+          const request = url instanceof Request ? new Request(url, init) : new Request(url.toString(), init);
+          posted = new Uint8Array(await request.arrayBuffer());
           return new Response(null, { status: 201 });
         },
       },
