@@ -2351,7 +2351,8 @@
 // Preserve the same projections and allowances:
 // 12,152,630 + 12,387 + 4,096 = 12,169,113 packed;
 // 24,046,313 + 353 + 65 = 24,046,731 unpacked.
-// The 0.18.62 updater release over 0.18.61 main adds src/update.ts and
+// The earlier 0.18.62 updater candidate (not published) over 0.18.61
+// main adds src/update.ts and
 // the immutable shared updater dependency while retaining the new analytics
 // and marketing source. Two official Node 24.20.0/npm 11.19.0 packs
 // --ignore-scripts on darwin arm64 with zlib 1.3.2.1-motley-42c2f19
@@ -2360,14 +2361,24 @@
 // Preserve the same projections and allowances:
 // 12,154,748 + 12,387 + 4,096 = 12,171,231 packed;
 // 24,053,537 + 353 + 65 = 24,053,955 unpacked.
+// The reserved 0.18.63 updater release integrates actual merged 0.18.62
+// marketing and search-referrer privacy source (86dd8cdc). Both changelog
+// sections are retained; updater behavior and inventory are unchanged.
+// Two official Node 24.20.0/npm 11.19.0 --ignore-scripts packs on darwin
+// arm64 with zlib 1.3.2.1-motley-42c2f19 measured 625 entries,
+// 12,154,769 packed and 24,053,717 unpacked bytes; byte-identical SHA-256
+// 723397dd53644ed3c8c42c57ed62eb460d23d255b32354c2b091d65c05fba2a3.
+// Preserve the same projections and allowances:
+// 12,154,769 + 12,387 + 4,096 = 12,171,252 packed;
+// 24,053,717 + 353 + 65 = 24,054,135 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget 0.18.62 CLI updater release over reviewed 0.18.61 main",
+  scope: "Ghostget 0.18.63 CLI updater release over actual merged 0.18.62 main86dd8cdc",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "c4184a9c6bb812cc7b3b8dab258a9f44271268f68ca769d47429e56fa63b25b1",
-  packedBytes: 12_154_748,
-  unpackedBytes: 24_053_537,
+  archiveSha256: "723397dd53644ed3c8c42c57ed62eb460d23d255b32354c2b091d65c05fba2a3",
+  packedBytes: 12_154_769,
+  unpackedBytes: 24_053_717,
   entryCount: 625,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
