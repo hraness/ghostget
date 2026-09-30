@@ -7,6 +7,15 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.62
+
+Make the marketing site easier to read and navigate.
+
+- Use the shared high-contrast marketing controls from Design Kit 0.33.0.
+- Balance related personal apps in two columns on wider screens and one on phones.
+- Remove repeated illustration and terminal disclaimers while retaining useful captions and accessible descriptions.
+- Generate launch copy from canonical product messaging and release facts.
+
 ## 0.18.61
 
 Retry schema-v2 analytics.
