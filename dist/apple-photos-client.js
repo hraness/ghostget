@@ -1,7 +1,7 @@
 // @bun
 import {
   GHOSTGET_VERSION
-} from "./index-zxr2sgk9.js";
+} from "./index-qms018a7.js";
 import {
   canonicalJson,
   sha256

@@ -7,6 +7,11 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.57
+
+This release lets WhatsApp interaction counts work after supported linked-device
+database upgrades.
+
 - Accept the exact message-store schemas produced by pinned wacli migrations,
   including columns appended in a different order. Body-free interaction counts
   and the shared Message Like Me export helper keep their schema, integrity,
