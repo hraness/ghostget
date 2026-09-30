@@ -114,7 +114,7 @@ export function isImmediateGhostgetVersionRequest(
     && (second === undefined || second === "--json");
 }
 
-/** `ghostget 0.18.58`, or `{"name":"ghostget","version":"0.18.58"}` with `--json`. */
+/** `ghostget 0.18.59`, or `{"name":"ghostget","version":"0.18.59"}` with `--json`. */
 export function ghostgetVersionText(rawArguments: readonly string[]): string {
   return rawArguments.includes("--json")
     ? `${JSON.stringify({ name: "ghostget", version: GHOSTGET_VERSION })}\n`
@@ -343,22 +343,45 @@ export async function runGhostgetCliProcess(
   }
 }
 
-if (import.meta.main) {
+/** Update only the real executable; SDK callers keep their original behavior. */
+export async function runGhostgetExecutable(
+  args: readonly string[] = process.argv.slice(2),
+  startUpdate = async (arguments_: readonly string[], depth: number | null) =>
+    (await import("./update")).startGhostgetUpdate(arguments_, depth),
+  runCommand = runGhostgetCliProcess,
+  reportRun = async (arguments_: readonly string[]) =>
+    (await import("./telemetry")).reportGhostgetCliRun(GHOSTGET_VERSION, process.env, arguments_),
+): Promise<void> {
   const depth = standaloneSupportDepth(process.env.GHOSTGET_CLI_DEPTH);
-  // Set once for this executable and its children; programmatic calls never
-  // mutate inherited state or compete to restore a process-global variable.
-  process.env.GHOSTGET_CLI_DEPTH = String(depth === null ? 8 : Math.min(depth + 1, 8));
-  // Aggregate run telemetry reports the product name and version only, and
-  // stays lazy: static help/version output never mints state or reaches out.
-  const args = process.argv.slice(2);
+  const delegatedHelp = args.length === 2 && (args[1] === "--help" || args[1] === "-h")
+    && ghostgetHelpRequest(["help", args[0]!])?.kind === "delegate";
+  const controlHelp = (args.length === 1 && ["vault", "web", "interface"].includes(args[0]!))
+    || (args[0] === "vault" && ((args.length === 2 && args[1] === "help")
+      || (args.length === 3 && args[1] === "import-x" && ["help", "--help", "-h"].includes(args[2]!))))
+    || (args[0] === "menubar" && args.some(argument => argument === "--help" || argument === "-h"));
+  const supportProtocol = args[0] === "support" && args[1] === "protocol" && hasOnlyOptionalJson(args.slice(2));
   const staticOnly = args.length === 0
     || ghostgetHelpRequest(args) !== null
+    || delegatedHelp || controlHelp || supportProtocol
     || isImmediateGhostgetVersionRequest(args)
     || args.every((arg) => arg === "--help" || arg === "-h" || arg === "--version" || arg === "-V");
-  if (depth === 0 && !staticOnly) {
-    void import("./telemetry")
-      .then((telemetry) => telemetry.reportGhostgetCliRun(GHOSTGET_VERSION, process.env, args))
-      .catch(() => {});
+  const update = staticOnly ? undefined : await startUpdate(args, depth);
+  if (update?.handled) { process.exitCode = update.exitCode; return; }
+  let telemetry: Promise<void> | undefined;
+  try {
+    // Re-entered copies inherit the original depth and set it only after the
+    // updater has finished, so a restarted root is still the root command.
+    process.env.GHOSTGET_CLI_DEPTH = String(depth === null ? 8 : Math.min(depth + 1, 8));
+    if (depth === 0 && !staticOnly) {
+      telemetry = Promise.resolve().then(() => reportRun(args)).catch(() => {});
+    }
+    await runCommand(args, undefined, undefined, undefined, undefined, undefined, depth === 0);
+  } finally {
+    // Join lazy imports and local setup before allowing package replacement.
+    // The report starts an unref'd socket and does not wait for its network I/O.
+    await telemetry;
+    await update?.release();
   }
-  await runGhostgetCliProcess(undefined, undefined, undefined, undefined, undefined, undefined, depth === 0);
 }
+
+if (import.meta.main) await runGhostgetExecutable();

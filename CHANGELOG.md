@@ -7,6 +7,17 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.59
+
+Supported global CLI installs update to the latest stable release before an
+ordinary command, with at most one automatic check per day.
+
+- Add `ghostget update`, `check`, `status`, `enable`, and `disable`.
+- Keep updates out of SDK calls, source checkouts, project dependencies, CI,
+  nested clients, help, and gateway-only sessions. Exact pins need `update enable`.
+- Verify the immutable release archive before the owning package manager runs,
+  and wait until other commands using that installation have finished.
+
 ## 0.18.58
 
 This release aligns GhostGet's website copy with the shared Hraness portfolio.

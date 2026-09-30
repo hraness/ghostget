@@ -91,7 +91,7 @@ async function spawn(
 const TEXT_TOPICS = [
   "read", "clip", "auth", "browsers", "capabilities", "invoke", "confirm",
   "omni", "doctor", "login", "adapter", "plugin", "contracts", "derive",
-  "messaging", "thread", "platforms", "notes", "support", "policy", "advanced",
+  "messaging", "thread", "platforms", "notes", "support", "policy", "update", "advanced",
 ] as const;
 
 describe("ghostget help", () => {

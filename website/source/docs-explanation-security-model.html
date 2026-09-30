@@ -93,6 +93,12 @@
           <p>GhostGet starts the exact executable without a shell under private config, data, cache, and temporary roots. It strips ambient credentials and defaults, enforces its own deadline and byte bounds, and treats a lost or malformed post-dispatch response as indeterminate. A version range, package-manager channel, tag, launcher, or reported version cannot replace executable-byte identity.</p>
         </section>
 
+        <section aria-labelledby="cli-updates">
+          <h2 id="cli-updates">CLI updates use verified releases</h2>
+          <p>Supported global installations check the fixed GhostGet GitHub repository for a stable immutable release. The updater verifies the selected archive and its published SHA-256 before asking the installation's package manager to replace it. It waits for running commands to finish and leaves connected accounts and saved content in place. Source checkouts and project dependencies keep their existing package-manager workflow.</p>
+          <p>Automatic checks run before ordinary commands, at most once a day. Use <code>ghostget update disable</code> to opt out, <code>ghostget update status</code> to inspect the setting, or <code>HRANESS_NO_UPDATE=1</code> for a command that must use the installed version. Exact version pins require <code>ghostget update enable</code> before following new releases. See the <a href="/docs/tutorials/getting-started/#cli-updates">update guide</a> for requirements and limits.</p>
+        </section>
+
         <section aria-labelledby="plugins-boundary">
           <h2 id="plugins-boundary">Portable plugins are contained, not treated as hostile code</h2>
           <p>Source plugins ship as trusted in-process code. A portable plugin requires an explicit trust decision for one verified, content-addressed bundle and runs through a denied-by-default child-process protocol. The protocol limits the services a well-behaved plugin can request and contains ordinary crashes.</p>

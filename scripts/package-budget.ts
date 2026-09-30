@@ -2335,15 +2335,24 @@
 // Preserve the same projections and allowances:
 // 12,152,308 + 12,387 + 4,096 = 12,168,791 packed;
 // 24,045,422 + 353 + 65 = 24,045,840 unpacked.
+// GhostGet 0.18.59 adds the executable updater source and immutable helper
+// dependency, command help, install guidance, and rebuilt versioned SDK output.
+// Two official Node 24.20.0/npm 11.19.0 packs --ignore-scripts on darwin arm64
+// with zlib 1.3.2.1-motley-42c2f19 measured 625 entries, 12,154,266 packed
+// and 24,051,868 unpacked bytes; byte-identical archive SHA-256
+// dbc0b23bc1b3492b88c991ea8a7bb3423f3a3fb48c9c8a72547fcb06239ed034.
+// Preserve the same projections and allowances:
+// 12,154,266 + 12,387 + 4,096 = 12,170,749 packed;
+// 24,051,868 + 353 + 65 = 24,052,286 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget 0.18.58 portfolio-copy release over main 23cfb4c6",
+  scope: "GhostGet 0.18.59 CLI automatic updates over main 5f3ddda8",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "e8e41acdc54feee6cff809f7f4a16081408845698f95af9e1e52225be9fefd9e",
-  packedBytes: 12_152_308,
-  unpackedBytes: 24_045_422,
-  entryCount: 624,
+  archiveSha256: "dbc0b23bc1b3492b88c991ea8a7bb3423f3a3fb48c9c8a72547fcb06239ed034",
+  packedBytes: 12_154_266,
+  unpackedBytes: 24_051_868,
+  entryCount: 625,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,
