@@ -2300,23 +2300,32 @@
 // reproduced by a second pack. Preserve the projections and allowances:
 // 12,151,480 + 12,387 + 4,096 = 12,167,963 packed;
 // 24,042,836 + 353 + 65 = 24,043,254 unpacked.
-// The WhatsApp migration-layout repair changes its packed helper source and
-// changelog; `bun run build` leaves dist unchanged. Node 24.20.0/npm 11.19.0
-// (zlib 1.2.12) on darwin arm64, with a task-owned npm cache, measured
-// 624 entries, 12,139,496 packed and 24,043,762 unpacked bytes in two
-// byte-identical packs; archive SHA-256
-// 47aa2b0722540a001517f66ca18fd4a53fa98c7e21f0eeca4f0bd40e430454eb.
+// Release 0.18.56 over main 884e8bc4 (X contact display-name controls and
+// launch kit) moves the active version pins, changelog and version chunk.
+// After `bun run build`, npm 11.19.0 pack --ignore-scripts with Node 24.20.0
+// (zlib 1.3.2.1-motley-42c2f19) on darwin arm64 measured 624 entries,
+// 12,151,529 packed bytes and 24,043,002 unpacked bytes; archive SHA-256
+// ce6eaab8a56052f7474838e4f27c30b987935d96714771b11652f56af67c72ae,
+// reproduced by a second pack. Preserve the projections and allowances:
+// 12,151,529 + 12,387 + 4,096 = 12,168,012 packed;
+// 24,043,002 + 353 + 65 = 24,043,420 unpacked.
+// WhatsApp migration-layout repair over main 3acaa55 changes its packed helper
+// source and changelog. After `bun run build`, official Node 24.20.0/npm
+// 11.19.0 (zlib 1.3.2.1-motley-42c2f19) on darwin arm64, with a task-owned
+// npm cache, measured 624 entries, 12,151,810 packed and 24,043,910 unpacked
+// bytes in two byte-identical packs; archive SHA-256
+// 0d42ab201427f4b0660a8aaa022aaefea477d2c4126d718c8015444d21e88d8e.
 // Preserve projections and allowances:
-// 12,139,496 + 12,387 + 4,096 = 12,155,979 packed;
-// 24,043,762 + 353 + 65 = 24,044,180 unpacked.
+// 12,151,810 + 12,387 + 4,096 = 12,168,293 packed;
+// 24,043,910 + 353 + 65 = 24,044,328 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget WhatsApp migration-layout repair over the X display-name repair",
+  scope: "Ghostget WhatsApp migration-layout repair over main 3acaa55",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "47aa2b0722540a001517f66ca18fd4a53fa98c7e21f0eeca4f0bd40e430454eb",
-  packedBytes: 12_139_496,
-  unpackedBytes: 24_043_762,
+  archiveSha256: "0d42ab201427f4b0660a8aaa022aaefea477d2c4126d718c8015444d21e88d8e",
+  packedBytes: 12_151_810,
+  unpackedBytes: 24_043_910,
   entryCount: 624,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
