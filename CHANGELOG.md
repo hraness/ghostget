@@ -7,6 +7,11 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+- Accept the exact message-store schemas produced by pinned wacli migrations,
+  including columns appended in a different order. Body-free interaction counts
+  and the shared Message Like Me export helper keep their schema, integrity,
+  ownership, and checkpoint guards.
+
 ## 0.18.56
 
 This release lets X follow-graph reads finish when a display name contains
