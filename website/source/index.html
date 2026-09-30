@@ -6,9 +6,9 @@
     <meta name="color-scheme" content="light dark">
     <meta name="theme-color" content="#fbf1c7" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">
-    <title>GhostGet: let AI agents read web pages and use your accounts</title>
-    <meta name="description" content="{{GHOSTGET_DESCRIPTION}}">
-    <meta name="application-name" content="GhostGet">
+    <title>{{PORTFOLIO_TITLE}}</title>
+    <meta name="description" content="{{PORTFOLIO_META}}">
+    <meta name="application-name" content="{{PORTFOLIO_NAME}}">
     <meta name="generator" content="Bun 1.3.14">
     <meta name="robots" content="max-image-preview:large">
     <link rel="canonical" href="https://ghostget.com/">
@@ -20,9 +20,9 @@
     {{MARKDOWN_ALTERNATE}}
 
     <meta property="og:type" content="website">
-    <meta property="og:site_name" content="GhostGet">
-    <meta property="og:title" content="GhostGet: let AI agents read web pages and use your accounts">
-    <meta property="og:description" content="{{GHOSTGET_DESCRIPTION}}">
+    <meta property="og:site_name" content="{{PORTFOLIO_NAME}}">
+    <meta property="og:title" content="{{PORTFOLIO_TITLE}}">
+    <meta property="og:description" content="{{PORTFOLIO_META}}">
     <meta property="og:url" content="https://ghostget.com/">
     <meta property="og:image" content="https://ghostget.com/og.png">
     <meta property="og:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
@@ -30,8 +30,8 @@
     <meta property="og:image:height" content="630">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="GhostGet: let AI agents read web pages and use your accounts">
-    <meta name="twitter:description" content="{{GHOSTGET_DESCRIPTION}}">
+    <meta name="twitter:title" content="{{PORTFOLIO_TITLE}}">
+    <meta name="twitter:description" content="{{PORTFOLIO_META}}">
     <meta name="twitter:image" content="https://ghostget.com/og.png">
     <meta name="twitter:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
 
@@ -47,7 +47,7 @@
     <a class="skip-link" href="#main">Skip to content</a>
     <header class="hraness-marketing-header" data-hraness-marketing="header">
       <div class="hraness-marketing-header__inner">
-        <a aria-label="GhostGet home" class="hraness-marketing-header__brand" data-foil="" href="/"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span> GhostGet</a>
+        <a aria-label="{{PORTFOLIO_NAME}} home" class="hraness-marketing-header__brand" data-foil="" href="/"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span> {{PORTFOLIO_NAME}}</a>
         <nav aria-label="Primary" class="hraness-marketing-header__nav">
           <a href="#how-it-works">How it works</a>
           <a href="#providers">Providers</a>
@@ -71,11 +71,11 @@
         <header aria-labelledby="brand-name" class="hraness-marketing-hero ghostget-product-hero" data-align="start" data-hraness-marketing="hero" data-tone="paper">
           <div class="hraness-marketing-hero__copy">
             <p class="home-eyebrow">Web actions for agents</p>
-            <h1 class="hraness-marketing-hero__heading" id="brand-name">wget for the ghost <span class="hero-heading-accent">in the machine.</span></h1>
-            <p class="hraness-marketing-hero__summary hero-explainer">A free CLI and TypeScript SDK for Claude Code, Codex, Cursor, and other agents that run commands. Read a page as Markdown, save a media item, or use a connected account.</p>
+            <h1 class="hraness-marketing-hero__heading" id="brand-name">{{PORTFOLIO_HERO_START}} <span class="hero-heading-accent">{{PORTFOLIO_HERO_END}}</span></h1>
+            <p class="hraness-marketing-hero__summary hero-explainer">{{PORTFOLIO_HERO_SUMMARY}}</p>
             <div class="hraness-marketing-hero__actions">
-              <a class="hraness-marketing-action" data-analytics-cta="hero-install" data-emphasis="primary" href="#start">Install GhostGet</a>
-              <a class="home-text-link" data-analytics-cta="hero-see-it-work" href="/docs/tutorials/getting-started/#demo">See it work <span aria-hidden="true">→</span></a>
+              <a class="hraness-marketing-action" data-analytics-cta="hero-install" data-emphasis="primary" href="#start">{{PORTFOLIO_PRIMARY_ACTION}}</a>
+              <a class="home-text-link" data-analytics-cta="hero-see-it-work" href="/docs/tutorials/getting-started/#demo">{{PORTFOLIO_SECONDARY_ACTION}} <span aria-hidden="true">→</span></a>
             </div>
             <p class="hraness-marketing-hero__boundary">Free and MIT licensed · macOS and Linux with Bun 1.3.14 · Release {{GHOSTGET_RELEASE}}</p>
           </div>
@@ -109,7 +109,7 @@ This domain is for use in documentation examples without needing permission. Avo
         <section aria-labelledby="uses-heading" class="hraness-marketing-section" data-hraness-marketing="section" data-layout="stack" id="uses">
           <div class="hraness-marketing-section__heading-group">
             <p class="home-eyebrow">What it does</p>
-            <h2 class="hraness-marketing-section__heading" id="uses-heading">Read a page, archive one item, or act in an account.</h2>
+            <h2 class="hraness-marketing-section__heading" id="uses-heading">{{PORTFOLIO_HEADING:uses-heading}}</h2>
           </div>
           <dl aria-label="GhostGet in three points" class="hraness-marketing-pillars" data-hraness-marketing="pillars">
             <div><dt>Read</dt><dd>Turn a public URL into Markdown your agent can inspect on the spot or keep in a local knowledge base.</dd></div>
@@ -121,7 +121,7 @@ This domain is for use in documentation examples without needing permission. Avo
         <section aria-labelledby="how-it-works-heading" class="hraness-marketing-section" data-hraness-marketing="section" data-layout="split" id="how-it-works">
           <div class="hraness-marketing-section__heading-group">
             <p class="home-eyebrow">How it works</p>
-            <h2 class="hraness-marketing-section__heading" id="how-it-works-heading">Give your agent a web task.</h2>
+            <h2 class="hraness-marketing-section__heading" id="how-it-works-heading">{{PORTFOLIO_HEADING:how-it-works-heading}}</h2>
             <p class="hraness-marketing-section__summary">GhostGet runs supported actions and returns their results. Connect an account only when the action needs one.</p>
           </div>
           <div class="hraness-marketing-section__body">
@@ -141,7 +141,7 @@ This domain is for use in documentation examples without needing permission. Avo
         <section aria-labelledby="measured-heading" class="hraness-marketing-section" data-hraness-marketing="section" data-layout="stack" id="measured">
           <div class="hraness-marketing-section__heading-group">
             <p class="home-eyebrow">Measured</p>
-            <h2 class="hraness-marketing-section__heading" id="measured-heading">Read the page without its HTML.</h2>
+            <h2 class="hraness-marketing-section__heading" id="measured-heading">{{PORTFOLIO_HEADING:measured-heading}}</h2>
             <p class="hraness-marketing-section__summary">These September 22, 2026 reads returned Markdown and capture details. Each completed over HTTP without a browser. The table compares bytes, not token counts or billing.</p>
           </div>
           <div class="hraness-marketing-section__body">
@@ -163,7 +163,7 @@ This domain is for use in documentation examples without needing permission. Avo
         <section aria-labelledby="providers-title" class="hraness-marketing-section provider-section" data-hraness-marketing="section" data-layout="stack" id="providers">
           <div class="hraness-marketing-section__heading-group">
             <p class="home-eyebrow">Providers</p>
-            <h2 id="providers-title">Use {{PROVIDER_SURFACE_COUNT}} services from your agent.</h2>
+            <h2 id="providers-title">{{PORTFOLIO_HEADING:home-providers}}</h2>
             <p class="hraness-marketing-section__summary">Choose a service to see its supported actions and connection instructions.</p>
           </div>
           <div class="hraness-marketing-section__body">
@@ -172,7 +172,7 @@ This domain is for use in documentation examples without needing permission. Avo
             </div>
             <div class="registry-panel">
               <div class="registry-panel-copy">
-                <h3>Plus {{WEBMCP_REGISTRY_SITE_COUNT}} sites publishing WebMCP tools</h3>
+                <h3>{{PORTFOLIO_HEADING:home-webmcp-sites}}</h3>
                 <p>
                   The bundled <code>webmcp</code> adapter reads tool schemas
                   from the public <a href="https://wmcp.ai">WebMCP Registry</a>
@@ -195,7 +195,7 @@ This domain is for use in documentation examples without needing permission. Avo
         <section aria-labelledby="start-heading" class="start-section hraness-marketing-install" data-hraness-marketing="install" id="start">
           <div class="hraness-marketing-install__heading-group">
             <p class="home-eyebrow">Get started</p>
-            <h2 class="hraness-marketing-install__heading" id="start-heading">Tell your agent, or run two commands.</h2>
+            <h2 class="hraness-marketing-install__heading" id="start-heading">{{PORTFOLIO_HEADING:start-heading}}</h2>
             <p class="install-summary">Ask your agent to install GhostGet, or run the commands below with <a href="https://bun.sh/docs/installation">Bun 1.3.14</a> on macOS or Linux. They install the <a href="{{GHOSTGET_PACKAGE_ARTIFACT}}"><code>@hraness/ghostget</code> release archive</a> and read a public page. No account is needed.</p>
             {{GHOSTGET_PLATFORM_BADGES}}
           </div>
@@ -231,20 +231,20 @@ This domain is for use in documentation examples without needing permission. Avo
         <section aria-labelledby="interfaces-title" class="hraness-marketing-interfaces" data-hraness-marketing="interfaces" id="interfaces">
           <header class="hraness-marketing-interfaces__header">
             <p class="home-eyebrow">Interfaces</p>
-            <h2 class="hraness-marketing-interfaces__heading" id="interfaces-title">Use an Agent Skill, CLI, or TypeScript SDK</h2>
+            <h2 class="hraness-marketing-interfaces__heading" id="interfaces-title">{{PORTFOLIO_HEADING:interfaces-title}}</h2>
             <p>Use GhostGet from your own agent, terminal, or TypeScript program. It runs locally; there is no hosted API or MCP server.</p>
           </header>
           <div class="hraness-marketing-interface-grid">
-            <article class="hraness-marketing-interface"><h3 class="hraness-marketing-interface__heading">Agent Skill</h3><p>Give your agent a guide to reading pages, using accounts, and saving media.</p><div class="hraness-marketing-proof-frame" data-hraness-marketing="proof-frame"><div aria-hidden="true" class="hraness-marketing-proof-frame__chrome"><span class="hraness-marketing-proof-frame__lights"><span class="hraness-marketing-proof-frame__light"></span><span class="hraness-marketing-proof-frame__light"></span><span class="hraness-marketing-proof-frame__light"></span></span><span class="hraness-marketing-proof-frame__title">Agent Skill · Terminal</span></div><div class="hraness-marketing-proof-frame__content"><pre tabindex="0" aria-label="Install the GhostGet Agent Skill">{{GHOSTGET_SKILL_CODE}}</pre></div></div></article>
-            <article class="hraness-marketing-interface"><h3 class="hraness-marketing-interface__heading">CLI</h3><p>Use stable human output or JSON from a terminal, a script, or an agent tool call.</p><div class="hraness-marketing-proof-frame" data-hraness-marketing="proof-frame"><div aria-hidden="true" class="hraness-marketing-proof-frame__chrome"><span class="hraness-marketing-proof-frame__lights"><span class="hraness-marketing-proof-frame__light"></span><span class="hraness-marketing-proof-frame__light"></span><span class="hraness-marketing-proof-frame__light"></span></span><span class="hraness-marketing-proof-frame__title">Capabilities · Terminal</span></div><div class="hraness-marketing-proof-frame__content"><pre tabindex="0" aria-label="List GhostGet capabilities">{{GHOSTGET_CAPABILITIES_CODE}}</pre></div></div></article>
-            <article class="hraness-marketing-interface"><h3 class="hraness-marketing-interface__heading">TypeScript SDK</h3><p>Use the SDK’s types and validators in your own tools.</p><pre tabindex="0" aria-label="Import the TypeScript SDK">{{GHOSTGET_SDK_CODE}}</pre></article>
+            <article class="hraness-marketing-interface"><h3 class="hraness-marketing-interface__heading">{{PORTFOLIO_HEADING:agent-skill}}</h3><p>Give your agent a guide to reading pages, using accounts, and saving media.</p><div class="hraness-marketing-proof-frame" data-hraness-marketing="proof-frame"><div aria-hidden="true" class="hraness-marketing-proof-frame__chrome"><span class="hraness-marketing-proof-frame__lights"><span class="hraness-marketing-proof-frame__light"></span><span class="hraness-marketing-proof-frame__light"></span><span class="hraness-marketing-proof-frame__light"></span></span><span class="hraness-marketing-proof-frame__title">Agent Skill · Terminal</span></div><div class="hraness-marketing-proof-frame__content"><pre tabindex="0" aria-label="Install the GhostGet Agent Skill">{{GHOSTGET_SKILL_CODE}}</pre></div></div></article>
+            <article class="hraness-marketing-interface"><h3 class="hraness-marketing-interface__heading">{{PORTFOLIO_HEADING:cli}}</h3><p>Use stable human output or JSON from a terminal, a script, or an agent tool call.</p><div class="hraness-marketing-proof-frame" data-hraness-marketing="proof-frame"><div aria-hidden="true" class="hraness-marketing-proof-frame__chrome"><span class="hraness-marketing-proof-frame__lights"><span class="hraness-marketing-proof-frame__light"></span><span class="hraness-marketing-proof-frame__light"></span><span class="hraness-marketing-proof-frame__light"></span></span><span class="hraness-marketing-proof-frame__title">Capabilities · Terminal</span></div><div class="hraness-marketing-proof-frame__content"><pre tabindex="0" aria-label="List GhostGet capabilities">{{GHOSTGET_CAPABILITIES_CODE}}</pre></div></div></article>
+            <article class="hraness-marketing-interface"><h3 class="hraness-marketing-interface__heading">{{PORTFOLIO_HEADING:typescript-sdk}}</h3><p>Use the SDK’s types and validators in your own tools.</p><pre tabindex="0" aria-label="Import the TypeScript SDK">{{GHOSTGET_SDK_CODE}}</pre></article>
           </div>
         </section>
 
         <section aria-labelledby="control-heading" class="hraness-marketing-section" data-hraness-marketing="section" data-layout="split" id="control-panel">
           <div class="hraness-marketing-section__heading-group">
             <p class="home-eyebrow">Terminal controls</p>
-            <h2 class="hraness-marketing-section__heading" id="control-heading">Review accounts and approvals.</h2>
+            <h2 class="hraness-marketing-section__heading" id="control-heading">{{PORTFOLIO_HEADING:control-heading}}</h2>
             <p class="hraness-marketing-section__summary">Review connected accounts, permissions, pending approvals, recent activity, and saved output files from the terminal. Your agent reads the same state with <code>--json</code>.</p>
           </div>
           <div class="hraness-marketing-section__body">
@@ -262,7 +262,7 @@ This domain is for use in documentation examples without needing permission. Avo
         <section aria-labelledby="local-by-design-title" class="hraness-marketing-trust" data-hraness-marketing="trust" id="local-by-design">
           <header class="hraness-marketing-trust__header">
             <p class="home-eyebrow">Safety and limits</p>
-            <h2 class="hraness-marketing-trust__heading" id="local-by-design-title">Choose what your agent can do.</h2>
+            <h2 class="hraness-marketing-trust__heading" id="local-by-design-title">{{PORTFOLIO_HEADING:local-by-design-title}}</h2>
             <p>Connections and saved results stay on your machine. Actions contact the service you choose.</p>
           </header>
           <dl class="hraness-marketing-trust-grid">
@@ -280,7 +280,7 @@ This domain is for use in documentation examples without needing permission. Avo
         <section aria-labelledby="comparison-title" class="hraness-marketing-section" data-hraness-marketing="section" data-layout="stack" id="how-it-fits">
           <div class="hraness-marketing-section__heading-group">
             <p class="home-eyebrow">Compare</p>
-            <h2 class="hraness-marketing-section__heading" id="comparison-title">How GhostGet compares with other ways agents reach the web.</h2>
+            <h2 class="hraness-marketing-section__heading" id="comparison-title">{{PORTFOLIO_HEADING:comparison-title}}</h2>
             <p class="hraness-marketing-section__summary">Browser tools give the model a browser to drive. Reader services fetch pages on their own servers. Integration platforms manage your sign-ins for you. GhostGet runs reviewed actions on your machine and returns one result. <a href="/compare/">Compare the approaches</a> in detail.</p>
           </div>
           <div class="hraness-marketing-section__body">
@@ -307,7 +307,7 @@ This domain is for use in documentation examples without needing permission. Avo
         <section aria-labelledby="faq-title" class="hraness-marketing-questions" data-hraness-marketing="questions" id="questions">
           <header class="hraness-marketing-questions__header">
             <p class="home-eyebrow">Questions</p>
-            <h2 class="hraness-marketing-questions__heading" id="faq-title">Before you install.</h2>
+            <h2 class="hraness-marketing-questions__heading" id="faq-title">{{PORTFOLIO_HEADING:faq-title}}</h2>
           </header>
           <div class="hraness-marketing-question-list">
             <details class="hraness-marketing-question"><summary>Which agents does it work with?</summary><div class="hraness-marketing-question__answer"><p>Any agent that can run commands: Claude Code, Codex, Cursor, Gemini CLI, or your own. The optional <a href="{{GHOSTGET_SKILLS}}">Agent Skill</a> teaches it the GhostGet commands and their limits in one step.</p></div></details>
@@ -327,28 +327,28 @@ This domain is for use in documentation examples without needing permission. Avo
           <section aria-labelledby="guides-title" class="section guide-cluster">
             <div class="section-heading section-heading-wide">
               <p class="eyebrow home-eyebrow">Documentation</p>
-              <h2 id="guides-title">Start with the outcome you need.</h2>
+              <h2 id="guides-title">{{PORTFOLIO_HEADING:guides-title}}</h2>
               <p>Each guide covers the current release, the commands to use, and the limits that apply.</p>
             </div>
             <div class="card-grid">
-              <article class="card"><h3><a href="/docs/tutorials/getting-started/">Read your first page</a></h3><p>Install the CLI, read a public page, then choose saving, account setup, or local controls.</p></article>
-              <article class="card"><h3><a href="/docs/how-to/capture-and-archive/">Capture URLs and archive media</a></h3><p>Read a page, save its Markdown, or keep a media item for later.</p></article>
-              <article class="card"><h3><a href="/docs/reference/provider-capabilities/">Check provider support</a></h3><p>See every provider action available in the current release and the access method it uses.</p></article>
-              <article class="card"><h3><a href="/docs/explanation/security-model/">Understand the security model</a></h3><p>How GhostGet keeps sign-ins on your machine, ties each action to one account, and handles a write whose outcome is unknown.</p></article>
-              <article class="card"><h3><a href="/docs/how-to/author-provider-plugin/">Author a provider plugin</a></h3><p>Add a supported action for another service and test its requests and results.</p></article>
-              <article class="card"><h3><a href="/docs/">Browse the documentation</a></h3><p>Every guide organized by job: tutorial, how-to, explanation, and reference.</p></article>
+              <article class="card"><h3><a href="/docs/tutorials/getting-started/">{{PORTFOLIO_HEADING:read-your-first-page}}</a></h3><p>Install the CLI, read a public page, then choose saving, account setup, or local controls.</p></article>
+              <article class="card"><h3><a href="/docs/how-to/capture-and-archive/">{{PORTFOLIO_HEADING:capture-urls-and-archive-media}}</a></h3><p>Read a page, save its Markdown, or keep a media item for later.</p></article>
+              <article class="card"><h3><a href="/docs/reference/provider-capabilities/">{{PORTFOLIO_HEADING:check-provider-support}}</a></h3><p>See every provider action available in the current release and the access method it uses.</p></article>
+              <article class="card"><h3><a href="/docs/explanation/security-model/">{{PORTFOLIO_HEADING:understand-the-security-model}}</a></h3><p>How GhostGet keeps sign-ins on your machine, ties each action to one account, and handles a write whose outcome is unknown.</p></article>
+              <article class="card"><h3><a href="/docs/how-to/author-provider-plugin/">{{PORTFOLIO_HEADING:author-a-provider-plugin}}</a></h3><p>Add a supported action for another service and test its requests and results.</p></article>
+              <article class="card"><h3><a href="/docs/">{{PORTFOLIO_HEADING:browse-the-documentation}}</a></h3><p>Every guide organized by job: tutorial, how-to, explanation, and reference.</p></article>
             </div>
           </section>
 
           <section aria-labelledby="arguments-title" class="section editorial-cluster">
             <div class="section-heading section-heading-wide">
               <p class="eyebrow home-eyebrow">Essays</p>
-              <h2 id="arguments-title">Arguments and comparisons</h2>
+              <h2 id="arguments-title">{{PORTFOLIO_HEADING:arguments-title}}</h2>
               <p>How named actions differ from browser control and the other ways agents reach the web.</p>
             </div>
             <div class="card-grid editorial-card-grid">
               {{EDITORIAL_CARDS}}
-              <article class="card"><h3><a href="/compare/">How agents reach the web</a></h3><p>Browser tools, reader services, and integration platforms compared with GhostGet’s named actions.</p></article>
+              <article class="card"><h3><a href="/compare/">{{PORTFOLIO_HEADING:how-agents-reach-the-web}}</a></h3><p>Browser tools, reader services, and integration platforms compared with GhostGet’s named actions.</p></article>
             </div>
           </section>
         </div>
@@ -356,7 +356,7 @@ This domain is for use in documentation examples without needing permission. Avo
         <section aria-labelledby="maker-title" class="hraness-marketing-maker" data-hraness-marketing="maker" id="maker">
           <header class="hraness-marketing-maker__header">
             <p class="home-eyebrow">Made by</p>
-            <h2 class="hraness-marketing-maker__heading" id="maker-title">Hraness</h2>
+            <h2 class="hraness-marketing-maker__heading" id="maker-title">{{PORTFOLIO_HEADING:maker-title}}</h2>
           </header>
           <div class="hraness-marketing-maker__body">
             <p>GhostGet is built by Hraness, a software studio in Puerto Rico. We build tools that give AI agents memory, context, web access, and a record of their work, and we make apps and sourced archives for people.</p>
@@ -376,12 +376,12 @@ This domain is for use in documentation examples without needing permission. Avo
         <section aria-labelledby="related-title" class="hraness-marketing-related" data-hraness-marketing="related" id="related">
           <header class="hraness-marketing-related__header">
             <p class="home-eyebrow">Related</p>
-            <h2 class="hraness-marketing-related__heading" id="related-title">From the same studio.</h2>
+            <h2 class="hraness-marketing-related__heading" id="related-title">{{PORTFOLIO_HEADING:related-title}}</h2>
             <p class="hraness-marketing-related__summary">Other Hraness tools for agents and the people who use them.</p>
           </header>
           <div class="hraness-marketing-related__group">
             <div class="hraness-marketing-related__group-header">
-              <h3 class="hraness-marketing-related__group-heading" id="related-tools">The agent platform</h3>
+              <h3 class="hraness-marketing-related__group-heading" id="related-tools">{{PORTFOLIO_HEADING:related-tools}}</h3>
               <p class="hraness-marketing-related__group-summary">The layer your agent runs through: sessions, accounts, web reads, and the models behind them.</p>
             </div>
             <div aria-label="The agent platform" class="hraness-marketing-card-row" data-hraness-marketing="card-row">
@@ -390,7 +390,7 @@ This domain is for use in documentation examples without needing permission. Avo
           </div>
           <div class="hraness-marketing-related__group">
             <div class="hraness-marketing-related__group-header">
-              <h3 class="hraness-marketing-related__group-heading" id="related-apps">The personal apps</h3>
+              <h3 class="hraness-marketing-related__group-heading" id="related-apps">{{PORTFOLIO_HEADING:related-apps}}</h3>
             </div>
             <div aria-label="The personal apps" class="hraness-marketing-card-row" data-hraness-marketing="card-row">
               {{RELATED_APP_CARDS}}
@@ -399,10 +399,10 @@ This domain is for use in documentation examples without needing permission. Avo
         </section>
 
         <section aria-labelledby="final-title" class="hraness-marketing-cta" data-hraness-marketing="cta" data-tone="paper" id="closing">
-          <h2 class="hraness-marketing-cta__heading" id="final-title">Read your first page in two commands.</h2>
+          <h2 class="hraness-marketing-cta__heading" id="final-title">{{PORTFOLIO_HEADING:final-title}}</h2>
           <p class="hraness-marketing-cta__summary">Start with one public page and no account or API key. Connect a service when you need its actions.</p>
           <div class="hraness-marketing-cta__actions">
-            <a class="hraness-marketing-action" data-analytics-cta="final-install" data-emphasis="primary" href="#start">Install GhostGet</a>
+            <a class="hraness-marketing-action" data-analytics-cta="final-install" data-emphasis="primary" href="#start">{{PORTFOLIO_PRIMARY_ACTION}}</a>
           </div>
         </section>
       </div>

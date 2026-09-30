@@ -63,7 +63,7 @@ GhostGet does not get past sign-in, payment, access controls, or DRM. Some servi
 Post 10 of 10, 192 characters
 
 ```text
-GhostGet is free, MIT licensed, and runs on macOS and Linux. The first step reads a public page and needs no account. Latest release: v0.18.57.
+GhostGet is free, MIT licensed, and runs on macOS and Linux. The first step reads a public page and needs no account. Latest release: v0.18.58.
 
 https://ghostget.com/blog/introducing-ghostget/
 ```
@@ -127,7 +127,7 @@ GhostGet does not get past sign-in, payment, access controls, or DRM. Some servi
 Post 10 of 10, 192 characters
 
 ```text
-GhostGet is free, MIT licensed, and runs on macOS and Linux. The first step reads a public page and needs no account. Latest release: v0.18.57.
+GhostGet is free, MIT licensed, and runs on macOS and Linux. The first step reads a public page and needs no account. Latest release: v0.18.58.
 
 https://ghostget.com/blog/introducing-ghostget/
 ```
@@ -191,7 +191,7 @@ GhostGet does not get past sign-in, payment, access controls, or DRM. Some servi
 Post 10 of 10, 192 characters
 
 ```text
-GhostGet is free, MIT licensed, and runs on macOS and Linux. The first step reads a public page and needs no account. Latest release: v0.18.57.
+GhostGet is free, MIT licensed, and runs on macOS and Linux. The first step reads a public page and needs no account. Latest release: v0.18.58.
 
 https://ghostget.com/blog/introducing-ghostget/
 ```
@@ -217,7 +217,7 @@ The plan is for GhostGet to stay small. Your agent does the thinking, and GhostG
 
 GhostGet does not get past sign-in, payment, access controls, or DRM. Some services need their own setup first, and not everything it stores is encrypted. Its claims register lists 19 claims with no automated check yet.
 
-GhostGet is free, MIT licensed, and runs on macOS and Linux. The first step reads a public page and needs no account. Latest release: v0.18.57.
+GhostGet is free, MIT licensed, and runs on macOS and Linux. The first step reads a public page and needs no account. Latest release: v0.18.58.
 
 https://ghostget.com/blog/introducing-ghostget/
 ```
@@ -245,8 +245,8 @@ Topics: Developer Tools, Artificial Intelligence, Open Source
 - Anything beyond a read starts as a preview that shows the account, the recipient, and the exact text. Your agent can prepare it. Nothing is sent until someone confirms that exact preview.
 - GhostGet is for Claude Code, Codex, Cursor, and other agents that run commands on your Mac or Linux machine. If you need an agent to click through any site or fill in any form, use browser automation.
 - GhostGet does not get past sign-in, payment, access controls, or DRM. Some services need their own setup first, and not everything it stores is encrypted. Its claims register lists 19 claims with no automated check yet.
-- GhostGet is free, MIT licensed, and runs on macOS and Linux. The first step reads a public page and needs no account. Latest release: v0.18.57.
-- Latest release: v0.18.57. https://ghostget.com/blog/introducing-ghostget/
+- GhostGet is free, MIT licensed, and runs on macOS and Linux. The first step reads a public page and needs no account. Latest release: v0.18.58.
+- Latest release: v0.18.58. https://ghostget.com/blog/introducing-ghostget/
 
 ## Beats
 
@@ -269,4 +269,4 @@ Topics: Developer Tools, Artificial Intelligence, Open Source
 - measuredOn: September 22, 2026. website/source/index.html, Measured table summary
 - serviceCount: 21. website/provider-presentation.ts createProviderDirectory().providerCount
 - claimsNotVerified: 19. verification/claims.json, status not-verified
-- status: Latest release: v0.18.57. package.json version
+- status: Latest release: v0.18.58. package.json version

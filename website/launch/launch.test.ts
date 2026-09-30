@@ -12,6 +12,7 @@ import { LAUNCH_CLAIMS_NOT_VERIFIED, LAUNCH_MEASURED_READS, LAUNCH_RELEASE_VERSI
 import { LAUNCH_MOCKUP_IDS } from "./mockups.tsx";
 import { launchServicesFrom, renderLaunchBeatsHtml, renderLaunchMockupSlots } from "./render.tsx";
 import { launchMessaging, renderSocialKitMarkdown, socialKit } from "./social-kit.ts";
+import { SITE_DESCRIPTION } from "../build.ts";
 
 const repositoryRoot = join(import.meta.dir, "../..");
 // The provider modules reach into src/, which the root tsconfig checks without the DOM lib;
@@ -48,8 +49,7 @@ describe("launch facts", () => {
   });
 
   test("launch meta description equals the site description", async () => {
-    const build = await readFile(join(repositoryRoot, "website/build.ts"), "utf8");
-    expect(build).toContain(`export const SITE_DESCRIPTION =\n  ${JSON.stringify(launchMessaging.meta)} as const;`);
+    expect(SITE_DESCRIPTION).toBe(launchMessaging.meta);
   });
 });
 

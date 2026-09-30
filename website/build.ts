@@ -1,3 +1,4 @@
+import { marketing, product, renderMarketingCopy } from "./portfolio-copy";
 import { releaseArchiveUrl } from "./github-release-artifact.mjs";
 import { snapshotMarketingPreset } from "./marketing-preset";
 import { createHash } from "node:crypto";
@@ -43,7 +44,7 @@ import {
   claimsTemplateValues,
   readClaimsRegisterSource,
 } from "./claims-register";
-import { product, type PortfolioProductId } from "@hraness/design-kit/portfolio";
+import type { PortfolioProductId } from "@hraness/design-kit/portfolio";
 import { highlightCode, type SyntaxLanguage } from "@hraness/design-kit/syntax-highlighting";
 import { renderStatusPageHtml, type StatusPageLink } from "@hraness/design-kit";
 import { renderPlatformBadges, renderPlatformInstall } from "./platform-install";
@@ -110,14 +111,14 @@ import {
 /** Alt text for the static `/og.png` card, from the one social-image declaration. */
 export { SOCIAL_IMAGE_ALT };
 export const SITE_ORIGIN = "https://ghostget.com" as const;
-export const SITE_TITLE = "GhostGet: wget for the ghost in the machine." as const;
+export const SITE_TITLE = `${marketing.names.name} · ${marketing.tagline}`;
 /** The home page title: the product name plus the job and audience searchers use. */
-export const HOME_TITLE = "GhostGet: let AI agents read web pages and use your accounts" as const;
+export const HOME_TITLE = SITE_TITLE;
 export const SITE_DESCRIPTION =
-  "GhostGet gives your AI agent named web actions: read a page, archive one media item, or use a connected account, without credentials or a browser to steer." as const;
+  marketing.meta;
 export const BLOG_SITE: BlogSite = {
   description: SITE_DESCRIPTION,
-  name: "GhostGet",
+  name: marketing.names.name,
   origin: SITE_ORIGIN,
   socialImageAlt: SOCIAL_IMAGE_ALT,
   title: SITE_TITLE,
@@ -132,7 +133,7 @@ export const HRANESS_LOGO_URL = "https://hraness.com/icon.png" as const;
 export const HRANESS_LINKEDIN_URL = "https://www.linkedin.com/company/hraness" as const;
 export const NPM_PACKAGE_URL = "https://www.npmjs.com/package/@hraness/ghostget" as const;
 export const SKILL_REPOSITORY = "hraness/ghostget" as const;
-export const CONTENT_REVIEWED_RELEASE = "v0.18.57" as const;
+export const CONTENT_REVIEWED_RELEASE = "v0.18.58" as const;
 export const DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com" as const;
 export const DEMO_PUBLIC_FILES = [
   "wrench-first-capture.gif",
@@ -646,7 +647,7 @@ export const RELATED_CARD_GROUPS = {
 /**
  * Static related-product cards, as the shared `MarketingRelated` draws them:
  * the portfolio mark, the product name, and its one-line description. Every
- * fact comes from the pinned `@hraness/design-kit/portfolio` snapshot.
+ * Copy comes from the checked portfolio snapshot; artwork comes from the design kit.
  */
 export function renderRelatedCards(ids: readonly PortfolioProductId[]): string {
   return ids.map((id) => {
@@ -706,7 +707,7 @@ function sharedJsonLd(identity: PackageIdentity): ReadonlyArray<Readonly<Record<
       "@type": "WebSite",
       description: SITE_DESCRIPTION,
       inLanguage: "en",
-      name: "GhostGet",
+      name: marketing.names.name,
       publisher: { "@id": HRANESS_ORGANIZATION_ID },
       url: `${SITE_ORIGIN}/`,
     },
@@ -727,7 +728,7 @@ function sharedJsonLd(identity: PackageIdentity): ReadonlyArray<Readonly<Record<
       installUrl: `${SITE_ORIGIN}/docs/tutorials/getting-started/`,
       isAccessibleForFree: true,
       license: "https://opensource.org/license/mit",
-      name: "GhostGet",
+      name: marketing.names.name,
       offers: {
         "@type": "Offer",
         availability: "https://schema.org/InStock",
@@ -762,7 +763,7 @@ function jsonLd(identity: PackageIdentity, page: PublicPage): Readonly<Record<st
   const url = `${SITE_ORIGIN}${page.canonicalPath}`;
   const pageId = `${url}#webpage`;
   const isHome = page.canonicalPath === "/";
-  const homeCrumb = { item: `${SITE_ORIGIN}/`, name: "GhostGet" } as const;
+  const homeCrumb = { item: `${SITE_ORIGIN}/`, name: marketing.names.name } as const;
   const providerSegment = page.canonicalPath.startsWith("/providers/")
     ? page.canonicalPath.slice("/providers/".length, -1)
     : undefined;
@@ -922,6 +923,7 @@ function renderTemplate(
   let rendered = template.includes("{{LAUNCH_MOCKUP:")
     ? renderLaunchMockupSlots(template, launchServicesFrom(options.providerDirectory.entries))
     : template;
+  rendered = renderMarketingCopy(rendered);
   rendered = replaceHtmlRequired(rendered, "{{ANALYTICS_ASSET}}", escapeHtml(options.analyticsAsset));
   rendered = replaceHtmlRequired(rendered, "{{CSS_ASSET}}", escapeHtml(options.cssAsset));
   rendered = replaceHtmlRequired(rendered, "{{FOIL_ASSET}}", escapeHtml(options.foilAsset));
@@ -1142,7 +1144,7 @@ export function renderGhostgetStatusPage(routes: readonly StatusPageLink[]): str
     primaryAction: { href: "/#start", label: "Install GhostGet" },
     rootElement: "div",
     routes,
-    siteName: "GhostGet",
+    siteName: marketing.names.name,
   });
 }
 
