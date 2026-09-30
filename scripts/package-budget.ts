@@ -2300,23 +2300,23 @@
 // reproduced by a second pack. Preserve the projections and allowances:
 // 12,151,480 + 12,387 + 4,096 = 12,167,963 packed;
 // 24,042,836 + 353 + 65 = 24,043,254 unpacked.
-// Release 0.18.56 over main 53b3a60 (X contact display-name controls) moves
-// the active version pins, the changelog and the renamed version chunk.
+// Release 0.18.56 over main 884e8bc4 (X contact display-name controls and
+// launch kit) moves the active version pins, changelog and version chunk.
 // After `bun run build`, npm 11.19.0 pack --ignore-scripts with Node 24.20.0
-// on darwin arm64 measured 624 entries, 12,151,508 packed bytes, and
-// 24,042,944 unpacked bytes; archive SHA-256
-// 87dde01c4794277c1bb69cf8fb835015f2cf662873fcb048d8e0fd96c219989d,
+// (zlib 1.3.2.1-motley-42c2f19) on darwin arm64 measured 624 entries,
+// 12,151,529 packed bytes and 24,043,002 unpacked bytes; archive SHA-256
+// ce6eaab8a56052f7474838e4f27c30b987935d96714771b11652f56af67c72ae,
 // reproduced by a second pack. Preserve the projections and allowances:
-// 12,151,508 + 12,387 + 4,096 = 12,167,991 packed;
-// 24,042,944 + 353 + 65 = 24,043,362 unpacked.
+// 12,151,529 + 12,387 + 4,096 = 12,168,012 packed;
+// 24,043,002 + 353 + 65 = 24,043,420 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget 0.18.56 release over main 53b3a60",
+  scope: "Ghostget 0.18.56 release over main 884e8bc4",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "87dde01c4794277c1bb69cf8fb835015f2cf662873fcb048d8e0fd96c219989d",
-  packedBytes: 12_151_508,
-  unpackedBytes: 24_042_944,
+  archiveSha256: "ce6eaab8a56052f7474838e4f27c30b987935d96714771b11652f56af67c72ae",
+  packedBytes: 12_151_529,
+  unpackedBytes: 24_043_002,
   entryCount: 624,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
