@@ -1,3 +1,4 @@
+import { marketing } from "./portfolio-copy";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -7,25 +8,23 @@ import { defineSocialImageSite, socialImageAlt } from "@hraness/web-discovery/so
 const markSvg = readFileSync(join(import.meta.dir, "public", "marks", "wrench.svg"), "utf8");
 
 /**
- * The registry one-liner, shortened to fit the card's two description lines
- * and ended with a period like the site's other description copy.
+ * The portfolio's authored share-card variant fits without trimming.
  */
-export const SOCIAL_IMAGE_DESCRIPTION = "Named web actions for AI agents: read pages, save media, use accounts.";
+export const SOCIAL_IMAGE_DESCRIPTION = marketing.channels.social.imageDescription;
 
 /**
  * The one social-image declaration for ghostget.com. Every share card is
  * rendered from it by the shared @hraness/web-discovery template.
  */
 export const socialSite = defineSocialImageSite({
-  // SITE_DESCRIPTION and the registry one-liner both run past two card
-  // lines, so the card drops "connected" from the one-liner to fit two whole.
+  // The canonical site-card variant preserves the shared template's fit gate.
   description: SOCIAL_IMAGE_DESCRIPTION,
   domain: "ghostget.com",
   icon: {
     kind: "mark",
     src: `data:image/svg+xml;base64,${Buffer.from(markSvg, "utf8").toString("base64")}`,
   },
-  name: "GhostGet",
+  name: marketing.names.name,
   theme: {
     accent: "#2474d4",
     background: "#fbf1c7",

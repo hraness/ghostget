@@ -956,7 +956,7 @@
     {
       "guide": "website/AGENTS.md",
       "anchor": "The one-line description",
-      "digest": "64ad7bf406ca14b012c23afe88c89b17afe5b1fa096fed0424b08c3d836978fb",
+      "digest": "1d5350bff03a0c907e2e2249266fa224518b78d9be2692d8174a2e8586e286b1",
       "exempt": "Public-copy consistency rule that the website build enforces; it states no safety or integrity property."
     },
     {
@@ -968,13 +968,13 @@
     {
       "guide": "website/AGENTS.md",
       "anchor": "Describe a sibling",
-      "digest": "4468c62b7a209654a1325a23ce6414b6e30651525d5bc3ad37973d7ec8727d21",
+      "digest": "849bce5d8099234d6ddbd47c1abc89235c590fe53eb82df31f68c216793ea8e6",
       "exempt": "Editorial accuracy rule for sibling-product copy; no automated check covers it."
     },
     {
       "guide": "website/AGENTS.md",
       "anchor": "Use product names",
-      "digest": "5829232f1c6c88cdf2259303167e1d0eaaad10479faa043eb9b4c70e2afc6834",
+      "digest": "0549aa77a44f2dc46d4dfcba85087a549461e179348f24479fe3767a260db887",
       "exempt": "Public-copy naming rule; it states no safety or integrity property."
     }
   ],

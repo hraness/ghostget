@@ -19,6 +19,13 @@ import type { WebSessionOperationDeadline } from "./web-session-execution";
 const WEB_SESSION_OPERATION_LABEL = "authenticated web operation deadline";
 const MIN_PINNED_HTTPS_TIMEOUT_MS = 1_000;
 
+/** Fetch accepts ArrayBuffer-backed bytes; keep ordinary request bodies intact. */
+function httpRequestBody(body: string | Uint8Array): string | Uint8Array<ArrayBuffer> {
+  if (typeof body === "string") return body;
+  if (body.buffer instanceof ArrayBuffer) return body as Uint8Array<ArrayBuffer>;
+  return new Uint8Array(body);
+}
+
 export type WebSessionFetch = (
   input: string | URL | Request,
   init?: RequestInit,
@@ -647,7 +654,7 @@ export async function createWebSessionClient(
               {
                 method: request.method,
                 headers,
-                ...(request.body === undefined ? {} : { body: request.body }),
+                ...(request.body === undefined ? {} : { body: httpRequestBody(request.body) }),
                 redirect: "error",
                 signal: deadline.signal,
               },
@@ -770,7 +777,7 @@ export async function createWebSessionClient(
                 {
                   method: request.method,
                   headers,
-                  ...(request.body === undefined ? {} : { body: request.body }),
+                  ...(request.body === undefined ? {} : { body: httpRequestBody(request.body) }),
                   redirect: "error",
                   signal: deadline.signal,
                 },
@@ -966,7 +973,7 @@ export async function uploadPublicWebAsset(
             {
               method: "POST",
               headers,
-              body: options.body,
+              body: httpRequestBody(options.body),
               redirect: "error",
               signal: deadline.signal,
             },

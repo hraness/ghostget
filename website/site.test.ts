@@ -11,6 +11,7 @@ import {
   type HranessMailingListConfig,
 } from "@hraness/site-footer";
 import { product } from "@hraness/design-kit/portfolio";
+import { portfolio } from "./portfolio-copy";
 import { HranessSiteFooter } from "@hraness/site-footer/react";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -39,7 +40,6 @@ import {
   REPOSITORY_URL,
   SITE_DESCRIPTION,
   SITE_ORIGIN,
-  SITE_TITLE,
   SKILLS_URL,
   SOCIAL_IMAGE_ALT,
   versionedPackageArtifactUrl,
@@ -521,7 +521,6 @@ describe("ghostget.com static site", () => {
     expect(html).toContain(`<title>${HOME_TITLE}</title>`);
     expect(html).toContain(`<meta property="og:title" content="${HOME_TITLE}">`);
     expect(html).toContain(`<meta name="twitter:title" content="${HOME_TITLE}">`);
-    expect(html).not.toContain(`<title>${SITE_TITLE}</title>`);
     /* The shared brand lockup on every page: the pointer-tracked foil-text
        name plus the foil-mark icon whose paint is masked by the product
        mark's alpha — the same header convention across Hraness sites. */
@@ -640,11 +639,9 @@ describe("ghostget.com static site", () => {
     expect(guidesSection).not.toContain('class="card editorial-card"');
     // Task guides are the reader's next step after the FAQ; essays follow them.
     expect(html.indexOf(guidesSection ?? "")).toBeLessThan(html.indexOf(argumentsSection ?? ""));
-    expect(html).toContain(
-      '<h1 class="hraness-marketing-hero__heading" id="brand-name">wget for the ghost <span class="hero-heading-accent">in the machine.</span></h1>',
-    );
-    expect(html).not.toContain("Give your coding agent bounded access to the web.");
-    expect(html).not.toContain("Your agent calls web actions by name and holds no password.");
+    let heroHeading = "";
+    new HTMLRewriter().on("h1#brand-name", { text(chunk) { heroHeading += chunk.text; } }).transform(html);
+    expect(heroHeading.replace(/\s+/gu, " ").trim()).toBe(portfolio.messaging.hero.heading);
     // The limit on uncertain writes: never resent, and unsettled until
     // separate evidence arrives. Home page and README state it in the same words.
     const indeterminateWriteBoundary =
@@ -679,7 +676,11 @@ describe("ghostget.com static site", () => {
     expect(relatedSection).toBeDefined();
     expect(relatedSection).toContain('hraness-marketing-related__group-heading');
     for (const [id, href] of [["gobstopper", "https://gobstopper.sh"], ["xcb", "https://xcb.sh"], ["aicharts", "https://aicharts.io"], ["peopleblade", "https://peopleblade.com"], ["soulscrape", "https://soulscrape.com"], ["message-like-me", "https://textbutler.app"], ["kb", "https://wordcell.io"]] as const) {
-      const { mark, messaging, oneLiner } = product(id);
+      const { mark } = product(id);
+      const canonical = portfolio.projects.find(entry => entry.id === id);
+      if (canonical === undefined) throw new Error(`Missing canonical related product: ${id}`);
+      const messaging = { names: { name: canonical.name } };
+      const oneLiner = canonical.description;
       expect(relatedSection).toContain(`<a class="hraness-marketing-related__card" data-hraness-marketing="card" href="${href}"><span aria-hidden="true" class="hraness-marketing-related__card-mark"><img alt="" decoding="async" height="44" src="${mark.replaceAll("&", "&amp;").replaceAll('"', "&quot;")}" width="44"></span><span class="hraness-marketing-related__card-text"><h4 class="hraness-marketing-related__card-name">${messaging.names.name}</h4><span class="hraness-marketing-related__card-role">${oneLiner}</span></span></a>`);
     }
     expect(relatedSection).not.toMatch(/hraness-marketing-card__(?:title|meta|body)/u);

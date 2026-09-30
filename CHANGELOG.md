@@ -7,6 +7,15 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.58
+
+This release aligns GhostGet's website copy with the shared Hraness portfolio.
+
+- Use one reviewed product record for the website name, descriptions, hero,
+  headings, navigation labels, and social metadata.
+- Accept SharedArrayBuffer-backed request bodies without changing ordinary
+  request bodies or sending bytes outside the selected buffer view.
+
 ## 0.18.57
 
 This release lets WhatsApp interaction counts work after supported linked-device
