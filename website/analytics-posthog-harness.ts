@@ -67,7 +67,8 @@ const probes: ReadonlyArray<readonly [string, Record<string, string>]> = [
   ["page not found", {}],
   ["$autocapture", {}],
 ];
-for (const [event, properties] of probes) posthog.capture(event, properties, instantly);
+const extraProperties = JSON.parse(process.env.HARNESS_PROPERTIES ?? "{}") as Record<string, unknown>;
+for (const [event, properties] of probes) posthog.capture(event, { ...extraProperties, ...properties }, instantly);
 createExceptionReporter(posthog)(new Error("failed https://ghostget.com/docs/?email=reader@example.com"), "window_error");
 for (const deadline = Date.now() + 5_000; sent.length < 3 && Date.now() < deadline;) {
   await new Promise((resolve) => setTimeout(resolve, 10));

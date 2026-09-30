@@ -1663,11 +1663,11 @@
     },
     {
       "id": "approval-allow-once",
-      "statement": "An allow-once approval admits one exact pending request at most once (allowed implies uses \u2264 1), including across client crash, expiry, and reconnect; drift, expiry, and shutdown revoke proofs.",
+      "statement": "An allow-once approval admits one exact pending request at most once (allowed implies uses ≤ 1), including across client crash, expiry, and reconnect; drift, expiry, and shutdown revoke proofs.",
       "area": "control",
       "source": {
         "path": "kb/plans/formal-verification-assurance.md",
-        "quote": "Model digest binding at dispatch, lease expiry, crash, and reconnect. The invariant `allowed \u21d2 uses \u2264 1` drives the fix for D13."
+        "quote": "Model digest binding at dispatch, lease expiry, crash, and reconnect. The invariant `allowed ⇒ uses ≤ 1` drives the fix for D13."
       },
       "layer": "quint",
       "status": "evidenced",
@@ -2134,7 +2134,7 @@
       ],
       "notVerified": [
         "Only the enumerated example cases are checked.",
-        "Revalidation compares disk bytes under a single-writer assumption, so an A\u2192B\u2192A edit between the checks passes."
+        "Revalidation compares disk bytes under a single-writer assumption, so an A→B→A edit between the checks passes."
       ]
     },
     {
@@ -2345,7 +2345,7 @@
       ],
       "assumptions": [],
       "notVerified": [
-        "Key-set checks inside browser-injected script text run in the foreign page\u2019s context and cannot import the shared helper; they are kept self-contained and are outside this AST-scanned rule (their bytes feed contract hashes, which pin them).",
+        "Key-set checks inside browser-injected script text run in the foreign page’s context and cannot import the shared helper; they are kept self-contained and are outside this AST-scanned rule (their bytes feed contract hashes, which pin them).",
         "The lint guards the equality-compare shape in non-test TypeScript under src/; a local exactKeys variant in local-cli-tool-identity.ts keeps its optional-key semantics, and the injected hasExactKeys dependency in confirmed-write-platform.ts is a separately owned local implementation."
       ],
       "properties": [
@@ -2455,7 +2455,7 @@
     },
     {
       "id": "collection-plan-read-only-bounded",
-      "statement": "collection-plan.v1 requires risk R1 and sideEffect none and enforces bounds (64 accounts, 8 reads per account, 128 total, 16 metric keys, delay \u2264 600000 ms, input \u2264 32 keys depth 8, canonical credential-free target URLs).",
+      "statement": "collection-plan.v1 requires risk R1 and sideEffect none and enforces bounds (64 accounts, 8 reads per account, 128 total, 16 metric keys, delay ≤ 600000 ms, input ≤ 32 keys depth 8, canonical credential-free target URLs).",
       "area": "contracts",
       "source": {
         "path": "docs/contracts.md",
@@ -2679,7 +2679,7 @@
       "area": "encoding",
       "source": {
         "path": "kb/plans/formal-verification-assurance.md",
-        "quote": "The length-framed hash input and the `json \u2016 0x00 \u2016 32-byte` suffix are injective."
+        "quote": "The length-framed hash input and the `json ‖ 0x00 ‖ 32-byte` suffix are injective."
       },
       "layer": "lean",
       "status": "evidenced",
@@ -3404,7 +3404,7 @@
       "area": "storage",
       "source": {
         "path": "kb/plans/formal-verification-assurance.md",
-        "quote": "The invariant is `|{p : critical(p)}| \u2264 1`."
+        "quote": "The invariant is `|{p : critical(p)}| ≤ 1`."
       },
       "layer": "quint",
       "status": "evidenced",
@@ -3507,7 +3507,7 @@
       "area": "storage",
       "source": {
         "path": "kb/plans/formal-verification-assurance.md",
-        "quote": "Identifier grammars, and route, operation, and session-secret composite keys: `parse \u2218 format = id` and the keys are unambiguous."
+        "quote": "Identifier grammars, and route, operation, and session-secret composite keys: `parse ∘ format = id` and the keys are unambiguous."
       },
       "layer": "lean",
       "status": "evidenced",
@@ -4284,7 +4284,7 @@
     },
     {
       "id": "mutation-idempotency-key",
-      "statement": "Every mutating route declares `idempotency: local-at-most-once` with a dedupe window of at least 60 seconds, so a retried write is refused while an unsettled same-intent journal exists and while a fulfilled journal\u2019s dedupe window or duplicate-intent record still holds \u2014 a provider charge happens at most once per intent within its window. `idempotency: none` routes are dispatch-free by contract. After the window expires, a retry is admitted as a new charged attempt.",
+      "statement": "Every mutating route declares `idempotency: local-at-most-once` with a dedupe window of at least 60 seconds, so a retried write is refused while an unsettled same-intent journal exists and while a fulfilled journal’s dedupe window or duplicate-intent record still holds — a provider charge happens at most once per intent within its window. `idempotency: none` routes are dispatch-free by contract. After the window expires, a retry is admitted as a new charged attempt.",
       "area": "costs",
       "source": {
         "path": "AGENTS.md",
@@ -5082,7 +5082,7 @@
       "area": "release",
       "source": {
         "path": "AGENTS.md",
-        "quote": "Before the sole write-capable job checks out source, use only `actions:read` to bind the exact current attempt\u2014including both `actor` and `triggering_actor`"
+        "quote": "Before the sole write-capable job checks out source, use only `actions:read` to bind the exact current attempt—including both `actor` and `triggering_actor`"
       },
       "layer": "example",
       "status": "evidenced",
@@ -5620,7 +5620,7 @@
       "area": "npm",
       "source": {
         "path": "AGENTS.md",
-        "quote": "Before `publish_npm` sets up npm or mints OIDC, bind its current attempt\u2014including both `actor` and `triggering_actor`\u2014to owner User `894119`"
+        "quote": "Before `publish_npm` sets up npm or mints OIDC, bind its current attempt—including both `actor` and `triggering_actor`—to owner User `894119`"
       },
       "layer": "example",
       "status": "evidenced",
@@ -5789,7 +5789,7 @@
       "area": "npm",
       "source": {
         "path": "AGENTS.md",
-        "quote": "permit no top-level `tag` plus only `publishConfig.access=public` and the canonical npm registry\u2014reject scoped registries, proxies, credentials, and all other publication settings."
+        "quote": "permit no top-level `tag` plus only `publishConfig.access=public` and the canonical npm registry—reject scoped registries, proxies, credentials, and all other publication settings."
       },
       "layer": "example",
       "status": "evidenced",
@@ -6624,12 +6624,12 @@
         "`verification/quint/promotion.qnt` checks one run of the website production workflow after its verify job, with seven abstract commits, one release tag, and a three-observation poll budget, against an environment that may move protected main, the production ref, and the tag, replace Latest, finish or fail the Vercel deployment, change the apex marker, and arm one of ten readback drifts between the two terminal readbacks. Quint simulation checks it with 3,000 samples of up to 14 steps and Apalache to length 11 in the Required verification job (every mutant step is found at that length; at length 10 the single-readback mutant is not), and the nightly workflow repeats it with 10,000 samples of up to 20 steps and Apalache to length 12.",
         "Its ITF replay runs the production `revalidateReleaseAuthority`, `createProviderBaseline`, `promoteWebsiteProduction`, and `waitForProviderOutcome` on 300 traces of up to 14 steps per step relation, and the production writer's real `/usr/bin/git` tag fetch, peel, and `--force-with-lease` push against a local bare repository. GitHub's REST and GraphQL answers and the public site are stubs computed from the model state, and longer schedules, more commits, and the production poll budget of 20 are not modelled.",
         "The replay's remote is a local bare repository, not GitHub. GitHub's ref-update ruleset and non-fast-forward rule are assumed under `github-enforcement`. That the workflow never creates, deletes, or recreates the branch, that the tag is fetched through the private askpass token, and that the peel executes no tagged code rest on the writer's fixed argument lists, which only the example tests in `scripts/npm-release-workflow.test.ts` check, and on the production-ref lifecycle ruleset, which only a live readback checks.",
-        "Defect found and fixed here: `git push --porcelain` reports a stale `--force-with-lease` as `=` `[up to date]` with exit status 0 when the remote already holds the pushed commit, and the writer accepted that as its own update. It now requires the one porcelain update line from the leased SHA to the release SHA; the test \u201cfails a leased write closed when the remote already holds the release commit\u201d fails on the previous writer, and the replay's seeded `force-push` defect diverges from the model."
+        "Defect found and fixed here: `git push --porcelain` reports a stale `--force-with-lease` as `=` `[up to date]` with exit status 0 when the remote already holds the pushed commit, and the writer accepted that as its own update. It now requires the one porcelain update line from the leased SHA to the release SHA; the test “fails a leased write closed when the remote already holds the release commit” fails on the previous writer, and the replay's seeded `force-push` defect diverges from the model."
       ]
     },
     {
       "id": "promotion-c-le-w-le-m",
-      "statement": "Promotion proves release commit C \u2264 reviewed workflow source W \u2264 protected current main M at every authority check before any provider or ref work, accepts only identical or strictly linear-forward movement of main, rejects rollback or divergence, and binds package, tag, Release, deployment, and production-ref identity to C.",
+      "statement": "Promotion proves release commit C ≤ reviewed workflow source W ≤ protected current main M at every authority check before any provider or ref work, accepts only identical or strictly linear-forward movement of main, rejects rollback or divergence, and binds package, tag, Release, deployment, and production-ref identity to C.",
       "area": "promotion",
       "source": {
         "path": "AGENTS.md",
@@ -6651,7 +6651,7 @@
       "notVerified": [
         "`verification/quint/promotion.qnt` checks one run of the website production workflow after its verify job, with seven abstract commits, one release tag, and a three-observation poll budget, against an environment that may move protected main, the production ref, and the tag, replace Latest, finish or fail the Vercel deployment, change the apex marker, and arm one of ten readback drifts between the two terminal readbacks. Quint simulation checks it with 3,000 samples of up to 14 steps and Apalache to length 11 in the Required verification job (every mutant step is found at that length; at length 10 the single-readback mutant is not), and the nightly workflow repeats it with 10,000 samples of up to 20 steps and Apalache to length 12.",
         "Its ITF replay runs the production `revalidateReleaseAuthority`, `createProviderBaseline`, `promoteWebsiteProduction`, and `waitForProviderOutcome` on 300 traces of up to 14 steps per step relation, and the production writer's real `/usr/bin/git` tag fetch, peel, and `--force-with-lease` push against a local bare repository. GitHub's REST and GraphQL answers and the public site are stubs computed from the model state, and longer schedules, more commits, and the production poll budget of 20 are not modelled.",
-        "C \u2264 W is the verify job's precondition in `scripts/release-ref-authority.ts`, covered by `scripts/release-ref-authority.test.ts`; the model fixes it and checks W \u2264 M at every source check that passes, including a main that forks from C before W. Linear movement is judged against W: a main that later moves back to an earlier descendant of W still satisfies W \u2264 M and is accepted, and protected main's non-fast-forward rule, assumed under `github-enforcement`, excludes that move.",
+        "C ≤ W is the verify job's precondition in `scripts/release-ref-authority.ts`, covered by `scripts/release-ref-authority.test.ts`; the model fixes it and checks W ≤ M at every source check that passes, including a main that forks from C before W. Linear movement is judged against W: a main that later moves back to an earlier descendant of W still satisfies W ≤ M and is accepted, and protected main's non-fast-forward rule, assumed under `github-enforcement`, excludes that move.",
         "The model binds the tag, the Release, Latest, and the production ref to C. The package and deployment identity bindings are covered only by the listed example tests."
       ],
       "alsoQuotes": [
@@ -6735,7 +6735,7 @@
         "vercel"
       ],
       "notVerified": [
-        "The property test runs `waitForProviderOutcome` 100 times against a candidate that never appears, with up to 64 generated read latencies from 1 to 45,000 ms and early sleep wakeups. Generated latencies rarely land exactly on the deadline, so the boundary read, clock regression, overflow, and a sleep that never reaches its slot are covered by the example test \u201cenforces one half-open monotonic 20-minute provider observation deadline\u201d.",
+        "The property test runs `waitForProviderOutcome` 100 times against a candidate that never appears, with up to 64 generated read latencies from 1 to 45,000 ms and early sleep wakeups. Generated latencies rarely land exactly on the deadline, so the boundary read, clock regression, overflow, and a sleep that never reaches its slot are covered by the example test “enforces one half-open monotonic 20-minute provider observation deadline”.",
         "`verification/quint/promotion.qnt` abstracts time and does not carry this claim. The 30-minute provider job timeout is a workflow setting that an example test checks; GitHub enforcing it is assumed under `github-enforcement`."
       ]
     },
@@ -6843,7 +6843,7 @@
     },
     {
       "id": "committed-binaries-provenance",
-      "statement": "The committed native messaging binaries (imsg, wacli) carry a reviewed patch stack over a pinned upstream commit; Required CI recomputes every recorded pin from the checked-in bytes, and the nightly macOS job rebuilds each artifact from pinned source \u2014 wacli byte-for-byte, imsg as a pinned-recipe build whose non-deterministic signed bytes are recorded honestly.",
+      "statement": "The committed native messaging binaries (imsg, wacli) carry a reviewed patch stack over a pinned upstream commit; Required CI recomputes every recorded pin from the checked-in bytes, and the nightly macOS job rebuilds each artifact from pinned source — wacli byte-for-byte, imsg as a pinned-recipe build whose non-deterministic signed bytes are recorded honestly.",
       "area": "supply-chain",
       "source": {
         "path": "kb/plans/formal-verification-assurance.md",
@@ -6861,7 +6861,7 @@
         "ci-runner"
       ],
       "notVerified": [
-        "imsg is not byte-reproducible: its provenance record reports signedBytesIdentical false and cleanRebuilds 0, so the nightly evidence for imsg is that the pinned recipe builds an arm64 Mach-O under the pinned Swift toolchain \u2014 not that the committed bytes re-derive. A deterministic unsigned-build comparison would need upstream link determinism work.",
+        "imsg is not byte-reproducible: its provenance record reports signedBytesIdentical false and cleanRebuilds 0, so the nightly evidence for imsg is that the pinned recipe builds an arm64 Mach-O under the pinned Swift toolchain — not that the committed bytes re-derive. A deterministic unsigned-build comparison would need upstream link determinism work.",
         "Neither binary has live provider qualification (account pairing, send, delivery); artifact admission and live qualification stay separate.",
         "The nightly rebuild asserts the recorded patch-stack tip commit, but upstream repository content is admitted by commit pin plus patch digests, not by a second reviewer."
       ]

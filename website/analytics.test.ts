@@ -51,9 +51,9 @@ type HarnessResult = Readonly<{
   returned: Array<{ event: string; properties: Record<string, unknown> } | null>;
 }>;
 
-async function runHarness(href: string, referrer: string, route: string): Promise<HarnessResult> {
+async function runHarness(href: string, referrer: string, route: string, properties: Record<string, unknown> = {}): Promise<HarnessResult> {
   const child = Bun.spawn(["bun", join(websiteRoot, "analytics-posthog-harness.ts")], {
-    env: { ...process.env, HARNESS_HREF: href, HARNESS_REFERRER: referrer, HARNESS_ROUTE: route },
+    env: { ...process.env, HARNESS_HREF: href, HARNESS_REFERRER: referrer, HARNESS_ROUTE: route, HARNESS_PROPERTIES: JSON.stringify(properties) },
     stderr: "pipe",
     stdout: "pipe",
   });
@@ -272,6 +272,38 @@ describe("ghostget.com analytics contract", () => {
 });
 
 describe("ghostget.com analytics through the pinned posthog-js", () => {
+  test("drops sensitive property names at every depth through the production SDK", async () => {
+    const privateFields = { email: "plain", code: "oauth-code", state: "opaque", access_token: "secret", _kx: "id", ref: "person" };
+    const result = await runHarness("https://ghostget.com/", "", "/", {
+      ...privateFields, $initial_email: "plain", $session_entry_access_token: "secret",
+      nested: { ...privateFields, token: "phx_secretvalue", valid: "kept" },
+    });
+    const properties = result.returned[0]!.properties;
+    for (const key of [...Object.keys(privateFields), "$initial_email", "$session_entry_access_token"]) expect(properties).not.toHaveProperty(key);
+    expect(properties.nested).toEqual({ valid: "kept" });
+    expect(properties.token).toBe("phc_harnesstoken");
+  });
+
+  test("collapses sensitive requested and historical paths and strips their attribution", async () => {
+    for (const path of ["/auth/private-token", "/account/customer", "/billing/customer", "/checkout/private", "/invite/private"]) {
+      const result = await runHarness(`https://ghostget.com${path}?utm_source=private&gclid=secret`, "", "");
+      expect(result.returned[0]!.properties).toMatchObject({ $current_url: "https://ghostget.com/private", canonical_path: "/private" });
+      expect(result.returned[3]!.properties.requested_path).toBe("/private");
+      expect(JSON.stringify(result.bodies)).not.toContain("private-token");
+      expect(result.returned[0]!.properties).not.toHaveProperty("utm_source");
+      expect(result.returned[0]!.properties).not.toHaveProperty("gclid");
+    }
+    const result = await runHarness("https://ghostget.com/docs/?utm_source=public", "", "/docs/", {
+      $initial_current_url: "https://ghostget.com/invite/private-token?utm_source=private",
+      $session_entry_url: "https://ghostget.com/auth/private-token?gclid=secret",
+      $initial_utm_source: "private", $session_entry_gclid: "secret",
+    });
+    const properties = result.returned[0]!.properties;
+    expect(properties.$initial_current_url).toBe("https://ghostget.com/private");
+    expect(properties.$session_entry_url).toBe("https://ghostget.com/private");
+    for (const key of ["utm_source", "$initial_utm_source", "$session_entry_gclid"]) expect(properties).not.toHaveProperty(key);
+  });
+
   test("before_send keeps the portfolio properties posthog-js emits and scrubs the rest", async () => {
     const result = await runHarness(
       "https://ghostget.com/docs/?utm_source=news&gclid=abc&email=reader%40example.com&code=secret#frag",

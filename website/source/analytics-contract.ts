@@ -112,6 +112,12 @@ const MAX_DEPTH = 8;
 const MAX_ARRAY_ITEMS = 20;
 const MAX_STRING_LENGTH = 2_048;
 const MAX_VALUE_LENGTH = 256;
+const PRIVATE_PATH = "/private";
+const DROPPED_PROPERTIES = new Set(["_kx", "campaign_params", "gclsrc", "qclid", "ref"]);
+const PERSONAL_PROPERTIES = new Set([
+  "code", "email", "key", "password", "secret", "token", "state", "access_token",
+  "refresh_token", "id_token", "session_token", "api_key", "authorization",
+]);
 
 /** Legacy page kinds stay stable so version 1 per-page history lines up. */
 const PAGE_KINDS: ReadonlyMap<string, string> = new Map([
@@ -153,6 +159,7 @@ export type AnalyticsRoute = Readonly<{
   pageKind: string;
   /** The normalized path the browser requested. */
   requestedPath: string;
+  stripAttribution?: boolean;
 }>;
 
 function unknownRecord(value: unknown): Readonly<Record<string, unknown>> | null {
@@ -194,7 +201,19 @@ export function routeForPath(canonicalPath: string): Omit<AnalyticsRoute, "reque
 }
 
 function boundedPath(path: string): string {
+  if (isSensitivePath(path)) return PRIVATE_PATH;
   return redactText(normalizePathname(path)).slice(0, MAX_VALUE_LENGTH);
+}
+
+function isSensitivePath(path: string): boolean {
+  let decoded = path;
+  try { decoded = decodeURIComponent(path); } catch { return true; }
+  return /(?:^|\/)(?:auth|account|billing|checkout|invite|callback|oauth|token|login|logout|sign-in|sign-up|signin|signup|reset-password)(?:\/|$)/iu.test(normalizePathname(decoded));
+}
+
+function isSensitiveLocation(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  try { return isSensitivePath(new URL(value, CANONICAL_ORIGIN).pathname); } catch { return true; }
 }
 
 /**
@@ -212,6 +231,9 @@ export function resolveRoute(rawUrl: string, evidence: BrowserEvidence): Analyti
   }
   if (url.protocol !== "https:" || normalizeHost(url.hostname) !== CANONICAL_DOMAIN) return null;
   const requestedPath = boundedPath(url.pathname);
+  if (isSensitivePath(url.pathname)) {
+    return { canonicalPath: PRIVATE_PATH, requestedPath: PRIVATE_PATH, contentGroup: "not_found", pageKind: "not_found", stripAttribution: true };
+  }
   if (evidence.route !== null && evidence.route !== "" && normalizePathname(evidence.route) === normalizePathname(url.pathname)) {
     return { ...routeForPath(evidence.route), requestedPath };
   }
@@ -245,7 +267,7 @@ function sanitizeOwnUrl(value: string, route: AnalyticsRoute, withOrigin: boolea
   if (normalizeHost(url.hostname) !== CANONICAL_DOMAIN) return url.origin;
   const samePage = normalizePathname(url.pathname) === normalizePathname(route.requestedPath);
   const path = samePage ? route.canonicalPath : boundedPath(url.pathname);
-  return withOrigin ? `${CANONICAL_ORIGIN}${path}${attributionQuery(url)}` : path;
+  return withOrigin ? `${CANONICAL_ORIGIN}${path}${route.stripAttribution || isSensitivePath(url.pathname) ? "" : attributionQuery(url)}` : path;
 }
 
 /** Third-party referrers reduce to their origin; own-host referrers keep the path. */
@@ -265,7 +287,7 @@ function normalizedPropertyName(key: string): string {
 }
 
 function isPathnameKey(key: string): boolean {
-  return /^\$(?:(?:initial|session_entry|prev_pageview)_)?pathname$/u.test(key);
+  return /^\$?(?:(?:initial|session_entry|prev_pageview)_)?pathname$/u.test(key.toLowerCase());
 }
 
 export function redactText(value: string): string {
@@ -281,10 +303,9 @@ export function redactText(value: string): string {
 }
 
 function sanitizeString(key: string, value: string, route: AnalyticsRoute): string {
-  if (REFERRER_KEYS.has(key)) return sanitizeReferrer(value);
-  if (CURRENT_URL_KEYS.has(key)) return sanitizeOwnUrl(value, route, true);
+  if (REFERRER_KEYS.has(key) || normalizedPropertyName(key) === "referrer") return sanitizeReferrer(value);
+  if (CURRENT_URL_KEYS.has(key) || normalizedPropertyName(key) === "current_url" || normalizedPropertyName(key) === "url") return sanitizeOwnUrl(value, route, true);
   if (isPathnameKey(key)) return sanitizeOwnUrl(value, route, false);
-  if (key === "token") return value;
   if (ATTRIBUTION_PARAMETERS.has(normalizedPropertyName(key))) {
     return redactText(value).slice(0, MAX_VALUE_LENGTH);
   }
@@ -298,6 +319,9 @@ function sanitizeValue(
   depth: number,
   seen: WeakSet<object>,
 ): unknown {
+  const name = normalizedPropertyName(key);
+  if (DROPPED_PROPERTIES.has(name) || PERSONAL_PROPERTIES.has(name.replace(/-/gu, "_"))) return undefined;
+  if (ATTRIBUTION_PARAMETERS.has(name) && (route.stripAttribution || typeof value !== "string")) return undefined;
   if (typeof value === "string") return sanitizeString(key, value, route);
   if (value === null || typeof value === "boolean") return value;
   if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
@@ -391,8 +415,13 @@ export function sanitizeCapture(
   const token = properties.token;
   if (typeof token !== "string" || !/^phc_[A-Za-z0-9_-]+$/u.test(token)) return null;
   const rawUrl = typeof properties.$current_url === "string" ? properties.$current_url : evidence.href;
-  const route = resolveRoute(rawUrl, evidence);
-  if (route === null) return null;
+  const resolvedRoute = resolveRoute(rawUrl, evidence);
+  if (resolvedRoute === null) return null;
+  // A sensitive initial or session-entry URL must not donate retained campaign
+  // super-properties to a later public page.
+  const route = { ...resolvedRoute, stripAttribution: resolvedRoute.stripAttribution ||
+    [evidence.href, rawUrl, ...Object.entries(properties).filter(([key]) =>
+      isPathnameKey(key) || ["current_url", "url"].includes(normalizedPropertyName(key))).map(([, item]) => item)].some(isSensitiveLocation) };
   if (capture.event === "page not found" && route.pageKind !== "not_found") return null;
   const safeProperties: Record<string, unknown> = {};
   const seen = new WeakSet<object>();
