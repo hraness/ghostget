@@ -9,6 +9,8 @@ Historical entries retain their original delivery coordinates.
 
 ## 0.18.62
 
+Keep search queries out of website analytics.
+
 - Remove search-referrer query text from analytics SDK keyword properties, including nested and historical attribution.
 
 ## 0.18.61
