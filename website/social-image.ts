@@ -6,8 +6,11 @@ import { defineSocialImageSite, socialImageAlt } from "@hraness/web-discovery/so
 /** The header's one-colour ghost-and-wrench mark, embedded as a local data URL. */
 const markSvg = readFileSync(join(import.meta.dir, "public", "marks", "wrench.svg"), "utf8");
 
-/** The registry one-liner, shortened to fit the card's two description lines. */
-export const SOCIAL_IMAGE_DESCRIPTION = "Named web actions for AI agents: read pages, save media, use accounts";
+/**
+ * The registry one-liner, shortened to fit the card's two description lines
+ * and ended with a period like the site's other description copy.
+ */
+export const SOCIAL_IMAGE_DESCRIPTION = "Named web actions for AI agents: read pages, save media, use accounts.";
 
 /**
  * The one social-image declaration for ghostget.com. Every share card is
