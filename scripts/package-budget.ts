@@ -2397,17 +2397,17 @@
 // Retain every projection and allowance:
 // 12,155,065 + 12,387 + 4,096 = 12,171,548 packed;
 // 24,054,930 + 353 + 65 = 24,055,348 payload.
-// The 0.18.66 analytics-host release measures 625 entries under the same
+// The 0.18.67 encoded-privacy release measures 625 entries under the same
 // Node 24.20.0 / npm 11.19.0 / darwin-arm64 toolchain. Two packs are identical.
 // Preserve the reviewed platform projections and portability allowances.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "GhostGet 0.18.66 exact analytics host release over the verified 0.18.65 runtime",
+  scope: "GhostGet 0.18.67 encoded analytics privacy release over the verified 0.18.66 runtime",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "b462796a666a3f7acccbbf052590f6f7b3db4f956307567dca313c6b13d3393a",
-  packedBytes: 12_143_254,
-  unpackedBytes: 24_055_132,
+  archiveSha256: "f3dd9f77d58483c9ad0668cbf2b5aa9c1c63c7f9207c08719f52382b5f4274ce",
+  packedBytes: 12_143_320,
+  unpackedBytes: 24_055_358,
   entryCount: 625,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

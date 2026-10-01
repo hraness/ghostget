@@ -71,9 +71,9 @@ type HarnessResult = Readonly<{
   returned: Array<{ event: string; properties: Record<string, unknown> } | null>;
 }>;
 
-async function runHarness(href: string, referrer: string, route: string, properties: Record<string, unknown> = {}): Promise<HarnessResult> {
+async function runHarness(href: string, referrer: string, route: string, properties: Record<string, unknown> = {}, error = ""): Promise<HarnessResult> {
   const child = Bun.spawn(["bun", join(websiteRoot, "analytics-posthog-harness.ts")], {
-    env: { ...process.env, HARNESS_HREF: href, HARNESS_REFERRER: referrer, HARNESS_ROUTE: route, HARNESS_PROPERTIES: JSON.stringify(properties) },
+    env: { ...process.env, HARNESS_HREF: href, HARNESS_REFERRER: referrer, HARNESS_ROUTE: route, HARNESS_PROPERTIES: JSON.stringify(properties), ...(error ? { HARNESS_ERROR: error } : {}) },
     stderr: "pipe",
     stdout: "pipe",
   });
@@ -426,4 +426,30 @@ describe("ghostget.com analytics through the pinned posthog-js", () => {
     });
     expect(result.returned[0]?.properties).toMatchObject({ $pathname: "/not-found", canonical_path: "/not-found" });
   });
+});
+
+
+test("encoded path and error canaries are removed before SDK requests", async () => {
+  const canaries = ["+@a.aa", "person.contract%40example.com", "personé%40example.com", "person%40%E4%BE%8B%E5%AD%90.%E4%B8%AD%E5%9B%BD", "Bearer%20canary_secret_123", "api_key%3Dcanary_secret_123", "https%3A%2F%2Fcanary_user%3Acanary_password%40example.com/path"];
+  for (const canary of canaries) {
+    const href = `https://ghostget.com/missing/${canary}`;
+    const error = sanitizeError(new Error(canary));
+    const sdk = await runHarness(href, "", "", { diagnostic: { value: canary } }, canary);
+    expect(sdk.returned.some(event => event?.event === "page not found")).toBe(true);
+    const wire = JSON.stringify({ bodies: sdk.bodies, error: { message: error.message, stack: error.stack } });
+    expect(wire).not.toContain(canary);
+    for (const marker of ["person.contract", "personé", "例子", "canary_secret_123", "canary_user", "canary_password"]) expect(wire).not.toContain(marker);
+  }
+}, 20000);
+
+
+test("relative URL diagnostics discard arbitrary private query values", () => {
+  const error = sanitizeError(new Error("failed /docs/page?private_context=personal-value"));
+  expect(error.message).toBe("failed /docs/page");
+  expect(error.stack).not.toContain("personal-value");
+});
+
+
+test("punctuation-only email local parts retain the site's existing redaction", () => {
+  expect(sanitizeError(new Error("Failed for +@a.aa")).message).toBe("Failed for [email]");
 });

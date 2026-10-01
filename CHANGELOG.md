@@ -7,6 +7,13 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.67
+
+Remove encoded personal identifiers and credentials from browser diagnostics.
+
+- Use the shared bounded redactor before truncating analytics text.
+- Preserve private route exclusions and query-free diagnostics.
+
 ## 0.18.66
 
 Select the European PostHog UI only for the exact validated ingestion origin.
