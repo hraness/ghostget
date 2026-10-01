@@ -2398,14 +2398,22 @@
 // Retain the reviewed projections and allowances:
 // 12,144,212 + 12,387 + 4,096 = 12,160,695 packed;
 // 24,058,506 + 353 + 65 = 24,058,924 payload.
+// The 0.18.70 provider text projection repair retains all 625 entries.
+// Two byte-identical packs with the same toolchain measured 12,144,529 packed
+// and 24,059,132 payload bytes; SHA-256
+// 809a89df745595fbc2d0715ca43d1f4ff2ee738a0acca1ae0feaa3339fa17b92.
+// The two parser repairs and release metadata add 317 packed and 626 payload
+// bytes over 0.18.69. Preserve every existing projection and allowance:
+// 12,144,529 + 12,387 + 4,096 = 12,161,012 packed;
+// 24,059,132 + 353 + 65 = 24,059,550 payload.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "GhostGet 0.18.69 WhatsApp projection repair release over the verified 0.18.68 runtime",
+  scope: "GhostGet 0.18.70 provider text projection repair over the verified 0.18.69 runtime",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "75283db7bb2b528bf5c483dcb165b274874fddc1d755236e8d1357ec5085a1a1",
-  packedBytes: 12_144_212,
-  unpackedBytes: 24_058_506,
+  archiveSha256: "809a89df745595fbc2d0715ca43d1f4ff2ee738a0acca1ae0feaa3339fa17b92",
+  packedBytes: 12_144_529,
+  unpackedBytes: 24_059_132,
   entryCount: 625,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

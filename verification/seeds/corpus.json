@@ -12,6 +12,18 @@
         }
       ]
     },
+    "clasificados/single-entity-layer": {
+      "file": "src/providers/clasificados-web.test.ts",
+      "entries": [
+        {
+          "kind": "counterexample",
+          "seed": 229324587,
+          "path": "0:0",
+          "origin": "Local launch-readiness regression shrank an amp-escaped numeric entity to one bedroom.",
+          "regression": "does not turn an escaped numeric entity into one bedroom"
+        }
+      ]
+    },
     "contracts-invoke-read/output-round-trip": {
       "file": "src/contracts-invoke-read.test.ts",
       "entries": [
@@ -21,6 +33,18 @@
           "path": "3:1:86:86",
           "origin": "Required run 35687468171 shrank a succeeded envelope whose output is {\"__proto__\":0}.",
           "regression": "round-trips an output with an own __proto__ member (CI seed 455347073, path 3:1:86:86)"
+        }
+      ]
+    },
+    "linkedin-profile/raw-text-count-exclusion": {
+      "file": "src/providers/linkedin-web.test.ts",
+      "entries": [
+        {
+          "kind": "counterexample",
+          "seed": 1137143445,
+          "path": "0:0:0",
+          "origin": "Local launch-readiness regression shrank an unfinished script exposing hidden count and controls.",
+          "regression": "excludes raw-text counts and controls with whitespace-bearing end tags"
         }
       ]
     },

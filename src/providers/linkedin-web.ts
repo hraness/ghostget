@@ -912,9 +912,12 @@ function decodeLinkedInProfileEntity(entity: string): string {
 }
 
 function linkedInVisibleText(value: string): string {
-  const withoutScripts = value
-    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/giu, " ")
-    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/giu, " ");
+  // Provider text projection, not an HTML sanitizer. Raw-text content stays
+  // hidden through whitespace-bearing HTML end tags or an unfinished element.
+  const withoutScripts = value.replace(
+    /<(script|style)(?=[\t\n\f\r />])[^>]*>[\s\S]*?(?:<\/\1[\t\n\f\r ]*>|$)/giu,
+    " ",
+  );
   return withoutScripts
     .replace(/<[^>]+>/gu, " ")
     .replace(
