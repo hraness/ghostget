@@ -11,7 +11,8 @@ import type { LocalCliExecutionOptions } from "../local-cli-execution";
 import { OperationDeadline } from "../operation-deadline";
 import { discoveryDiagnostic, nativeDiagnostic, type DiscoveryDiagnosticPhase } from "../messaging-automation-diagnostics";
 import type { AutomationAction, AutomationConversation, AutomationCoordinate, AutomationIdentity, AutomationMessage, AutomationProviderStatus, AutomationProviderSendResult, AutomationScopedPage, MessagingAutomationProvider } from "../messaging-automation-types";
-import { AUTOMATION_ACTION_KINDS, automationArray, automationDigest, automationInteger, automationRecord, automationText, parseAutomationAction, parseAutomationCoordinate, parseAutomationIdentity, automationInstant } from "../messaging-automation-validation";
+import { AutomationGroupBindingChangedError } from "../messaging-automation-types";
+import { AUTOMATION_ACTION_KINDS, AUTOMATION_BINDING_CHANGED_REASON, automationArray, automationDigest, automationInteger, automationRecord, automationText, parseAutomationAction, parseAutomationConversation, parseAutomationCoordinate, parseAutomationIdentity, automationInstant } from "../messaging-automation-validation";
 import { IMSG_NO_FETCH_RICH_CARDS_AVAILABLE, type ImsgChatCoordinate, type ImsgRpcRequest } from "./imessage-direct";
 import { createImsgAutomationSessions, imsgAutomationProjection as project, type ImsgAutomationSessionContext, type ImsgChatProjection, type ImsgDirectRuntimeDependencies } from "./imessage-direct-runtime";
 
@@ -51,19 +52,23 @@ function supportedDiscoveryCoordinate(chat: ImsgChatProjection): boolean {
   return (chat.guid.startsWith("iMessage;") || chat.guid.startsWith("any;")) && Buffer.byteLength(chat.guid) <= 1024;
 }
 function discoverableConversation(value: AutomationConversation): boolean {
-  if (value.kind !== "single") return true;
   // Native chat metadata can be valid without meeting the owner's bounded
-  // individual-conversation contract. Omit those rows from this incomplete
+  // conversation contract. Omit those rows from this incomplete
   // discovery page; exact resolution, enrollment and dispatch stay strict.
-  return value.participants.length >= 1 && value.participants.length <= 2
+  return value.participants.length >= 1 && value.participants.length <= (value.kind === "group" ? 500 : 2)
     && new Set(value.participants).size === value.participants.length
     && value.participants.every(participant => Buffer.byteLength(participant) <= 512)
     && (value.title === null || Buffer.byteLength(value.title) <= 512);
 }
-async function exactConversation(session: Session, value: AutomationCoordinate): Promise<AutomationConversation> {
+async function exactConversation(session: Session, value: AutomationCoordinate, identity?: AutomationIdentity): Promise<AutomationConversation> {
   const selected = target(value);
   const output = await session.run([request("chats.get", { chat_id: selected.observedChatRowId })]);
-  return conversation(project.exactChat(output.get("operation"), selected));
+  const raw = output.get("operation"), projected = conversation(project.exactChat(raw, selected));
+  // The pinned helper's complete chat_handle_join query has no row limit.
+  // An absent field remains unavailable; only explicit [] proves this change.
+  const native = (raw as { chat: Record<string, unknown> }).chat;
+  if (identity && projected.kind === "group" && Array.isArray(native.participants) && native.participants.length === 0) throw new AutomationGroupBindingChangedError(identity, projected.coordinate);
+  return projected;
 }
 function methods(session: Session): ReadonlySet<string> {
   const status = session.status as Record<string, unknown>; // already parsed by the pinned runtime
@@ -184,7 +189,9 @@ export function createImsgAutomationProvider(options: ImsgAutomationOptions): Me
         return await sessions.withSession(admission.auth, { operationDeadline: deadline, ...(operation === "conversations" ? { discoveryPhase: phase } : {}) }, async session => {
           const identity = parseAutomationIdentity({ provider: "imessage", authId: admission.auth.id, accountIdentity: admission.accountIdentity, accountSubject: session.subject, implementationIdentity: admission.implementationIdentity, sourceGeneration: session.sourceGeneration });
           const reauthorize = async () => { signal?.throwIfAborted(); const after = await options.authorize(operation, signal); if (sha(after) !== sha(admission)) throw nativeDiagnostic(new Error("iMessage account or permission changed during the operation"), "identity-changed"); };
-          const result = await work(session, identity, reauthorize, phase);
+          let result;
+          try { result = await work(session, identity, reauthorize, phase); }
+          catch (error) { if (error instanceof AutomationGroupBindingChangedError) await reauthorize(); throw error; }
           phase("reauthorization");
           await reauthorize();
           return result;
@@ -202,6 +209,7 @@ export function createImsgAutomationProvider(options: ImsgAutomationOptions): Me
   }
   return {
     provider: "imessage",
+    groupConversations: { version: 1 },
     inspect(signal) { return run("inspect", signal, async (session, identity) => providerStatus(session, identity)); },
     conversations(input, signal) {
       const limit = automationInteger(input.limit, 1, 200);
@@ -220,7 +228,7 @@ export function createImsgAutomationProvider(options: ImsgAutomationOptions): Me
         return { identity, conversations, complete: false };
       });
     },
-    resolve(value, signal) { const selected = coordinate(value); return run("resolve", signal, async (session, identity) => ({ identity, conversation: await exactConversation(session, selected) })); },
+    resolve(value, signal) { const selected = coordinate(value); return run("resolve", signal, async (session, identity) => ({ identity, conversation: await exactConversation(session, selected, identity) })); },
     history(input, signal) {
       const selected = coordinate(input.coordinate), limit = automationInteger(input.limit, 1, 200);
       const window = { ...(input.before === undefined ? {} : { end: automationInstant(input.before) }), ...(input.after === undefined ? {} : { start: automationInstant(input.after) }) };
@@ -273,12 +281,19 @@ export function createImsgAutomationProvider(options: ImsgAutomationOptions): Me
     },
     async send(input, signal): Promise<AutomationProviderSendResult> {
       const selected = coordinate(input.coordinate), action = parseAutomationAction(input.action), expected = parseAutomationIdentity(input.identity);
-      let dispatched = false;
+      let dispatched = false, bindingChanged = false;
       try {
         return await run(action.kind, signal, async (session, identity, reauthorize) => {
           if (sha(identity) !== sha(expected)) throw new Error("iMessage account or source changed before dispatch");
-          const live = await exactConversation(session, selected);
-          if (live.kind !== "single" || live.participants.length !== 1) throw new Error("Only direct participant-bound automation is supported");
+          const live = await exactConversation(session, selected, identity);
+          const bound = input.conversation === undefined ? null : parseAutomationConversation(input.conversation);
+          const fingerprint = (value: AutomationConversation) => sha({ ...parseAutomationConversation(value), title: null });
+          if (live.kind === "group") {
+            if (bound === null || bound.kind !== "group") throw new Error("Group sends require an exact participant binding");
+            if (fingerprint(live) !== fingerprint(bound)) { bindingChanged = true; throw new Error("iMessage group binding changed"); }
+          } else if (live.kind !== "single" || live.participants.length !== 1 || bound?.kind === "group") {
+            bindingChanged = bound?.kind === "group"; throw new Error("The iMessage participant binding changed");
+          }
           if (!providerStatus(session, identity).actions[action.kind].available) throw new Error("Requested action is unavailable");
           let method: string; const params: Record<string, unknown> = { chat_guid: selected.chatGuid };
           if (action.kind === "text") { method = "send"; Object.assign(params, { text: action.text, service: "imessage", transport: "applescript", allow_sms_fallback: false }); }
@@ -309,7 +324,7 @@ export function createImsgAutomationProvider(options: ImsgAutomationOptions): Me
           signal?.throwIfAborted();
           const response = await session.run([request(method, params)], async () => {
             await reauthorize();
-            if (sha(await exactConversation(session, selected)) !== sha(live)) throw new Error("iMessage participants changed before dispatch");
+            if (fingerprint(await exactConversation(session, selected, identity)) !== fingerprint(live)) { bindingChanged = live.kind === "group"; throw new Error("iMessage participants changed before dispatch"); }
             await reauthorize();
             dispatched = true;
           });
@@ -335,7 +350,7 @@ export function createImsgAutomationProvider(options: ImsgAutomationOptions): Me
           if (action.kind === "poll" && (result.event !== "imessage.poll.created" || messageId === null)) throw new Error("Poll creation receipt is missing");
           return { state: "accepted", messageId, providerReceiptId, delivery: "unknown" };
         });
-      } catch { return { state: dispatched ? "indeterminate" : "not-started", reason: dispatched ? "iMessage dispatch or process cleanup could not be reconciled. Do not retry." : "iMessage admission failed before any send." }; }
+      } catch (error) { return { state: dispatched ? "indeterminate" : "not-started", reason: dispatched ? "iMessage dispatch or process cleanup could not be reconciled. Do not retry." : bindingChanged || error instanceof AutomationGroupBindingChangedError && input.conversation?.kind === "group" ? AUTOMATION_BINDING_CHANGED_REASON : "iMessage admission failed before any send." }; }
     },
     async close() { closed = true; await inFlight; await sessions.close(); },
   };

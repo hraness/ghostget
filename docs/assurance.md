@@ -8,12 +8,12 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 247 claims: 228 evidenced, 0 planned, and 19 not verified. It maps 93 guidelines from 5 guides; 70 list claims and 23 are exempt.
+The register holds 248 claims: 229 evidenced, 0 planned, and 19 not verified. It maps 93 guidelines from 5 guides; 70 list claims and 23 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
 | example test | 148 | 0 | 0 |
-| property test | 23 | 0 | 0 |
+| property test | 24 | 0 | 0 |
 | stateful model | 24 | 0 | 0 |
 | Quint model with production trace replay | 21 | 0 | 0 |
 | Lean proof with differential test | 8 | 0 | 0 |
@@ -112,7 +112,7 @@ Each claim holds only while its listed assumptions hold.
 | --- | --- | ---: |
 | `bun-runtime` | Bun and JavaScriptCore execute the sources and the test runner as specified. | 8 |
 | `filesystem-atomic-rename` | Same-volume rename and link are atomic. | 33 |
-| `filesystem-durability` | Data and directory entries that were fsynced persist across a crash or power loss. | 31 |
+| `filesystem-durability` | Data and directory entries that were fsynced persist across a crash or power loss. | 32 |
 | `same-user-trusted` | Processes running as the same operating-system user are trusted; file modes and owner-only sockets separate users. | 34 |
 | `process-liveness` | Process ID, process start time, and boot identity readings are truthful. | 10 |
 | `monotonic-clock` | The injected monotonic clock never runs backward. | 6 |
@@ -121,7 +121,7 @@ Each claim holds only while its listed assumptions hold.
 | `sha256` | SHA-256 is collision resistant. | 3 |
 | `encryption` | The authenticated encryption primitives and the operating-system key storage are sound. | 4 |
 | `media-tools` | yt-dlp, ffmpeg, and whisper.cpp report metadata faithfully and honor the arguments they are given. | 11 |
-| `provider-behaviour` | Third-party providers behave as their observed contracts describe. | 30 |
+| `provider-behaviour` | Third-party providers behave as their observed contracts describe. | 31 |
 | `plugin-trusted` | Source plugins are trusted in-process code; portable execution contains ordinary failures, not hostile code. | 13 |
 | `onepassword` | The 1Password SDK and account return the requested secret faithfully. | 2 |
 | `github-api` | GitHub's REST, GraphQL, and Actions APIs report repository, run, and Release state truthfully. | 73 |
@@ -1030,7 +1030,7 @@ The media provider identity and source asset key, the authorization-context dige
   - The vectors are a fixed corpus; they pin the byte layout, not a property of all inputs.
   - Injectivity of the length framing is `hash-framing-injective`, which Phase 5 addresses.
 
-### `messaging` (10 claims)
+### `messaging` (11 claims)
 
 #### `messaging-composite-ordered-prefix`
 
@@ -1129,6 +1129,20 @@ Explicit messaging output paths are distinct from each other and outside the Gho
 - Evidence: `src/messaging-private-output-boundary.test.ts`, `src/messaging-runtime-composite.test.ts`
 - Assumptions: `filesystem-durability`, `provider-behaviour`
 - Not verified: Only the enumerated example cases are checked.
+
+#### `messaging-automation-group-epochs`
+
+Observed group binding drift permanently disables the old enrollment and its grants; a replacement enrollment has a new ID and cannot import prior-roster baseline bodies, historical backfill or unknown message mutations.
+
+- Evidenced by property test.
+- Source: `docs/messaging-automation.md`: “Observed group binding drift permanently invalidates that enrollment.”
+- Evidence: `src/messaging-automation-groups.test.ts`, `verification/mutants.json`, `src/messaging-automation.test.ts`, `src/messaging-automation-server.test.ts`, `src/providers/imessage-automation.test.ts`, `src/providers/beeper-automation.test.ts`, `src/providers/whatsapp-automation.test.ts`, `src/providers/whatsapp-automation-runtime.test.ts`
+- Property tests: `src/messaging-automation-groups.test.ts`: “bounded group lifecycle schedules never revive an observed old binding”
+- Assumptions: `filesystem-durability`, `provider-behaviour`
+- Not verified:
+  - The model samples 30 schedules of up to 14 actions plus retained workload seeds over the production SQLite host with injected providers. It covers polling, sending, roster changes (including an authoritative empty roster) and restoration, restart, title changes and lookup faults; it does not exhaust arbitrary concurrent schedules or prove provider liveness. Two seeded defects, transient binding invalidation and group reads from the unrestricted provider archive, are killed by their named regression tests.
+  - History isolation trusts the reviewed provider's original creation timestamp and cursor semantics. It does not cover a compromised provider or host, or a roster change restored between every authoritative observation.
+  - The provider effect-boundary checks use synthetic adapters; no real account, pairing, message send or delivery qualification is implied.
 
 #### `messaging-automation-grant-scoped`
 

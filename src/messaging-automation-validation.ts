@@ -1,7 +1,9 @@
 import { types } from "node:util";
-import type { AutomationAction, AutomationActionKind, AutomationCoordinate, AutomationIdentity, AutomationMessage } from "./messaging-automation-types";
+import type { AutomationAction, AutomationActionKind, AutomationConversation, AutomationCoordinate, AutomationIdentity, AutomationMessage } from "./messaging-automation-types";
 
 export const AUTOMATION_ACTION_KINDS = Object.freeze(["text", "attachment", "reaction", "sticker", "link", "poll", "app-clip", "experience"] as const);
+export { AUTOMATION_BINDING_CHANGED_REASON } from "./messaging-automation-types";
+export const AUTOMATION_WHATSAPP_GROUP_JID = /^[1-9][0-9]{4,19}(?:-[1-9][0-9]{0,19})?@g\.us$/u;
 export function automationRecord(value: unknown, keys: readonly string[]): Record<string, unknown> {
   if (types.isProxy(value) || typeof value !== "object" || value === null || Array.isArray(value)
     || ![Object.prototype, null].includes(Object.getPrototypeOf(value))) throw new Error("Messaging automation value must be a plain object.");
@@ -65,8 +67,27 @@ export function parseAutomationCoordinate(value: unknown): AutomationCoordinate 
     return Object.freeze({ provider, accountId: automationText(r.accountId, 512), conversationId: automationText(r.conversationId, 2048) });
   }
   const r = automationRecord(value, ["provider", "conversationJid"]);
-  if (provider !== "whatsapp" || typeof r.conversationJid !== "string" || !/^(?:[1-9][0-9]{4,14}@s\.whatsapp\.net|[1-9][0-9]{4,19}@lid)$/u.test(r.conversationJid)) throw new Error("Only exact individual WhatsApp conversations are supported.");
+  if (provider !== "whatsapp" || typeof r.conversationJid !== "string" || (!/^(?:[1-9][0-9]{4,14}@s\.whatsapp\.net|[1-9][0-9]{4,19}@lid)$/u.test(r.conversationJid) && !AUTOMATION_WHATSAPP_GROUP_JID.test(r.conversationJid))) throw new Error("Only exact WhatsApp conversation JIDs are supported.");
   return Object.freeze({ provider, conversationJid: r.conversationJid });
+}
+/** Titles are presentation; callers bind the complete canonical roster and route. */
+export function parseAutomationConversation(value: unknown): AutomationConversation {
+  const r = automationRecord(value, ["coordinate", "title", "kind", "participants"]);
+  const coordinate = parseAutomationCoordinate(r.coordinate);
+  if (r.kind !== "single" && r.kind !== "group") throw new Error("Messaging automation requires a verified conversation kind.");
+  const participants = automationArray(r.participants, r.kind === "group" ? 500 : 2).map(value => automationText(value, 512));
+  if (participants.length < 1 || new Set(participants).size !== participants.length) throw new Error("Messaging automation requires a complete distinct participant roster.");
+  if (coordinate.provider === "whatsapp" && AUTOMATION_WHATSAPP_GROUP_JID.test(coordinate.conversationJid) !== (r.kind === "group")) throw new Error("WhatsApp conversation kind and exact JID disagree.");
+  return Object.freeze({ coordinate, title: r.title === null ? null : automationText(r.title, 512), kind: r.kind, participants: Object.freeze([...participants].sort()) });
+}
+
+/** Optional flags remain strict: omission is false; explicit false is valid. */
+export function automationGroupOptions(value: unknown, keys: readonly string[]): Record<string, unknown> & { includeGroups: boolean } {
+  if (types.isProxy(value)) throw new Error("Messaging automation value must be a plain object.");
+  const present = value !== null && typeof value === "object" && Object.hasOwn(value, "includeGroups");
+  const r = automationRecord(value, present ? [...keys, "includeGroups"] : keys);
+  if (present && typeof r.includeGroups !== "boolean") throw new Error("Messaging group selection must be boolean.");
+  return { ...r, includeGroups: present ? r.includeGroups as boolean : false };
 }
 export function parseAutomationIdentity(value: unknown): AutomationIdentity {
   const r = automationRecord(value, ["provider", "authId", "accountIdentity", "accountSubject", "implementationIdentity", "sourceGeneration"]);

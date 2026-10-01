@@ -9,10 +9,10 @@ export const MESSAGING_NATIVE_ARTIFACTS = Object.freeze({
   },
   "whatsapp": {
     "file": "wacli-darwin-arm64.gz",
-    "sha256": "9b77ffb810d028fde725ca02b1451f1725b5ff5312a46a54468a9a38533d4cea",
-    "bytes": 21963810,
-    "compressedSha256": "1c1650d6c79b74db7f8f335b4746398c802031260a90468312dcaac0374a5166",
-    "compressedBytes": 7682949
+    "sha256": "85a4c2b6f538103df08425f75984657559169a95161a256c6d096daf9de38f47",
+    "bytes": 21980338,
+    "compressedSha256": "61c9aef8d1a2c38f4831e8546fea0ae9907c365a301b8cde7388e47adbb2d697",
+    "compressedBytes": 7694763
   },
   "phoneMetadata": {
     "file": "phone-number-metadata.json.gz",

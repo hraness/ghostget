@@ -24,6 +24,16 @@
         }
       ]
     },
+    "messaging-automation/groups-lifecycle": {
+      "file": "src/messaging-automation-groups.test.ts",
+      "entries": [
+        {
+          "kind": "workload",
+          "seed": -1090781564,
+          "origin": "The initial group lifecycle check exceeded the generic 10-second property budget after eight schedules over durable SQLite hosts; no counterexample or shrink was reported. Replay retains this workload with the explicit 90-second I/O property budget and repository 180-second Bun runner policy."
+        }
+      ]
+    },
     "verification-claims/guideline-additions": {
       "file": "scripts/verification-claims.test.ts",
       "entries": [

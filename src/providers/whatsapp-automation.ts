@@ -7,7 +7,7 @@ import {
 } from "../canonical-json";
 import type { LocalCliExecutionOptions } from "../local-cli-execution";
 import type { AutomationAction, AutomationConversation, AutomationCoordinate, AutomationIdentity, AutomationMessage, AutomationProviderStatus, AutomationProviderSendResult, MessagingAutomationProvider } from "../messaging-automation-types";
-import { AUTOMATION_ACTION_KINDS, automationArray, automationDigest, automationInteger, automationRecord, automationText, parseAutomationAction, parseAutomationCoordinate, parseAutomationIdentity } from "../messaging-automation-validation";
+import { AUTOMATION_ACTION_KINDS, AUTOMATION_BINDING_CHANGED_REASON, AUTOMATION_WHATSAPP_GROUP_JID, automationArray, automationDigest, automationInteger, automationRecord, automationText, parseAutomationAction, parseAutomationCoordinate, parseAutomationConversation, parseAutomationIdentity } from "../messaging-automation-validation";
 import { createWhatsAppAutomationRuntime, WHATSAPP_AUTOMATION_PROTOCOL, type WhatsAppAutomationRuntime, type WhatsAppAutomationSnapshot, type WhatsAppPrivateRequest } from "./whatsapp-automation-runtime";
 
 export type WhatsAppAutomationOperation = "inspect" | "start" | "conversations" | "resolve" | "history" | "events" | AutomationAction["kind"];
@@ -24,14 +24,14 @@ const sha = (value: unknown): string => createHash("sha256").update(canonicalJso
 type Coordinate = Extract<AutomationCoordinate, { provider: "whatsapp" }>;
 function coordinate(value: unknown): Coordinate { const result = parseAutomationCoordinate(value); if (result.provider !== "whatsapp") throw new Error("WhatsApp cannot operate another messaging network"); return result; }
 function identity(admission: WhatsAppAutomationAdmission, snapshot: WhatsAppAutomationSnapshot): AutomationIdentity { return parseAutomationIdentity({ provider: "whatsapp", authId: admission.auth.id, accountIdentity: admission.accountIdentity, accountSubject: snapshot.subject, implementationIdentity: admission.implementationIdentity, sourceGeneration: snapshot.sourceGeneration }); }
-function conversation(value: unknown): AutomationConversation {
+function conversation(value: unknown, participants?: readonly string[]): AutomationConversation {
   const row = automationRecord(value, ["jid", "kind", "name"]), selected = coordinate({ provider: "whatsapp", conversationJid: row.jid });
-  if (row.kind !== "dm") throw new Error("Only direct WhatsApp conversations can be enrolled");
-  return { coordinate: selected, title: row.name === null || row.name === "" ? null : automationText(row.name, 512), kind: "single", participants: [selected.conversationJid] };
+  if (row.kind !== "dm" && row.kind !== "group" || row.kind === "group" && participants === undefined) throw new Error("A verified WhatsApp conversation and complete roster are required");
+  return parseAutomationConversation({ coordinate: selected, title: row.name === null || row.name === "" ? null : automationText(row.name, 512), kind: row.kind === "group" ? "group" : "single", participants: row.kind === "group" ? participants : [selected.conversationJid] });
 }
-function exact(database: Database, selected: Coordinate, account: string): AutomationConversation {
+function exact(database: Database, selected: Coordinate, account: string, participants?: readonly string[]): AutomationConversation {
   if (selected.conversationJid === account) throw new Error("Self messaging requires a separate contract");
-  return conversation(database.query("SELECT jid,kind,name FROM chats WHERE jid=? AND kind='dm'").get(selected.conversationJid));
+  return conversation(database.query("SELECT jid,kind,name FROM chats WHERE jid=? AND kind IN ('dm','group')").get(selected.conversationJid), participants);
 }
 const messageColumns = "chat_jid,msg_id,sender_jid,ts,from_me,text,display_text,quoted_msg_id,reaction_to_id,reaction_emoji,media_type,filename,mime_type,file_length,revoked,deleted_for_me";
 const nullableText = (value: unknown, maximum: number): string | null => value === null || value === "" ? null : automationText(value, maximum, true);
@@ -96,34 +96,72 @@ export function createWhatsAppAutomationProvider(options: WhatsAppAutomationOpti
     inFlight = pending.then(() => undefined, () => undefined);
     return pending;
   }
+  async function groupRoster(admission: WhatsAppAutomationAdmission, snapshot: WhatsAppAutomationSnapshot, selected: Coordinate, operation: WhatsAppAutomationOperation, signal: AbortSignal): Promise<readonly string[]> {
+    if (!snapshot.connected || !snapshot.generation) throw new Error("The owned WhatsApp connection is required for group membership");
+    const response = await runtime.request({ protocol: WHATSAPP_AUTOMATION_PROTOCOL, kind: "group-info", requestId: sha({ operation: "group-info", account: snapshot.account, generation: snapshot.generation, to: selected.conversationJid }), generation: snapshot.generation, account: snapshot.account, to: selected.conversationJid, message: "", file: "", filename: "", mime: "", id: "", reaction: "", question: "", options: [], selectable: 0 }, signal, async () => {
+      if (sha(await options.authorize(operation, signal)) !== sha(admission)) throw new Error("WhatsApp group read permission changed");
+    });
+    if (response.state !== "ready" || response.participants === undefined || response.account !== snapshot.account || response.generation !== snapshot.generation || response.to !== selected.conversationJid) throw new Error("Complete current WhatsApp group membership is unavailable");
+    return parseAutomationConversation({ coordinate: selected, title: null, kind: "group", participants: response.participants }).participants;
+  }
+  async function verifiedGroup(admission: WhatsAppAutomationAdmission, selected: Coordinate, operation: WhatsAppAutomationOperation, signal: AbortSignal): Promise<readonly string[] | undefined> {
+    if (!AUTOMATION_WHATSAPP_GROUP_JID.test(selected.conversationJid)) return undefined;
+    const snapshot = await runtime.read(admission.auth, (database, snapshot) => {
+      const row = automationRecord(database.query("SELECT jid,kind,name FROM chats WHERE jid=? AND kind='group'").get(selected.conversationJid), ["jid", "kind", "name"]);
+      if (row.jid !== selected.conversationJid) throw new Error("WhatsApp group coordinate changed");
+      return snapshot;
+    }, signal);
+    return groupRoster(admission, snapshot, selected, operation, signal);
+  }
   return {
     provider: "whatsapp",
+    groupConversations: { version: 1 },
     start(signal) { return run("start", signal, (admission, signal) => runtime.start(admission.auth, async () => { if (sha(await options.authorize("start", signal)) !== sha(admission)) throw new Error("WhatsApp synchronization permission changed before launch"); }, signal)); },
     inspect(signal) { return run("inspect", signal, (admission, signal) => runtime.read(admission.auth, (_database, snapshot) => status(identity(admission, snapshot), snapshot), signal)); },
     conversations(input, signal) {
       const limit = automationInteger(input.limit, 1, 200);
-      return run("conversations", signal, (admission, signal) => runtime.read(admission.auth, (database, snapshot) => {
-        const rows = database.query("SELECT jid,kind,name FROM chats WHERE kind='dm' AND jid<>? ORDER BY last_message_ts DESC,jid ASC LIMIT ?").all(snapshot.account, limit + 1);
-        return { identity: identity(admission, snapshot), conversations: rows.slice(0, limit).map(conversation), complete: rows.length <= limit };
-      }, signal));
+      return run("conversations", signal, async (admission, signal) => {
+        const query = input.includeGroups === true ? "SELECT jid,kind,name FROM chats WHERE kind IN ('dm','group') AND jid<>? ORDER BY last_message_ts DESC,jid ASC LIMIT ?" : "SELECT jid,kind,name FROM chats WHERE kind='dm' AND jid<>? ORDER BY last_message_ts DESC,jid ASC LIMIT ?";
+        const page = await runtime.read(admission.auth, (database, snapshot) => ({ snapshot, rows: database.query(query).all(snapshot.account, limit + 1) }), signal);
+        const conversations: AutomationConversation[] = [];
+        let complete = page.rows.length <= limit;
+        for (const value of page.rows.slice(0, limit)) {
+          const row = automationRecord(value, ["jid", "kind", "name"]);
+          if (row.kind === "dm") { conversations.push(conversation(row)); continue; }
+          try { conversations.push(conversation(row, await groupRoster(admission, page.snapshot, coordinate({ provider: "whatsapp", conversationJid: row.jid }), "conversations", signal))); }
+          catch { signal.throwIfAborted(); complete = false; }
+        }
+        return { identity: identity(admission, page.snapshot), conversations, complete };
+      });
     },
-    resolve(value, signal) { const selected = coordinate(value); return run("resolve", signal, (admission, signal) => runtime.read(admission.auth, (database, snapshot) => ({ identity: identity(admission, snapshot), conversation: exact(database, selected, snapshot.account) }), signal)); },
+    resolve(value, signal) {
+      const selected = coordinate(value);
+      return run("resolve", signal, async (admission, signal) => {
+        const participants = await verifiedGroup(admission, selected, "resolve", signal);
+        return runtime.read(admission.auth, (database, snapshot) => ({ identity: identity(admission, snapshot), conversation: exact(database, selected, snapshot.account, participants) }), signal);
+      });
+    },
     history(input, signal) {
       if (input.before !== undefined || input.after !== undefined) return Promise.reject(new Error("Dated history windows are unavailable for WhatsApp."));
       const selected = coordinate(input.coordinate), limit = automationInteger(input.limit, 1, 200);
-      return run("history", signal, (admission, signal) => runtime.read(admission.auth, (database, snapshot) => {
+      return run("history", signal, async (admission, signal) => {
+        const participants = await verifiedGroup(admission, selected, "history", signal);
+        return runtime.read(admission.auth, (database, snapshot) => {
         if (!snapshot.ledgerReady) throw new Error("Start the owned WhatsApp connection before enrollment");
-        exact(database, selected, snapshot.account); const current = identity(admission, snapshot), bounds = ledgerBounds(database);
+        exact(database, selected, snapshot.account, participants); const current = identity(admission, snapshot), bounds = ledgerBounds(database);
         const rows = database.query(`SELECT CASE WHEN revoked=1 OR deleted_for_me=1 THEN 'delete' WHEN reaction_to_id IS NOT NULL AND reaction_to_id<>'' THEN 'reaction' ELSE 'message' END AS kind,${messageColumns} FROM messages WHERE chat_jid=? ORDER BY ts DESC,rowid DESC LIMIT ?`).all(selected.conversationJid, limit).reverse();
         return { identity: current, messages: rows.map(message), nextCursor: encodeCursor({ version: 1, identity: sha(current), scope: sha([selected]), sequence: bounds.last, anchor: ledgerAnchor(database, bounds.last) }), caughtUp: true, gap: false };
-      }, signal));
+      }, signal); });
     },
     events(input, signal) {
       const coordinates = automationArray(input.coordinates, 50).map(coordinate).sort((a, b) => canonicalJson(a).localeCompare(canonicalJson(b))), limit = automationInteger(input.limit, 1, 500);
       if (!coordinates.length || new Set(coordinates.map(sha)).size !== coordinates.length) throw new Error("Distinct WhatsApp event scopes are required");
-      return run("events", signal, (admission, signal) => runtime.read(admission.auth, (database, snapshot) => {
+      return run("events", signal, async (admission, signal) => {
+        const rosters = new Map<string, readonly string[] | undefined>();
+        for (const selected of coordinates) rosters.set(selected.conversationJid, await verifiedGroup(admission, selected, "events", signal));
+        return runtime.read(admission.auth, (database, snapshot) => {
         if (!snapshot.ledgerReady || !snapshot.connected) throw new Error("The owned WhatsApp message feed is unavailable");
-        for (const selected of coordinates) exact(database, selected, snapshot.account);
+        for (const selected of coordinates) exact(database, selected, snapshot.account, rosters.get(selected.conversationJid));
         const current = identity(admission, snapshot), next = parseCursor(input.cursor, current, coordinates), bounds = ledgerBounds(database);
         if (next.sequence > bounds.last || next.sequence < bounds.first - 1 || next.sequence > 0 && ledgerAnchor(database, next.sequence) !== next.anchor) return { identity: current, messages: [], nextCursor: encodeCursor(next), caughtUp: false, gap: true };
         const placeholders = coordinates.map(() => "?").join(",");
@@ -131,7 +169,7 @@ export function createWhatsAppAutomationProvider(options: WhatsAppAutomationOpti
         const page = rows.slice(0, limit).map(value => { const row = automationRecord(value, ["sequence", "kind", ...messageColumns.split(",")]); const sequence = automationInteger(row.sequence, next.sequence + 1, bounds.last); next.sequence = sequence; const { sequence: _sequence, ...projection } = row; return message(projection); });
         const caughtUp = rows.length <= limit; if (caughtUp) next.sequence = bounds.last; next.anchor = ledgerAnchor(database, next.sequence);
         return { identity: current, messages: page, nextCursor: encodeCursor(next), caughtUp, gap: false };
-      }, signal));
+      }, signal); });
     },
     async send(input, signal): Promise<AutomationProviderSendResult> {
       const selected = coordinate(input.coordinate), expected = parseAutomationIdentity(input.identity), action = parseAutomationAction(input.action), intentId = automationText(input.intentId, 256);
@@ -139,7 +177,10 @@ export function createWhatsAppAutomationProvider(options: WhatsAppAutomationOpti
       try {
         return await run(action.kind, signal, async (admission, signal) => {
           try {
-          let request: WhatsAppPrivateRequest = { protocol: WHATSAPP_AUTOMATION_PROTOCOL, kind: "text", requestId: sha({ intentId, expected, selected, action }), generation: "", account: "", to: selected.conversationJid, message: "", file: "", filename: "", mime: "", id: "", reaction: "", question: "", options: [], selectable: 0 };
+          const group = AUTOMATION_WHATSAPP_GROUP_JID.test(selected.conversationJid);
+          const bound = group ? parseAutomationConversation(input.conversation) : undefined;
+          if (bound && (bound.kind !== "group" || sha(bound.coordinate) !== sha(selected))) throw new Error("The group action needs its exact enrollment binding");
+          let request: WhatsAppPrivateRequest = { protocol: WHATSAPP_AUTOMATION_PROTOCOL, kind: "text", requestId: sha({ intentId, expected, selected, action, ...(bound ? { participants: bound.participants } : {}) }), generation: "", account: "", to: selected.conversationJid, message: "", file: "", filename: "", mime: "", id: "", reaction: "", question: "", options: [], selectable: 0, ...(bound ? { expectedParticipants: bound.participants } : {}) };
           if (action.kind === "text") request = { ...request, message: action.text };
           else if (action.kind === "link") request = { ...request, message: action.url };
           else if (action.kind === "reaction") request = { ...request, kind: "react", id: action.messageId, reaction: action.remove ? "" : action.emoji };
@@ -150,16 +191,18 @@ export function createWhatsAppAutomationProvider(options: WhatsAppAutomationOpti
             request = { ...request, kind: action.kind === "sticker" ? "sticker" : "file", file: asset.path, filename: action.kind === "attachment" ? action.name : "", mime: action.kind === "attachment" ? action.mimeType : "" };
           } else throw new Error("The pinned WhatsApp transport does not support this action");
           if (sha(await options.authorize(action.kind, signal)) !== sha(admission)) throw new Error("WhatsApp permission changed before dispatch");
+          const participants = await verifiedGroup(admission, selected, action.kind, signal);
+          if (bound && sha(participants) !== sha(bound.participants)) return { state: "not-started", reason: AUTOMATION_BINDING_CHANGED_REASON };
           request = await runtime.read(admission.auth, (database, snapshot) => {
             const current = identity(admission, snapshot); if (sha(current) !== sha(expected) || !status(current, snapshot).actions[action.kind].available || !snapshot.generation) throw new Error("WhatsApp source identity or capability changed before dispatch");
-            exact(database, selected, snapshot.account);
+            exact(database, selected, snapshot.account, participants);
             if (action.kind === "reaction" && !database.query("SELECT msg_id FROM messages WHERE chat_jid=? AND msg_id=? AND revoked=0 AND deleted_for_me=0").get(selected.conversationJid, action.messageId)) throw new Error("WhatsApp reaction target is unavailable");
             return { ...request, account: snapshot.account, generation: snapshot.generation };
           }, signal);
           signal?.throwIfAborted(); dispatched = true;
           const result = await runtime.request(request, signal, async () => { if (sha(await options.authorize(action.kind, signal)) !== sha(admission)) throw new Error("WhatsApp permission changed before writing the action"); });
           if (result.state === "accepted") return { state: "accepted", messageId: result.messageId || null, providerReceiptId: result.requestId, delivery: "unknown" };
-          return result.state === "not-started" ? { state: "not-started", reason: "The exact WhatsApp request was not admitted." } : { state: "indeterminate", reason: "The WhatsApp outcome is uncertain and cannot be retried." };
+          return result.state === "not-started" ? { state: "not-started", reason: result.bindingChanged ? AUTOMATION_BINDING_CHANGED_REASON : "The exact WhatsApp request was not admitted." } : { state: "indeterminate", reason: "The WhatsApp outcome is uncertain and cannot be retried." };
           } finally { await asset?.close(); }
         });
       } catch { return { state: dispatched ? "indeterminate" : "not-started", reason: dispatched ? "The WhatsApp receipt or cleanup could not be verified; do not retry." : "The selected WhatsApp account, permission, target, or action was unavailable." }; }

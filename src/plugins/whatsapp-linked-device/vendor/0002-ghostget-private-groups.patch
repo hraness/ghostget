@@ -1,0 +1,537 @@
+From e190e1d464aff7ea1a16b87d80146e6466b7be49 Mon Sep 17 00:00:00 2001
+From: 0thernet <894119+0thernet@users.noreply.github.com>
+Date: Thu, 1 Oct 2026 00:51:42 -0400
+Subject: [PATCH] feat: bind private group sends to authoritative participants
+
+---
+ cmd/wacli/ghostget_private_test.go     | 121 ++++++++++++++++++
+ cmd/wacli/ghostget_private_unix.go     | 167 ++++++++++++++++++++-----
+ internal/wa/client.go                  |  15 +++
+ internal/wa/private_send_guard.go      |  20 +++
+ internal/wa/private_send_guard_test.go |  27 ++++
+ 5 files changed, 321 insertions(+), 29 deletions(-)
+ create mode 100644 internal/wa/private_send_guard.go
+ create mode 100644 internal/wa/private_send_guard_test.go
+
+diff --git a/cmd/wacli/ghostget_private_test.go b/cmd/wacli/ghostget_private_test.go
+index 49dff10..61b4b98 100644
+--- a/cmd/wacli/ghostget_private_test.go
++++ b/cmd/wacli/ghostget_private_test.go
+@@ -14,7 +14,9 @@ import (
+ 	"testing"
+ 	"time"
+ 
++	"github.com/openclaw/wacli/internal/wa"
+ 	"go.mau.fi/whatsmeow"
++	"go.mau.fi/whatsmeow/types"
+ )
+ 
+ func privateTestDirectory(t *testing.T) string {
+@@ -236,3 +238,122 @@ func TestGhostgetPrivateExternalSocketIsOwnedAndNeverReplaced(t *testing.T) {
+ 		t.Fatal("owned external socket remains")
+ 	}
+ }
++
++func TestGhostgetPrivateGroupRosterProof(t *testing.T) {
++	target, _ := types.ParseJID("120363000000000000@g.us")
++	a, _ := types.ParseJID("15550000001@s.whatsapp.net")
++	b, _ := types.ParseJID("15550000002@s.whatsapp.net")
++	full := types.GroupInfo{JID: target, ParticipantCount: 2, Participants: []types.GroupParticipant{{JID: b}, {JID: a}}}
++	got, err := ghostgetGroupParticipants(&full, target.String())
++	if err != nil || len(got) != 2 || got[0] != a.String() || got[1] != b.String() {
++		t.Fatal(got, err)
++	}
++	for _, change := range []func(*types.GroupInfo){
++		func(g *types.GroupInfo) { g.ParticipantCount = 3 }, func(g *types.GroupInfo) { g.ParticipantCount = 0 },
++		func(g *types.GroupInfo) { g.IsIncognito = true }, func(g *types.GroupInfo) { g.IsParent = true },
++		func(g *types.GroupInfo) { g.Participants[1].JID = b }, func(g *types.GroupInfo) { g.Participants[0].Error = 403 },
++		func(g *types.GroupInfo) { g.Participants[0].DisplayName = "anonymous" }, func(g *types.GroupInfo) { g.JID = a },
++	} {
++		changed := full
++		changed.Participants = append([]types.GroupParticipant(nil), full.Participants...)
++		change(&changed)
++		if _, err := ghostgetGroupParticipants(&changed, target.String()); err == nil {
++			t.Fatal("partial or anonymous group admitted")
++		}
++	}
++}
++
++func TestGhostgetPrivateGroupFinalEffectAndReceipt(t *testing.T) {
++	directory := privateTestDirectory(t)
++	request := privateTestRequest()
++	request.To = "120363000000000000@g.us"
++	request.ExpectedParticipants = []string{"15550000001@s.whatsapp.net", "15550000002@s.whatsapp.net"}
++	roster := append([]string(nil), request.ExpectedParticipants...)
++	effects := 0
++	unavailable := false
++	changeDuringPreparation := false
++	runtime := ghostgetPrivateRuntime{account: func() string { return request.Account }, connected: func() bool { return true },
++		groupInfo: func(context.Context, string) ([]string, error) {
++			if unavailable {
++				return nil, errors.New("offline")
++			}
++			return append([]string(nil), roster...), nil
++		},
++		dispatch: func(ctx context.Context, r ghostgetPrivateRequest) (sendDelegateResponse, error) {
++			if changeDuringPreparation {
++				roster = append(roster, "15550000003@s.whatsapp.net")
++			}
++			target, _ := types.ParseJID(r.To)
++			if err := wa.CheckPrivateSendGuard(ctx, target); err != nil {
++				return sendDelegateResponse{}, err
++			}
++			effects++
++			return sendDelegateResponse{OK: true, Sent: true, To: r.To, ID: "synthetic-group-send"}, nil
++		},
++	}
++	response := executeGhostgetPrivate(context.Background(), runtime, directory, request.Generation, request)
++	if response.State != "accepted" || effects != 1 {
++		t.Fatal(response, effects)
++	}
++	roster = append(roster, "15550000003@s.whatsapp.net")
++	// An actual earlier acceptance remains authoritative after membership changes.
++	response = executeGhostgetPrivate(context.Background(), runtime, directory, request.Generation, request)
++	if response.State != "accepted" || effects != 1 {
++		t.Fatal("accepted replay changed", response, effects)
++	}
++	request.RequestID = strings.Repeat("c", 64)
++	response = executeGhostgetPrivate(context.Background(), runtime, directory, request.Generation, request)
++	if response.State != "not-started" || !response.BindingChanged || effects != 1 {
++		t.Fatal("changed roster sent", response, effects)
++	}
++	roster = append([]string(nil), request.ExpectedParticipants...)
++	response = executeGhostgetPrivate(context.Background(), runtime, directory, request.Generation, request)
++	if response.State != "not-started" || !response.BindingChanged || effects != 1 {
++		t.Fatal("failed old intent revived", response, effects)
++	}
++	request.RequestID = strings.Repeat("d", 64)
++	changeDuringPreparation = true
++	response = executeGhostgetPrivate(context.Background(), runtime, directory, request.Generation, request)
++	if response.State != "not-started" || !response.BindingChanged || effects != 1 {
++		t.Fatal("late membership change sent", response, effects)
++	}
++	request.RequestID = strings.Repeat("e", 64)
++	unavailable = true
++	response = executeGhostgetPrivate(context.Background(), runtime, directory, request.Generation, request)
++	if response.State != "not-started" || response.BindingChanged || effects != 1 {
++		t.Fatal("missing proof declared permanent change", response, effects)
++	}
++}
++
++func TestGhostgetPrivateGroupInfoDoesNotClaimOrDispatch(t *testing.T) {
++	directory := privateTestDirectory(t)
++	request := privateTestRequest()
++	request.Kind = "group-info"
++	request.To = "120363000000000000@g.us"
++	request.Message = ""
++	roster := []string{"15550000001@s.whatsapp.net", "15550000002@s.whatsapp.net"}
++	runtime := ghostgetPrivateRuntime{account: func() string { return request.Account }, connected: func() bool { return true },
++		groupInfo: func(context.Context, string) ([]string, error) { return roster, nil },
++		dispatch: func(context.Context, ghostgetPrivateRequest) (sendDelegateResponse, error) {
++			t.Fatal("read dispatched")
++			return sendDelegateResponse{}, nil
++		},
++	}
++	response := executeGhostgetPrivate(context.Background(), runtime, directory, request.Generation, request)
++	if response.State != "ready" || len(response.Participants) != 2 {
++		t.Fatal(response)
++	}
++	entries, err := os.ReadDir(directory)
++	if err != nil || len(entries) != 0 {
++		t.Fatal("group read created dispatch state", entries, err)
++	}
++	raw, _ := json.Marshal(request)
++	if _, err := decodeGhostgetPrivateRequest(raw); err != nil {
++		t.Fatal(err)
++	}
++	request.ExpectedParticipants = roster
++	raw, _ = json.Marshal(request)
++	if _, err := decodeGhostgetPrivateRequest(raw); err == nil {
++		t.Fatal("read accepted send-only roster")
++	}
++}
+diff --git a/cmd/wacli/ghostget_private_unix.go b/cmd/wacli/ghostget_private_unix.go
+index 16c7eeb..65483be 100644
+--- a/cmd/wacli/ghostget_private_unix.go
++++ b/cmd/wacli/ghostget_private_unix.go
+@@ -16,6 +16,7 @@ import (
+ 	"os"
+ 	"path/filepath"
+ 	"regexp"
++	"slices"
+ 	"strconv"
+ 	"sync"
+ 	"syscall"
+@@ -23,6 +24,7 @@ import (
+ 	"unicode/utf8"
+ 
+ 	"github.com/openclaw/wacli/internal/app"
++	"github.com/openclaw/wacli/internal/wa"
+ 	"go.mau.fi/whatsmeow/types"
+ )
+ 
+@@ -33,33 +35,40 @@ const ghostgetPrivateMaximum = 1024 * 1024
+ var ghostgetRequestID = regexp.MustCompile(`^[a-f0-9]{64}$`)
+ var ghostgetDirectJID = regexp.MustCompile(`^([1-9][0-9]{4,14}@s\.whatsapp\.net|[1-9][0-9]{4,19}@lid)$`)
+ 
++var ghostgetGroupJID = regexp.MustCompile(`^[1-9][0-9]{4,19}(-[1-9][0-9]{0,19})?@g\.us$`)
++var errGhostgetGroupChanged = errors.New("the enrolled group membership changed")
++var errGhostgetGroupUnavailable = errors.New("the current group roster is unavailable")
++
+ type ghostgetPrivateRequest struct {
+-	Protocol   string   `json:"protocol"`
+-	Kind       string   `json:"kind"`
+-	RequestID  string   `json:"requestId"`
+-	Generation string   `json:"generation"`
+-	Account    string   `json:"account"`
+-	To         string   `json:"to"`
+-	Message    string   `json:"message"`
+-	File       string   `json:"file"`
+-	Filename   string   `json:"filename"`
+-	MIME       string   `json:"mime"`
+-	ID         string   `json:"id"`
+-	Reaction   string   `json:"reaction"`
+-	Question   string   `json:"question"`
+-	Options    []string `json:"options"`
+-	Selectable int      `json:"selectable"`
++	Protocol             string   `json:"protocol"`
++	Kind                 string   `json:"kind"`
++	RequestID            string   `json:"requestId"`
++	Generation           string   `json:"generation"`
++	Account              string   `json:"account"`
++	To                   string   `json:"to"`
++	Message              string   `json:"message"`
++	File                 string   `json:"file"`
++	Filename             string   `json:"filename"`
++	MIME                 string   `json:"mime"`
++	ID                   string   `json:"id"`
++	Reaction             string   `json:"reaction"`
++	Question             string   `json:"question"`
++	Options              []string `json:"options"`
++	Selectable           int      `json:"selectable"`
++	ExpectedParticipants []string `json:"expectedParticipants,omitempty"`
+ }
+ 
+ type ghostgetPrivateResponse struct {
+-	Protocol   string `json:"protocol"`
+-	RequestID  string `json:"requestId"`
+-	Generation string `json:"generation"`
+-	Account    string `json:"account"`
+-	State      string `json:"state"`
+-	To         string `json:"to"`
+-	MessageID  string `json:"messageId"`
+-	Connected  bool   `json:"connected"`
++	Protocol       string   `json:"protocol"`
++	RequestID      string   `json:"requestId"`
++	Generation     string   `json:"generation"`
++	Account        string   `json:"account"`
++	State          string   `json:"state"`
++	To             string   `json:"to"`
++	MessageID      string   `json:"messageId"`
++	Connected      bool     `json:"connected"`
++	Participants   []string `json:"participants,omitempty"`
++	BindingChanged bool     `json:"bindingChanged,omitempty"`
+ }
+ 
+ type ghostgetPrivateReceipt struct {
+@@ -75,6 +84,7 @@ type ghostgetPrivateRuntime struct {
+ 	socketPath string
+ 	account    func() string
+ 	connected  func() bool
++	groupInfo  func(context.Context, string) ([]string, error)
+ 	dispatch   func(context.Context, ghostgetPrivateRequest) (sendDelegateResponse, error)
+ }
+ 
+@@ -155,7 +165,7 @@ func decodeGhostgetPrivateRequest(data []byte) (ghostgetPrivateRequest, error) {
+ 	if err = decoder.Decode(&request); err != nil {
+ 		return request, errors.New("unsupported request schema")
+ 	}
+-	if len(seen) != 15 || request.Protocol != ghostgetPrivateProtocol {
++	if len(seen) != 15 && !(len(seen) == 16 && seen["expectedParticipants"]) || request.Protocol != ghostgetPrivateProtocol || seen["expectedParticipants"] && (!ghostgetGroupJID.MatchString(request.To) || request.Kind == "group-info") {
+ 		return request, errors.New("unsupported request protocol")
+ 	}
+ 	return request, nil
+@@ -204,6 +214,17 @@ func startGhostgetPrivateServer(parent context.Context, a *app.App, socketPath s
+ 	}
+ 	runtime := ghostgetPrivateRuntime{store: a.StoreDir(), account: func() string { return ghostgetPrivateAccount(a) }, connected: a.WA().IsConnected,
+ 		socketPath: socketPath,
++		groupInfo: func(ctx context.Context, target string) ([]string, error) {
++			jid, err := types.ParseJID(target)
++			if err != nil || !ghostgetGroupJID.MatchString(target) {
++				return nil, errors.New("invalid group coordinate")
++			}
++			info, err := a.WA().GetGroupInfo(ctx, jid)
++			if err != nil {
++				return nil, err
++			}
++			return ghostgetGroupParticipants(info, target)
++		},
+ 		dispatch: func(ctx context.Context, request ghostgetPrivateRequest) (sendDelegateResponse, error) {
+ 			delegated := sendDelegateRequest{Version: 1, Kind: request.Kind, To: request.To, Message: request.Message, NoPreview: true, File: request.File, Filename: request.Filename, MIME: request.MIME, As: "document", ID: request.ID, Reaction: request.Reaction, Question: request.Question, Options: request.Options, Selectable: request.Selectable, PostSendWaitMS: 2000, TimeoutMS: 50000}
+ 			if request.Kind == "react" {
+@@ -343,9 +364,16 @@ func ghostgetPrivateAccount(a *app.App) string {
+ }
+ 
+ func validateGhostgetPrivateSend(request ghostgetPrivateRequest) error {
+-	if !ghostgetRequestID.MatchString(request.RequestID) || !ghostgetDirectJID.MatchString(request.To) || !ghostgetDirectJID.MatchString(request.Account) || len(request.Message) > 65536 || len(request.Filename) > 255 || len(request.MIME) > 128 || len(request.ID) > 256 || len(request.Reaction) > 64 {
++	if !ghostgetRequestID.MatchString(request.RequestID) || (!ghostgetDirectJID.MatchString(request.To) && !ghostgetGroupJID.MatchString(request.To)) || !ghostgetDirectJID.MatchString(request.Account) || len(request.Message) > 65536 || len(request.Filename) > 255 || len(request.MIME) > 128 || len(request.ID) > 256 || len(request.Reaction) > 64 {
+ 		return errors.New("invalid private send request")
+ 	}
++	if ghostgetGroupJID.MatchString(request.To) {
++		if !ghostgetValidParticipants(request.ExpectedParticipants) {
++			return errors.New("a complete canonical group roster is required")
++		}
++	} else if request.ExpectedParticipants != nil {
++		return errors.New("group roster is invalid for a direct recipient")
++	}
+ 	if request.To == request.Account {
+ 		return errors.New("self messaging requires a separate contract")
+ 	}
+@@ -393,7 +421,7 @@ func validateGhostgetPrivateSend(request ghostgetPrivateRequest) error {
+ func executeGhostgetPrivate(ctx context.Context, runtime ghostgetPrivateRuntime, directory, generation string, request ghostgetPrivateRequest) ghostgetPrivateResponse {
+ 	response := ghostgetPrivateResponse{Protocol: ghostgetPrivateProtocol, RequestID: request.RequestID, Generation: generation, Account: runtime.account(), State: "not-started", To: request.To, Connected: runtime.connected()}
+ 	if request.Kind == "status" {
+-		if request.RequestID == "" && request.Generation == "" && request.Account == "" && request.To == "" && request.Message == "" && request.File == "" && request.Filename == "" && request.MIME == "" && request.ID == "" && request.Reaction == "" && request.Question == "" && len(request.Options) == 0 && request.Selectable == 0 {
++		if request.RequestID == "" && request.Generation == "" && request.Account == "" && request.To == "" && request.Message == "" && request.File == "" && request.Filename == "" && request.MIME == "" && request.ID == "" && request.Reaction == "" && request.Question == "" && len(request.Options) == 0 && request.Selectable == 0 && request.ExpectedParticipants == nil {
+ 			response.State = "ready"
+ 		}
+ 		return response
+@@ -401,6 +429,18 @@ func executeGhostgetPrivate(ctx context.Context, runtime ghostgetPrivateRuntime,
+ 	if request.Generation != generation || request.Account != response.Account || ctx.Err() != nil || !response.Connected {
+ 		return response
+ 	}
++	if request.Kind == "group-info" {
++		if !ghostgetRequestID.MatchString(request.RequestID) || !ghostgetGroupJID.MatchString(request.To) || request.Message != "" || request.File != "" || request.Filename != "" || request.MIME != "" || request.ID != "" || request.Reaction != "" || request.Question != "" || len(request.Options) != 0 || request.Selectable != 0 || request.ExpectedParticipants != nil || runtime.groupInfo == nil {
++			return response
++		}
++		participants, err := runtime.groupInfo(ctx, request.To)
++		if err != nil || ctx.Err() != nil || runtime.account() != request.Account || !runtime.connected() || !ghostgetValidParticipants(participants) {
++			return response
++		}
++		response.State = "ready"
++		response.Participants = participants
++		return response
++	}
+ 	if validateGhostgetPrivateSend(request) != nil {
+ 		return response
+ 	}
+@@ -422,7 +462,7 @@ func executeGhostgetPrivate(ctx context.Context, runtime ghostgetPrivateRuntime,
+ 		}
+ 		response = prior.Response
+ 		response.Generation = generation
+-		if response.State != "accepted" {
++		if response.State != "accepted" && !(response.State == "not-started" && ghostgetGroupJID.MatchString(response.To)) {
+ 			response.State = "indeterminate"
+ 		}
+ 		return response
+@@ -453,15 +493,53 @@ func executeGhostgetPrivate(ctx context.Context, runtime ghostgetPrivateRuntime,
+ 		return response
+ 	}
+ 	privateCtx := context.WithValue(ctx, ghostgetPrivateContextKey{}, true)
+-	result, err := runtime.dispatch(privateCtx, request)
++	var guard func(context.Context, types.JID) error
++	if ghostgetGroupJID.MatchString(request.To) {
++		guard = func(ctx context.Context, target types.JID) error {
++			if target.String() != request.To || runtime.account() != request.Account {
++				return errGhostgetGroupChanged
++			}
++			if runtime.groupInfo == nil || !runtime.connected() {
++				return errGhostgetGroupUnavailable
++			}
++			participants, err := runtime.groupInfo(ctx, request.To)
++			if err != nil {
++				return errors.Join(errGhostgetGroupUnavailable, err)
++			}
++			if !ghostgetValidParticipants(participants) {
++				return errGhostgetGroupUnavailable
++			}
++			if runtime.account() != request.Account || !slices.Equal(participants, request.ExpectedParticipants) {
++				return errGhostgetGroupChanged
++			}
++			if err := ctx.Err(); err != nil {
++				return errors.Join(errGhostgetGroupUnavailable, err)
++			}
++			return nil
++		}
++		privateCtx = wa.WithPrivateSendGuard(privateCtx, guard)
++	}
++	var result sendDelegateResponse
++	if guard != nil {
++		target, _ := types.ParseJID(request.To)
++		err = guard(privateCtx, target)
++	}
++	if err == nil {
++		result, err = runtime.dispatch(privateCtx, request)
++	}
+ 	response.State = "indeterminate"
+ 	if err == nil && result.OK && result.Sent && result.To == request.To && result.ID != "" {
+ 		response.State = "accepted"
+ 		response.MessageID = result.ID
+ 	}
++	if errors.Is(err, errGhostgetGroupChanged) || errors.Is(err, errGhostgetGroupUnavailable) {
++		response.State = "not-started"
++		response.BindingChanged = errors.Is(err, errGhostgetGroupChanged)
++	}
+ 	receipt.Response = response
+ 	if err := writeGhostgetPrivateReceipt(path, receipt); err != nil {
+ 		response.State = "indeterminate"
++		response.BindingChanged = false
+ 	}
+ 	return response
+ }
+@@ -483,7 +561,7 @@ func readGhostgetPrivateReceipt(path string) (ghostgetPrivateReceipt, error) {
+ 	}
+ 	decoder := json.NewDecoder(bytes.NewReader(data))
+ 	decoder.DisallowUnknownFields()
+-	if err = decoder.Decode(&receipt); err != nil || receipt.SchemaVersion != 1 || !ghostgetRequestID.MatchString(receipt.RequestDigest) || receipt.Response.Protocol != ghostgetPrivateProtocol || !ghostgetRequestID.MatchString(receipt.Response.RequestID) || !ghostgetRequestID.MatchString(receipt.Response.Generation) || !ghostgetDirectJID.MatchString(receipt.Response.Account) || !ghostgetDirectJID.MatchString(receipt.Response.To) || len(receipt.Response.MessageID) > 256 || (receipt.Response.State != "started" && receipt.Response.State != "accepted" && receipt.Response.State != "indeterminate") || (receipt.Response.State == "accepted" && receipt.Response.MessageID == "") {
++	if err = decoder.Decode(&receipt); err != nil || receipt.SchemaVersion != 1 || !ghostgetRequestID.MatchString(receipt.RequestDigest) || receipt.Response.Protocol != ghostgetPrivateProtocol || !ghostgetRequestID.MatchString(receipt.Response.RequestID) || !ghostgetRequestID.MatchString(receipt.Response.Generation) || !ghostgetDirectJID.MatchString(receipt.Response.Account) || (!ghostgetDirectJID.MatchString(receipt.Response.To) && !ghostgetGroupJID.MatchString(receipt.Response.To)) || len(receipt.Response.MessageID) > 256 || (receipt.Response.State != "started" && receipt.Response.State != "accepted" && receipt.Response.State != "indeterminate" && !(receipt.Response.State == "not-started" && ghostgetGroupJID.MatchString(receipt.Response.To))) || (receipt.Response.State == "accepted" && receipt.Response.MessageID == "") || receipt.Response.Participants != nil || receipt.Response.BindingChanged && receipt.Response.State != "not-started" {
+ 		return receipt, errors.New("invalid receipt")
+ 	}
+ 	var trailing any
+@@ -525,3 +603,34 @@ func writeGhostgetPrivateReceipt(path string, receipt ghostgetPrivateReceipt) er
+ 	}
+ 	return ghostgetPrivateSyncDirectory(filepath.Dir(path))
+ }
++
++// Only GetGroupInfo supplies a roster. A local chat row or a cached participant
++// sample is never enrollment evidence. Recipient aliases are not resolved.
++func ghostgetGroupParticipants(info *types.GroupInfo, target string) ([]string, error) {
++	if info == nil || info.JID.String() != target || !ghostgetGroupJID.MatchString(target) || info.IsParent || info.IsIncognito || info.Suspended || info.ParticipantCount != len(info.Participants) || len(info.Participants) < 1 || len(info.Participants) > 500 {
++		return nil, errors.New("unverified group")
++	}
++	participants := make([]string, 0, len(info.Participants))
++	for _, participant := range info.Participants {
++		if participant.Error != 0 || participant.AddRequest != nil || participant.DisplayName != "" {
++			return nil, errors.New("unverified group participant")
++		}
++		participants = append(participants, participant.JID.String())
++	}
++	slices.Sort(participants)
++	if !ghostgetValidParticipants(participants) {
++		return nil, errors.New("incomplete or unsupported group roster")
++	}
++	return participants, nil
++}
++func ghostgetValidParticipants(participants []string) bool {
++	if len(participants) < 1 || len(participants) > 500 {
++		return false
++	}
++	for index, participant := range participants {
++		if !ghostgetDirectJID.MatchString(participant) || index > 0 && participants[index-1] >= participant {
++			return false
++		}
++	}
++	return true
++}
+diff --git a/internal/wa/client.go b/internal/wa/client.go
+index 715e457..1a6cc31 100644
+--- a/internal/wa/client.go
++++ b/internal/wa/client.go
+@@ -285,6 +285,9 @@ func (c *Client) SendText(ctx context.Context, to types.JID, text string) (types
+ 		return "", fmt.Errorf("not connected")
+ 	}
+ 	msg := &waProto.Message{Conversation: &text}
++	if err := CheckPrivateSendGuard(ctx, to); err != nil {
++		return "", err
++	}
+ 	resp, err := cli.SendMessage(ctx, to, msg)
+ 	if err != nil {
+ 		return "", err
+@@ -304,12 +307,18 @@ func (c *Client) SendProtoMessageWithExtra(ctx context.Context, to types.JID, ms
+ 		return "", fmt.Errorf("not connected")
+ 	}
+ 	if mediaHandle == "" {
++		if err := CheckPrivateSendGuard(ctx, to); err != nil {
++			return "", err
++		}
+ 		resp, err := cli.SendMessage(ctx, to, msg)
+ 		if err != nil {
+ 			return "", err
+ 		}
+ 		return resp.ID, nil
+ 	}
++	if err := CheckPrivateSendGuard(ctx, to); err != nil {
++		return "", err
++	}
+ 	resp, err := cli.SendMessage(ctx, to, msg, whatsmeow.SendRequestExtra{MediaHandle: mediaHandle})
+ 	if err != nil {
+ 		return "", err
+@@ -335,6 +344,9 @@ func (c *Client) SendPoll(ctx context.Context, to types.JID, name string, option
+ 	if ephemeral {
+ 		msg = wrapEphemeralPollMessage(msg)
+ 	}
++	if err := CheckPrivateSendGuard(ctx, to); err != nil {
++		return "", err
++	}
+ 	resp, err := cli.SendMessage(ctx, to, msg)
+ 	if err != nil {
+ 		return "", err
+@@ -525,6 +537,9 @@ func (c *Client) SendReaction(ctx context.Context, chat, sender types.JID, targe
+ 	if cli == nil || !cli.IsConnected() {
+ 		return "", fmt.Errorf("not connected")
+ 	}
++	if err := CheckPrivateSendGuard(ctx, chat); err != nil {
++		return "", err
++	}
+ 	resp, err := cli.SendMessage(ctx, chat, cli.BuildReaction(chat, sender, targetID, reaction))
+ 	if err != nil {
+ 		return "", err
+diff --git a/internal/wa/private_send_guard.go b/internal/wa/private_send_guard.go
+new file mode 100644
+index 0000000..0138c5d
+--- /dev/null
++++ b/internal/wa/private_send_guard.go
+@@ -0,0 +1,20 @@
++package wa
++
++import (
++	"context"
++	"go.mau.fi/whatsmeow/types"
++)
++
++type privateSendGuardKey struct{}
++
++// WithPrivateSendGuard adds an exact final-effect check to the supervised path.
++// Ordinary commands carry no guard and retain their existing behavior.
++func WithPrivateSendGuard(ctx context.Context, check func(context.Context, types.JID) error) context.Context {
++	return context.WithValue(ctx, privateSendGuardKey{}, check)
++}
++func CheckPrivateSendGuard(ctx context.Context, target types.JID) error {
++	if check, ok := ctx.Value(privateSendGuardKey{}).(func(context.Context, types.JID) error); ok {
++		return check(ctx, target)
++	}
++	return nil
++}
+diff --git a/internal/wa/private_send_guard_test.go b/internal/wa/private_send_guard_test.go
+new file mode 100644
+index 0000000..2c49b32
+--- /dev/null
++++ b/internal/wa/private_send_guard_test.go
+@@ -0,0 +1,27 @@
++package wa
++
++import (
++	"context"
++	"errors"
++	"go.mau.fi/whatsmeow/types"
++	"testing"
++)
++
++func TestPrivateSendGuardIsExactAndAbsentForOrdinarySends(t *testing.T) {
++	target, _ := types.ParseJID("120363000000000000@g.us")
++	if err := CheckPrivateSendGuard(context.Background(), target); err != nil {
++		t.Fatal(err)
++	}
++	calls := 0
++	denied := errors.New("membership changed")
++	ctx := WithPrivateSendGuard(context.Background(), func(_ context.Context, received types.JID) error {
++		calls++
++		if received != target {
++			t.Fatal("target rewritten")
++		}
++		return denied
++	})
++	if !errors.Is(CheckPrivateSendGuard(ctx, target), denied) || calls != 1 {
++		t.Fatal("guard skipped")
++	}
++}

@@ -6,9 +6,19 @@ import { tmpdir } from "node:os";
 import { gunzipSync } from "node:zlib";
 
 import { MESSAGING_NATIVE_ARTIFACTS } from "../src/providers/messaging-native-artifacts";
-import { verify } from "./messaging-runtime-provenance";
+import { assertPatchStackIdentity, verify } from "./messaging-runtime-provenance";
 
 describe("messaging runtime provenance", () => {
+  test("pinned source trees tolerate reconstructed commit metadata but reject source drift", () => {
+    const stack = { tipCommit: "1".repeat(40), sourceTree: "2".repeat(40), patches: [] };
+    expect(() => assertPatchStackIdentity("wacli", stack, "3".repeat(40), stack.sourceTree)).not.toThrow();
+    expect(() => assertPatchStackIdentity("wacli", stack, stack.tipCommit, "4".repeat(40))).toThrow("source tree");
+    expect(() => assertPatchStackIdentity("wacli", { ...stack, sourceTree: "" }, stack.tipCommit, "")).toThrow("source tree");
+    const legacy = { tipCommit: stack.tipCommit, patches: [] };
+    expect(() => assertPatchStackIdentity("imsg", legacy, stack.tipCommit, "4".repeat(40))).not.toThrow();
+    expect(() => assertPatchStackIdentity("imsg", legacy, "3".repeat(40), "4".repeat(40))).toThrow("patch stack landed");
+  });
+
   test("the committed compressed and executable pins verify from the checked-in bytes", async () => {
     await verify();
   });

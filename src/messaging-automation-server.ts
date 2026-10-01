@@ -5,7 +5,7 @@ import { canonicalJson } from "./canonical-json";
 import { discoveryDiagnosticMessage } from "./messaging-automation-diagnostics";
 import { MessagingAutomationHost } from "./messaging-automation";
 import { MESSAGING_AUTOMATION_PROTOCOL as protocol, type AutomationGrantRequest, type AutomationProviderId, type AutomationProviderStatus } from "./messaging-automation-types";
-import { automationArray, automationDigest, automationId, automationInteger, automationRecord, automationText, parseAutomationAction, automationInstant } from "./messaging-automation-validation";
+import { automationGroupOptions, automationArray, automationDigest, automationId, automationInteger, automationRecord, automationText, parseAutomationAction, automationInstant } from "./messaging-automation-validation";
 import { createMessagingAutomationSession } from "./messaging-automation-factory";
 import { enablePersistentStateHelpers } from "./storage";
 import type { ProviderPluginRegistry } from "./provider-plugin-registry";
@@ -72,13 +72,14 @@ export class MessagingAutomationRpcServer {
     }
     if (method === "close") { automationRecord(raw, []); await this.close(); return { closed: true }; }
     const host = this.host();
+    if (method === "features") { automationRecord(raw, []); return host.features(); }
     if (method === "status" || method === "start") {
       const r = automationRecord(raw, ["provider"]); const selected = provider(r.provider);
       return method === "status" ? host.providerStatus(selected, this.abort.signal) : this.session!.start(selected, this.abort.signal);
     }
-    if (method === "conversations") { const r = automationRecord(raw, ["provider", "limit"]); return host.conversations({ provider: provider(r.provider), limit: automationInteger(r.limit, 1, 200) }, this.abort.signal); }
+    if (method === "conversations") { const r = automationGroupOptions(raw, ["provider", "limit"]); return host.conversations({ provider: provider(r.provider), limit: automationInteger(r.limit, 1, 200), includeGroups: r.includeGroups }, this.abort.signal); }
     if (method === "enroll") { const r = automationRecord(raw, ["provider", "coordinate"]); return host.enroll({ provider: provider(r.provider), coordinate: r.coordinate }, this.abort.signal); }
-    if (method === "enrollments") { automationRecord(raw, []); return host.enrollments(); }
+    if (method === "enrollments") { const r = automationGroupOptions(raw, []); return host.enrollments({ includeGroups: r.includeGroups }); }
     if (method === "grant") {
       const r = automationRecord(raw, ["intentId", "enrollmentId", "expectedBindingDigest", "actions", "expiresAt", "maximumActions", "minimumIntervalMs"]);
       const { intentId, ...request } = r; return host.grant(request as AutomationGrantRequest, automationId(intentId));
@@ -159,7 +160,7 @@ export class MessagingAutomationRpcServer {
       const results = free.length === 0 ? [] : [...await host.pollEnrollments(free, this.abort.signal)];
       if (busy.length > 0) {
         let rows: ReturnType<typeof host.enrollments> = [];
-        try { rows = host.enrollments(); } catch { /* a corrupt unrelated row degrades busy entries below */ }
+        try { rows = host.enrollments({ includeGroups: true }); } catch { /* a corrupt unrelated row degrades busy entries below */ }
         for (const id of busy) {
           const enrollment = rows.find(item => item.id === id) ?? null;
           results.push({ enrollmentId: id, enrollment, error: enrollment === null ? "Messaging enrollment is unavailable." : null });
@@ -189,7 +190,7 @@ export class MessagingAutomationRpcServer {
       const r = automationRecord(value, ["protocol", "id", "method", "params"]);
       id = automationText(r.id, 64); if (!/^[A-Za-z0-9._:-]+$/u.test(id) || r.protocol !== protocol) throw new Error("Invalid envelope");
       method = automationText(r.method, 32); priority = ["cancel", "revoke", "close"].includes(method);
-      scoped = ["poll", "pollSet", "history", "history.window", "prepare", "grant", "submit", "events", "enrollments", "status", "run", "run.by-intent", "grant.get", "grant.by-intent"].includes(method);
+      scoped = ["features", "poll", "pollSet", "history", "history.window", "prepare", "grant", "submit", "events", "enrollments", "status", "run", "run.by-intent", "grant.get", "grant.by-intent"].includes(method);
       if (this.requests.has(id) || (priority ? this.priorityBusy >= 8 : scoped ? this.scopedBusy >= 16 : this.normalBusy)) return { protocol, id, ok: false, error: { code: "not-ready", message: "The owner host is busy or this request is already active." } };
       this.requests.add(id); admitted = true;
       if (priority) this.priorityBusy++; else if (scoped) this.scopedBusy++; else this.normalBusy = true;

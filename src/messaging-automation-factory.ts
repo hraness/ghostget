@@ -141,6 +141,7 @@ export async function createMessagingAutomationSession(options: MessagingAutomat
       });
       const wrapped: MessagingAutomationProvider = {
         provider: selected.provider, inspect: status,
+        ...(concrete.groupConversations === undefined ? {} : { groupConversations: concrete.groupConversations }),
         conversations: (input, signal) => call(() => concrete.conversations(input, signal)),
         resolve: (input, signal) => call(() => concrete.resolve(input, signal)),
         history: (input, signal) => call(() => concrete.history(input, signal)),

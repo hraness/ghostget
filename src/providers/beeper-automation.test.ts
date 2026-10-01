@@ -6,6 +6,8 @@ import { join } from "node:path";
 
 import type { GhostgetAuth } from "../auth";
 import type { AutomationAction, AutomationCoordinate } from "../messaging-automation-types";
+import { AutomationGroupBindingChangedError } from "../messaging-automation-types";
+import { AUTOMATION_BINDING_CHANGED_REASON } from "../messaging-automation-validation";
 import { createBeeperAutomationProvider, type BeeperAutomationAdmission, type BeeperAutomationOperation } from "./beeper-automation";
 import { BEEPER_CLI_PIN } from "./beeper-local";
 import { beeperSubjectFromAccountsAndTarget, parseBeeperExportAccounts, type BeeperCliInvocation } from "./beeper-local-runtime";
@@ -74,6 +76,8 @@ function jsonResponse(value: unknown): Response {
 }
 
 interface World {
+  chatReads: number;
+  emptyRosterAtRead: number | null;
   accounts: readonly Record<string, unknown>[];
   chats: readonly Record<string, unknown>[];
   /** Ascending sortKey order, like the provider's local history. */
@@ -85,6 +89,7 @@ interface World {
 
 function fixture(overrides: Partial<World> = {}) {
   const world: World = {
+    chatReads: 0, emptyRosterAtRead: null,
     accounts: [selfAccount as Record<string, unknown>],
     chats: [targetChat as Record<string, unknown>],
     messages: [],
@@ -112,6 +117,11 @@ function fixture(overrides: Partial<World> = {}) {
   const cliCalls: string[] = [];
   const httpCalls: string[] = [];
   const sorted = () => [...world.messages].sort((a, b) => String(a.sortKey).localeCompare(String(b.sortKey)));
+  const readChat = (id: string | null | undefined) => {
+    world.chatReads++;
+    const chat = world.chats.find(value => value.id === id);
+    return chat?.type === "group" && world.emptyRosterAtRead !== null && world.chatReads >= world.emptyRosterAtRead ? { ...chat, participants: { items: [], total: 0, hasMore: false } } : chat;
+  };
   const fetch = (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
     const url = new URL(String(input));
     const route = `${init?.method ?? "GET"} ${url.pathname}`;
@@ -121,7 +131,7 @@ function fixture(overrides: Partial<World> = {}) {
     if (route === "GET /v1/accounts") return Promise.resolve(jsonResponse(world.accounts));
     const chatMatch = /^\/v1\/chats\/([^/]+)$/u.exec(url.pathname);
     if (route.startsWith("GET") && chatMatch !== null) {
-      const chat = world.chats.find(value => value.id === decodeURIComponent(chatMatch[1]!));
+      const chat = readChat(decodeURIComponent(chatMatch[1]!));
       return Promise.resolve(chat === undefined ? jsonResponse({ errcode: "M_NOT_FOUND", error: "not found" }) : jsonResponse(chat));
     }
     const messagesMatch = /^\/v1\/chats\/([^/]+)\/messages$/u.exec(url.pathname);
@@ -163,7 +173,7 @@ function fixture(overrides: Partial<World> = {}) {
     if (command === "chats show") {
       const index = invocation.arguments.indexOf("--chat");
       const id = index === -1 ? null : invocation.arguments[index + 1];
-      return ok(world.chats.find(chat => chat.id === id));
+      return ok(readChat(id));
     }
     return ok(null);
   };
@@ -202,6 +212,26 @@ function seedMessages(world: World, count: number, start = 1): void {
 }
 
 describe("Beeper automation provider", () => {
+  test("groups require complete roster evidence and bind the final send to it", async () => {
+    const group = { ...targetChat, type: "group" };
+    const f = fixture({ chats: [group] });
+    const bound = await f.provider.resolve(target);
+    expect(bound.conversation.kind).toBe("group");
+    expect(f.provider.groupConversations).toEqual({ version: 1 });
+    const request = { identity: bound.identity, coordinate: target, conversation: bound.conversation, action: { kind: "text" as const, text: "Synthetic group text" }, intentId: "group-test" };
+    expect((await f.provider.send(request)).state).toBe("accepted");
+    f.world.chats = [{ ...group, participants: { hasMore: false, total: 2, items: [{ id: "@self:beeper.test", isSelf: true }, { id: "@replacement:beeper.test", isSelf: false }] } }];
+    expect(await f.provider.send(request)).toEqual({ state: "not-started", reason: AUTOMATION_BINDING_CHANGED_REASON });
+    expect(f.httpCalls.filter(call => call.startsWith("POST"))).toHaveLength(1);
+    f.world.chats = [{ ...group, participants: { ...group.participants, hasMore: true, total: 3 } }];
+    expect((await f.provider.conversations({ limit: 20 })).conversations).toEqual([]);
+    await expect(f.provider.resolve(target)).rejects.toThrow("complete");
+    const incomplete = await f.provider.send(request);
+    expect(incomplete.state).toBe("not-started");
+    if (incomplete.state !== "accepted") expect(incomplete.reason).not.toBe(AUTOMATION_BINDING_CHANGED_REASON);
+    expect(f.httpCalls.filter(call => call.startsWith("POST"))).toHaveLength(1);
+    await f.provider.close();
+  });
   test("inspection reports the bound realm and text-only capability", async () => {
     const f = fixture();
     const status = await f.provider.inspect();
@@ -222,6 +252,18 @@ describe("Beeper automation provider", () => {
     expect(status.events.reason).toContain("not reachable");
   });
 
+  test("complete-empty Beeper group evidence invalidates binding while incomplete evidence stays transient", async () => {
+    const group = { ...targetChat, type: "group" }; const f = fixture({ chats: [group] });
+    const bound = await f.provider.resolve(target);
+    f.world.chats = [{ ...group, participants: { items: [], total: 0, hasMore: false } }];
+    await expect(f.provider.resolve(target)).rejects.toBeInstanceOf(AutomationGroupBindingChangedError);
+    f.world.chats = [{ ...group, participants: { items: [], total: 1, hasMore: true } }];
+    await expect(f.provider.resolve(target)).rejects.toThrow("unavailable");
+    f.world.chats = [group]; f.world.chatReads = 0; f.world.emptyRosterAtRead = 2;
+    expect(await f.provider.send({ identity: bound.identity, coordinate: target, conversation: bound.conversation, action: { kind: "text", text: "Synthetic" }, intentId: "empty-at-effect" })).toMatchObject({ state: "not-started", reason: AUTOMATION_BINDING_CHANGED_REASON });
+    expect(f.world.chatReads).toBeGreaterThanOrEqual(2);
+    expect(f.httpCalls.filter(call => call.startsWith("POST"))).toHaveLength(0); await f.provider.close();
+  });
   test("conversations projects exact single coordinates and demotes groups", async () => {
     const f = fixture({
       chats: [
@@ -318,6 +360,7 @@ describe("Beeper automation provider", () => {
     f.world.messages.push(apiMessage("edited", "002", { edited: "2026-08-31T03:00:00.000Z" }));
     const history = await f.provider.history({ coordinate: target, limit: 200 });
     expect(history.messages.map(value => [value.kind, value.text])).toEqual([["delete", null], ["edit", "body edited"]]);
+    expect(history.messages.find(value => value.id === "edited")?.occurredAt).toBe(new Date(1_788_000_002_000).toISOString());
   });
 
   test("a full fresh window drains older pages until the watermark is proven", async () => {

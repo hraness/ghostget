@@ -107,6 +107,17 @@ test("initialize and inspection never imply sync; malformed fields fail without 
     const result = await f.request(method as string, params); expect(result.ok).toBe(false); expect(JSON.stringify(result)).not.toContain("private");
   }
 });
+test("group feature negotiation and opt-in fields are strict and preserve legacy direct lists", async () => {
+  const f = await fixture();
+  expect(await f.request("features", {})).toMatchObject({ ok: true, result: { groupConversations: { version: 1 } } });
+  for (const includeGroups of [undefined, false, true]) {
+    const flag = includeGroups === undefined ? {} : { includeGroups };
+    expect(await f.request("enrollments", flag)).toMatchObject({ ok: true, result: [] });
+    expect(await f.request("conversations", { provider: "whatsapp", limit: 20, ...flag })).toMatchObject({ ok: true, result: { conversations: [] } });
+  }
+  for (const includeGroups of [null, 1, "true"]) expect((await f.request("enrollments", { includeGroups })).ok).toBe(false);
+  expect((await f.request("features", { includeGroups: true })).ok).toBe(false);
+});
 test("asset bytes are canonical, digest-bound, plan-scoped and removed after terminal submit", async () => {
   const f = await fixture(); const bytesBase64 = Buffer.from("synthetic").toString("base64"), sha256 = createHash("sha256").update("synthetic").digest("hex");
   expect((await f.request("asset", { bytesBase64: bytesBase64 + "\n", sha256 })).ok).toBe(false);
