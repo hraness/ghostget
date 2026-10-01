@@ -212,20 +212,28 @@ export function clasificadosDetailUrl(id: string): string {
 }
 
 function decodeHtmlEntities(value: string): string {
-  return value
-    .replace(/&nbsp;/giu, " ")
-    .replace(/&amp;/giu, "&")
-    .replace(/&quot;/giu, "\"")
-    .replace(/&#39;/giu, "'")
-    .replace(/&lt;/giu, "<")
-    .replace(/&gt;/giu, ">")
-    .replace(/&iacute;/giu, "í")
-    .replace(/&oacute;/giu, "ó")
-    .replace(/&aacute;/giu, "á")
-    .replace(/&eacute;/giu, "é")
-    .replace(/&uacute;/giu, "ú")
-    .replace(/&ntilde;/giu, "ñ")
-    .replace(/&#(\d+);/gu, (_, code) => String.fromCharCode(Number(code)));
+  return value.replace(
+    /&(?:nbsp|amp|quot|lt|gt|iacute|oacute|aacute|eacute|uacute|ntilde|#[0-9]+);/giu,
+    (entity) => {
+      if (entity.startsWith("&#")) {
+        return String.fromCharCode(Number(entity.slice(2, -1)));
+      }
+      switch (entity.toLowerCase()) {
+        case "&nbsp;": return " ";
+        case "&amp;": return "&";
+        case "&quot;": return "\"";
+        case "&lt;": return "<";
+        case "&gt;": return ">";
+        case "&iacute;": return "í";
+        case "&oacute;": return "ó";
+        case "&aacute;": return "á";
+        case "&eacute;": return "é";
+        case "&uacute;": return "ú";
+        case "&ntilde;": return "ñ";
+        default: return entity;
+      }
+    },
+  );
 }
 
 function collapseWhitespace(value: string): string {

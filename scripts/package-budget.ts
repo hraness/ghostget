@@ -2398,14 +2398,22 @@
 // Retain the reviewed projections and allowances:
 // 12,144,090 + 12,387 + 4,096 = 12,160,573 packed;
 // 24,058,093 + 353 + 65 = 24,058,511 payload.
+// The 0.18.69 provider text projection repair retains all 625 entries.
+// Two byte-identical packs with the same toolchain measured 12,144,386 packed
+// and 24,058,719 payload bytes; SHA-256
+// 04e448f18aaf9d58642b8b3f36a555b9f8a1382d3112f803ad9505e8a00b0ead.
+// The two parser repairs and release metadata add 296 packed and 626 payload
+// bytes. Preserve every existing projection and allowance:
+// 12,144,386 + 12,387 + 4,096 = 12,160,869 packed;
+// 24,058,719 + 353 + 65 = 24,059,137 payload.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "GhostGet 0.18.68 encoded analytics privacy repair release over the verified 0.18.67 runtime",
+  scope: "GhostGet 0.18.69 provider text projection repair over the verified 0.18.68 runtime",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "ff4b2c54c3cc2e08319353d3f60660e8b7a73c20b38320e27d1ee170ce8f2b2a",
-  packedBytes: 12_144_090,
-  unpackedBytes: 24_058_093,
+  archiveSha256: "04e448f18aaf9d58642b8b3f36a555b9f8a1382d3112f803ad9505e8a00b0ead",
+  packedBytes: 12_144_386,
+  unpackedBytes: 24_058_719,
   entryCount: 625,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

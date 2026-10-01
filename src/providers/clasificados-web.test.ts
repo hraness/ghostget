@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import fc from "fast-check";
+import { assertProperty } from "../test-support";
 
 import {
   CLASIFICADOS_LISTINGS_SEARCH_CONTRACT,
@@ -198,6 +200,32 @@ describe("Clasificados location mapping", () => {
 });
 
 describe("Clasificados card projection", () => {
+  test("does not turn an escaped numeric entity into one bedroom", () => {
+    const card = aquablueCard.replace("\n2\n<img", "\n&amp;#49;\n<img");
+    expect(() => projectClasificadosListingCard(card))
+      .toThrow("Clasificados beds was not a reviewed room count");
+  });
+
+  test("decodes supported named entities once in listing text", () => {
+    const original = "Condominio Aquablue hermoso apartamento";
+    const card = aquablueCard.replaceAll(original,
+      "Calle &Aacute;&eacute;&iacute;&oacute;&uacute;&ntilde;&#39;B&nbsp;12");
+    expect(projectClasificadosListingCard(card).streetAddress).toBe("Calle áéíóúñ'B 12");
+    const escaped = aquablueCard.replaceAll(original, "Calle A&amp;iacute;B");
+    expect(projectClasificadosListingCard(escaped).streetAddress).toBe("Calle A");
+  });
+
+  test("decodes one numeric entity layer across valid room counts", () => {
+    assertProperty(fc.property(fc.integer({ min: 1, max: 9 }), (rooms) => {
+      const entity = `&#${48 + rooms};`;
+      const card = aquablueCard.replace("\n2\n<img", `\n${entity}\n<img`);
+      expect(projectClasificadosListingCard(card).beds).toBe(rooms);
+      const escaped = aquablueCard.replace("\n2\n<img", `\n&amp;${entity.slice(1)}\n<img`);
+      expect(() => projectClasificadosListingCard(escaped))
+        .toThrow("Clasificados beds was not a reviewed room count");
+    }), {}, "clasificados/single-entity-layer");
+  });
+
   test("projects Aquablue as Hato Rey from the known address, not listing copy", () => {
     expect(projectClasificadosListingCard(aquablueCard)).toMatchObject({
       id: "1974934",

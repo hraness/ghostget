@@ -7,6 +7,13 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.69
+
+Preserve provider text when projecting profile and rental listing data.
+
+- Exclude hidden LinkedIn script and style text from exact profile counts.
+- Decode Clasificados entities once so escaped text remains literal.
+
 ## 0.18.68
 
 Remove encoded personal identifiers and credentials from browser diagnostics.
