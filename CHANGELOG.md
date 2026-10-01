@@ -10,7 +10,9 @@ Historical entries retain their original delivery coordinates.
 ## 0.18.66
 
 Select the European PostHog UI only for the exact validated ingestion origin.
-This removes an ambiguous substring match while preserving fixed trusted UI URLs.
+
+- Replace the ambiguous substring match with exact origin equality.
+- Preserve fixed trusted PostHog UI URLs.
 
 ## 0.18.65
 
