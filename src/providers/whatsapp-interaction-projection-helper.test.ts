@@ -523,7 +523,6 @@ describe("WhatsApp content-free interaction projection helper", () => {
     { label: "outgoing group participant", chat: "120363123456789012@g.us", sender: "15559876543@s.whatsapp.net", fromMe: 1 },
     { label: "outgoing group chat", chat: "120363123456789012@g.us", sender: "120363987654321098@g.us", fromMe: 1 },
     { label: "incoming group chat", chat: "120363123456789012@g.us", sender: "120363987654321098@g.us", fromMe: 0 },
-    { label: "incoming group same-chat sender", chat: "120363123456789012@g.us", sender: "120363123456789012@g.us", fromMe: 0 },
   ] as const) {
     test(`rejects unrelated or contradictory legacy ${invalid.label}`, async () => {
       const path = createStore();
@@ -548,6 +547,32 @@ describe("WhatsApp content-free interaction projection helper", () => {
       }
     });
   }
+
+  test("drops an incoming legacy group sender that repeats the exact chat JID", async () => {
+    const path = createStore();
+    try {
+      const database = new Database(join(path, "wacli.db"), { strict: true });
+      try {
+        database.query(`
+          INSERT INTO messages(chat_jid,msg_id,sender_jid,ts,from_me)
+          VALUES ('120363123456789012@g.us','LEGACY-GROUP-IN-SAME-CHAT','120363123456789012@g.us',1776513603,0)
+        `).run();
+      } finally {
+        database.close();
+      }
+      chmodSync(join(path, "wacli.db"), 0o600);
+      expect(await response(path, request(path, {
+        cursor: "3",
+        cursorAnchor: "a86ecbd8b98eb6466c2b584a5b3d3ca0458230bbd6ecc86981d57ca4aaa81830",
+        limit: 1,
+      }))).toMatchObject({
+        status: "succeeded",
+        interactions: [{ rowid: "4", messageId: "LEGACY-GROUP-IN-SAME-CHAT", senderJid: null }],
+      });
+    } finally {
+      rmSync(path, { recursive: true, force: true });
+    }
+  });
 
   test("rejects unrelated outgoing participant IDs across PN, LID, and device aliases", async () => {
     await assertAsyncProperty(fc.asyncProperty(
