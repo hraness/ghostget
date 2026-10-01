@@ -2404,22 +2404,24 @@
 // b462796a666a3f7acccbbf052590f6f7b3db4f956307567dca313c6b13d3393a.
 // Group automation in 0.18.67 adds the pinned WhatsApp group source patch,
 // updates its native runtime, and expands the owner host and provider adapters.
+// It also preserves the legacy WhatsApp interaction projection repair merged
+// after the immutable analytics-only 0.18.66 source.
 // Two byte-identical npm 11.19.0 packs under the same qualified Node/zlib
-// toolchain measured 626 entries, 12,182,129 packed and 24,141,741 payload bytes.
+// toolchain measured 626 entries, 12,182,968 packed and 24,144,190 payload bytes.
 // The single added entry is the source patch; the net addition over 0.18.65
-// is 27,064 packed and 86,811 payload bytes, including rebuilt SDK chunks and
+// is 27,903 packed and 89,260 payload bytes, including rebuilt SDK chunks and
 // documentation. Every archive entry matches its retained source bytes.
 // Keep all existing projections and allowances:
-// 12,182,129 + 12,387 + 4,096 = 12,198,612 packed;
-// 24,141,741 + 353 + 65 = 24,142,159 payload.
+// 12,182,968 + 12,387 + 4,096 = 12,199,451 packed;
+// 24,144,190 + 353 + 65 = 24,144,608 payload.
 export const repairPackageMeasurement = Object.freeze({
   scope: "GhostGet 0.18.67 roster-bound group automation over the verified 0.18.65 package",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "349b558d9f0dc3005cccd2f9078059bc51a33ecf1ef23db475df367bcb1afba5",
-  packedBytes: 12_182_129,
-  unpackedBytes: 24_141_741,
+  archiveSha256: "83b1e4d81ff8a0b908d7290c87049d90ac483eff0551287186976c10f165c276",
+  packedBytes: 12_182_968,
+  unpackedBytes: 24_144_190,
   entryCount: 626,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

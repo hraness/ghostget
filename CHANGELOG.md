@@ -19,6 +19,8 @@ Automate selected group conversations in Beeper, iMessage, and WhatsApp.
 - Recheck the group before sending and require a new enrollment after a change.
 - Keep analytics preferences compact and their panel inside the viewport.
 - Use one product navigation row across marketing pages and documentation.
+- Accept legacy WhatsApp interaction rows with short system JIDs or
+  inconsistent participant fields while preserving body-free projection guards.
 
 ## 0.18.66
 
