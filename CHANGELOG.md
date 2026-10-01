@@ -7,7 +7,7 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
-## 0.18.68
+## 0.18.71
 
 Automate selected group conversations in Beeper, iMessage, and WhatsApp.
 
@@ -19,6 +19,28 @@ Automate selected group conversations in Beeper, iMessage, and WhatsApp.
 - Recheck the group before sending and require a new enrollment after a change.
 - Keep analytics preferences compact and their panel inside the viewport.
 - Use one product navigation row across marketing pages and documentation.
+
+## 0.18.70
+
+Preserve provider text when projecting profile and rental listing data.
+
+- Exclude hidden LinkedIn script and style text from exact profile counts.
+- Decode Clasificados entities once so escaped text remains literal.
+
+## 0.18.69
+
+Preserve body-free WhatsApp interaction counts for legacy group rows that repeat the exact chat JID as their sender field.
+
+- Drop only the exact same-chat group JID, regardless of stored direction.
+- Continue rejecting different group JIDs and unrelated participant identities.
+- Keep the strict schema, owner, cursor, and no-message-body guards intact.
+
+## 0.18.68
+
+Remove encoded personal identifiers and credentials from browser diagnostics.
+
+- Use the shared bounded redactor before truncating analytics text.
+- Preserve private route exclusions and query-free diagnostics.
 
 ## 0.18.67
 

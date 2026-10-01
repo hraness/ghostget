@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { assertProperty, fc } from "../test-support";
 import { canonicalJson } from "../canonical-json";
 import {
   parseArticleDraftDocument,
@@ -261,6 +262,62 @@ describe("LinkedIn exact profile-stat projections", () => {
       expectedPublicIdentifier: "0thernet",
       observedAt,
     })).toThrow("does not match the bound current member public identifier");
+  });
+
+  function assertRawTextIsExcluded(tag: string, whitespace: string): void {
+    const project = (html: string) => projectLinkedInPersonalProfileStats({
+      profileHtml: personalHtml(),
+      connectionsHtml: html,
+      profileUrl: "https://www.linkedin.com/in/0thernet",
+      expectedSubject: subject,
+      expectedPublicIdentifier: "0thernet",
+      observedAt,
+    });
+    const hidden = `<${tag}>999 connections Sort by: Search with filters</${tag}${whitespace}>`;
+    expect(() => project(hidden)).toThrow("omitted its exact list controls");
+    expect(project(hidden + connectionsHtml()).metrics.connections)
+      .toMatchObject({ status: "available", value: 4877 });
+    expect(() => project(`<${tag}>999 connections Sort by: Search with filters`))
+      .toThrow("omitted its exact list controls");
+  }
+
+  test("excludes raw-text counts and controls with whitespace-bearing end tags", () => {
+    assertRawTextIsExcluded("script", " ");
+    assertRawTextIsExcluded("style", "\r\n\t");
+  });
+
+  test("preserves visible counts inside script- and style-prefixed custom tags", () => {
+    for (const tag of ["script-widget", "style-widget", "script:widget", "style:widget"]) {
+      expect(projectLinkedInPersonalProfileStats({
+        profileHtml: personalHtml(),
+        connectionsHtml: connectionsHtml().replace("<h1>", `<${tag}>`).replace("</h1>", `</${tag}>`),
+        profileUrl: "https://www.linkedin.com/in/0thernet",
+        expectedSubject: subject,
+        expectedPublicIdentifier: "0thernet",
+        observedAt,
+      }).metrics.connections).toMatchObject({ status: "available", value: 4877 });
+    }
+  });
+
+  test("does not treat raw-text strings as nested script or style elements", () => {
+    for (const hidden of ['<style>body::after{content:"<script>"}</style>', '<script>const style = "<style>";</script>']) {
+      expect(projectLinkedInPersonalProfileStats({
+        profileHtml: personalHtml(),
+        connectionsHtml: hidden + connectionsHtml(),
+        profileUrl: "https://www.linkedin.com/in/0thernet",
+        expectedSubject: subject,
+        expectedPublicIdentifier: "0thernet",
+        observedAt,
+      }).metrics.connections).toMatchObject({ status: "available", value: 4877 });
+    }
+  });
+
+  test("raw-text count exclusion holds for HTML whitespace and tag casing", () => {
+    assertProperty(fc.property(
+      fc.constantFrom("script", "SCRIPT", "style", "STYLE"),
+      fc.array(fc.constantFrom(" ", "\t", "\n", "\r", "\f"), { maxLength: 16 }),
+      (tag, whitespace) => assertRawTextIsExcluded(tag, whitespace.join("")),
+    ), {}, "linkedin-profile/raw-text-count-exclusion");
   });
 
   test("binds company followerCount through the requested Company and FollowingState URNs", () => {

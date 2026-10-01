@@ -2402,28 +2402,29 @@
 // The analytics-only 0.18.66 preparation measured 625 entries, 12,143,254
 // packed bytes and 24,055,132 payload bytes with local archive SHA-256
 // b462796a666a3f7acccbbf052590f6f7b3db4f956307567dca313c6b13d3393a.
-// Group automation in 0.18.68 adds the pinned WhatsApp group source patch,
+// Group automation in 0.18.71 adds the pinned WhatsApp group source patch,
 // updates its native runtime, and expands the owner host and provider adapters.
 // The preceding projection-only 0.18.67 preparation measured 625 entries,
 // 12,144,036 packed and 24,057,867 payload bytes with local archive SHA-256
 // 0d15ceffd2d5603f73a9beb1696726da8ae87aca8a2dfb4d8d4f61ac5d20ec41.
-// The group release preserves that repair and its historical release notes.
+// The group release preserves that repair, subsequent 0.18.68–0.18.70
+// analytics/provider fixes, and every historical release note.
 // Two byte-identical npm 11.19.0 packs under the same qualified Node/zlib
-// toolchain measured 626 entries, 12,183,078 packed and 24,144,476 payload bytes.
+// toolchain measured 626 entries, 12,183,657 packed and 24,145,741 payload bytes.
 // The single added entry is the source patch; the net addition over 0.18.65
-// is 28,013 packed and 89,546 payload bytes, including rebuilt SDK chunks and
+// is 28,592 packed and 90,811 payload bytes, including rebuilt SDK chunks and
 // documentation. Every archive entry matches its retained source bytes.
 // Keep all existing projections and allowances:
-// 12,183,078 + 12,387 + 4,096 = 12,199,561 packed;
-// 24,144,476 + 353 + 65 = 24,144,894 payload.
+// 12,183,657 + 12,387 + 4,096 = 12,200,140 packed;
+// 24,145,741 + 353 + 65 = 24,146,159 payload.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "GhostGet 0.18.68 roster-bound group automation over the verified 0.18.65 package",
+  scope: "GhostGet 0.18.71 roster-bound group automation over the verified 0.18.65 package",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "bc98d044dddb95943648fdaf35e1c5c1fea705baec4c57b26c5d470fed0a4dea",
-  packedBytes: 12_183_078,
-  unpackedBytes: 24_144_476,
+  archiveSha256: "869505039ff55197d8dbab2c49f923e4effaeb71ea124ee2e59852a84127ab4e",
+  packedBytes: 12_183_657,
+  unpackedBytes: 24_145_741,
   entryCount: 626,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

@@ -69,7 +69,7 @@ const probes: ReadonlyArray<readonly [string, Record<string, string>]> = [
 ];
 const extraProperties = JSON.parse(process.env.HARNESS_PROPERTIES ?? "{}") as Record<string, unknown>;
 for (const [event, properties] of probes) posthog.capture(event, { ...extraProperties, ...properties }, instantly);
-createExceptionReporter(posthog)(new Error("failed https://ghostget.com/docs/?email=reader@example.com"), "window_error");
+createExceptionReporter(posthog)(new Error(process.env.HARNESS_ERROR ?? "failed https://ghostget.com/docs/?email=reader@example.com"), "window_error");
 for (const deadline = Date.now() + 5_000; sent.length < 3 && Date.now() < deadline;) {
   await new Promise((resolve) => setTimeout(resolve, 10));
 }

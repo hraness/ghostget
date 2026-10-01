@@ -551,9 +551,10 @@ function legacyInteractionSender(
     return item.senderJid;
   }
   if (item.chatKind === "group" && item.senderJid.endsWith("@g.us")) {
-    // Some outgoing migrated rows carry this exact chat JID in sender_jid.
-    // Other group JIDs and incoming chat senders remain invalid participants.
-    return item.fromMe && item.senderJid === item.chatJid ? null : item.senderJid;
+    // Legacy Wacli rows can carry the group JID itself as sender_jid in either
+    // direction. It identifies no participant, so drop only that exact
+    // same-chat value; every other group JID remains invalid.
+    return item.senderJid === item.chatJid ? null : item.senderJid;
   }
   const sender = legacyInteractionParticipantJid(item.senderJid);
   const self = new Set(owner.selfJids);

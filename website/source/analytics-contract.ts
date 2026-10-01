@@ -1,3 +1,5 @@
+import { redactSensitiveText as redactSharedAnalyticsText } from "@hraness/posthog/event";
+
 // The ghostget.com analytics contract: which events may leave the browser and
 // what each one may carry. It follows the portfolio observability standard
 // (schema version 2) and mirrors @hraness/posthog v0.2.0 semantics: allowlist
@@ -291,15 +293,8 @@ function isPathnameKey(key: string): boolean {
 }
 
 export function redactText(value: string): string {
-  return value
-    .replace(/\b(?:phc|phx|phs|pha|phr)_[A-Za-z0-9_-]+\b/gu, "[credential]")
-    .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/giu, "Bearer [credential]")
-    .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/gu, "[credential]")
-    .replace(/[A-Z0-9._%+-]+(?:@|%40)[A-Z0-9.-]+\.[A-Z]{2,}/giu, "[email]")
-    .replace(/(https?:\/\/[^\s?#)]+)(?:\?[^\s#)]*)?(?:#[^\s)]*)?/giu, "$1")
-    .replace(/([/][^\s?#)]+)\?[^\s#)]*/gu, "$1")
-    .replace(/\b(api[_-]?key|access[_-]?token|auth(?:orization)?|code|state|secret|password|token)=([^\s&]+)/giu, "$1=[redacted]")
-    .slice(0, MAX_STRING_LENGTH);
+  // Inspect complete values before the site limit can split an encoded secret.
+  return redactSharedAnalyticsText(value).slice(0, MAX_STRING_LENGTH);
 }
 
 function sanitizeString(key: string, value: string, route: AnalyticsRoute): string {
