@@ -3792,18 +3792,21 @@ a[href] {
 a[href]:where(:hover, :focus-visible) { text-decoration-color: currentColor; }
 
 /* Keep settled analytics choices in the footer, clear of reading content.
+ * A fixed control moved into a grid needs intrinsic width and start alignment;
+ * otherwise its shared full-width root stretches across the available track.
  * The shared required-consent prompt retains its original placement. */
 [data-slot="hraness-site-footer"] [data-slot="hraness-cookie-consent"]:is([data-consent-state="clear"], [data-consent-state="declined"]) {
+  inline-size: fit-content;
   inset: auto;
+  justify-self: start;
   position: static;
   z-index: auto;
 }
 
-@media (max-width: 40rem) {
-  [data-slot="hraness-site-footer"] [data-slot="hraness-cookie-consent"]:is([data-consent-state="clear"], [data-consent-state="declined"]) details > div {
-    inset-inline: 0 auto;
-    max-inline-size: calc(100vw - var(--page-inline) - var(--page-inline));
-  }
+/* A settled control's disclosure follows its start edge at every breakpoint. */
+[data-slot="hraness-site-footer"] [data-slot="hraness-cookie-consent"]:is([data-consent-state="clear"], [data-consent-state="declined"]) details > div {
+  inset-inline: 0 auto;
+  max-inline-size: calc(100vw - var(--page-inline) - var(--page-inline));
 }
 
 /* Static counterpart of design-kit MarketingAccount and MarketingAccountActions. */
