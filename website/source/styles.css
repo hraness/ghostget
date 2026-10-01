@@ -1018,29 +1018,9 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
   justify-content: space-between;
 }
 
-.site-disclosure {
-  align-items: center;
-  background: var(--dark-background);
-  color: var(--dark-muted);
-  display: flex;
-  font-size: 0.78rem;
-  gap: 1.5rem;
-  justify-content: space-between;
-  min-height: 6rem;
-  padding: 1.5rem max(var(--page-inline), env(safe-area-inset-right)) max(1.5rem, env(safe-area-inset-bottom)) max(var(--page-inline), env(safe-area-inset-left));
-}
-
-.site-disclosure p {
-  margin: 0;
-}
-
 .privacy-note {
   line-height: 1.5;
   max-width: 48rem;
-}
-
-.site-disclosure a {
-  color: var(--dark-foreground);
 }
 
 .guide-main {
@@ -1753,14 +1733,9 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
     grid-template-columns: 1fr;
   }
 
-  .final-section,
-  .site-disclosure {
+  .final-section {
     align-items: stretch;
     flex-direction: column;
-  }
-
-  .site-disclosure {
-    justify-content: center;
   }
 }
 
@@ -1829,7 +1804,6 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
   .hero,
   .preview-card,
   .section-dark,
-  .site-disclosure,
   .topbar {
     background: Canvas;
     color: CanvasText;
@@ -2510,18 +2484,6 @@ body {
   text-align: right;
 }
 
-.site-disclosure {
-  background: var(--background);
-  border-top: 1px solid var(--line);
-  color: var(--muted);
-  font-size: 0.85rem;
-  padding-inline: var(--page-inline);
-}
-
-.site-disclosure a {
-  color: var(--foreground);
-}
-
 /* Inert social preview keeps its dark card; only the type changes. */
 .preview-body,
 .preview-card {
@@ -2918,8 +2880,7 @@ body {
   .command-panel,
   .prompt-card,
   .guide-callout,
-  .topbar,
-  .site-disclosure {
+  .topbar {
     background: Canvas;
     border-color: CanvasText;
     color: CanvasText;
@@ -3171,7 +3132,6 @@ body {
   padding-inline: max(var(--ghostget-column-inset), env(safe-area-inset-left)) max(var(--ghostget-column-inset), env(safe-area-inset-right));
 }
 
-.site-disclosure,
 .hraness-marketing-footer__inner {
   padding-inline: max(var(--ghostget-column-inset), env(safe-area-inset-left)) max(var(--ghostget-column-inset), env(safe-area-inset-right));
 }
@@ -3179,12 +3139,6 @@ body {
 .hraness-marketing-footer__inner {
   inline-size: 100%;
   max-inline-size: none;
-}
-
-.site-disclosure {
-  align-items: flex-start;
-  flex-wrap: wrap;
-  min-height: 0;
 }
 
 .guide-article,
