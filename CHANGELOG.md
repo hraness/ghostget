@@ -7,7 +7,13 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.64
+
+Publish the studio design update with a lightweight tag.
+
 ## 0.18.63
+
+Annotated tag rejected before publication; tag unchanged.
 
 Present GhostGet with the shared studio design conventions.
 

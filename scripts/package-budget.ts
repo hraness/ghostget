@@ -2359,14 +2359,20 @@
 // Preserve the reviewed platform projections and portability allowances:
 // 12,140,613 + 12,387 + 4,096 = 12,157,096 packed;
 // 24,047,027 + 353 + 65 = 24,047,445 unpacked.
+// The 0.18.64 retry preserves the rejected 0.18.63 tag and changes only the
+// version, release notes, current pins and rebuilt dist. Two official Node
+// 24.20.0 / npm 11.19.0 packs on darwin arm64 are byte-identical at
+// c7473c8d224d01213a6acde1e09dcfb8a0a4c602f48af2ab60f2ba4e00457b85:
+// 12,152,868 packed bytes, 24,047,156 unpacked bytes and the same 624 entries.
+// Keep the existing platform and portability allowances unchanged.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget 0.18.63 studio design release over reviewed main 20c1f999",
+  scope: "Ghostget 0.18.64 studio design release retry over reviewed main 773c537e",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "9f6ff0fac3c7bd70ecb5f94c11e0b3ee5a7e5bb48cb77a24129f0af4e7538a39",
-  packedBytes: 12_140_613,
-  unpackedBytes: 24_047_027,
+  archiveSha256: "c7473c8d224d01213a6acde1e09dcfb8a0a4c602f48af2ab60f2ba4e00457b85",
+  packedBytes: 12_152_868,
+  unpackedBytes: 24_047_156,
   entryCount: 624,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
