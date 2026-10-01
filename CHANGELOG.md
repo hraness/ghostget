@@ -7,6 +7,12 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.72
+
+Make article sources and reading links easier to recognize.
+
+- Use muted dotted underlines with clear hover, keyboard-focus, and high-contrast states.
+
 ## 0.18.71
 
 Automate selected group conversations in Beeper, iMessage, and WhatsApp.
