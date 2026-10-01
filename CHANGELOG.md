@@ -7,6 +7,14 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.66
+
+Accept the short legacy system JIDs and inconsistent participant fields emitted by supported wacli migrations when projecting body-free WhatsApp interaction counts.
+
+- Map bounded short system JIDs to the existing unsupported sentinel.
+- Drop participant fields that contradict the stored message direction instead of failing the complete page.
+- Keep the strict schema, owner, cursor, and no-message-body guards intact.
+
 ## 0.18.65
 
 Make GhostGet's articles and comparisons calmer, clearer, and more consistent.
