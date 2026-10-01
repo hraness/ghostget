@@ -1,3 +1,5 @@
+import { renderArticleProvenanceHtml } from "@hraness/design-kit";
+import { essayReviews } from "./essay-reviews";
 import { marketing, renderMarketingCopy } from "./portfolio-copy";
 import { releaseArchiveUrl } from "./github-release-artifact.mjs";
 import { snapshotMarketingPreset } from "./marketing-preset";
@@ -273,10 +275,10 @@ export const PUBLIC_PAGES = [
   {
     canonicalPath: "/compare/",
     description:
-      "Six ways agents reach the web, from browser-driving libraries to reader services and integration platforms, compared with GhostGet's named actions.",
+      "Choose a page reader, browser tool, or account integration around the work the agent needs to do.",
     outputFile: "compare/index.html",
     sourceFile: "compare-index.html",
-    title: "How agents reach the web: browser-use, Playwright MCP, Firecrawl, Composio, and GhostGet",
+    title: "How agents reach the web",
   },
   {
     canonicalPath: "/compare/browser-use/",
@@ -329,50 +331,50 @@ export const PUBLIC_PAGES = [
   {
     canonicalPath: "/compare/personal-agents-browser-use/",
     description:
-      "Persistent personal agents work through a general browser. GhostGet gives an agent a fixed list of named web actions, and anything unlisted stays unavailable.",
+      "Choose browser control for unfamiliar visual work and named actions for repeated tasks with known inputs, outputs, and account permissions.",
     outputFile: "compare/personal-agents-browser-use/index.html",
     sourceFile: "compare-personal-agents-browser-use.html",
-    title: "Browser-using personal agents and GhostGet's named web actions",
+    title: "Browser control or named actions: choosing an agent tool",
   },
   {
     canonicalPath: "/agentic-web-spoofing/",
     description:
-      "Known Agents measures inbound bot impersonation. That check does not establish a safe outbound GhostGet operation or name its operator.",
+      "A bot name in an HTTP request is a claim. Learn how identity checks work and why authentication and permission answer separate questions.",
     outputFile: "agentic-web-spoofing/index.html",
     sourceFile: "agentic-web-spoofing.html",
-    title: "Agentic-web index spoofing, and why attested operations still matter",
+    title: "How to verify a web agent’s identity",
   },
   {
     canonicalPath: "/vms-cannot-contain-agents/",
     description:
-      "The Wednesday 26 August 2026 rough.day tech edition ranked Trail of Bits' argument that VMs cannot reliably contain cyber-capable AI agents. A guest machine does not establish a safe GhostGet operation.",
+      "Virtual machines isolate a computing environment. Network access, account permissions, and shared files determine what an agent can reach outside it.",
     outputFile: "vms-cannot-contain-agents/index.html",
     sourceFile: "vms-cannot-contain-agents.html",
-    title: "VMs cannot contain agents, and why attested web operations still matter",
+    title: "What a virtual machine isolates, and what an agent can still do",
   },
   {
     canonicalPath: "/paypal-grapheneos-attestation/",
     description:
-      "The Thursday 27 August 2026 rough.day tech edition ranked PayPal crashing on GrapheneOS with a RootDetectionSecurityException. Device-policy attestation is not a named GhostGet operation.",
+      "Device checks establish whether a phone matches an app\u2019s requirements. Understand the policy before choosing a supported way to use the service.",
     outputFile: "paypal-grapheneos-attestation/index.html",
     sourceFile: "paypal-grapheneos-attestation.html",
-    title: "PayPal attested a hardened phone as rooted, and why named web operations still matter",
+    title: "What a device integrity check tells an app",
   },
   {
     canonicalPath: "/rumour-is-the-exploit/",
     description:
-      "This Monday 31 August 2026 sourced take starts from Anil Madhavapeddy’s essay that a rumour of a bug is enough for agentic search. A search direction is not a named GhostGet operation.",
+      "A reported flaw gives a starting point. Establish the affected behavior, reduce the reproduction, and check the fix against the original failure.",
     outputFile: "rumour-is-the-exploit/index.html",
     sourceFile: "rumour-is-the-exploit.html",
-    title: "A rumour is enough for agentic search, and why named web operations still matter",
+    title: "Turn a bug report into a reproducible test",
   },
   {
     canonicalPath: "/omarchy-root-escalation/",
     description:
-      "The Sunday 30 August 2026 rough.day tech edition ranked Omarchy’s default desktop allowing any user process to escalate to root. A host privilege grant is not a named GhostGet operation.",
+      "Administrator access changes what a program can affect. Separate installation needs from everyday work and keep recurring permissions specific.",
     outputFile: "omarchy-root-escalation/index.html",
     sourceFile: "omarchy-root-escalation.html",
-    title: "Omarchy lets any user process escalate to root, and why named web operations still matter",
+    title: "Review the administrator access a tool needs",
   },
 ] as const;
 
@@ -391,7 +393,7 @@ export const INDEXABLE_PUBLIC_PAGES: readonly PublicPage[] = PUBLIC_PAGES.filter
 
 /** Editorial images whose pages are indexable, for homepage cards and the image sitemap. */
 export const INDEXABLE_EDITORIAL_IMAGES = editorialImages.filter(
-  (image) => !isNoindexDocumentPath(image.canonicalPath),
+  (image) => !image.canonicalPath.startsWith("/blog/") && !isNoindexDocumentPath(image.canonicalPath),
 );
 
 const ROBOTS_META = /<meta name="robots" content="([^"]*)">/gu;
@@ -645,12 +647,12 @@ function imageObject(image: EditorialImage): Readonly<Record<string, unknown>> {
   };
 }
 
-function renderEditorialFigure(image: EditorialImage): string {
+export function renderEditorialFigure(image: EditorialImage): string {
   return `<figure class="editorial-figure">
             <img alt="${escapeHtml(image.alt)}" decoding="async"
               height="${image.height}" sizes="${EDITORIAL_ARTICLE_IMAGE_SIZES}"
               src="${image.src}" srcset="${editorialImageSrcSet(image)}" width="${image.width}">
-            <figcaption><span>${escapeHtml(image.caption)}</span><small>${escapeHtml(image.credit)}</small></figcaption>
+            <figcaption>${image.caption ? `<span>${escapeHtml(image.caption)}</span>` : ""}<small>Generated with <a href="${escapeHtml(image.creditUrl)}">SlopCamera</a>.</small></figcaption>
           </figure>`;
 }
 
@@ -902,7 +904,7 @@ const GHOSTGET_PLATFORM_BADGES = renderPlatformBadges(["macos", "linux", { id: "
 
 /**
  * The install command for each platform, in the portfolio order macOS, Linux,
- * Windows. The command is the same Bun install everywhere Ghostget runs.
+ * Windows. The command is the same Bun install everywhere GhostGet runs.
  */
 function renderGhostgetPlatformInstall(installCommand: string): string {
   return renderPlatformInstall({
@@ -958,6 +960,9 @@ function renderTemplate(
     );
   }
   if (page) {
+    if (Object.hasOwn(essayReviews, page.sourceFile)) {
+      rendered = replaceRequired(rendered, "{{ESSAY_PROVENANCE}}", renderArticleProvenanceHtml(essayReviews[page.sourceFile as keyof typeof essayReviews]));
+    }
     const structuredData = JSON.stringify(structuredDataOverride ?? jsonLd(identity, page)).replaceAll("<", "\\u003c");
     rendered = replaceRequired(rendered, "{{JSON_LD}}", structuredData);
     rendered = replaceRequired(
@@ -970,7 +975,7 @@ function renderTemplate(
       if (/\{\{EDITORIAL_(?:FIGURE|IMAGE_)/u.test(rendered)) {
         throw new Error(`Only registered editorial pages may use editorial image placeholders: ${page.canonicalPath}`);
       }
-    } else {
+    } else if (!page.canonicalPath.startsWith("/blog/")) {
       const editorialValues = new Map([
         ["{{EDITORIAL_FIGURE}}", renderEditorialFigure(image)],
         ["{{EDITORIAL_IMAGE_ALT}}", escapeHtml(image.alt)],
@@ -1219,8 +1224,11 @@ export function renderSitemapXml(
       ? ""
       : `
     <lastmod>${escapeXml(typeof entry.lastModified === "string" ? entry.lastModified : entry.lastModified.toISOString())}</lastmod>`;
+    const image = editorialImage(entry.path);
+    const imageMarkup = image === undefined ? "" : `
+    <image:image><image:loc>${escapeXml(editorialImageUrl(image))}</image:loc><image:title>${escapeXml(image.title)}</image:title></image:image>`;
     return `  <url>
-    <loc>${SITE_ORIGIN}${entry.path}</loc>${lastModified}
+    <loc>${SITE_ORIGIN}${entry.path}</loc>${lastModified}${imageMarkup}
   </url>`;
   });
   const urls = [...pages.filter((page) => !isNoindexDocumentPath(page.canonicalPath)).map((page) => {

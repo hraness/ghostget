@@ -3869,3 +3869,17 @@ a.hraness-marketing-account__sign-in:is(:hover, :focus-visible) {
   a.hraness-marketing-account__sign-in,
   a.hraness-marketing-account__sign-in:is(:hover, :focus-visible) { text-decoration-color: LinkText; }
 }
+
+/* Editorial imagery keeps the same quiet frame in either theme. */
+.blog-entry-image { display: block; margin-block-end: 1rem; border-radius: var(--radius-lg); overflow: hidden; background: #0e1113; }
+.blog-entry-image img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; }
+.blog-main .plain-site.plain-publication .plain-publication__article-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2.5rem 2rem; border: 0; }
+.blog-main .plain-site.plain-publication .plain-publication__entry { padding: 0; border: 0; min-width: 0; }
+.blog-main .plain-publication__article-body > .editorial-figure { margin-block: 0 2.5rem; }
+.editorial-figure figcaption:has(> small:only-child) { justify-content: flex-end; }
+.editorial-figure figcaption a { color: inherit; text-decoration-color: color-mix(in srgb, currentColor 40%, transparent); text-underline-offset: 0.18em; }
+@media (max-width: 45rem) {
+  .blog-main .plain-site.plain-publication .plain-publication__article-list { grid-template-columns: minmax(0, 1fr); gap: 2.25rem; }
+}
+
+.guide-hero .plain-publication__provenance { margin-block: 1.25rem 0; color: var(--muted); font-size: 0.8125rem; line-height: 1.5; }

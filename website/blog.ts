@@ -15,7 +15,6 @@ import {
   escapeArticleHtml,
   renderArticleHtml,
   renderArticleIndexHtml,
-  renderArticleRelatedHtml,
   renderArticleSourcesHtml,
   type ArticleAdmission,
   type ArticleAuthor,
@@ -35,29 +34,25 @@ import {
   type SitemapPath,
 } from "@hraness/web-discovery";
 
+import { editorialImage, editorialImageUrl, editorialImageSrcSet, EDITORIAL_ARTICLE_IMAGE_SIZES } from "./editorial-images";
+import { product as canonicalProduct } from "./portfolio-copy";
+
 export const BLOG_PATH = "/blog/" as const;
 export const BLOG_FEED_PATH = "/blog/feed.xml" as const;
 export const BLOG_TITLE = "GhostGet blog" as const;
 export const BLOG_DESCRIPTION =
-  "Posts on how GhostGet's named web actions work for AI agents, how its releases and tests are checked, and which products use it." as const;
+  "Practical guides to web access, account actions, software verification, and repeatable tests." as const;
 /** The Portfolio product id GhostGet still carries in the registry. */
 export const GHOSTGET_PORTFOLIO_ID = "wrench" as const;
 
-const EVIDENCE_COMMIT = "76a79fc" as const;
-const GHOSTGET_BLOB = `https://github.com/hraness/ghostget/blob/${EVIDENCE_COMMIT}` as const;
-
-export const BLOG_AUTHOR: ArticleAuthor = { kind: "organization", name: "Hraness" };
+export const BLOG_AUTHOR: ArticleAuthor = { kind: "organization", name: "Hraness", href: "https://hraness.com" };
 const BLOG_PARTY: ArticleParty = {
   kind: "Organization",
   name: "Hraness",
   url: "https://hraness.com",
   sameAs: ["https://github.com/hraness"],
 };
-const AI_REVIEWER = "Claude Opus 5.5 (claude-opus-5-5) editorial review" as const;
-const INDEPENDENT_AI_REVIEWER = "Claude Opus 5.5 (claude-opus-5-5) independent review" as const;
-const REVIEWED_ON: ArticleIsoDate = "2026-09-24";
-const REASSESS_ON: ArticleIsoDate = "2026-11-05";
-const OWNER = "Hraness, maintainers of hraness/ghostget" as const;
+const REVIEWED_ON: ArticleIsoDate = "2026-09-30";
 
 export type BlogPost = Readonly<{
   slug: string;
@@ -79,302 +74,452 @@ export function blogPostPath(slug: string): `/blog/${string}/` {
   return `/blog/${slug}/`;
 }
 
-function ghostgetSource(title: string, path: string): ArticleSourceItem {
-  return { title, href: `${GHOSTGET_BLOB}/${path}`, publisher: "GitHub", checkedOn: REVIEWED_ON };
-}
-
-function webSource(title: string, href: string, publisher?: string): ArticleSourceItem {
-  return publisher === undefined
-    ? { title, href, checkedOn: REVIEWED_ON }
-    : { title, href, publisher, checkedOn: REVIEWED_ON };
-}
-
-function sourceRecords(sources: readonly ArticleSourceItem[]): ArticleAdmission["sources"] {
-  return sources.map((source) => ({ title: source.title, url: source.href, checkedOn: source.checkedOn }));
-}
-
-function review(): NonNullable<ArticleAdmission["review"]> {
-  return { reviewer: AI_REVIEWER, reviewerType: "ai", reviewedOn: REVIEWED_ON };
-}
-
-const introducingSources = [
-  ghostgetSource("GhostGet README", "README.md"),
-  ghostgetSource("GhostGet assurance case, rendered from the claims register", "docs/assurance.md"),
-  ghostgetSource("GhostGet claims register", "verification/claims.json"),
-  ghostgetSource("Beeper message bundle export", "src/beeper-message-bundle-v1.ts"),
-  ghostgetSource("GhostGet website maintainer rules", "website/AGENTS.md"),
-  webSource("GhostGet supported services and actions", "https://ghostget.com/docs/reference/provider-capabilities/", "GhostGet"),
-  webSource("GhostGet getting-started guide", "https://ghostget.com/docs/tutorials/getting-started/", "GhostGet"),
-] as const satisfies readonly ArticleSourceItem[];
-
-const builtOnSources = [
-  ghostgetSource("GhostGet's Beeper bundle writer, built on TextButler's bundle format", "src/beeper-message-bundle-v1.ts"),
-  ghostgetSource("GhostGet README: Beeper and WhatsApp export commands, recorded limits, and truncation", "README.md"),
-  ghostgetSource("GhostGet website rule: describe other products only as the registry or their README records", "website/AGENTS.md"),
-  webSource("TextButler bundle format v1 (Beeper)", "https://github.com/hraness/textbutler/blob/0f83a82/docs/local-message-bundle-v1.md", "GitHub"),
-] as const satisfies readonly ArticleSourceItem[];
-
-const claimsRegisterSources = [
-  ghostgetSource("GhostGet claims register", "verification/claims.json"),
-  ghostgetSource("GhostGet assurance case, rendered from the register", "docs/assurance.md"),
-  ghostgetSource("Allow-once approval model", "verification/quint/approvals.qnt"),
-  ghostgetSource("Confirmed-write fence model (at-most-once and no-retry invariants)", "verification/quint/fence.qnt"),
-  ghostgetSource("Formal verification plan, defect D13 (allow-once enforced by the client)", "kb/plans/formal-verification-assurance.md"),
-  ghostgetSource("GhostGet website maintainer rules", "website/AGENTS.md"),
-] as const satisfies readonly ArticleSourceItem[];
-
-const releaseSources = [
-  ghostgetSource("GhostGet release workflow", ".github/workflows/release.yml"),
-  ghostgetSource("GhostGet publishing notes", "docs/publishing.md"),
-  ghostgetSource("ghostget.com production release verifier", "website/production-release-verifier.ts"),
-  ghostgetSource("Claims register: release rerun and npm recovery entries", "verification/claims.json"),
-  ghostgetSource("Quint model of a release run and its attempts", "verification/quint/release.qnt"),
-  webSource("GhostGet Latest GitHub Release", "https://github.com/hraness/ghostget/releases/latest", "GitHub"),
-  webSource("GitHub CLI: gh attestation verify", "https://cli.github.com/manual/gh_attestation_verify", "GitHub"),
-] as const satisfies readonly ArticleSourceItem[];
-
-const propertyTestSources = [
-  ghostgetSource("GhostGet property test helpers (replay coordinates, seed corpus, soak multiplier)", "src/test-support.ts"),
-  ghostgetSource("GhostGet claims register (property, stateful-model, and differential layers)", "verification/claims.json"),
-  ghostgetSource("GhostGet property seed corpus", "verification/seeds/corpus.json"),
-  ghostgetSource("Named regression and coordinate pin for the __proto__ counterexample", "src/contracts-invoke-read.test.ts"),
-  webSource("Commit adding the __proto__ regression (#341)", "https://github.com/hraness/ghostget/commit/aa8cce0", "GitHub"),
-  ghostgetSource("Crash-schedule command-sequence tests", "src/state-crash-harness.test.ts"),
-  ghostgetSource("Differential tests against the Rust oracles, with planted defects", "scripts/verification-oracles.test.ts"),
-  ghostgetSource("Independent oracles README (RFC 8785 canonicalizer and url-crate policy)", "verification/oracles/README.md"),
-  ghostgetSource("Contributor guide: replaying one property", "CONTRIBUTING.md"),
-  ghostgetSource("Nightly verification workflow (soak multiplier default)", ".github/workflows/verification-nightly.yml"),
-  webSource("RFC 8785: JSON Canonicalization Scheme", "https://www.rfc-editor.org/rfc/rfc8785", "RFC Editor"),
-  webSource("WHATWG URL Standard", "https://url.spec.whatwg.org/", "WHATWG"),
-  webSource("Rust url crate 2.5.8", "https://docs.rs/url/2.5.8/url/", "docs.rs"),
-  webSource("fast-check model-based testing", "https://fast-check.dev/docs/advanced/model-based-testing/", "fast-check"),
-] as const satisfies readonly ArticleSourceItem[];
-
 export const BLOG_POSTS: readonly BlogPost[] = [
   {
-    slug: "introducing-ghostget",
-    title: "Introducing GhostGet: named web actions for AI agents",
-    dek: "GhostGet lets your AI agent work in your own accounts through named, reviewed actions, without handing it your passwords, tokens, or a signed-in browser.",
-    eyebrow: "Introducing",
-    published: "2026-09-24",
-    updated: "2026-09-30",
-    keywords: ["ghostget", "agents", "accounts", "previews", "verification", "claims register"],
-    bodyFile: "introducing-ghostget.html",
-    sources: introducingSources,
-    admission: {
-      href: "/blog/introducing-ghostget/",
-      lifecycle: "indexable",
-      readerJob: "Decide whether to let an AI agent act in my own accounts through GhostGet, and see how to start.",
-      nonObviousAnswer: "GhostGet hands the agent named, reviewed actions instead of credentials or a browser, previews every write above a read, and never resends a write whose result is unknown; its own claims register says which of those rules are checked and which have no automated check.",
-      originalContribution: "States the Gmail read-only and WhatsApp no-send limits, the unencrypted Gmail refresh credential, and the claims register's evidenced, planned, and unverified counts next to the product pitch, taken from the source tree at 76a79fc.",
-      hostFit: "The product's own introduction on the product's own site, linking to the getting-started guide and the provider reference already on ghostget.com.",
-      nearestUrls: [
-        { url: "https://ghostget.com/", distinction: "The homepage sells and installs; this post explains the account-safety model and its stated limits in prose." },
-        { url: "https://ghostget.com/about/", distinction: "About states what GhostGet is and is not; this post walks one account workflow and the preview and no-resend rules." },
-        { url: "https://ghostget.com/docs/explanation/security-model/", distinction: "The security guide is reference depth; this post is the first read that links to it." },
+    "slug": "introducing-ghostget",
+    "title": "Introducing GhostGet",
+    "dek": "Read web pages, work with connected accounts, and review consequential actions before they run.",
+    "eyebrow": "Getting started",
+    "published": "2026-09-24",
+    "updated": "2026-09-30",
+    "keywords": [
+      "getting started",
+      "agents",
+      "web"
+    ],
+    "bodyFile": "introducing-ghostget.html",
+    "sources": [
+      {
+        "title": "GhostGet getting-started guide",
+        "href": "https://ghostget.com/docs/tutorials/getting-started/",
+        "checkedOn": "2026-09-30"
+      },
+      {
+        "title": "GhostGet supported services",
+        "href": "https://ghostget.com/docs/reference/provider-capabilities/",
+        "checkedOn": "2026-09-30"
+      },
+      {
+        "title": "GhostGet security model",
+        "href": "https://ghostget.com/docs/explanation/security-model/",
+        "checkedOn": "2026-09-30"
+      }
+    ],
+    "admission": {
+      "href": "/blog/introducing-ghostget/",
+      "lifecycle": "indexable",
+      "readerJob": "Understand how named actions fit into an agent setup.",
+      "nonObviousAnswer": "A named action lets an agent request a specific result while the tool handles account selection and the underlying connection.",
+      "originalContribution": "A concrete worked example and practical next step, edited for a reader who has not seen the product source or development history.",
+      "hostFit": "Explains a recurring decision for readers using agents to work with web pages and accounts.",
+      "nearestUrls": [
+        {
+          "url": "https://ghostget.com/docs/",
+          "distinction": "Documentation gives product procedures and reference; this article explains the decision or mechanism."
+        }
       ],
-      sources: sourceRecords(introducingSources),
-      observations: [
-        "The fact check corrected four overclaims before review: Gmail actions only read, the README runs adapter sync-bundled before capabilities, GhostGet never asks the agent to copy a token rather than making copying impossible, and the duplicate-risk re-send is limited to one web-session post named by its source run.",
-        "On 2026-09-24 the claims register at 76a79fc held 244 claims: 180 evidenced, 45 planned, and 19 not verified, 15 of them resting on configuration readback.",
-        "On 2026-09-26 a Claude Opus 5.5 (claude-opus-5-5) AI editorial review rewrote headings and prose for clarity and re-read the diff against the source; it changed no facts, numbers, commands, links, or dates of record.",
-        "On 2026-09-27 a fact check against verification/claims.json at origin/main found the register lists 246 claims, 227 evidenced, 0 planned, and 19 not verified; statements that claims were still planned were re-dated to 2026-09-24 and the current status added.",
-        "On 2026-09-28 the opening line and a section on the internal browser were added; the section restates the agent-browser comparison page and the agent-browser 0.32.3 pin in package.json, and names no new capability.",
-        "On 2026-09-29 the opening was rebuilt as standalone beats, each with a code-built illustration labelled as one, and the earlier sections moved under 'The longer version' unchanged. Every number in the beats resolves from website/launch/facts.ts, which launch.test.ts pins to the provider directory, verification/claims.json, the homepage Measured table, and package.json; the X, Bluesky, Threads, and LinkedIn posts in kb/launch/social-kit.md are cut from the same beats. An independent Claude Opus 5.5 (claude-opus-5-5) review on 2026-09-29 re-read the new opening against facts.ts and the source, removed a line about how the post is laid out, restored the wget line to the first beat, and kept the scores at 11 of 12: the beats add no claim the longer version does not already source, and maintenance stays at 1 because the longer version still carries dated counts.",
-        "On 2026-09-30 an independent AI review by a Claude Opus 5.5 (claude-opus-5-5) agent that neither drafted nor edited the post re-scored the rebuilt opening against origin/main 9ebaf16 and the live page at 10 of 12 with no zero: reader utility 2, original evidence 2, factual confidence 1, host fit 2, voice integrity 2, maintenance value 1. It confirmed every beat number against facts.ts and its source, and lowered factual confidence for three wordings the maintainers then corrected: the no-double-posts beat now says a lost reply never becomes an automatic double post, matching the documented duplicate-risk re-send; the preview beat names the service, the account, and what will be sent instead of a recipient; and the first beat says the agent is never handed the password. The current claims register counts in the longer version now render from website/launch/facts.ts, pinned to verification/claims.json by launch.test.ts, and the 2026-09-24 snapshot stays dated. The social kit, regenerated with design-kit v0.31.0, carries no limits beat; the limits stay in this post.",
+      "sources": [
+        {
+          "title": "GhostGet getting-started guide",
+          "url": "https://ghostget.com/docs/tutorials/getting-started/",
+          "checkedOn": "2026-09-30"
+        },
+        {
+          "title": "GhostGet supported services",
+          "url": "https://ghostget.com/docs/reference/provider-capabilities/",
+          "checkedOn": "2026-09-30"
+        },
+        {
+          "title": "GhostGet security model",
+          "url": "https://ghostget.com/docs/explanation/security-model/",
+          "checkedOn": "2026-09-30"
+        }
       ],
-      scores: { readerUtility: 2, originalEvidence: 2, factualConfidence: 1, hostFit: 2, voiceIntegrity: 2, maintenanceValue: 1 },
-      owner: OWNER,
-      drafting: "ai-from-source",
-      review: { reviewer: INDEPENDENT_AI_REVIEWER, reviewerType: "ai", reviewedOn: "2026-09-30" },
-      humanReview: null,
-      reassessOn: REASSESS_ON,
-      harmIfWrong: "A reader could connect an account believing a write or storage guarantee exists that does not, such as encrypted Gmail credentials or WhatsApp sending.",
-      refreshTriggers: [
-        "GhostGet release tag bump",
-        "Change to verification/claims.json totals or to the status of the indeterminate-never-retried or mutation-exact-preview-confirmation claims",
-        "Change to the service count or to the Gmail or WhatsApp actions",
-        "Change to the risk classes, preview-and-confirm flow, or duplicate-risk re-send rule in the README",
-        "Rename of GhostGet or TextButler, or a change to the registered TextButler relation detail",
+      "observations": [
+        "The email-thread example explains when a named action saves navigation while pointing unfamiliar visual tasks to browser control; it establishes fit before listing features.",
+        "Reading and consequential writes are separated through concrete account, preview, and unknown-outcome behavior, with exact public commands supplying a complete first step."
       ],
-    },
+      "scores": {
+        "readerUtility": 2,
+        "originalEvidence": 1,
+        "factualConfidence": 2,
+        "hostFit": 2,
+        "voiceIntegrity": 2,
+        "maintenanceValue": 2
+      },
+      "owner": "Hraness, maintainers of hraness/ghostget",
+      "drafting": "ai",
+      "review": {
+        "reviewer": "Codex editorial review (AI)",
+        "reviewerType": "ai",
+        "reviewedOn": "2026-09-30"
+      },
+      "humanReview": null,
+      "reassessOn": "2026-11-11",
+      "harmIfWrong": "A reader could make the wrong tool, retry, verification, or data-import decision.",
+      "refreshTriggers": [
+        "A documented interface or relevant service behavior changes",
+        "A product rename or registered relationship changes",
+        "A cited primary source changes its explanation"
+      ]
+    }
   },
   {
-    slug: "built-on-ghostget",
-    title: "Products built on GhostGet",
-    dek: "PeopleBlade reads contacts and messages through GhostGet, TextButler imports the Beeper history that GhostGet exports, and Sponge captures signed-in pages through it.",
-    eyebrow: "Integration",
-    published: "2026-09-24",
-    updated: "2026-09-30",
-    keywords: ["ghostget", "integrations", "peopleblade", "textbutler", "local-first"],
-    bodyFile: "built-on-ghostget.html",
-    sources: builtOnSources,
-    admission: {
-      href: "/blog/built-on-ghostget/",
-      lifecycle: "indexable",
-      readerJob: "Find out which Hraness products use GhostGet and what each one uses it for.",
-      nonObviousAnswer: "PeopleBlade reads contacts and message search results through a pinned GhostGet release and checks each result before saving it; TextButler imports Beeper exports that GhostGet writes in TextButler's own bundle format and marks as complete, truncated, or unknown.",
-      originalContribution: "A provider hub whose entries render from the registered relation sentences, so the list changes when the registry changes rather than when someone edits copy.",
-      hostFit: "The provider hub belongs on the provider's own site and links out to each consumer's post along a registered relation.",
-      nearestUrls: [
-        { url: "https://peopleblade.com/blog/how-peopleblade-uses-ghostget", distinction: "The consumer's own post explains the integration in depth; the hub only indexes it." },
-        { url: "https://textbutler.app/blog/how-textbutler-uses-ghostget", distinction: "The consumer's own post explains the import; the hub only indexes it." },
+    "slug": "built-on-ghostget",
+    "title": "How other tools use GhostGet",
+    "dek": "Account reads, message exports, and signed-in page captures supply information for contact search, writing, and research.",
+    "eyebrow": "Connections",
+    "published": "2026-09-24",
+    "updated": "2026-09-30",
+    "keywords": [
+      "connections",
+      "agents",
+      "web"
+    ],
+    "bodyFile": "built-on-ghostget.html",
+    "sources": [
+      {
+        "title": "GhostGet message exports",
+        "href": "https://github.com/hraness/ghostget/blob/20c1f999/README.md",
+        "checkedOn": "2026-09-30"
+      },
+      {
+        "title": "TextButler account connections",
+        "href": "https://github.com/hraness/textbutler",
+        "checkedOn": "2026-09-30"
+      }
+    ],
+    "admission": {
+      "href": "/blog/built-on-ghostget/",
+      "lifecycle": "indexable",
+      "readerJob": "Understand which tools use GhostGet and what information they receive.",
+      "nonObviousAnswer": "A connection and the data it returns are separate from the receiving tool’s task; source context and completeness need to travel with an export.",
+      "originalContribution": "A concrete worked example and practical next step, edited for a reader who has not seen the product source or development history.",
+      "hostFit": "Explains a recurring decision for readers using agents to work with web pages and accounts.",
+      "nearestUrls": [
+        {
+          "url": "https://ghostget.com/docs/",
+          "distinction": "Documentation gives product procedures and reference; this article explains the decision or mechanism."
+        }
       ],
-      sources: sourceRecords(builtOnSources),
-      observations: [
-        "On 2026-09-24 relatedFor('wrench') in design-kit v0.17.0 returned exactly two relations with detail sentences: PeopleBlade provider transport and the TextButler private bundle export.",
-        "A Sponge relation exists in code but was not registered on the portfolio registry's main branch on 2026-09-24, so the hub leaves it out until it is.",
-        "On 2026-09-26 a Claude Opus 5.5 (claude-opus-5-5) AI editorial review rewrote headings and prose for clarity and re-read the diff against the source; it changed no facts, numbers, commands, links, or dates of record.",
-        "On 2026-09-30, by owner decision, the hub lists Sponge along the registered relation runtime:sponge:wrench:captures-signed-in-pages-through (design-kit v0.30.3), quoting its registry detail sentence and linking to Sponge's canonical page from the registry because no public post about the integration exists yet. The GhostGet Skills relation registered in design-kit v0.31.0 is classified and left off the hub.",
+      "sources": [
+        {
+          "title": "GhostGet message exports",
+          "url": "https://github.com/hraness/ghostget/blob/20c1f999/README.md",
+          "checkedOn": "2026-09-30"
+        },
+        {
+          "title": "TextButler account connections",
+          "url": "https://github.com/hraness/textbutler",
+          "checkedOn": "2026-09-30"
+        }
       ],
-      scores: { readerUtility: 1, originalEvidence: 1, factualConfidence: 2, hostFit: 2, voiceIntegrity: 1, maintenanceValue: 2 },
-      owner: OWNER,
-      drafting: "ai-from-source",
-      review: review(),
-      humanReview: null,
-      reassessOn: REASSESS_ON,
-      harmIfWrong: "A reader could believe a product reads or imports data through GhostGet that it does not, or miss a product that does.",
-      refreshTriggers: [
-        "Any portfolio registry change to a relation with GhostGet as source or target, including a reword of the TextButler detail",
-        "A Sponge relation registered with GhostGet and a GhostGet release that emits the capture bundle it imports",
-        "PeopleBlade changes its GhostGet pin or the providers it reads through GhostGet",
-        "GhostGet changes the Beeper export limits, truncation marking, or the TextButler bundle format version",
-        "GhostGet's homepage related cards move to the registry render",
+      "observations": [
+        "The hub now uses current runtime relations, avoiding the stale export relationship that incorrectly assigned the legacy importer to the current TextButler product.",
+        "The incomplete-conversation example explains why source context and truncation metadata matter downstream, giving the hub a useful lesson beyond a product list."
       ],
-    },
+      "scores": {
+        "readerUtility": 2,
+        "originalEvidence": 1,
+        "factualConfidence": 2,
+        "hostFit": 2,
+        "voiceIntegrity": 2,
+        "maintenanceValue": 2
+      },
+      "owner": "Hraness, maintainers of hraness/ghostget",
+      "drafting": "ai",
+      "review": {
+        "reviewer": "Codex editorial review (AI)",
+        "reviewerType": "ai",
+        "reviewedOn": "2026-09-30"
+      },
+      "humanReview": null,
+      "reassessOn": "2026-11-11",
+      "harmIfWrong": "A reader could make the wrong tool, retry, verification, or data-import decision.",
+      "refreshTriggers": [
+        "A documented interface or relevant service behavior changes",
+        "A product rename or registered relationship changes",
+        "A cited primary source changes its explanation"
+      ]
+    }
   },
   {
-    slug: "ghostget-claims-register",
-    title: "What GhostGet has and has not verified",
-    dek: "On 24 September 2026, 180 of the 244 claims in GhostGet's public register had a check that runs on every change, and 19 had no automated check.",
-    eyebrow: "Technique",
-    published: "2026-09-24",
-    updated: "2026-09-27",
-    keywords: ["ghostget", "claims register", "verification", "quint", "lean", "property testing", "agents"],
-    bodyFile: "ghostget-claims-register.html",
-    sources: claimsRegisterSources,
-    admission: {
-      href: "/blog/ghostget-claims-register/",
-      lifecycle: "indexable",
-      readerJob: "Decide how far to trust GhostGet before letting an agent write in your own accounts: which of its safety promises have a running check, what kind, and where each check stops.",
-      nonObviousAnswer: "The three promises that matter most for agent writes (allow-once approval, at-most-once writes, no resend after an unknown outcome) are checked by small Quint models replayed against the real code, each with a stated size, while preview-before-write, messaging reconciliation, local-program writes, and idempotency keys were planned on 2026-09-24 and marked evidenced by 2026-09-25, and 19 claims, mostly hosting settings, have no automated check at all.",
-      originalContribution: "Reads the register entry by entry and names the stated model sizes and the planned gaps, instead of summarising the product as verified.",
-      hostFit: "The register and its checks live in the GhostGet repository; the post is the reader-facing guide to it on the product's site.",
-      nearestUrls: [
-        { url: "https://github.com/hraness/ghostget/blob/main/docs/assurance.md", distinction: "The assurance case is the generated register listing; the post selects the entries a reader deciding on account writes needs." },
-        { url: "https://hraness.com/reference/correctness/claims-ledgers", distinction: "The general technique page; this is the GhostGet instance with real counts." },
+    "slug": "ghostget-claims-register",
+    "title": "Why a failed send can still have succeeded",
+    "dek": "A timeout can hide a completed action. Check the result and understand idempotency before repeating a consequential request.",
+    "eyebrow": "Reliability",
+    "published": "2026-09-24",
+    "updated": "2026-09-30",
+    "keywords": [
+      "reliability",
+      "agents",
+      "web"
+    ],
+    "bodyFile": "ghostget-claims-register.html",
+    "sources": [
+      {
+        "title": "Amazon EC2 API idempotency",
+        "href": "https://docs.aws.amazon.com/ec2/latest/devguide/ec2-api-idempotency.html",
+        "checkedOn": "2026-09-30"
+      },
+      {
+        "title": "GhostGet send and recovery behavior",
+        "href": "https://ghostget.com/docs/explanation/security-model/",
+        "checkedOn": "2026-09-30"
+      },
+      {
+        "title": "GhostGet claims register",
+        "href": "https://ghostget.com/claims/",
+        "checkedOn": "2026-09-30"
+      }
+    ],
+    "admission": {
+      "href": "/blog/ghostget-claims-register/",
+      "lifecycle": "indexable",
+      "readerJob": "Decide what to do after a send returns a timeout.",
+      "nonObviousAnswer": "A failed response and a failed action are different states; replaying the request can duplicate an effect that already happened.",
+      "originalContribution": "A concrete worked example and practical next step, edited for a reader who has not seen the product source or development history.",
+      "hostFit": "Explains a recurring decision for readers using agents to work with web pages and accounts.",
+      "nearestUrls": [
+        {
+          "url": "https://ghostget.com/docs/",
+          "distinction": "Documentation gives product procedures and reference; this article explains the decision or mechanism."
+        }
       ],
-      sources: sourceRecords(claimsRegisterSources),
-      observations: [
-        "Every count in the post was re-derived from verification/claims.json at 76a79fc on 2026-09-24 and carries that date in the body.",
-        "The allow-once approval rule is enforced by the client (defect D13 in the formal verification plan), which the post states rather than implying a server-side guarantee.",
-        "On 2026-09-26 a Claude Opus 5.5 (claude-opus-5-5) AI editorial review rewrote headings and prose for clarity and re-read the diff against the source; it changed no facts, numbers, commands, links, or dates of record.",
-        "On 2026-09-27 a fact check against verification/claims.json at origin/main found the register lists 246 claims, 227 evidenced, 0 planned, and 19 not verified; statements that claims were still planned were re-dated to 2026-09-24 and the current status added.",
+      "sources": [
+        {
+          "title": "Amazon EC2 API idempotency",
+          "url": "https://docs.aws.amazon.com/ec2/latest/devguide/ec2-api-idempotency.html",
+          "checkedOn": "2026-09-30"
+        },
+        {
+          "title": "GhostGet send and recovery behavior",
+          "url": "https://ghostget.com/docs/explanation/security-model/",
+          "checkedOn": "2026-09-30"
+        },
+        {
+          "title": "GhostGet claims register",
+          "url": "https://ghostget.com/claims/",
+          "checkedOn": "2026-09-30"
+        }
       ],
-      scores: { readerUtility: 2, originalEvidence: 2, factualConfidence: 2, hostFit: 1, voiceIntegrity: 2, maintenanceValue: 1 },
-      owner: OWNER,
-      drafting: "ai-from-source",
-      review: review(),
-      humanReview: null,
-      reassessOn: REASSESS_ON,
-      harmIfWrong: "A reader could trust an agent write path more than its checks justify, or overlook an unverified claim that matters for their accounts.",
-      refreshTriggers: [
-        "verification/claims.json totals or per-layer counts change",
-        "Status or notVerified text of approval-allow-once, confirmed-write-at-most-once, indeterminate-never-retried, mutation-exact-preview-confirmation, messaging-uncertain-not-resubmitted, or local-cli-post-spawn-indeterminate changes",
-        "Bounds in verification/quint/approvals.qnt or fence.qnt change",
-        "Status definitions or verify:claims checks in docs/assurance.md change",
-        "Release tag bump (re-derive counts from the tag)",
+      "observations": [
+        "The timeout example separates loss of the reply from failure of the action and explains why an empty search result may not settle the outcome.",
+        "The idempotency discussion identifies both reusing a key and service-side behavior as necessary, avoiding the mistaken implication that a locally generated identifier prevents remote duplicates."
       ],
-    },
+      "scores": {
+        "readerUtility": 2,
+        "originalEvidence": 1,
+        "factualConfidence": 2,
+        "hostFit": 2,
+        "voiceIntegrity": 2,
+        "maintenanceValue": 2
+      },
+      "owner": "Hraness, maintainers of hraness/ghostget",
+      "drafting": "ai",
+      "review": {
+        "reviewer": "Codex editorial review (AI)",
+        "reviewerType": "ai",
+        "reviewedOn": "2026-09-30"
+      },
+      "humanReview": null,
+      "reassessOn": "2026-11-11",
+      "harmIfWrong": "A reader could make the wrong tool, retry, verification, or data-import decision.",
+      "refreshTriggers": [
+        "A documented interface or relevant service behavior changes",
+        "A product rename or registered relationship changes",
+        "A cited primary source changes its explanation"
+      ]
+    }
   },
   {
-    slug: "releases-that-prove-their-origin",
-    title: "How to check a GhostGet download",
-    dek: "One gh command checks that a downloaded GhostGet tarball was signed by the release workflow at its version tag.",
-    eyebrow: "Technique",
-    published: "2026-09-24",
-    updated: "2026-09-26",
-    keywords: ["ghostget", "releases", "provenance", "supply chain", "github releases", "npm", "quint"],
-    bodyFile: "releases-that-prove-their-origin.html",
-    sources: releaseSources,
-    admission: {
-      href: "/blog/releases-that-prove-their-origin/",
-      lifecycle: "indexable",
-      readerJob: "Confirm that a downloaded GhostGet tarball was built and signed by the public release workflow at its version tag, then install that exact file.",
-      nonObviousAnswer: "The release ships its own signature bundle (provenance.jsonl), so gh attestation verify can pin the signer workflow, tag, and GitHub-hosted runner offline; a failed-jobs rerun republishes the already-signed bytes instead of rebuilding; releases before v0.17.0 are signed under the Wrench name or not at all.",
-      originalContribution: "A command sequence run against the real Latest Release on 2026-09-24, including the observation that gh attestation verify prints nothing when stdout is not a terminal.",
-      hostFit: "Install verification for the product's own release, next to its getting-started guide.",
-      nearestUrls: [
-        { url: "https://ghostget.com/docs/tutorials/getting-started/", distinction: "The guide installs; this post checks the file before installing it." },
-        { url: "https://hraness.com/reference/correctness/release-provenance", distinction: "The general technique page; this is the GhostGet command sequence." },
+    "slug": "releases-that-prove-their-origin",
+    "title": "How to verify where a download came from",
+    "dek": "Check the file fingerprint and signed build record, then install the exact package you verified.",
+    "eyebrow": "Software provenance",
+    "published": "2026-09-24",
+    "updated": "2026-09-30",
+    "keywords": [
+      "software provenance",
+      "agents",
+      "web"
+    ],
+    "bodyFile": "releases-that-prove-their-origin.html",
+    "sources": [
+      {
+        "title": "GitHub CLI attestation verification",
+        "href": "https://cli.github.com/manual/gh_attestation_verify",
+        "checkedOn": "2026-09-30"
+      },
+      {
+        "title": "GhostGet releases",
+        "href": "https://github.com/hraness/ghostget/releases",
+        "checkedOn": "2026-09-30"
+      },
+      {
+        "title": "GhostGet release format",
+        "href": "https://github.com/hraness/ghostget/blob/20c1f999/docs/publishing.md",
+        "checkedOn": "2026-09-30"
+      }
+    ],
+    "admission": {
+      "href": "/blog/releases-that-prove-their-origin/",
+      "lifecycle": "indexable",
+      "readerJob": "Verify that a package was built by the expected project and workflow.",
+      "nonObviousAnswer": "A checksum establishes matching bytes; a signed build record connects those bytes to the repository, workflow, and selected version.",
+      "originalContribution": "A concrete worked example and practical next step, edited for a reader who has not seen the product source or development history.",
+      "hostFit": "Explains a recurring decision for readers using agents to work with web pages and accounts.",
+      "nearestUrls": [
+        {
+          "url": "https://ghostget.com/docs/",
+          "distinction": "Documentation gives product procedures and reference; this article explains the decision or mechanism."
+        }
       ],
-      sources: sourceRecords(releaseSources),
-      observations: [
-        "2026-09-24: all five assets of the Latest GitHub Release were downloaded; shasum -a 256 -c SHA256SUMS passed and gh attestation verify with --bundle provenance.jsonl and the release.yml signer workflow exited 0.",
-        "2026-09-24: gh attestation verify printed nothing when stdout was not a terminal; the exit status and --format json were the reliable signals.",
-        "2026-09-24: the npm latest dist-tag integrity decoded to the archive SHA-512 recorded in that Release's release-manifest.json.",
-        "On 2026-09-26 a Claude Opus 5.5 (claude-opus-5-5) AI editorial review rewrote headings and prose for clarity and re-read the diff against the source; it changed no facts, numbers, commands, links, or dates of record, and replaced an unlinked reference to \"deploy proofs\" with a pointer to the website section of the same post.",
+      "sources": [
+        {
+          "title": "GitHub CLI attestation verification",
+          "url": "https://cli.github.com/manual/gh_attestation_verify",
+          "checkedOn": "2026-09-30"
+        },
+        {
+          "title": "GhostGet releases",
+          "url": "https://github.com/hraness/ghostget/releases",
+          "checkedOn": "2026-09-30"
+        },
+        {
+          "title": "GhostGet release format",
+          "url": "https://github.com/hraness/ghostget/blob/20c1f999/docs/publishing.md",
+          "checkedOn": "2026-09-30"
+        }
       ],
-      scores: { readerUtility: 2, originalEvidence: 2, factualConfidence: 2, hostFit: 2, voiceIntegrity: 2, maintenanceValue: 1 },
-      owner: OWNER,
-      drafting: "ai-from-source",
-      review: review(),
-      humanReview: null,
-      reassessOn: REASSESS_ON,
-      harmIfWrong: "A reader could accept a tampered download as genuine, or reject a genuine one, if a command or flag in the post is wrong.",
-      refreshTriggers: [
-        "Release tag bump (status line only; the body has no typed version)",
-        "Status, statement, or notVerified text of release-failed-jobs-rerun-recovers-publish or npm-failure-never-blocks-canonical changes",
-        "Canonical five-file asset set, signer workflow path, tarball name, npm publication path, or npm package coordinate changes",
-        "gh attestation verify, gh release verify, or npm audit signatures flags or output change",
-        "website-production.yml or production-release-verifier.ts changes what the site checks before going live",
+      "observations": [
+        "The article distinguishes byte integrity from builder identity before showing verification commands, so a matching checksum is not presented as proof of origin.",
+        "Installing the exact verified local archive completes the trust chain; downloading or installing a different file would break the connection the earlier checks establish."
       ],
-    },
+      "scores": {
+        "readerUtility": 2,
+        "originalEvidence": 1,
+        "factualConfidence": 2,
+        "hostFit": 2,
+        "voiceIntegrity": 2,
+        "maintenanceValue": 2
+      },
+      "owner": "Hraness, maintainers of hraness/ghostget",
+      "drafting": "ai",
+      "review": {
+        "reviewer": "Codex editorial review (AI)",
+        "reviewerType": "ai",
+        "reviewedOn": "2026-09-30"
+      },
+      "humanReview": null,
+      "reassessOn": "2026-11-11",
+      "harmIfWrong": "A reader could make the wrong tool, retry, verification, or data-import decision.",
+      "refreshTriggers": [
+        "A documented interface or relevant service behavior changes",
+        "A product rename or registered relationship changes",
+        "A cited primary source changes its explanation"
+      ]
+    }
   },
   {
-    slug: "replayable-property-tests",
-    title: "How GhostGet replays a failing generated test",
-    dek: "When one of GhostGet's generated tests fails, the report gives a seed and a shrink path, and passing both back reruns that exact case on any machine.",
-    eyebrow: "Technique",
-    published: "2026-09-24",
-    updated: "2026-09-27",
-    keywords: ["ghostget", "property testing", "fast-check", "model-based testing", "differential testing", "rfc 8785", "verification"],
-    bodyFile: "replayable-property-tests.html",
-    sources: propertyTestSources,
-    admission: {
-      href: "/blog/replayable-property-tests/",
-      lifecycle: "indexable",
-      readerJob: "Understand how GhostGet makes a failing generated test rerun exactly, and what its property, crash, and comparison tests do and do not prove.",
-      nonObviousAnswer: "Every property goes through shared helpers that validate a seed-and-shrink-path coordinate, a checked-in corpus replays a named failure (the {\"__proto__\":0} counterexample) before the random run, a pin test fails if a fast-check upgrade moves that coordinate, and planted defects show the Rust comparison would catch a wrong key order.",
-      originalContribution: "Traces one real counterexample from the failing report to its permanent corpus entry and pin test, with the commit that added it.",
-      hostFit: "Describes the test harness in the GhostGet repository for readers evaluating or contributing to GhostGet.",
-      nearestUrls: [
-        { url: "https://hraness.com/reference/correctness/property-tests", distinction: "The general technique page; this post is the GhostGet harness and its real counterexample." },
-        { url: "https://hraness.com/reference/correctness/two-implementations-one-spec", distinction: "The general differential-testing page; this post covers only GhostGet's Rust oracles." },
+    "slug": "replayable-property-tests",
+    "title": "Turn an unexpected input into a repeatable test",
+    "dek": "Generate inputs from a rule, reduce a failure, and keep both the replay recipe and the smallest example.",
+    "eyebrow": "Testing",
+    "published": "2026-09-24",
+    "updated": "2026-09-30",
+    "keywords": [
+      "testing",
+      "agents",
+      "web"
+    ],
+    "bodyFile": "replayable-property-tests.html",
+    "sources": [
+      {
+        "title": "fast-check runners",
+        "href": "https://fast-check.dev/docs/core-blocks/runners/",
+        "checkedOn": "2026-09-30"
+      },
+      {
+        "title": "fast-check model-based testing",
+        "href": "https://fast-check.dev/docs/advanced/model-based-testing/",
+        "checkedOn": "2026-09-30"
+      },
+      {
+        "title": "JSON key regression example",
+        "href": "https://github.com/hraness/ghostget/blob/20c1f999/src/contracts-invoke-read.test.ts",
+        "checkedOn": "2026-09-30"
+      },
+      {
+        "title": "JSON Canonicalization Scheme",
+        "href": "https://www.rfc-editor.org/rfc/rfc8785",
+        "checkedOn": "2026-09-30"
+      }
+    ],
+    "admission": {
+      "href": "/blog/replayable-property-tests/",
+      "lifecycle": "indexable",
+      "readerJob": "Understand how generated tests find and preserve unexpected cases.",
+      "nonObviousAnswer": "A seed and shrink path reproduce a discovery for the same generator, while an explicit regression preserves its meaning across library changes.",
+      "originalContribution": "A concrete worked example and practical next step, edited for a reader who has not seen the product source or development history.",
+      "hostFit": "Explains a recurring decision for readers using agents to work with web pages and accounts.",
+      "nearestUrls": [
+        {
+          "url": "https://ghostget.com/docs/",
+          "distinction": "Documentation gives product procedures and reference; this article explains the decision or mechanism."
+        }
       ],
-      sources: sourceRecords(propertyTestSources),
-      observations: [
-        "The {\"__proto__\":0} counterexample was added as a named regression in #341 (aa8cce0) with a coordinate pin test in src/contracts-invoke-read.test.ts.",
-        "On 2026-09-24 the seed corpus at 76a79fc held one entry, and property defaults were 200 runs with a 10 second interrupt and a x20 nightly soak multiplier.",
-        "On 2026-09-26 a Claude Opus 5.5 (claude-opus-5-5) AI editorial review rewrote headings and prose for clarity and re-read the diff against the source; it changed no facts, numbers, commands, links, or dates of record.",
-        "On 2026-09-27 a fact check against verification/claims.json at origin/main found the register lists 246 claims, 227 evidenced, 0 planned, and 19 not verified; statements that claims were still planned were re-dated to 2026-09-24 and the current status added.",
+      "sources": [
+        {
+          "title": "fast-check runners",
+          "url": "https://fast-check.dev/docs/core-blocks/runners/",
+          "checkedOn": "2026-09-30"
+        },
+        {
+          "title": "fast-check model-based testing",
+          "url": "https://fast-check.dev/docs/advanced/model-based-testing/",
+          "checkedOn": "2026-09-30"
+        },
+        {
+          "title": "JSON key regression example",
+          "url": "https://github.com/hraness/ghostget/blob/20c1f999/src/contracts-invoke-read.test.ts",
+          "checkedOn": "2026-09-30"
+        },
+        {
+          "title": "JSON Canonicalization Scheme",
+          "url": "https://www.rfc-editor.org/rfc/rfc8785",
+          "checkedOn": "2026-09-30"
+        }
       ],
-      scores: { readerUtility: 2, originalEvidence: 2, factualConfidence: 2, hostFit: 2, voiceIntegrity: 2, maintenanceValue: 1 },
-      owner: OWNER,
-      drafting: "ai-from-source",
-      review: review(),
-      humanReview: null,
-      reassessOn: REASSESS_ON,
-      harmIfWrong: "A contributor could replay a failure with the wrong coordinate format or trust a test layer for a property it does not cover.",
-      refreshTriggers: [
-        "GhostGet release tag bump",
-        "Change to verification/claims.json property, stateful-model, or differential claim counts or statuses",
-        "New entry in verification/seeds/corpus.json or a change to the replay coordinate format or env vars in src/test-support.ts",
-        "Change to property defaults (runs, interrupt time) or the nightly soak multiplier",
-        "Change to the crash harness fault modes or the Rust oracles in verification/oracles",
+      "observations": [
+        "The real __proto__ regression supplies a concrete reason to generate awkward structured values, and the public fast-check sample makes the replay mechanism portable.",
+        "The article pairs a seed/path recipe with a permanent minimal example, explaining why a dependency upgrade can change replay while the explicit regression remains useful."
       ],
-    },
-  },
+      "scores": {
+        "readerUtility": 2,
+        "originalEvidence": 2,
+        "factualConfidence": 2,
+        "hostFit": 2,
+        "voiceIntegrity": 2,
+        "maintenanceValue": 2
+      },
+      "owner": "Hraness, maintainers of hraness/ghostget",
+      "drafting": "ai",
+      "review": {
+        "reviewer": "Codex editorial review (AI)",
+        "reviewerType": "ai",
+        "reviewedOn": "2026-09-30"
+      },
+      "humanReview": null,
+      "reassessOn": "2026-11-11",
+      "harmIfWrong": "A reader could make the wrong tool, retry, verification, or data-import decision.",
+      "refreshTriggers": [
+        "A documented interface or relevant service behavior changes",
+        "A product rename or registered relationship changes",
+        "A cited primary source changes its explanation"
+      ]
+    }
+  }
 ];
 
 assertArticleAdmissions(BLOG_POSTS.map((post) => post.admission));
@@ -422,13 +567,12 @@ export function blogArticleDiscovery(post: BlogPost, site: BlogSite): ArticleDis
     blogPath: BLOG_PATH,
     canonicalPath: blogPostPath(post.slug),
     description: post.dek,
-    image: {
-      alt: site.socialImageAlt,
-      contentType: "image/png",
-      height: 630,
-      path: "/og.png",
-      width: 1200,
-    },
+    image: (() => {
+      const image = editorialImage(blogPostPath(post.slug));
+      return image === undefined
+        ? { alt: site.socialImageAlt, contentType: "image/png" as const, height: 630, path: "/og.png" as const, width: 1200 }
+        : { alt: image.alt, contentType: "image/webp" as const, height: image.height, path: image.src, width: image.width };
+    })(),
     isAccessibleForFree: true,
     keywords: post.keywords,
     ...(post.updated === undefined ? {} : { modifiedTime: isoTimestamp(post.updated) }),
@@ -507,6 +651,7 @@ export function blogPostJsonLd(
 ): JsonObject {
   const url = `${site.origin}${blogPostPath(post.slug)}`;
   const article = withoutContext(articleJsonLd(searchSite(site), blogArticleDiscovery(post, site)));
+  const image = editorialImage(blogPostPath(post.slug));
   return {
     "@context": "https://schema.org",
     "@graph": [
@@ -524,6 +669,7 @@ export function blogPostJsonLd(
       },
       {
         ...article,
+        ...(image === undefined ? {} : { image: { ...(article.image as JsonObject), creditText: image.credit } }),
         about: { "@id": `${site.origin}/#software` },
         author: [{ "@id": organizationId }],
         publisher: { "@id": organizationId },
@@ -574,9 +720,10 @@ export const BUILT_ON_RELATIONS: Readonly<Record<string, Readonly<{ href: string
     href: "https://peopleblade.com/blog/how-peopleblade-uses-ghostget",
     label: "How PeopleBlade uses GhostGet to read contacts from your accounts",
   },
-  "contract:wrench:message-like-me:exports-private-bundles": {
-    href: "https://textbutler.app/blog/how-textbutler-uses-ghostget",
-    label: "How TextButler imports Beeper and WhatsApp history via GhostGet",
+  "contract:wrench:message-like-me:exports-private-bundles": null,
+  "runtime:message-like-me:wrench:reads-and-sends-messages-through": {
+    href: "https://textbutler.app",
+    label: "TextButler messaging assistant",
   },
   // Registered in design-kit v0.18.2. The hub lists it once a GhostGet release
   // emits the text-only capture bundle Sponge imports; no release does yet.
@@ -594,7 +741,7 @@ export const BUILT_ON_RELATIONS: Readonly<Record<string, Readonly<{ href: string
 };
 
 export function ghostgetRelations(): readonly PortfolioRelatedItem[] {
-  return relatedFor(GHOSTGET_PORTFOLIO_ID);
+  return relatedFor(GHOSTGET_PORTFOLIO_ID, { kinds: ["runtime"] });
 }
 
 function headingId(value: string): string {
@@ -608,9 +755,10 @@ export function renderBuiltOnEntries(items: readonly PortfolioRelatedItem[] = gh
     }
     const post = BUILT_ON_RELATIONS[item.relationId];
     if (post === null || post === undefined) return "";
+    const name = canonicalProduct(item.productId).name;
     return [
-      `<h3 id="${headingId(item.name)}">${escapeArticleHtml(item.name)}</h3>`,
-      `<blockquote><p>${escapeArticleHtml(item.relationship)}</p></blockquote>`,
+      `<h3 id="${headingId(name)}">${escapeArticleHtml(name)}</h3>`,
+      `<p>${escapeArticleHtml(item.relationship)}</p>`,
       `<p>Read more: <a href="${escapeArticleHtml(post.href)}">${escapeArticleHtml(post.label)}</a></p>`,
     ].join("\n");
   }).filter((entry) => entry !== "").join("\n");
@@ -639,48 +787,58 @@ export function renderBlogPostMain(post: BlogPost, bodyFragment: string): string
   const bodyHtml = bodyFragment.includes("{{BLOG_RELATION_ENTRIES}}")
     ? bodyFragment.replace("{{BLOG_RELATION_ENTRIES}}", () => renderBuiltOnEntries())
     : bodyFragment;
-  const related = ghostgetRelations().map((item) => ({
-    href: item.href,
-    mark: item.mark,
-    name: item.name,
-    role: item.role,
-  }));
+  const image = editorialImage(blogPostPath(post.slug));
+  const figure = image === undefined ? "" : `<figure class="editorial-figure"><img alt="${escapeArticleHtml(image.alt)}" decoding="async" height="${image.height}" width="${image.width}" src="${image.src}" srcset="${editorialImageSrcSet(image)}" sizes="${EDITORIAL_ARTICLE_IMAGE_SIZES}"><figcaption><small>Generated with <a href="${escapeArticleHtml(image.creditUrl)}">SlopCamera</a>.</small></figcaption></figure>`;
   const article = renderArticleHtml({
-    afterHtml: renderArticleSourcesHtml({ sources: post.sources }) + renderArticleRelatedHtml({ items: related }),
+    afterHtml: renderArticleSourcesHtml({ sources: post.sources, showDates: false }),
     author: BLOG_AUTHOR,
-    bodyHtml,
+    bodyHtml: figure + bodyHtml,
     dek: post.dek,
-    eyebrow: post.eyebrow,
     heading: post.title,
     provenance: articleProvenanceFromAdmission(post.admission),
     published: post.published,
+    showDates: false,
     toc: tocFromBody(bodyHtml),
     ...(post.updated === undefined ? {} : { updated: post.updated }),
   });
   return [
-    `<nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">GhostGet</a></li><li><a href="${BLOG_PATH}">Blog</a></li><li aria-current="page">${escapeArticleHtml(post.title)}</li></ol></nav>`,
+    `<nav aria-label="More articles" class="breadcrumbs"><a href="${BLOG_PATH}">Blog</a></nav>`,
     article,
   ].join("\n");
 }
 
 export function renderBlogIndexMain(posts: readonly BlogPost[] = BLOG_POSTS): string {
   const listed = indexablePosts(posts);
+  const indexHtml = renderArticleIndexHtml({
+    heading: BLOG_TITLE,
+    headingId: "blog-title",
+    headingLevel: 1,
+    items: listed.map((post) => ({
+      dek: post.dek,
+      href: blogPostPath(post.slug),
+      published: post.published,
+      title: post.title,
+      ...(post.updated === undefined ? {} : { updated: post.updated }),
+    })),
+    showDates: false,
+    summary: BLOG_DESCRIPTION,
+  });
+  let entryIndex = 0;
+  const illustratedIndex = new HTMLRewriter().on(".plain-publication__entry", {
+    element(entry) {
+      const post = listed[entryIndex++];
+      if (post === undefined) throw new Error("Article index rendered an unexpected entry");
+      const href = blogPostPath(post.slug);
+      const image = editorialImage(href);
+      if (image !== undefined) {
+        entry.prepend(`<a class="blog-entry-image" href="${escapeArticleHtml(href)}" aria-hidden="true" tabindex="-1"><img alt="" decoding="async" loading="lazy" height="${image.height}" width="${image.width}" src="${image.derivatives[1]?.src ?? image.src}" srcset="${editorialImageSrcSet(image)}" sizes="(max-width: 45rem) 92vw, 28rem"></a>`, { html: true });
+      }
+    },
+  }).transform(indexHtml);
+  if (entryIndex !== listed.length) throw new Error("Article index omitted an expected entry");
   return [
     `<nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">GhostGet</a></li><li aria-current="page">Blog</li></ol></nav>`,
-    renderArticleIndexHtml({
-      heading: BLOG_TITLE,
-      headingId: "blog-title",
-      headingLevel: 1,
-      items: listed.map((post) => ({
-        dek: post.dek,
-        eyebrow: post.eyebrow,
-        href: blogPostPath(post.slug),
-        published: post.published,
-        title: post.title,
-        ...(post.updated === undefined ? {} : { updated: post.updated }),
-      })),
-      summary: BLOG_DESCRIPTION,
-    }),
+    illustratedIndex,
     `<p class="blog-feed-link"><a href="${BLOG_FEED_PATH}">Atom feed</a></p>`,
   ].join("\n");
 }
@@ -723,6 +881,13 @@ export function fillBlogShell(shell: string, site: BlogSite, head: BlogPageHead,
     if (!page.includes(placeholder)) throw new Error(`The blog shell is missing ${placeholder}.`);
     // A function replacement keeps `$` sequences in shell examples literal.
     page = page.replaceAll(placeholder, () => value);
+  }
+  const image = editorialImage(head.canonicalPath);
+  if (image !== undefined) {
+    page = page.replaceAll('content="https://ghostget.com/og.png"', `content="${editorialImageUrl(image)}"`)
+      .replaceAll('{{GHOSTGET_SOCIAL_IMAGE_ALT}}', escapeArticleHtml(image.alt))
+      .replace('property="og:image:width" content="1200"', `property="og:image:width" content="${image.width}"`)
+      .replace('property="og:image:height" content="630"', `property="og:image:height" content="${image.height}"`);
   }
   if (/\{\{BLOG_[A-Z_]+\}\}/u.test(page)) throw new Error("The blog shell has an unknown placeholder.");
   return page;

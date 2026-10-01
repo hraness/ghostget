@@ -42,11 +42,11 @@ describe("launch facts", () => {
     expect(register.claims.filter((claim) => claim.status === "not-verified" && claim.layer === "configuration-readback").length).toBe(LAUNCH_CLAIMS_CONFIG_READBACK);
   });
 
-  test("the longer version takes its register counts from the facts module", async () => {
+  test("article fact slots resolve from source without requiring a register inventory in the prose", async () => {
     const fragment = await readFile(join(repositoryRoot, "website/source/blog/introducing-ghostget.html"), "utf8");
     const rendered = renderLaunchFactSlots(fragment);
     expect(rendered).not.toContain("{{LAUNCH_FACT:");
-    expect(rendered).toContain(`lists ${LAUNCH_CLAIMS_TOTAL} claims: ${LAUNCH_CLAIMS_EVIDENCED} evidenced and ${LAUNCH_CLAIMS_NOT_VERIFIED} not verified`);
+    expect(renderLaunchFactSlots("{{LAUNCH_FACT:claimsTotal}}")).toBe(String(LAUNCH_CLAIMS_TOTAL));
     expect(() => renderLaunchFactSlots("{{LAUNCH_FACT:unknownFact}}")).toThrow(/Unknown launch fact/u);
   });
 
