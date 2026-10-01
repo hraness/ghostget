@@ -508,7 +508,7 @@ export function createBrowserConfig(host: string, evidence: BrowserEvidence, isA
     respect_dnt: true,
     // Do not retain a batch that could outlive a visitor’s consent.
     request_batching: false,
-    ui_host: host.includes("eu.i.posthog.com") ? "https://eu.posthog.com" : "https://us.posthog.com",
+    ui_host: host === "https://eu.i.posthog.com" ? "https://eu.posthog.com" : "https://us.posthog.com",
   };
 }
 

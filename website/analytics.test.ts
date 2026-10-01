@@ -95,6 +95,18 @@ describe("ghostget.com analytics contract", () => {
     expect(capture?.properties).toMatchObject({ analytics_schema_version: 2, site_id: "ghostget" });
   });
 
+  test("selects the EU UI only for the exact validated ingestion origin", () => {
+    expect(createBrowserConfig("https://eu.i.posthog.com", home).ui_host).toBe("https://eu.posthog.com");
+    for (const host of [
+      "https://us.i.posthog.com",
+      "https://eu.i.posthog.com.attacker.example",
+      "https://attacker.example/eu.i.posthog.com",
+      "https://attacker.example/?host=eu.i.posthog.com",
+    ]) {
+      expect(createBrowserConfig(host, home).ui_host).toBe("https://us.posthog.com");
+    }
+  });
+
   test("keeps the cookieless, personless, bundled-SDK configuration", () => {
     const config = createBrowserConfig("https://us.i.posthog.com", home);
     expect(config).toMatchObject({
