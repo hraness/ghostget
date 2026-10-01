@@ -2390,24 +2390,22 @@
 // Preserve the same projections and allowances:
 // 12,154,912 + 12,387 + 4,096 = 12,171,395 packed;
 // 24,054,352 + 353 + 65 = 24,054,770 payload.
-// The 0.18.65 editorial release preserves that runtime and file inventory.
-// Two byte-identical packs with the same qualified toolchain measured 625
-// entries, 12,155,065 packed and 24,054,930 payload bytes. The 578-byte payload
-// increase is the new changelog entry; article and image files are website-only.
-// Retain every projection and allowance:
-// 12,155,065 + 12,387 + 4,096 = 12,171,548 packed;
-// 24,054,930 + 353 + 65 = 24,055,348 payload.
-// The 0.18.66 analytics-host release measures 625 entries under the same
-// Node 24.20.0 / npm 11.19.0 / darwin-arm64 toolchain. Two packs are identical.
-// Preserve the reviewed platform projections and portability allowances.
+// The 0.18.66 WhatsApp projection and analytics-host repair release retains
+// the 625-entry inventory after rebuilding dist. Two byte-identical packs with
+// the same qualified toolchain measured 12,144,044 packed and 24,057,855
+// payload bytes; archive SHA-256
+// f36aad9ba60d22276020595e353820a2b9140cae428ddd1f61be59ef09f275fc.
+// Retain the reviewed projections and allowances:
+// 12,144,044 + 12,387 + 4,096 = 12,160,527 packed;
+// 24,057,855 + 353 + 65 = 24,058,273 payload.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "GhostGet 0.18.66 exact analytics host release over the verified 0.18.65 runtime",
+  scope: "GhostGet 0.18.66 WhatsApp projection and analytics-host repair release over the verified 0.18.64 runtime",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "b462796a666a3f7acccbbf052590f6f7b3db4f956307567dca313c6b13d3393a",
-  packedBytes: 12_143_254,
-  unpackedBytes: 24_055_132,
+  archiveSha256: "f36aad9ba60d22276020595e353820a2b9140cae428ddd1f61be59ef09f275fc",
+  packedBytes: 12_144_044,
+  unpackedBytes: 24_057_855,
   entryCount: 625,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
