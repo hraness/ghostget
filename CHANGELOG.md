@@ -7,6 +7,19 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.71
+
+Automate selected group conversations in Beeper, iMessage, and WhatsApp.
+
+- Let clients discover and enroll a group with its exact account and participant
+  list. Direct conversations remain the default.
+- Begin each group enrollment with new messages, excluding earlier history.
+- Stop an enrollment and revoke its sends when the account, conversation, or
+  participant list changes, including changes observed before a restart.
+- Recheck the group before sending and require a new enrollment after a change.
+- Keep analytics preferences compact and their panel inside the viewport.
+- Use one product navigation row across marketing pages and documentation.
+
 ## 0.18.70
 
 Preserve provider text when projecting profile and rental listing data.

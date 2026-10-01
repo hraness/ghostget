@@ -2,6 +2,24 @@
   "schema": "ghostget-source-mutants-v1",
   "mutants": [
     {
+      "id": "group-binding-drift-transient",
+      "file": "src/messaging-automation.ts",
+      "defect": "Observed group drift is only a transient readiness failure, so the old enrollment can revive when its roster returns.",
+      "search": "      this.db.query(\"UPDATE enrollments SET ready=0,reason=? WHERE id=?\").run(AUTOMATION_BINDING_CHANGED_REASON, id);",
+      "replace": "      this.db.query(\"UPDATE enrollments SET ready=0,reason=? WHERE id=?\").run(\"Temporary group change\", id);",
+      "test": "src/messaging-automation-groups.test.ts",
+      "killedBy": ["observed roster drift permanently revokes old authority across restoration and restart"]
+    },
+    {
+      "id": "group-history-provider-archive",
+      "file": "src/messaging-automation.ts",
+      "defect": "A group history window reads the unrestricted provider archive and can expose prior-roster messages.",
+      "search": "    if (enrollment.conversation.kind === \"group\") {\n      // A dated archive read cannot prove which roster could see old content.",
+      "replace": "    if (false) {\n      // A dated archive read cannot prove which roster could see old content.",
+      "test": "src/messaging-automation-groups.test.ts",
+      "killedBy": ["group live history excludes baseline bodies and mutations of unknown old messages"]
+    },
+    {
       "id": "run-journal-release-verified-ledger",
       "file": "src/run-journal.ts",
       "defect": "Not-applied reconciliation releases the idempotency fence even after a dispatch was verified.",

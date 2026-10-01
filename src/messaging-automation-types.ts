@@ -1,5 +1,7 @@
 /** Closed host-side messaging contract. Provider credentials and local paths never cross it. */
 export const MESSAGING_AUTOMATION_PROTOCOL = "ghostget.messaging-automation/1" as const;
+export const AUTOMATION_BINDING_CHANGED_REASON = "ghostget.binding-changed.v1" as const;
+export type AutomationFeatures = Readonly<{ groupConversations: Readonly<{ version: 1 }> | null }>;
 
 export type AutomationProviderId = "imessage" | "whatsapp" | "beeper";
 export type AutomationActionKind = AutomationAction["kind"];
@@ -19,6 +21,18 @@ export type AutomationIdentity = Readonly<{
   sourceGeneration: string;
 }>;
 export type AutomationCapability = Readonly<{ available: boolean; reason: string | null }>;
+/** Trusted adapter signal for a positively observed complete-empty group roster.
+ * Missing, partial and unavailable rosters must never produce this signal. */
+export class AutomationGroupBindingChangedError extends Error {
+  readonly identity: AutomationIdentity;
+  readonly coordinate: AutomationCoordinate;
+  constructor(identity: AutomationIdentity, coordinate: AutomationCoordinate) {
+    super(AUTOMATION_BINDING_CHANGED_REASON);
+    this.identity = identity;
+    this.coordinate = coordinate;
+    this.name = "AutomationGroupBindingChangedError";
+  }
+}
 export type AutomationProviderStatus = Readonly<{
   identity: AutomationIdentity;
   connected: boolean;
@@ -84,8 +98,12 @@ export type AutomationPollResult = Readonly<{ enrollmentId: string; enrollment: 
  */
 export interface MessagingAutomationProvider {
   readonly provider: AutomationProviderId;
+  /** Trusted implementation promise: complete authoritative rosters checked at
+   * each effect, stable cursor baselines, and original creation timestamps that
+   * are preserved through edits/backfill. The host enforces the history epoch. */
+  readonly groupConversations?: Readonly<{ version: 1 }>;
   inspect(signal?: AbortSignal): Promise<AutomationProviderStatus>;
-  conversations(input: Readonly<{ limit: number }>, signal?: AbortSignal): Promise<Readonly<{
+  conversations(input: Readonly<{ limit: number; includeGroups?: boolean }>, signal?: AbortSignal): Promise<Readonly<{
     identity: AutomationIdentity; conversations: readonly AutomationConversation[]; complete: boolean;
   }>>;
   resolve(coordinate: AutomationCoordinate, signal?: AbortSignal): Promise<Readonly<{
@@ -105,6 +123,8 @@ export interface MessagingAutomationProvider {
   send(input: Readonly<{
     identity: AutomationIdentity;
     coordinate: AutomationCoordinate;
+    /** Required for groups. Recheck the full binding immediately before effect. */
+    conversation?: AutomationConversation;
     action: AutomationAction;
     /** Host's durable action claim, useful for provider idempotency only where proven. */
     intentId: string;
@@ -138,12 +158,13 @@ export type AutomationEvent = Readonly<{ sequence: number; enrollmentId: string;
 /** Public trusted-host surface. No registry, database or provider implementation
  * types are part of this contract. Creating a host requires Bun. */
 export interface MessagingAutomationHostApi {
+  features(): AutomationFeatures;
   providerStatus(provider: AutomationProviderId, signal?: AbortSignal): Promise<AutomationProviderStatus>;
-  conversations(input: Readonly<{ provider: AutomationProviderId; limit: number }>, signal?: AbortSignal): Promise<Readonly<{
+  conversations(input: Readonly<{ provider: AutomationProviderId; limit: number; includeGroups?: boolean }>, signal?: AbortSignal): Promise<Readonly<{
     identity: AutomationIdentity; conversations: readonly AutomationConversation[]; complete: boolean;
   }>>;
   enroll(input: Readonly<{ provider: AutomationProviderId; coordinate: AutomationCoordinate }>, signal?: AbortSignal): Promise<AutomationEnrollment>;
-  enrollments(): readonly AutomationEnrollment[];
+  enrollments(input?: Readonly<{ includeGroups?: boolean }>): readonly AutomationEnrollment[];
   history(input: Readonly<{ enrollmentId: string; limit: number }>): Readonly<{ enrollment: AutomationEnrollment; messages: readonly AutomationMessage[] }>;
   historyWindow(input: Readonly<{ enrollmentId: string; limit: number; before: string | null; after: string | null }>, signal?: AbortSignal): Promise<Readonly<{ enrollment: AutomationEnrollment; messages: readonly AutomationMessage[] }>>;
   grant(request: AutomationGrantRequest, intentId?: string): AutomationGrant;

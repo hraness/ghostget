@@ -5,6 +5,7 @@ import {
   automationArray,
   automationDate,
   automationDigest,
+  automationGroupOptions,
   automationId,
   automationInstant,
   automationInteger,
@@ -12,10 +13,11 @@ import {
   automationText,
   parseAutomationAction,
   parseAutomationActionKind,
+  parseAutomationConversation,
   parseAutomationCoordinate,
   parseAutomationIdentity,
   parseAutomationMessage
-} from "./index-42adge2e.js";
+} from "./index-cs9v6bqx.js";
 import {
   ensurePrivateStateDirectory,
   ghostgetStateHome,
@@ -30,8 +32,10 @@ import {
   sha256
 } from "./index-xa1qz35x.js";
 import {
+  AUTOMATION_BINDING_CHANGED_REASON,
+  AutomationGroupBindingChangedError,
   MESSAGING_AUTOMATION_PROTOCOL
-} from "./index-01eeae9e.js";
+} from "./index-m84wqtz6.js";
 import"./index-z1w83f81.js";
 
 // src/messaging-automation.ts
@@ -61,7 +65,7 @@ var stopped = (signal) => {
   if (signal?.aborted)
     throw new Error("Messaging automation operation was cancelled.");
 };
-var CAPACITY = Object.freeze({ enrollments: 1000, grants: 1e4, plans: 20000, runs: 20000, messages: 50000, events: 50000 });
+var CAPACITY = Object.freeze({ enrollments: 1000, grants: 1e4, plans: 20000, runs: 20000, messages: 50000, events: 50000, group_history_exclusions: 50000 });
 function grantData(value) {
   const r = automationRecord(value, ["enrollmentId", "expectedBindingDigest", "actions", "expiresAt", "maximumActions", "minimumIntervalMs"]);
   const actions = automationArray(r.actions, AUTOMATION_ACTION_KINDS.length).map(parseAutomationActionKind);
@@ -80,14 +84,6 @@ function planData(value) {
   if (!canonicalJsonSha256Matches(digest, binding) || id !== `plan:${digest}`)
     throw new Error("Messaging plan binding is invalid.");
   return Object.freeze({ ...binding, id, digest });
-}
-function conversation(value) {
-  const r = automationRecord(value, ["coordinate", "title", "kind", "participants"]);
-  const coordinate = parseAutomationCoordinate(r.coordinate);
-  const participants = automationArray(r.participants, 2).map((value2) => automationText(value2, 512));
-  if (r.kind !== "single" || participants.length < 1 || new Set(participants).size !== participants.length)
-    throw new Error("Messaging automation requires one verified individual conversation.");
-  return Object.freeze({ coordinate, title: r.title === null ? null : automationText(r.title, 512), kind: "single", participants: Object.freeze([...participants].sort()) });
 }
 function checkedPage(value, expected, coordinate) {
   const r = automationRecord(value, ["identity", "messages", "nextCursor", "caughtUp", "gap"]);
@@ -156,15 +152,17 @@ class MessagingAutomationHost {
     try {
       this.db.exec("PRAGMA busy_timeout=250; PRAGMA journal_mode=DELETE; PRAGMA synchronous=FULL; PRAGMA trusted_schema=OFF; PRAGMA secure_delete=ON; PRAGMA max_page_count=65536;");
       const version = this.db.query("PRAGMA user_version").get()?.user_version;
-      if (version !== 0 && version !== 1 && version !== 2)
+      if (version !== 0 && version !== 1 && version !== 2 && version !== 3)
         throw new Error("Unsupported messaging journal schema.");
       this.db.exec("CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY,value TEXT NOT NULL); CREATE TABLE IF NOT EXISTS enrollments (id TEXT PRIMARY KEY,data TEXT NOT NULL,cursor TEXT NOT NULL,revision INTEGER NOT NULL,ready INTEGER NOT NULL,reason TEXT); CREATE TABLE IF NOT EXISTS grants (id TEXT PRIMARY KEY,data TEXT NOT NULL,revoked INTEGER NOT NULL,consumed INTEGER NOT NULL,last_dispatch INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS plans (id TEXT PRIMARY KEY,data TEXT NOT NULL); CREATE TABLE IF NOT EXISTS runs (id TEXT PRIMARY KEY,plan_id TEXT NOT NULL,intent_id TEXT NOT NULL UNIQUE,enrollment_id TEXT NOT NULL,state TEXT NOT NULL,accepted TEXT NOT NULL,total INTEGER NOT NULL,reason TEXT); CREATE INDEX IF NOT EXISTS runs_contact ON runs(enrollment_id,state); CREATE TABLE IF NOT EXISTS messages (enrollment_id TEXT NOT NULL,event_key TEXT NOT NULL,data TEXT NOT NULL,PRIMARY KEY(enrollment_id,event_key)); CREATE TABLE IF NOT EXISTS events (seq INTEGER PRIMARY KEY AUTOINCREMENT,enrollment_id TEXT NOT NULL,revision INTEGER NOT NULL,data TEXT NOT NULL);");
-      if (version !== 2)
+      if (version !== 2 && version !== 3)
         this.db.transaction(() => {
           this.db.exec("ALTER TABLE enrollments ADD COLUMN baselining INTEGER NOT NULL DEFAULT 1; ALTER TABLE enrollments ADD COLUMN gap INTEGER NOT NULL DEFAULT 0; UPDATE enrollments SET gap=CASE WHEN reason LIKE '%unresolved gap%' THEN 1 ELSE 0 END,ready=0; PRAGMA user_version=2;");
         }).immediate();
-      else
-        this.db.exec("PRAGMA user_version=2;");
+      if (version !== 3)
+        this.db.transaction(() => {
+          this.db.exec("ALTER TABLE enrollments ADD COLUMN history_floor TEXT; CREATE TABLE group_history_exclusions (enrollment_id TEXT NOT NULL,message_id TEXT NOT NULL,PRIMARY KEY(enrollment_id,message_id)); PRAGMA user_version=3;");
+        }).immediate();
       this.db.exec("CREATE TABLE IF NOT EXISTS grant_intents (id TEXT PRIMARY KEY,request_digest TEXT NOT NULL,grant_id TEXT NOT NULL UNIQUE REFERENCES grants(id));");
       this.db.query("INSERT OR IGNORE INTO metadata(key,value) VALUES('cursor-key',?)").run(randomBytes(32).toString("hex"));
       this.cursorKey = Buffer.from(automationDigest(this.db.query("SELECT value FROM metadata WHERE key='cursor-key'").get()?.value), "hex");
@@ -217,20 +215,81 @@ class MessagingAutomationHost {
   enrollment(row) {
     const r = automationRecord(JSON.parse(row.data), ["identity", "conversation", "bindingDigest"]);
     const identity = parseAutomationIdentity(r.identity);
-    const selected = conversation(r.conversation);
+    const selected = parseAutomationConversation(r.conversation);
     const bindingDigest = automationDigest(r.bindingDigest);
     if (!canonicalJsonSha256Matches(bindingDigest, authority(identity, selected)))
       throw new Error("Messaging enrollment binding is invalid.");
     const ready = automationInteger(row.ready, 0, 1);
     const baselining = automationInteger(row.baselining, 0, 1);
     const gap = automationInteger(row.gap, 0, 1);
-    if (ready && (baselining || gap))
+    if (selected.kind === "group")
+      automationInstant(row.history_floor);
+    else if (row.history_floor !== null)
+      throw new Error("Individual conversation has a group history boundary.");
+    if (ready && (baselining || gap || row.reason === AUTOMATION_BINDING_CHANGED_REASON))
       throw new Error("Messaging enrollment readiness is inconsistent.");
     return Object.freeze({ id: automationId(row.id), identity, conversation: selected, bindingDigest, revision: automationInteger(row.revision, 0, Number.MAX_SAFE_INTEGER), ready: ready === 1, reason: row.reason === null ? null : automationText(row.reason, 1024) });
   }
-  enrollments() {
+  features() {
     this.ready();
-    return this.db.query("SELECT * FROM enrollments ORDER BY id LIMIT 1001").all().map((row) => this.enrollment(row));
+    return Object.freeze({ groupConversations: Object.freeze({ version: 1 }) });
+  }
+  enrollments(input = {}) {
+    this.ready();
+    const { includeGroups } = automationGroupOptions(input, []);
+    return this.db.query("SELECT * FROM enrollments ORDER BY id LIMIT 1001").all().map((row) => this.enrollment(row)).filter((row) => includeGroups || row.conversation.kind === "single");
+  }
+  invalidateBinding(id) {
+    this.db.transaction(() => {
+      this.db.query("UPDATE enrollments SET ready=0,reason=? WHERE id=?").run(AUTOMATION_BINDING_CHANGED_REASON, id);
+      this.db.query("UPDATE grants SET revoked=1 WHERE json_extract(data,'$.enrollmentId')=?").run(id);
+    }).immediate();
+    return this.enrollment(this.row(id));
+  }
+  async observeBinding(provider, enrollment, signal) {
+    if (enrollment.reason === AUTOMATION_BINDING_CHANGED_REASON)
+      return false;
+    let route;
+    try {
+      route = await this.resolve(provider, enrollment.conversation.coordinate, signal);
+    } catch (error) {
+      if (error instanceof AutomationGroupBindingChangedError && this.row(enrollment.id).reason === AUTOMATION_BINDING_CHANGED_REASON)
+        return false;
+      throw error;
+    }
+    stopped(signal);
+    if (route.identity.authId === enrollment.identity.authId)
+      this.observeGroupIdentity(route.identity);
+    if (!same(parseAutomationIdentity(route.identity), enrollment.identity) || !sameConversation(parseAutomationConversation(route.conversation), enrollment.conversation)) {
+      this.invalidateBinding(enrollment.id);
+      return false;
+    }
+    return true;
+  }
+  observeGroupIdentity(identity) {
+    for (const prior of this.enrollments({ includeGroups: true })) {
+      if (prior.conversation.kind === "group" && prior.identity.provider === identity.provider && prior.identity.authId === identity.authId && !same(prior.identity, identity))
+        this.invalidateBinding(prior.id);
+    }
+  }
+  async resolve(provider, coordinate, signal) {
+    try {
+      const resolved = await provider.resolve(coordinate, signal), identity = parseAutomationIdentity(resolved.identity), selected = parseAutomationConversation(resolved.conversation);
+      if (identity.provider !== provider.provider || !same(selected.coordinate, coordinate))
+        throw new Error("Messaging route resolution changed scope.");
+      return { identity, conversation: selected };
+    } catch (error) {
+      if (error instanceof AutomationGroupBindingChangedError) {
+        const identity = parseAutomationIdentity(error.identity), observed = parseAutomationCoordinate(error.coordinate);
+        if (identity.provider !== provider.provider || observed.provider !== provider.provider || !same(observed, coordinate))
+          throw new Error("Group binding invalidation escaped its exact scope.");
+        for (const prior of this.enrollments({ includeGroups: true })) {
+          if (prior.conversation.kind === "group" && prior.identity.provider === identity.provider && prior.identity.authId === identity.authId && same(prior.conversation.coordinate, coordinate))
+            this.invalidateBinding(prior.id);
+        }
+      }
+      throw error;
+    }
   }
   async status(provider, signal) {
     stopped(signal);
@@ -256,14 +315,14 @@ class MessagingAutomationHost {
   }
   async conversations(raw, signal) {
     this.ready();
-    const r = automationRecord(raw, ["provider", "limit"]);
+    const r = automationGroupOptions(raw, ["provider", "limit"]);
     const provider = this.provider(automationId(r.provider)), limit = automationInteger(r.limit, 1, 200);
     let phase = "host-status";
     let code = "failed";
     try {
       const status = await this.status(provider, signal);
       phase = "host-response";
-      const rawResult = await provider.conversations({ limit }, signal);
+      const rawResult = await provider.conversations({ limit, ...r.includeGroups && provider.groupConversations?.version === 1 ? { includeGroups: true } : {} }, signal);
       stopped(signal);
       code = "schema-invalid";
       const result = automationRecord(rawResult, ["identity", "conversations", "complete"]);
@@ -274,7 +333,10 @@ class MessagingAutomationHost {
         throw new Error("Messaging discovery identity changed.");
       phase = "host-response";
       code = "schema-invalid";
-      const rows = automationArray(result.conversations, limit).filter((value) => automationRecord(value, ["coordinate", "title", "kind", "participants"]).kind === "single").map(conversation);
+      const rows = automationArray(result.conversations, limit).filter((value) => {
+        const kind = automationRecord(value, ["coordinate", "title", "kind", "participants"]).kind;
+        return kind === "single" || kind === "group" && r.includeGroups && provider.groupConversations?.version === 1;
+      }).map(parseAutomationConversation);
       if (rows.some((row) => row.coordinate.provider !== identity.provider) || new Set(rows.map((row) => canonicalJson(row.coordinate))).size !== rows.length)
         throw new Error("Messaging discovery contains conflicting conversations.");
       return Object.freeze({ identity, conversations: Object.freeze(rows), complete: result.complete });
@@ -302,6 +364,10 @@ class MessagingAutomationHost {
     const enrollment = this.enrollment(this.row(automationId(r.enrollmentId)));
     if (!enrollment.ready)
       throw new Error("Messaging enrollment is unavailable.");
+    if (enrollment.conversation.kind === "group") {
+      const rows = this.db.query("SELECT data FROM messages WHERE rowid IN (SELECT MAX(rowid) FROM messages WHERE enrollment_id=? GROUP BY json_extract(data,'$.id')) AND (? IS NULL OR json_extract(data,'$.occurredAt')<?) AND (? IS NULL OR json_extract(data,'$.occurredAt')>=?) ORDER BY json_extract(data,'$.occurredAt') DESC,rowid DESC LIMIT ?").all(enrollment.id, before, before, after, after, limit);
+      return Object.freeze({ enrollment, messages: Object.freeze(rows.map((row) => parseAutomationMessage(JSON.parse(row.data))).reverse()) });
+    }
     const provider = this.provider(enrollment.identity.provider);
     const status = await this.status(provider, signal);
     if (!same(status.identity, enrollment.identity))
@@ -316,31 +382,72 @@ class MessagingAutomationHost {
     this.ready();
     const request = automationRecord(raw, ["provider", "coordinate"]);
     const coordinate = parseAutomationCoordinate(request.coordinate);
+    const historyFloor = new Date(this.now()).toISOString();
     if (request.provider !== coordinate.provider)
       throw new Error("Messaging provider and coordinate disagree.");
     const provider = this.provider(coordinate.provider);
     const status = await this.status(provider, signal);
-    const resolved = await provider.resolve(coordinate, signal);
+    this.observeGroupIdentity(status.identity);
+    const resolved = await this.resolve(provider, coordinate, signal);
     stopped(signal);
-    if (!same(parseAutomationIdentity(resolved.identity), status.identity))
-      throw new Error("Messaging identity changed during enrollment.");
-    const selected = conversation(resolved.conversation);
+    const selected = parseAutomationConversation(resolved.conversation);
     if (!same(selected.coordinate, coordinate))
       throw new Error("Messaging route resolution changed target.");
-    const history = checkedPage(await provider.history({ coordinate, limit: 200 }, signal), status.identity, coordinate);
+    const resolvedIdentity = parseAutomationIdentity(resolved.identity);
+    if (resolvedIdentity.provider === status.identity.provider && resolvedIdentity.authId === status.identity.authId)
+      this.observeGroupIdentity(resolvedIdentity);
+    if (!same(resolvedIdentity, status.identity))
+      throw new Error("Messaging identity changed during enrollment.");
+    if (selected.kind === "group" && provider.groupConversations?.version !== 1)
+      throw new Error("Verified group conversations are unavailable for this provider.");
+    for (const prior of this.enrollments({ includeGroups: true })) {
+      if (prior.identity.provider === status.identity.provider && prior.identity.authId === status.identity.authId && same(prior.conversation.coordinate, coordinate) && (prior.conversation.kind === "group" || selected.kind === "group") && (!same(prior.identity, status.identity) || !sameConversation(prior.conversation, selected)))
+        this.invalidateBinding(prior.id);
+    }
+    const rawHistory = await provider.history({ coordinate, limit: 200 }, signal);
     stopped(signal);
+    const historyIdentity = selected.kind === "group" ? parseAutomationIdentity(rawHistory.identity) : status.identity;
+    const history = checkedPage(rawHistory, historyIdentity, coordinate);
+    if (selected.kind === "group") {
+      if (historyIdentity.provider === status.identity.provider && historyIdentity.authId === status.identity.authId)
+        this.observeGroupIdentity(historyIdentity);
+      if (!same(historyIdentity, status.identity))
+        throw new Error("Messaging identity changed during enrollment history.");
+    }
+    if (selected.kind === "group") {
+      const after = await this.resolve(provider, coordinate, signal);
+      stopped(signal);
+      const afterIdentity = parseAutomationIdentity(after.identity), afterConversation = parseAutomationConversation(after.conversation);
+      if (!same(afterConversation.coordinate, coordinate))
+        throw new Error("Messaging route resolution changed target.");
+      if (!same(afterIdentity, status.identity) || !sameConversation(afterConversation, selected)) {
+        for (const prior of this.enrollments({ includeGroups: true })) {
+          if (prior.conversation.kind === "group" && prior.identity.provider === status.identity.provider && prior.identity.authId === status.identity.authId && same(prior.conversation.coordinate, coordinate) && (!same(prior.identity, afterIdentity) || !sameConversation(prior.conversation, afterConversation)))
+            this.invalidateBinding(prior.id);
+        }
+        throw new Error("Messaging binding changed during group enrollment.");
+      }
+    }
     const binding = { identity: status.identity, conversation: selected };
     const bindingDigest = sha256(canonicalJson(authority(status.identity, selected)));
     const id = `enrollment:${randomUUID()}`;
     this.ready();
     this.db.transaction(() => {
       this.capacity("enrollments");
-      this.capacity("messages", history.messages.length);
-      if (this.enrollments().some((enrollment) => same(enrollment.identity, status.identity) && same(enrollment.conversation.coordinate, coordinate)))
+      this.capacity("messages", selected.kind === "group" ? 0 : history.messages.length);
+      const previous = this.enrollments({ includeGroups: true }).filter((enrollment) => enrollment.identity.provider === status.identity.provider && enrollment.identity.authId === status.identity.authId && same(enrollment.conversation.coordinate, coordinate));
+      if (previous.some((enrollment) => enrollment.reason !== AUTOMATION_BINDING_CHANGED_REASON && same(enrollment.identity, status.identity) && sameConversation(enrollment.conversation, selected)))
         throw new Error("Conversation is already enrolled.");
-      this.db.query("INSERT INTO enrollments(id,data,cursor,revision,ready,reason,baselining,gap) VALUES(?,?,?,0,?,?,?,?)").run(id, canonicalJson({ ...binding, bindingDigest }), history.nextCursor, !history.gap && history.caughtUp ? 1 : 0, history.gap ? "Provider history has an unresolved gap." : history.caughtUp ? null : "Initial history catchup is incomplete.", history.caughtUp ? 0 : 1, history.gap ? 1 : 0);
-      for (const message of history.messages)
-        this.db.query("INSERT OR IGNORE INTO messages VALUES(?,?,?)").run(id, sha256(canonicalJson(message)), canonicalJson(message));
+      for (const enrollment of previous)
+        if (enrollment.conversation.kind === "group" || selected.kind === "group")
+          this.invalidateBinding(enrollment.id);
+      this.db.query("INSERT INTO enrollments(id,data,cursor,revision,ready,reason,baselining,gap,history_floor) VALUES(?,?,?,0,?,?,?,?,?)").run(id, canonicalJson({ ...binding, bindingDigest }), history.nextCursor, !history.gap && history.caughtUp ? 1 : 0, history.gap ? "Provider history has an unresolved gap." : history.caughtUp ? null : "Initial history catchup is incomplete.", history.caughtUp ? 0 : 1, history.gap ? 1 : 0, selected.kind === "group" ? historyFloor : null);
+      if (selected.kind === "group")
+        for (const message of history.messages)
+          this.excludeHistory(id, message.id);
+      if (selected.kind !== "group")
+        for (const message of history.messages)
+          this.db.query("INSERT OR IGNORE INTO messages VALUES(?,?,?)").run(id, sha256(canonicalJson(message)), canonicalJson(message));
     }).immediate();
     this.checkFiles();
     return this.enrollment(this.row(id));
@@ -350,7 +457,7 @@ class MessagingAutomationHost {
     const r = automationRecord(raw, ["enrollmentId", "expectedBindingDigest", "actions", "expiresAt", "maximumActions", "minimumIntervalMs"]);
     const enrollment = this.enrollment(this.row(automationId(r.enrollmentId)));
     const expectedBindingDigest = automationDigest(r.expectedBindingDigest);
-    if (enrollment.bindingDigest !== expectedBindingDigest)
+    if (enrollment.bindingDigest !== expectedBindingDigest || enrollment.reason === AUTOMATION_BINDING_CHANGED_REASON)
       throw new Error("Messaging enrollment changed before grant issuance.");
     const actions = automationArray(r.actions, AUTOMATION_ACTION_KINDS.length).map(parseAutomationActionKind);
     if (actions.length === 0 || new Set(actions).size !== actions.length)
@@ -433,18 +540,35 @@ class MessagingAutomationHost {
       return { page: { identity, messages: page.messages, nextCursor: page.nextCursor, caughtUp: page.caughtUp, gap: page.gap } };
     });
   }
+  excludeHistory(enrollmentId, messageId) {
+    if (this.db.query("SELECT 1 FROM group_history_exclusions WHERE enrollment_id=? AND message_id=?").get(enrollmentId, messageId) !== null)
+      return;
+    this.capacity("group_history_exclusions");
+    this.db.query("INSERT INTO group_history_exclusions VALUES(?,?)").run(enrollmentId, messageId);
+  }
   ingest(enrollmentId, initial, page) {
     this.db.transaction(() => {
       const current = this.row(enrollmentId);
-      if (current.cursor !== initial.cursor || current.revision !== initial.revision || current.baselining !== initial.baselining || current.gap !== initial.gap || this.activeRun(enrollmentId))
+      if (current.reason === AUTOMATION_BINDING_CHANGED_REASON || current.cursor !== initial.cursor || current.revision !== initial.revision || current.baselining !== initial.baselining || current.gap !== initial.gap || this.activeRun(enrollmentId))
         throw new Error("Messaging poll lost its concurrent cursor claim.");
+      const group = this.enrollment(current).conversation.kind === "group";
       this.capacity("messages", page.messages.length);
       if (!initial.baselining)
         this.capacity("events", page.messages.length);
       let revision = initial.revision;
       for (const [index, message] of page.messages.entries()) {
+        if (group) {
+          if (initial.baselining === 1 || Date.parse(message.occurredAt) < Date.parse(current.history_floor) || Date.parse(message.occurredAt) > this.now()) {
+            this.excludeHistory(enrollmentId, message.id);
+            continue;
+          }
+          if (this.db.query("SELECT 1 FROM group_history_exclusions WHERE enrollment_id=? AND message_id=?").get(enrollmentId, message.id) !== null)
+            continue;
+        }
         const data = canonicalJson(message);
         const previous = this.db.query("SELECT data FROM messages WHERE enrollment_id=? AND json_extract(data,'$.id')=? ORDER BY rowid DESC LIMIT 1").get(enrollmentId, message.id);
+        if (group && message.kind !== "message" && previous === null && (message.kind !== "reaction" || message.relatedMessageId === null || this.db.query("SELECT 1 FROM messages WHERE enrollment_id=? AND json_extract(data,'$.id')=? LIMIT 1").get(enrollmentId, message.relatedMessageId) === null))
+          continue;
         if (previous?.data === data)
           continue;
         this.db.query("INSERT INTO messages VALUES(?,?,?)").run(enrollmentId, sha256(canonicalJson({ cursor: page.nextCursor, index, message })), data);
@@ -483,6 +607,10 @@ class MessagingAutomationHost {
       }
       try {
         const enrollment = this.enrollment(initial);
+        if (enrollment.reason === AUTOMATION_BINDING_CHANGED_REASON) {
+          results.set(id, { enrollmentId: id, enrollment, error: null });
+          continue;
+        }
         if (this.activeRun(id)) {
           results.set(id, { enrollmentId: id, enrollment, error: null });
           continue;
@@ -499,6 +627,7 @@ class MessagingAutomationHost {
       let status;
       try {
         status = await this.status(group.provider, signal);
+        this.observeGroupIdentity(status.identity);
         observed?.set(group.provider, status);
       } catch (error) {
         const message = error instanceof Error ? error.message : "Messaging provider status is unavailable.";
@@ -510,11 +639,26 @@ class MessagingAutomationHost {
       for (const item of group.items) {
         const id = item.enrollment.id;
         if (!same(status.identity, item.enrollment.identity)) {
-          this.db.query("UPDATE enrollments SET ready=0,reason=? WHERE id=?").run("Provider identity changed; enroll the conversation again.", id);
+          if (item.enrollment.conversation.kind === "group")
+            this.invalidateBinding(id);
+          else
+            this.db.query("UPDATE enrollments SET ready=0,reason=? WHERE id=? AND (reason IS NULL OR reason<>?)").run("Provider identity changed; enroll the conversation again.", id, AUTOMATION_BINDING_CHANGED_REASON);
           results.set(id, { enrollmentId: id, enrollment: this.enrollment(this.row(id)), error: "Messaging provider identity changed." });
         } else if (!status.connected || !status.events.available) {
-          this.db.query("UPDATE enrollments SET ready=0,reason=? WHERE id=?").run(status.events.reason ?? "Provider events are unavailable.", id);
+          this.db.query("UPDATE enrollments SET ready=0,reason=? WHERE id=? AND (reason IS NULL OR reason<>?)").run(status.events.reason ?? "Provider events are unavailable.", id, AUTOMATION_BINDING_CHANGED_REASON);
           results.set(id, { enrollmentId: id, enrollment: this.enrollment(this.row(id)), error: null });
+        } else if (item.enrollment.conversation.kind === "group") {
+          try {
+            if (group.provider.groupConversations?.version !== 1)
+              throw new Error("Verified group events are unavailable for this provider.");
+            if (await this.observeBinding(group.provider, item.enrollment, signal))
+              live.push(item);
+            else
+              results.set(id, { enrollmentId: id, enrollment: this.enrollment(this.row(id)), error: null });
+          } catch (error) {
+            this.db.query("UPDATE enrollments SET ready=0 WHERE id=?").run(id);
+            results.set(id, { enrollmentId: id, enrollment: this.tryEnrollment(id), error: error instanceof Error ? error.message : "Group binding could not be verified." });
+          }
         } else
           live.push(item);
       }
@@ -540,9 +684,23 @@ class MessagingAutomationHost {
           continue;
         }
         try {
-          const page = checkedPage(entry.page, item.enrollment.identity, item.enrollment.conversation.coordinate);
+          const pageRecord = automationRecord(entry.page, ["identity", "messages", "nextCursor", "caughtUp", "gap"]);
+          const pageIdentity = item.enrollment.conversation.kind === "group" ? parseAutomationIdentity(pageRecord.identity) : item.enrollment.identity;
+          const page = checkedPage(entry.page, pageIdentity, item.enrollment.conversation.coordinate);
+          if (item.enrollment.conversation.kind === "group") {
+            if (pageIdentity.provider === item.enrollment.identity.provider && pageIdentity.authId === item.enrollment.identity.authId)
+              this.observeGroupIdentity(pageIdentity);
+            if (!same(pageIdentity, item.enrollment.identity))
+              throw new Error("Messaging provider identity changed while polling.");
+          }
+          if (item.enrollment.conversation.kind === "group" && !await this.observeBinding(group.provider, item.enrollment, signal)) {
+            results.set(id, { enrollmentId: id, enrollment: this.enrollment(this.row(id)), error: null });
+            continue;
+          }
           results.set(id, { enrollmentId: id, enrollment: this.ingest(id, item.initial, page), error: null });
         } catch (error) {
+          if (item.enrollment.conversation.kind === "group")
+            this.db.query("UPDATE enrollments SET ready=0 WHERE id=?").run(id);
           results.set(id, { enrollmentId: id, enrollment: this.tryEnrollment(id), error: error instanceof Error ? error.message : "Messaging poll failed." });
         }
       }
@@ -688,10 +846,15 @@ class MessagingAutomationHost {
     const enrollment = polled.enrollment;
     const provider = this.provider(enrollment.identity.provider);
     const status = observed.get(provider) ?? await this.status(provider, signal);
-    const route = await provider.resolve(enrollment.conversation.coordinate, signal);
+    const route = await this.resolve(provider, enrollment.conversation.coordinate, signal);
     stopped(signal);
-    if (!same(parseAutomationIdentity(route.identity), enrollment.identity) || !sameConversation(conversation(route.conversation), enrollment.conversation) || !same(status.identity, enrollment.identity) || !status.connected)
+    if (enrollment.conversation.kind === "group" && route.identity.authId === enrollment.identity.authId)
+      this.observeGroupIdentity(route.identity);
+    if (!same(parseAutomationIdentity(route.identity), enrollment.identity) || !sameConversation(parseAutomationConversation(route.conversation), enrollment.conversation) || !same(status.identity, enrollment.identity) || !status.connected) {
+      if (enrollment.conversation.kind === "group")
+        this.invalidateBinding(enrollment.id);
       throw new Error("Messaging route or identity changed before dispatch.");
+    }
     for (const action of plan.actions)
       if (!status.actions[parseAutomationAction(action).kind].available)
         throw new Error("Messaging action is unavailable for this provider.");
@@ -735,12 +898,19 @@ class MessagingAutomationHost {
         const grantRow = this.db.query("SELECT * FROM grants WHERE id=?").get(grantId);
         const grant = grantRow === null ? null : grantData(JSON.parse(grantRow.data));
         const current = this.enrollment(this.row(plan.enrollmentId));
-        if (signal.aborted || grantRow?.revoked !== 0 || grant === null || Date.parse(grant.expiresAt) <= this.now() || Date.parse(plan.expiresAt) <= this.now() || grant.enrollmentId !== current.id || grant.expectedBindingDigest !== current.bindingDigest || current.bindingDigest !== plan.bindingDigest || !grant.actions.includes(action.kind)) {
+        if (signal.aborted || grantRow?.revoked !== 0 || grant === null || Date.parse(grant.expiresAt) <= this.now() || Date.parse(plan.expiresAt) <= this.now() || !current.ready || current.reason === AUTOMATION_BINDING_CHANGED_REASON || grant.enrollmentId !== current.id || grant.expectedBindingDigest !== current.bindingDigest || current.bindingDigest !== plan.bindingDigest || !grant.actions.includes(action.kind)) {
           state = accepted.length ? "partial" : "failed";
           reason = "Dispatch permission expired or changed before the next action.";
           break;
         }
-        const result = checkedResult(await provider.send({ identity: enrollment.identity, coordinate: enrollment.conversation.coordinate, action, intentId: `${plan.intentId}:${index}` }, signal));
+        if (enrollment.conversation.kind === "group" && !await this.observeBinding(provider, enrollment, signal)) {
+          state = accepted.length ? "partial" : "failed";
+          reason = AUTOMATION_BINDING_CHANGED_REASON;
+          break;
+        }
+        const result = checkedResult(await provider.send({ identity: enrollment.identity, coordinate: enrollment.conversation.coordinate, ...enrollment.conversation.kind === "group" ? { conversation: enrollment.conversation } : {}, action, intentId: `${plan.intentId}:${index}` }, signal));
+        if (result.state === "not-started" && result.reason === AUTOMATION_BINDING_CHANGED_REASON)
+          this.invalidateBinding(enrollment.id);
         if (result.state !== "accepted") {
           state = result.state === "indeterminate" ? "indeterminate" : accepted.length ? "partial" : "failed";
           reason = result.reason;
@@ -780,5 +950,7 @@ class MessagingAutomationHost {
 }
 export {
   MessagingAutomationHost,
-  MESSAGING_AUTOMATION_PROTOCOL
+  MESSAGING_AUTOMATION_PROTOCOL,
+  AutomationGroupBindingChangedError,
+  AUTOMATION_BINDING_CHANGED_REASON
 };

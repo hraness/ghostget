@@ -1,3 +1,4 @@
+import { types } from "node:util";
 import { Database } from "bun:sqlite";
 import { createHash, randomBytes } from "node:crypto";
 import { constants } from "node:fs";
@@ -8,23 +9,23 @@ import { dirname, isAbsolute, join } from "node:path";
 import type { GhostgetAuth } from "../auth";
 import { canonicalJson } from "../canonical-json";
 import type { LocalCliExecutionOptions } from "../local-cli-execution";
-import { automationDigest, automationRecord, automationText } from "../messaging-automation-validation";
+import { AUTOMATION_WHATSAPP_GROUP_JID, automationArray, automationDigest, automationRecord, automationText } from "../messaging-automation-validation";
 import { startProviderPluginCleanupTrackedOperation, type ProviderPluginCleanupProofController } from "../provider-plugin-cleanup-execution";
 import { attachLocalCliCleanupProcessGroup, captureLocalCliCleanupResource, localCliCleanupProcessGroupStatus, type LocalCliCleanupResourceIdentityV1 } from "../provider-plugin-cleanup-resource";
 import { assertSafeStatePath, ensurePrivateStateDirectory, ghostgetStateHome } from "../storage";
 import { validateWhatsAppStoreDirectory } from "./whatsapp-web-runtime";
 
 export const WHATSAPP_AUTOMATION_PROTOCOL = "ghostget.whatsapp-private/1" as const;
-export const WHATSAPP_AUTOMATION_VERSION = "0.15.0+ghostget-private.1" as const;
+export const WHATSAPP_AUTOMATION_VERSION = "0.15.0+ghostget-private.2" as const;
 // Pinned from the exact vendored patch, full plain/FTS suites, vet, and two
 // byte-identical builds recorded in the private transport provenance.
-export const WHATSAPP_AUTOMATION_BINARY_SHA256 = "9b77ffb810d028fde725ca02b1451f1725b5ff5312a46a54468a9a38533d4cea";
+export const WHATSAPP_AUTOMATION_BINARY_SHA256 = "85a4c2b6f538103df08425f75984657559169a95161a256c6d096daf9de38f47";
 const directJid = /^(?:[1-9][0-9]{4,14}@s\.whatsapp\.net|[1-9][0-9]{4,19}@lid)$/u;
 const sha = (value: unknown): string => createHash("sha256").update(canonicalJson(value)).digest("hex");
 type LinkedAuth = Extract<GhostgetAuth, { kind: "linked-device-store" }>;
 export type WhatsAppAutomationSnapshot = Readonly<{ account: string; subject: string; sourceGeneration: string; ledgerReady: boolean; connected: boolean; generation: string | null }>;
-export type WhatsAppPrivateRequest = Readonly<{ protocol: typeof WHATSAPP_AUTOMATION_PROTOCOL; kind: "status" | "text" | "file" | "react" | "sticker" | "poll"; requestId: string; generation: string; account: string; to: string; message: string; file: string; filename: string; mime: string; id: string; reaction: string; question: string; options: readonly string[]; selectable: number }>;
-export type WhatsAppPrivateResponse = Readonly<{ protocol: typeof WHATSAPP_AUTOMATION_PROTOCOL; requestId: string; generation: string; account: string; state: "ready" | "accepted" | "not-started" | "indeterminate"; to: string; messageId: string; connected: boolean }>;
+export type WhatsAppPrivateRequest = Readonly<{ protocol: typeof WHATSAPP_AUTOMATION_PROTOCOL; kind: "status" | "group-info" | "text" | "file" | "react" | "sticker" | "poll"; requestId: string; generation: string; account: string; to: string; message: string; file: string; filename: string; mime: string; id: string; reaction: string; question: string; options: readonly string[]; selectable: number; expectedParticipants?: readonly string[] }>;
+export type WhatsAppPrivateResponse = Readonly<{ protocol: typeof WHATSAPP_AUTOMATION_PROTOCOL; requestId: string; generation: string; account: string; state: "ready" | "accepted" | "not-started" | "indeterminate"; to: string; messageId: string; connected: boolean; participants?: readonly string[]; bindingChanged?: true }>;
 export interface WhatsAppAutomationRuntime {
   read<T>(auth: GhostgetAuth, work: (database: Database, snapshot: WhatsAppAutomationSnapshot) => T, signal?: AbortSignal): Promise<T>;
   start(auth: GhostgetAuth, beforeSpawn: () => Promise<void>, signal?: AbortSignal): Promise<void>;
@@ -95,12 +96,17 @@ export async function installReviewedWhatsAppAutomationBinary(source: string, en
 }
 
 export function parseWhatsAppPrivateResponse(value: unknown): WhatsAppPrivateResponse {
-  const row = automationRecord(value, ["protocol", "requestId", "generation", "account", "state", "to", "messageId", "connected"]);
+  if (!value || typeof value !== "object" || types.isProxy(value)) throw new Error("Invalid WhatsApp response");
+  const roster = Object.hasOwn(value, "participants"), changed = Object.hasOwn(value, "bindingChanged");
+  const row = automationRecord(value, ["protocol", "requestId", "generation", "account", "state", "to", "messageId", "connected", ...(roster ? ["participants"] : []), ...(changed ? ["bindingChanged"] : [])]);
   if (row.protocol !== WHATSAPP_AUTOMATION_PROTOCOL || !["ready", "accepted", "not-started", "indeterminate"].includes(String(row.state)) || typeof row.connected !== "boolean") throw new Error("Unsupported WhatsApp transport response");
   for (const field of ["requestId", "to", "messageId"] as const) if (typeof row[field] !== "string" || Buffer.byteLength(row[field]) > 256 || /[\u0000-\u001f\u007f]/u.test(row[field])) throw new Error("Invalid WhatsApp receipt field");
   const generation = automationDigest(row.generation), account = automationText(row.account, 128);
-  if (!directJid.test(account) || row.requestId !== "" && !/^[a-f0-9]{64}$/u.test(row.requestId as string) || row.to !== "" && !directJid.test(row.to as string) || row.state === "accepted" && (row.messageId === "" || row.requestId === "" || row.to === "")) throw new Error("Invalid WhatsApp receipt identity");
-  return { protocol: WHATSAPP_AUTOMATION_PROTOCOL, requestId: row.requestId as string, generation, account, state: row.state as WhatsAppPrivateResponse["state"], to: row.to as string, messageId: row.messageId as string, connected: row.connected };
+  if (!directJid.test(account) || row.requestId !== "" && !/^[a-f0-9]{64}$/u.test(row.requestId as string) || row.to !== "" && !directJid.test(row.to as string) && !AUTOMATION_WHATSAPP_GROUP_JID.test(row.to as string) || row.state === "accepted" && (row.messageId === "" || row.requestId === "" || row.to === "")) throw new Error("Invalid WhatsApp receipt identity");
+  const participants = roster ? automationArray(row.participants, 500).map(value => automationText(value, 128)) : undefined;
+  if (participants && (row.state !== "ready" || row.requestId === "" || row.messageId !== "" || !AUTOMATION_WHATSAPP_GROUP_JID.test(row.to as string) || participants.length === 0 || participants.some((participant, index) => !directJid.test(participant) || index > 0 && participants[index - 1]! >= participant))) throw new Error("Incomplete or noncanonical WhatsApp group roster");
+  if (changed && (row.bindingChanged !== true || row.state !== "not-started" || row.requestId === "" || row.messageId !== "" || !AUTOMATION_WHATSAPP_GROUP_JID.test(row.to as string) || roster)) throw new Error("Invalid WhatsApp membership-change proof");
+  return { protocol: WHATSAPP_AUTOMATION_PROTOCOL, requestId: row.requestId as string, generation, account, state: row.state as WhatsAppPrivateResponse["state"], to: row.to as string, messageId: row.messageId as string, connected: row.connected, ...(participants ? { participants } : {}), ...(changed ? { bindingChanged: true as const } : {}) };
 }
 const blankStatus = (): WhatsAppPrivateRequest => ({ protocol: WHATSAPP_AUTOMATION_PROTOCOL, kind: "status", requestId: "", generation: "", account: "", to: "", message: "", file: "", filename: "", mime: "", id: "", reaction: "", question: "", options: [], selectable: 0 });
 async function socketRequest(path: string, identity: { dev: number; ino: number }, request: WhatsAppPrivateRequest, signal?: AbortSignal, beforeWrite?: () => Promise<void>): Promise<WhatsAppPrivateResponse> {
@@ -124,13 +130,13 @@ async function socketRequest(path: string, identity: { dev: number; ino: number 
     })().catch(() => finish(new Error("WhatsApp request admission changed before writing"))); });
     socket.on("data", chunk => {
       if (!Buffer.isBuffer(chunk)) { finish(new Error("WhatsApp response was not bytes")); return; }
-      if (bytes.length + chunk.length > 4096) { finish(new Error("WhatsApp response exceeds its byte bound")); return; }
+      if (bytes.length + chunk.length > (request.kind === "group-info" ? 32_768 : 4096)) { finish(new Error("WhatsApp response exceeds its byte bound")); return; }
       bytes = Buffer.concat([bytes, chunk]); const newline = bytes.indexOf(10);
       if (newline < 0) return;
       try {
         if (newline !== bytes.length - 1) throw new Error("Trailing WhatsApp response data");
         const response = parseWhatsAppPrivateResponse(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes.subarray(0, newline))));
-        if (request.kind === "status" ? response.state !== "ready" || response.requestId !== "" || response.to !== "" || response.messageId !== "" : response.requestId !== request.requestId || response.to !== request.to || response.account !== request.account || response.generation !== request.generation || response.state === "ready") throw new Error("WhatsApp response did not bind its request");
+        if (request.kind === "status" ? response.state !== "ready" || response.requestId !== "" || response.to !== "" || response.messageId !== "" || response.participants !== undefined || response.bindingChanged !== undefined : response.requestId !== request.requestId || response.to !== request.to || response.account !== request.account || response.generation !== request.generation || (request.kind === "group-info" ? response.state !== "not-started" && (response.state !== "ready" || response.participants === undefined) || response.bindingChanged !== undefined : response.state === "ready" || response.participants !== undefined)) throw new Error("WhatsApp response did not bind its request");
         finish(undefined, response);
       } catch { finish(new Error("WhatsApp transport returned a malformed receipt")); }
     });

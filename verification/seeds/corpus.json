@@ -48,6 +48,16 @@
         }
       ]
     },
+    "messaging-automation/groups-lifecycle": {
+      "file": "src/messaging-automation-groups.test.ts",
+      "entries": [
+        {
+          "kind": "workload",
+          "seed": -1090781564,
+          "origin": "The initial group lifecycle check exceeded the generic 10-second property budget after eight schedules over durable SQLite hosts; no counterexample or shrink was reported. Replay retains this workload with the explicit 90-second I/O property budget and repository 180-second Bun runner policy."
+        }
+      ]
+    },
     "verification-claims/guideline-additions": {
       "file": "scripts/verification-claims.test.ts",
       "entries": [
@@ -67,7 +77,7 @@
           "kind": "counterexample",
           "seed": 42458414,
           "path": "148:42:40:40:40:40:40:40:40:40:40:40:40",
-          "origin": "Required verification on PR #381 shrank a drive-letter input reached through a backslash, https:user:pass@a-.co\\m:/../a?q=ä, that comparedParse missed.",
+          "origin": "Required verification on PR #381 shrank a drive-letter input reached through a backslash, https:user:pass@a-.co\\m:/../a?q=\u00e4, that comparedParse missed.",
           "regression": "the known drive-letter difference through a backslash leaves both sides refusing the input"
         }
       ]

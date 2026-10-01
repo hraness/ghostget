@@ -54,6 +54,22 @@ test("a grant permits one exact ordered dispatch and exact replay never sends ag
   const run = await f.host.submit({ planId: plan.id, grantId: grant.id }); expect(run.state).toBe("accepted"); expect(run.accepted).toEqual([{ messageId: "sent:1", providerReceiptId: null }]);
   expect(await f.host.submit({ planId: plan.id, grantId: grant.id })).toEqual(run); expect(f.calls).toHaveLength(1);
 });
+test("group-capable hosts preserve the protocol-v1 individual enrollment digest", async () => {
+  const f = fixture(); const { enrollment } = await prepared(f);
+  expect(enrollment.bindingDigest).toBe("97b06132f3eba278447cf05b3ea7809e023a9f940c3f64a1e685e39d7f5283f6");
+});
+test("upgrading a direct-only journal preserves existing enrollment, history and grants", async () => {
+  const f = fixture(); const { enrollment, grant } = await prepared(f); await f.host.close();
+  const database = new Database(join(f.environment.GHOSTGET_STATE_HOME, "messaging", "automation", "host.sqlite"));
+  try { database.exec("ALTER TABLE enrollments DROP COLUMN history_floor; DROP TABLE group_history_exclusions; PRAGMA user_version=2;"); }
+  finally { database.close(); }
+  const reopened = new MessagingAutomationHost([f.provider], f.environment, () => Date.parse(at));
+  try {
+    expect(reopened.enrollments()).toEqual([enrollment]);
+    expect(reopened.grantStatus(grant.id)).toEqual(grant);
+    expect(reopened.history({ enrollmentId: enrollment.id, limit: 200 }).messages.map(message => message.id)).toEqual(["history:1"]);
+  } finally { await reopened.close(); }
+});
 test("a dispatch inspects the provider once and still refuses a route whose identity moved after that inspection", async () => {
   const f = fixture(); const { plan, grant, enrollment } = await prepared(f);
   let inspections = 0; const inspect = f.provider.inspect;
@@ -147,7 +163,7 @@ test("foreign coordinates and unsupported fields fail before state or provider m
   const f = fixture(); const { enrollment } = await prepared(f); f.add(message("wrong:1", { provider: "whatsapp", conversationJid: "15559876543@s.whatsapp.net" }));
   await expect(f.host.poll(enrollment.id)).rejects.toThrow("another conversation"); expect(f.host.enrollments()[0]?.revision).toBe(0);
   expect(() => parseAutomationAction({ kind: "text", text: "hello", shell: "no" })).toThrow();
-  expect(() => parseAutomationCoordinate({ provider: "whatsapp", conversationJid: "12345@g.us" })).toThrow();
+  expect(() => parseAutomationCoordinate({ provider: "whatsapp", conversationJid: "012345@g.us" })).toThrow();
 });
 test("closed action parsers reject arbitrary additional properties", () => {
   assertProperty(fc.property(fc.string().filter(key => key !== "kind" && key !== "text" && key !== "__proto__"), fc.jsonValue(), (key, value) => {

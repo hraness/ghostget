@@ -3355,6 +3355,42 @@
       ]
     },
     {
+      "id": "messaging-automation-group-epochs",
+      "statement": "Observed group binding drift permanently disables the old enrollment and its grants; a replacement enrollment has a new ID and cannot import prior-roster baseline bodies, historical backfill or unknown message mutations.",
+      "area": "messaging",
+      "source": {
+        "path": "docs/messaging-automation.md",
+        "quote": "Observed group binding drift permanently invalidates that enrollment."
+      },
+      "layer": "property",
+      "status": "evidenced",
+      "evidence": [
+        "src/messaging-automation-groups.test.ts",
+        "verification/mutants.json",
+        "src/messaging-automation.test.ts",
+        "src/messaging-automation-server.test.ts",
+        "src/providers/imessage-automation.test.ts",
+        "src/providers/beeper-automation.test.ts",
+        "src/providers/whatsapp-automation.test.ts",
+        "src/providers/whatsapp-automation-runtime.test.ts"
+      ],
+      "assumptions": [
+        "filesystem-durability",
+        "provider-behaviour"
+      ],
+      "notVerified": [
+        "The model samples 30 schedules of up to 14 actions plus retained workload seeds over the production SQLite host with injected providers. It covers polling, sending, roster changes (including an authoritative empty roster) and restoration, restart, title changes and lookup faults; it does not exhaust arbitrary concurrent schedules or prove provider liveness. Two seeded defects, transient binding invalidation and group reads from the unrestricted provider archive, are killed by their named regression tests.",
+        "History isolation trusts the reviewed provider's original creation timestamp and cursor semantics. It does not cover a compromised provider or host, or a roster change restored between every authoritative observation.",
+        "The provider effect-boundary checks use synthetic adapters; no real account, pairing, message send or delivery qualification is implied."
+      ],
+      "properties": [
+        {
+          "path": "src/messaging-automation-groups.test.ts",
+          "test": "bounded group lifecycle schedules never revive an observed old binding"
+        }
+      ]
+    },
+    {
       "id": "messaging-automation-grant-scoped",
       "statement": "The owner messaging host requires explicit allow grants for messaging.automation.* operations; old messaging.send allow, ask, deny, or unmanaged policy provide no unattended authority, and changed manifests or closures invalidate grants.",
       "area": "messaging",

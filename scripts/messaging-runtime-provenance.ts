@@ -8,7 +8,7 @@
 //
 //   bun run ./scripts/messaging-runtime-provenance.ts rebuild wacli|imsg
 //       Clone the pinned upstream commit, apply the reviewed patches (each at
-//       its pinned SHA-256, asserting the recorded tip commit), build with the
+//       its pinned SHA-256, asserting the recorded source tree or legacy tip), build with the
 //       pinned toolchain and command, and compare or qualify the produced
 //       binary per the provenance record's own evidence level. macOS-only.
 import { createHash } from "node:crypto";
@@ -29,6 +29,7 @@ type Provenance = {
   readonly upstream: { readonly repository: string; readonly version: string; readonly baseCommit: string };
   readonly reviewedPatchStack: {
     readonly tipCommit: string;
+    readonly sourceTree?: string;
     readonly patches: readonly { file: string; sha256: string; purpose?: string }[];
   };
   readonly artifact: {
@@ -75,6 +76,18 @@ function sha256Hex(bytes: Uint8Array): string {
 
 function fail(message: string): never {
   throw new Error(`provenance: ${message}`);
+}
+
+export function assertPatchStackIdentity(name: string, stack: Provenance["reviewedPatchStack"], tip: string, tree: string): void {
+  if (stack.sourceTree !== undefined) {
+    // git am preserves the reviewed source but writes fresh committer metadata.
+    // Compare the entire Git tree, including file modes, after pinning each patch.
+    if (!/^[0-9a-f]{40}$/u.test(stack.sourceTree) || tree !== stack.sourceTree) {
+      fail(`${name} patch stack source tree ${tree} differs from ${stack.sourceTree}`);
+    }
+  } else if (tip !== stack.tipCommit) {
+    fail(`${name} patch stack landed at ${tip}, expected ${stack.tipCommit}`);
+  }
 }
 
 function loadProvenance(vendorDir: string): Provenance {
@@ -184,9 +197,8 @@ async function rebuild(name: keyof typeof TARGETS): Promise<void> {
       await must(["git", "am", "--3way", staged], clone, `${name} git am ${patch.file}`);
     }
     const tip = await must(["git", "rev-parse", "HEAD"], clone, `${name} tip`);
-    if (tip !== provenance.reviewedPatchStack.tipCommit) {
-      fail(`${name} patch stack landed at ${tip}, expected ${provenance.reviewedPatchStack.tipCommit}`);
-    }
+    const tree = await must(["git", "rev-parse", "HEAD^{tree}"], clone, `${name} source tree`);
+    assertPatchStackIdentity(name, provenance.reviewedPatchStack, tip, tree);
 
     if (name === "wacli") {
       // The provenance record pins the Go toolchain archive itself; admit the

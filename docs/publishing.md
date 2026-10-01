@@ -28,7 +28,9 @@ covers static checks, package and isolated Bun-consumer checks, every whole-file
 source shard, serialized omni tests, standalone checks, selected macOS checks,
 and the formal-verification checks.
 Explicit focused local/native and coupled reproductions still apply under
-`CONTRIBUTING.md`; the independently required npm-mirror full check is unchanged.
+`CONTRIBUTING.md`. The npm mirror consumes the attested canonical archive after
+exact-source CI admission and independently checks its identity, digest, and
+provenance. It does not rebuild or rerun source checks.
 
 `scripts/release-source-ci.ts` reads GitHub's current run attempt directly. It
 requires the exact repository, active workflow ID/path, main-push source and tree,
@@ -243,12 +245,12 @@ delivery proceeds through a new source-qualified version.
 
 ## Install the canonical release
 
-These commands require the matching published immutable v0.18.70 release.
+These commands require the matching published immutable v0.18.71 release.
 
 For the CLI:
 
 ```sh
-bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.70/hraness-ghostget-0.18.70.tgz
+bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.71/hraness-ghostget-0.18.71.tgz
 ghostget --version
 ghostget doctor --json
 ```

@@ -702,7 +702,8 @@ describe("ghostget.com static site", () => {
     expect(html).not.toMatch(/hero-field|hero-orbit|hero-glyph/u);
     expect(html).not.toMatch(/observed provider operations|capture-required|unavailable reservations/iu);
     expect(html).not.toContain("🔧");
-    expect(html).toContain(`href="${PUBLISHER_URL}">Hraness GitHub organization</a>`);
+    expect(html).toContain(`href="${PUBLISHER_URL}"`);
+    expect(html).toContain('aria-label="Hraness on GitHub"');
     expect(preview).toContain("<title>GhostGet preview</title>");
     expect(preview).toContain('<meta name="robots" content="noindex, nofollow">');
     expect(preview).toContain('<link rel="canonical" href="https://ghostget.com/">');
@@ -937,6 +938,8 @@ describe("ghostget.com static site", () => {
         .map((match) => match[0]);
       expect(footers).toHaveLength(2);
       const [contentFooter, footer] = footers;
+      expect(document).not.toContain('aria-label="GhostGet project information"');
+      expect(document).not.toMatch(/<p>GhostGet(?: [\d.]+)? · MIT ·/u);
       expect(contentFooter).toContain('aria-label="GhostGet" class="hraness-marketing-footer" data-hraness-marketing="footer"');
       expect(contentFooter).toContain('<a class="hraness-marketing-footer__brand" data-foil="" href="/" aria-label="GhostGet home"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span><span class="hraness-marketing-footer__name">GhostGet</span></a>');
       expect(contentFooter).not.toContain('src="/icon.png"');
@@ -947,6 +950,7 @@ describe("ghostget.com static site", () => {
       expect(contentFooter).toContain('class="hraness-marketing-footer__link" href="/blog/"');
       expect(contentFooter).toContain('class="hraness-marketing-footer__link" href="/contact/"');
       expect(contentFooter).toContain('class="hraness-marketing-footer__link" href="/privacy/"');
+      expect(contentFooter?.match(/href="\/llms\.txt"/gu)).toHaveLength(1);
       expect(contentFooter).toContain('class="hraness-marketing-footer__link" href="https://github.com/hraness/ghostget"');
       expect(document.indexOf('data-hraness-marketing="footer"'))
         .toBeLessThan(document.indexOf('data-slot="hraness-site-footer"'));

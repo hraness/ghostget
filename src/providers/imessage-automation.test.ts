@@ -6,7 +6,8 @@ import { tmpdir } from "node:os";
 import { createImsgAutomationProvider, type ImsgAutomationOperation } from "./imessage-automation";
 import type { AutomationAction, AutomationCoordinate } from "../messaging-automation-types";
 import { assertProperty, fc } from "../test-support";
-import { parseAutomationCoordinate } from "../messaging-automation-validation";
+import { AUTOMATION_BINDING_CHANGED_REASON, parseAutomationCoordinate } from "../messaging-automation-validation";
+import { AutomationGroupBindingChangedError } from "../messaging-automation-types";
 import { discoveryDiagnosticMessage, nativeDiagnostic, type DiscoveryDiagnosticCode } from "../messaging-automation-diagnostics";
 
 const roots: string[] = [];
@@ -19,13 +20,13 @@ function fixture(route = target) {
   const database = join(directory, "chat.db"); writeFileSync(database, "synthetic", { mode: 0o600 });
   const calls: { method: string; params: Record<string, unknown> }[] = [];
   const admissions: ImsgAutomationOperation[] = []; const barriers: Promise<void>[] = [];
-  const state = { faultMethod: "chats.list", fault: "", databaseReady: true, revokeOnChats: false, changeIdentityOnChats: false, injectedCode: null as DiscoveryDiagnosticCode | null, bridge: true, malformed: false, linkQueued: false, linkConflict: false, accountIdentity: "a".repeat(64), foreign: false, replace: false, anchorChanged: false, authorizationError: false, revokeOnAsset: false, bytes: Buffer.from("test attachment"), hash: "", historyAttachments: [] as unknown[], sessions: 0, holdAuthorize: null as Promise<void> | null, chats: [{ ...chat, id: route.observedChatRowId, guid: route.chatGuid }] as Record<string, unknown>[], exactChat: { ...chat, id: route.observedChatRowId, guid: route.chatGuid } as Record<string, unknown> };
+  const state = { faultMethod: "chats.list", fault: "", databaseReady: true, revokeOnChats: false, changeIdentityOnChats: false, injectedCode: null as DiscoveryDiagnosticCode | null, bridge: true, malformed: false, linkQueued: false, linkConflict: false, accountIdentity: "a".repeat(64), foreign: false, replace: false, anchorChanged: false, authorizationError: false, revokeOnAsset: false, changeRosterOnAsset: false, emptyRosterOnAsset: false, bytes: Buffer.from("test attachment"), hash: "", historyAttachments: [] as unknown[], sessions: 0, holdAuthorize: null as Promise<void> | null, chats: [{ ...chat, id: route.observedChatRowId, guid: route.chatGuid }] as Record<string, unknown>[], exactChat: { ...chat, id: route.observedChatRowId, guid: route.chatGuid } as Record<string, unknown> };
   state.hash = createHash("sha256").update(state.bytes).digest("hex");
   const readMethods = ["status", "chats.list", "chats.get", "messages.history", "messages.after", "send", "message.send_status"];
   const provider = createImsgAutomationProvider({
     async authorize(operation) { admissions.push(operation); if (state.holdAuthorize) { const gate = state.holdAuthorize; state.holdAuthorize = null; await gate; } if (state.authorizationError) throw new Error("revoked"); return { auth: { schemaVersion: 1, id: "imessage-fixture", kind: "linked-device-store", provider: "imessage", path: directory }, accountIdentity: state.accountIdentity, implementationIdentity: "b".repeat(64) }; },
     execution: { registerCleanupBarrier(barrier) { barriers.push(barrier); return () => {}; } },
-    async resolveAsset() { if (state.revokeOnAsset) state.authorizationError = true; return { bytes: state.bytes, sha256: state.hash }; },
+    async resolveAsset() { if (state.revokeOnAsset) state.authorizationError = true; if (state.changeRosterOnAsset) state.exactChat = { ...state.exactChat, participants: state.emptyRosterOnAsset ? [] : ["replacement@example.test"] }; return { bytes: state.bytes, sha256: state.hash }; },
     dependencies: {
       binaryPath: "/synthetic/imsg", expectedMessagesStorePath: directory,
       async run(invocation) {
@@ -77,7 +78,54 @@ test("iMessage capabilities reflect current helper methods without starting brid
 test("iMessage bounded reads preserve exact coordinates and source generation", async () => {
   const f = fixture(); const list = await f.provider.conversations({ limit: 10 }); expect(list.conversations[0]!.coordinate).toEqual(target);
   const history = await f.provider.history({ coordinate: target, limit: 10 }); expect(history.identity).toEqual(list.identity); expect(history.messages[0]!.id).toBe("fixture-guid"); expect(history.caughtUp).toBe(false);
+  expect(history.messages[0]!.occurredAt).toBe("2026-09-11T12:00:00.000Z");
   f.state.foreign = true; await expect(f.provider.resolve(target)).rejects.toThrow("exact"); await f.close();
+});
+test("iMessage groups send only against the complete expected roster", async () => {
+  const route = { ...target, chatGuid: "iMessage;+;synthetic-group" };
+  const f = fixture(route);
+  f.state.exactChat = { ...f.state.exactChat, is_group: true, participants: ["one@example.test", "two@example.test"] };
+  f.state.chats = [f.state.exactChat];
+  const bound = await f.provider.resolve(route);
+  expect(f.provider.groupConversations).toEqual({ version: 1 });
+  expect((await f.provider.conversations({ limit: 10 })).conversations[0]?.kind).toBe("group");
+  const request = { identity: bound.identity, coordinate: route, conversation: bound.conversation, action: { kind: "text" as const, text: "Synthetic group text" }, intentId: "group-test" };
+  expect((await f.provider.send(request)).state).toBe("accepted");
+  expect(f.calls.filter(call => call.method === "send")).toHaveLength(1);
+  f.state.exactChat = { ...f.state.exactChat, participants: ["one@example.test", "three@example.test"] };
+  expect(await f.provider.send(request)).toEqual({ state: "not-started", reason: AUTOMATION_BINDING_CHANGED_REASON });
+  expect(f.calls.filter(call => call.method === "send")).toHaveLength(1);
+  expect((await f.send(request.action)).state).toBe("not-started");
+  await f.close();
+});
+test("iMessage group membership is checked again after asset preparation at the effect boundary", async () => {
+  const route = { ...target, chatGuid: "iMessage;+;synthetic-group" }; const f = fixture(route);
+  f.state.exactChat = { ...f.state.exactChat, is_group: true, participants: ["one@example.test", "two@example.test"] };
+  const bound = await f.provider.resolve(route); f.state.changeRosterOnAsset = true;
+  expect(await f.provider.send({ identity: bound.identity, coordinate: route, conversation: bound.conversation, action: { kind: "attachment", assetId: "synthetic-asset", name: "fixture.txt", mimeType: "text/plain" }, intentId: "group-boundary" })).toEqual({ state: "not-started", reason: AUTOMATION_BINDING_CHANGED_REASON });
+  expect(f.calls.filter(call => call.method === "send")).toHaveLength(0); await f.close();
+});
+test("iMessage complete-empty group roster is a scoped invalidation and an omitted roster is unavailable", async () => {
+  const route = { ...target, chatGuid: "iMessage;+;synthetic-group" }; const f = fixture(route);
+  f.state.exactChat = { ...f.state.exactChat, is_group: true, participants: ["one@example.test", "two@example.test"] };
+  const bound = await f.provider.resolve(route);
+  f.state.exactChat = { ...f.state.exactChat, participants: [] };
+  await expect(f.provider.resolve(route)).rejects.toBeInstanceOf(AutomationGroupBindingChangedError);
+  const request = { identity: bound.identity, coordinate: route, conversation: bound.conversation, action: { kind: "text" as const, text: "Synthetic" }, intentId: "empty-group" };
+  expect(await f.provider.send(request)).toEqual({ state: "not-started", reason: AUTOMATION_BINDING_CHANGED_REASON });
+  delete f.state.exactChat.participants;
+  expect((await f.provider.resolve(route)).conversation.participants).toEqual([]);
+  const missing = await f.provider.send(request);
+  expect(missing.state).toBe("not-started");
+  if (missing.state !== "accepted") expect(missing.reason).not.toBe(AUTOMATION_BINDING_CHANGED_REASON);
+  expect(f.calls.filter(call => call.method === "send")).toHaveLength(0); await f.close();
+});
+test("iMessage complete-empty group proof at the final effect boundary prevents the send", async () => {
+  const route = { ...target, chatGuid: "iMessage;+;synthetic-group" }; const f = fixture(route);
+  f.state.exactChat = { ...f.state.exactChat, is_group: true, participants: ["one@example.test", "two@example.test"] };
+  const bound = await f.provider.resolve(route); f.state.changeRosterOnAsset = true; f.state.emptyRosterOnAsset = true;
+  expect(await f.provider.send({ identity: bound.identity, coordinate: route, conversation: bound.conversation, action: { kind: "attachment", assetId: "synthetic-asset", name: "fixture.txt", mimeType: "text/plain" }, intentId: "empty-group-boundary" })).toEqual({ state: "not-started", reason: AUTOMATION_BINDING_CHANGED_REASON });
+  expect(f.calls.filter(call => call.method === "send")).toHaveLength(0); await f.close();
 });
 test("iMessage discovery preserves eligible rows when native single-chat metadata cannot be enrolled", async () => {
   const f = fixture();

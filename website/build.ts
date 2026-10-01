@@ -136,7 +136,7 @@ export const HRANESS_LOGO_URL = "https://hraness.com/icon.png" as const;
 export const HRANESS_LINKEDIN_URL = "https://www.linkedin.com/company/hraness" as const;
 export const NPM_PACKAGE_URL = "https://www.npmjs.com/package/@hraness/ghostget" as const;
 export const SKILL_REPOSITORY = "hraness/ghostget" as const;
-export const CONTENT_REVIEWED_RELEASE = "v0.18.70" as const;
+export const CONTENT_REVIEWED_RELEASE = "v0.18.71" as const;
 export const DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com" as const;
 export const DEMO_PUBLIC_FILES = [
   "wrench-first-capture.gif",
@@ -870,11 +870,12 @@ const CONTENT_FOOTER_LINKS = [
   { href: "/about/", label: "About" },
   { href: "/contact/", label: "Contact" },
   { href: "/privacy/", label: "Privacy" },
+  { href: "/llms.txt", label: "llms.txt" },
   { href: REPOSITORY_URL, label: 'GitHub <span aria-hidden="true">↗</span>' },
 ] as const;
 
 // The in-flow product footer is GhostGet's own composition around the shared
-// Hraness network footer: same row contract, GhostGet brand, eight links.
+// Hraness network footer: same row contract and GhostGet brand.
 function renderGhostgetContentFooter(): string {
   const links = CONTENT_FOOTER_LINKS
     .map(({ href, label }) => `<a class="hraness-marketing-footer__link" href="${href}">${label}</a>`)
@@ -891,7 +892,8 @@ function renderGhostgetContentFooter(): string {
 
 // Every page carries the product's content footer immediately before the
 // shared Hraness network footer so the two read as one band; indexable pages
-// keep the Ask AI row above the pair.
+// keep the Ask AI row above the pair. Templates must not add another project
+// information row or duplicate this navigation.
 function renderInFlowFooters(options: RenderOptions, page?: PublicPage): string {
   const above = page === undefined
     ? ""

@@ -7,7 +7,8 @@ import {
 import type { LocalCliExecutionOptions } from "../local-cli-execution";
 import type { LocalCliRecipe, OperationInput } from "../model";
 import type { AutomationAction, AutomationConversation, AutomationIdentity, AutomationMessage, AutomationProviderPage, AutomationProviderStatus, AutomationProviderSendResult, MessagingAutomationProvider } from "../messaging-automation-types";
-import { AUTOMATION_ACTION_KINDS, automationArray, automationInteger, automationRecord, automationText, parseAutomationAction, parseAutomationIdentity } from "../messaging-automation-validation";
+import { AutomationGroupBindingChangedError } from "../messaging-automation-types";
+import { AUTOMATION_ACTION_KINDS, AUTOMATION_BINDING_CHANGED_REASON, automationArray, automationInteger, automationRecord, automationText, parseAutomationAction, parseAutomationConversation, parseAutomationIdentity } from "../messaging-automation-validation";
 import { OperationDeadline } from "../operation-deadline";
 import { executeBeeperDirectMessagingPart, executeBeeperLocalOperation, type BeeperDirectDependencies, type BeeperDirectMessagingDependencies, type BeeperLocalRuntimeDependencies } from "./beeper-local-runtime";
 import { materializeBeeperExactConversation, materializeBeeperMessagingList, materializeBeeperMessagingRead, rawBeeperConversationId, rawBeeperMessageId } from "./beeper-omni";
@@ -95,6 +96,16 @@ function conversation(entity: Readonly<Record<string, unknown>>): AutomationConv
     title: entity.title === null || entity.title === undefined ? null : automationText(entity.title, 512),
     kind, participants: Object.freeze(unique),
   });
+}
+/** The materialized generic entity omits completeness metadata. Prove it from
+ * the strict native projection before it can become group authority. */
+function completeGroup(selected: AutomationConversation, raw: unknown, allowEmpty = false): boolean {
+  if (selected.kind !== "group") return true;
+  const row = raw as Readonly<Record<string, unknown>>;
+  const roster = automationRecord(row.participants, ["items", "total", "hasMore"]);
+  const items = automationArray(roster.items, 500);
+  return roster.hasMore === false && automationInteger(roster.total, 0, 100_000_000) === items.length
+    && items.length === selected.participants.length && (allowEmpty || items.length > 0);
 }
 
 /** One message observation. `sortKey` orders the feed; the materialized entity
@@ -193,7 +204,11 @@ export function createBeeperAutomationProvider(options: BeeperAutomationOptions)
     const pending = previous.then(async () => {
       if (closed) throw new Error("Beeper automation provider is closed");
       const activeSignal = signal ? AbortSignal.any([signal, lifetime.signal]) : lifetime.signal;
-      activeSignal.throwIfAborted(); const before = await options.authorize(operation, activeSignal); if (typeof before.auth.subject !== "string" || before.auth.subject.length === 0) throw new Error("Beeper automation requires a bound local account realm"); const result = await work(before, activeSignal); const after = await options.authorize(operation, activeSignal); if (sha(before) !== sha(after)) throw new Error("Beeper account or permission changed during the operation"); return result;
+      activeSignal.throwIfAborted(); const before = await options.authorize(operation, activeSignal); if (typeof before.auth.subject !== "string" || before.auth.subject.length === 0) throw new Error("Beeper automation requires a bound local account realm");
+      let result;
+      try { result = await work(before, activeSignal); }
+      catch (error) { if (error instanceof AutomationGroupBindingChangedError && sha(before) !== sha(await options.authorize(operation, activeSignal))) throw new Error("Beeper account or permission changed during the operation"); throw error; }
+      const after = await options.authorize(operation, activeSignal); if (sha(before) !== sha(after)) throw new Error("Beeper account or permission changed during the operation"); return result;
     });
     inFlight = pending.then(() => undefined, () => undefined);
     return pending;
@@ -289,6 +304,7 @@ export function createBeeperAutomationProvider(options: BeeperAutomationOptions)
 
   return {
     provider: "beeper",
+    groupConversations: { version: 1 },
     inspect(signal) {
       return run("inspect", signal, async (admission, active) => {
         try {
@@ -310,13 +326,18 @@ export function createBeeperAutomationProvider(options: BeeperAutomationOptions)
           : undefined;
         if (typeof completeness !== "object" || completeness === null || typeof (completeness as Readonly<Record<string, unknown>>).requestedLimitReached !== "boolean") throw new Error("Beeper conversation list completeness is invalid.");
         const requestedLimitReached = (completeness as Readonly<Record<string, unknown>>).requestedLimitReached === true;
+        const rawConversations = (output as Readonly<Record<string, unknown>>).conversations as readonly unknown[];
+        const conversations = materialized.entities.map((entity, index) => {
+          const selected = conversation(entity as Readonly<Record<string, unknown>>);
+          return completeGroup(selected, rawConversations[index]) ? selected : null;
+        }).filter((item): item is AutomationConversation => item !== null);
         return Object.freeze({
           identity: snapshotIdentity(admission, snapshot),
-          conversations: Object.freeze(materialized.entities.map(entity => conversation(entity as Readonly<Record<string, unknown>>))),
+          conversations: Object.freeze(conversations),
           // The pinned CLI list output has no continuation metadata; an exactly
           // full remote window cannot prove completeness, even when out-of-realm
           // rows were excluded from the projection.
-          complete: !requestedLimitReached,
+          complete: !requestedLimitReached && conversations.length === materialized.entities.length,
         });
       });
     },
@@ -324,10 +345,13 @@ export function createBeeperAutomationProvider(options: BeeperAutomationOptions)
       const selected = coordinate(value);
       return run("resolve", signal, async (admission, active) => {
         const snapshot = await accountsSnapshot(admission, active);
-        const operationInput = { account_id: selected.accountId, conversation_id: selected.conversationId };
-        const entity = materializeBeeperExactConversation(operationInput, await execute(RECIPES.conversation, operationInput, admission.auth, active));
+        const operationInput = { account_id: selected.accountId, conversation_id: selected.conversationId, max_participants: 500 };
+        const output = await execute(RECIPES.conversation, operationInput, admission.auth, active);
+        const entity = materializeBeeperExactConversation(operationInput, output);
         const projected = conversation(entity as Readonly<Record<string, unknown>>);
         if (canonicalJson(projected.coordinate) !== canonicalJson(selected)) throw new Error("Beeper route resolution changed target.");
+        if (projected.kind === "group" && projected.participants.length === 0 && completeGroup(projected, (output as Readonly<Record<string, unknown>>).conversation, true)) throw new AutomationGroupBindingChangedError(snapshotIdentity(admission, snapshot), selected);
+        if (!completeGroup(projected, (output as Readonly<Record<string, unknown>>).conversation)) throw new Error("The complete Beeper group roster is unavailable.");
         return Object.freeze({ identity: snapshotIdentity(admission, snapshot), conversation: projected });
       });
     },
@@ -420,11 +444,24 @@ export function createBeeperAutomationProvider(options: BeeperAutomationOptions)
     async send(input, signal): Promise<AutomationProviderSendResult> {
       const selected = coordinate(input.coordinate), expected = parseAutomationIdentity(input.identity), action = parseAutomationAction(input.action);
       automationText(input.intentId, 256);
-      let dispatched = false;
+      let dispatched = false, bindingChanged = false;
       try {
         return await run(action.kind, signal, async (admission, active) => {
           const observe = async (holder: BeeperAutomationAdmission): Promise<AutomationIdentity> => snapshotIdentity(holder, await accountsSnapshot(holder, active));
           try {
+            const bound = input.conversation === undefined ? null : parseAutomationConversation(input.conversation);
+            const verifyGroup = async (): Promise<void> => {
+              const operationInput = { account_id: selected.accountId, conversation_id: selected.conversationId, max_participants: 500 };
+              const output = await execute(RECIPES.conversation, operationInput, admission.auth, active);
+              const live = conversation(materializeBeeperExactConversation(operationInput, output) as Readonly<Record<string, unknown>>);
+              if (bound?.kind === "group") {
+                if (live.kind === "group" && live.participants.length === 0 && completeGroup(live, (output as Readonly<Record<string, unknown>>).conversation, true)) { bindingChanged = true; throw new Error("The Beeper group roster is empty"); }
+                if (!completeGroup(live, (output as Readonly<Record<string, unknown>>).conversation)) throw new Error("The complete Beeper group roster is unavailable");
+                if (sha({ ...parseAutomationConversation(live), title: null }) !== sha({ ...bound, title: null })) {
+                  bindingChanged = true; throw new Error("The Beeper group binding changed");
+                }
+              } else if (live.kind === "group") throw new Error("Group sends require an exact participant binding");
+            };
             const current = await observe(admission);
             if (sha(current) !== sha(expected) || action.kind !== "text" || !status(current, true).actions[action.kind].available) throw new Error("Beeper source identity or capability changed before dispatch");
             const operationDeadline = new OperationDeadline(300_000, { signal: active });
@@ -440,6 +477,8 @@ export function createBeeperAutomationProvider(options: BeeperAutomationOptions)
                     const again = await options.authorize("text", active);
                     if (sha(again) !== sha(admission)) throw new Error("Beeper permission changed before writing the action");
                     if (sha(await observe(again)) !== sha(expected)) throw new Error("Beeper source identity changed before writing the action");
+                    await verifyGroup();
+                    if (sha(await options.authorize("text", active)) !== sha(admission)) throw new Error("Beeper permission changed during target revalidation");
                     dispatched = true;
                   },
                 },
@@ -449,7 +488,7 @@ export function createBeeperAutomationProvider(options: BeeperAutomationOptions)
           } catch {
             return Object.freeze(dispatched
               ? { state: "indeterminate", reason: "The Beeper receipt or cleanup could not be verified; do not retry." }
-              : { state: "not-started", reason: "The selected Beeper account, permission, target, or action was unavailable." } satisfies AutomationProviderSendResult);
+              : { state: "not-started", reason: bindingChanged ? AUTOMATION_BINDING_CHANGED_REASON : "The selected Beeper account, permission, target, or action was unavailable." } satisfies AutomationProviderSendResult);
           }
         });
       } catch {

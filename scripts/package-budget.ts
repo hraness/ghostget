@@ -2390,31 +2390,42 @@
 // Preserve the same projections and allowances:
 // 12,154,912 + 12,387 + 4,096 = 12,171,395 packed;
 // 24,054,352 + 353 + 65 = 24,054,770 payload.
-// The 0.18.69 WhatsApp projection repair release retains the 625-entry
-// inventory after rebuilding dist. Two byte-identical packs with the same
-// qualified toolchain measured 12,144,212 packed and 24,058,506 payload bytes;
-// archive SHA-256
-// 75283db7bb2b528bf5c483dcb165b274874fddc1d755236e8d1357ec5085a1a1.
-// Retain the reviewed projections and allowances:
-// 12,144,212 + 12,387 + 4,096 = 12,160,695 packed;
-// 24,058,506 + 353 + 65 = 24,058,924 payload.
-// The 0.18.70 provider text projection repair retains all 625 entries.
-// Two byte-identical packs with the same toolchain measured 12,144,529 packed
-// and 24,059,132 payload bytes; SHA-256
-// 809a89df745595fbc2d0715ca43d1f4ff2ee738a0acca1ae0feaa3339fa17b92.
-// The two parser repairs and release metadata add 317 packed and 626 payload
-// bytes over 0.18.69. Preserve every existing projection and allowance:
-// 12,144,529 + 12,387 + 4,096 = 12,161,012 packed;
-// 24,059,132 + 353 + 65 = 24,059,550 payload.
+// The 0.18.65 editorial release preserves that runtime and file inventory.
+// Two byte-identical packs with the same qualified toolchain measured 625
+// entries, 12,155,065 packed and 24,054,930 payload bytes. The 578-byte payload
+// increase is the new changelog entry; article and image files are website-only.
+// Retain every projection and allowance:
+// 12,155,065 + 12,387 + 4,096 = 12,171,548 packed;
+// 24,054,930 + 353 + 65 = 24,055,348 payload.
+// The 0.18.65 archive SHA-256 is
+// 09e69ff231a08b63c399662cdcb0fe9a08c5f5faa563e5e855e2c6b832e8003f.
+// The analytics-only 0.18.66 preparation measured 625 entries, 12,143,254
+// packed bytes and 24,055,132 payload bytes with local archive SHA-256
+// b462796a666a3f7acccbbf052590f6f7b3db4f956307567dca313c6b13d3393a.
+// Group automation in 0.18.71 adds the pinned WhatsApp group source patch,
+// updates its native runtime, and expands the owner host and provider adapters.
+// The preceding projection-only 0.18.67 preparation measured 625 entries,
+// 12,144,036 packed and 24,057,867 payload bytes with local archive SHA-256
+// 0d15ceffd2d5603f73a9beb1696726da8ae87aca8a2dfb4d8d4f61ac5d20ec41.
+// The group release preserves that repair, subsequent 0.18.68–0.18.70
+// analytics/provider fixes, and every historical release note.
+// Two byte-identical npm 11.19.0 packs under the same qualified Node/zlib
+// toolchain measured 626 entries, 12,183,657 packed and 24,145,741 payload bytes.
+// The single added entry is the source patch; the net addition over 0.18.65
+// is 28,592 packed and 90,811 payload bytes, including rebuilt SDK chunks and
+// documentation. Every archive entry matches its retained source bytes.
+// Keep all existing projections and allowances:
+// 12,183,657 + 12,387 + 4,096 = 12,200,140 packed;
+// 24,145,741 + 353 + 65 = 24,146,159 payload.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "GhostGet 0.18.70 provider text projection repair over the verified 0.18.69 runtime",
+  scope: "GhostGet 0.18.71 roster-bound group automation over the verified 0.18.65 package",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "809a89df745595fbc2d0715ca43d1f4ff2ee738a0acca1ae0feaa3339fa17b92",
-  packedBytes: 12_144_529,
-  unpackedBytes: 24_059_132,
-  entryCount: 625,
+  archiveSha256: "869505039ff55197d8dbab2c49f923e4effaeb71ea124ee2e59852a84127ab4e",
+  packedBytes: 12_183_657,
+  unpackedBytes: 24_145_741,
+  entryCount: 626,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,

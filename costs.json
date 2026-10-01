@@ -1,6 +1,15 @@
 {
   "version": 1,
   "surfaces": {
+    "local:messaging-group-history-exclusions": {
+      "kind": "authoritative",
+      "retention": "tombstone",
+      "owner": "src/messaging-automation.ts",
+      "source": "Enrollment-scoped IDs of baseline, historical, or future-dated group messages; no message bodies",
+      "deletion": "src/messaging-automation.ts",
+      "expiry": "Retained with the enrollment; never evicted independently or copied to another enrollment",
+      "budget": { "maxEntries": 50000, "maxBytesPerMessageId": 256, "maxJournalBytes": 201326592 }
+    },
     "local:contract-repair-inbox": {
       "kind": "derived",
       "retention": "ttl:P30D",
