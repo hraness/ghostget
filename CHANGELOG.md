@@ -7,6 +7,13 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.66
+
+Select the European PostHog UI only for the exact validated ingestion origin.
+
+- Replace the ambiguous substring match with exact origin equality.
+- Preserve fixed trusted PostHog UI URLs.
+
 ## 0.18.65
 
 Make GhostGet's articles and comparisons calmer, clearer, and more consistent.
