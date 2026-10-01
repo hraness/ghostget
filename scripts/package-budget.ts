@@ -2361,7 +2361,7 @@
 // Preserve the same projections and allowances:
 // 12,154,748 + 12,387 + 4,096 = 12,171,231 packed;
 // 24,053,537 + 353 + 65 = 24,053,955 unpacked.
-// The reserved 0.18.63 updater release integrates actual merged 0.18.62
+// The earlier reserved 0.18.63 updater (not published) integrated 0.18.62
 // marketing and search-referrer privacy source (86dd8cdc). Both changelog
 // sections are retained; updater behavior and inventory are unchanged.
 // Two official Node 24.20.0/npm 11.19.0 --ignore-scripts packs on darwin
@@ -2371,14 +2371,32 @@
 // Preserve the same projections and allowances:
 // 12,154,769 + 12,387 + 4,096 = 12,171,252 packed;
 // 24,053,717 + 353 + 65 = 24,054,135 unpacked.
+// The competing tagged 0.18.63 studio source at main773c537 contains no
+// updater. Its immutable annotated tag is preserved after rejected publication.
+// Its incoming budget records two Node 24.20.0/npm 11.19.0 packs at
+// 624 entries, 12,140,613 packed and 24,047,027 payload bytes; SHA-256
+// 9f6ff0fac3c7bd70ecb5f94c11e0b3ee5a7e5bb48cb77a24129f0af4e7538a39.
+// The exact main773c537 non-updater baseline reproduced with qualified
+// Node 24.20.0/npm 11.19.0/zlib 1.3.2.1-motley-42c2f19 on darwin arm64:
+// two identical archives, 624 entries, 12,152,843 packed, 24,047,027 payload;
+// SHA-256 ed461e46d1d9d4514cffe577415bd641d3cbfbd1c3cde0619d0fe55acf6170bb.
+// The forward 0.18.64 updater preserves that studio source and failed-tag
+// history. Two identical packs under the same toolchain measured 625 entries,
+// 12,154,912 packed and 24,054,352 payload bytes; SHA-256 below. The measured
+// addition is one src/update.ts file, 2,069 packed and 7,325 payload bytes.
+// The 425-byte payload increase over the previous updater candidate is solely
+// CHANGELOG.md, retaining studio changes and the annotated-tag failure.
+// Preserve the same projections and allowances:
+// 12,154,912 + 12,387 + 4,096 = 12,171,395 packed;
+// 24,054,352 + 353 + 65 = 24,054,770 payload.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget 0.18.63 CLI updater release over actual merged 0.18.62 main86dd8cdc",
+  scope: "Ghostget 0.18.64 CLI updater over preserved tagged studio main773c537",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "723397dd53644ed3c8c42c57ed62eb460d23d255b32354c2b091d65c05fba2a3",
-  packedBytes: 12_154_769,
-  unpackedBytes: 24_053_717,
+  archiveSha256: "99bdbc86d7e2016b7a003496d4d6a2bec847d6c8c3b01aed57c1b55a3b25cbb3",
+  packedBytes: 12_154_912,
+  unpackedBytes: 24_054_352,
   entryCount: 625,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

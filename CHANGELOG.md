@@ -7,7 +7,7 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
-## 0.18.63
+## 0.18.64
 
 Supported global CLI installs update to the latest stable release before an
 ordinary command, with at most one automatic check per day.
@@ -17,6 +17,16 @@ ordinary command, with at most one automatic check per day.
   nested clients, help, and gateway-only sessions. Exact pins need `update enable`.
 - Verify the immutable release archive before the owning package manager runs,
   and wait until other commands using that installation have finished.
+
+## 0.18.63
+
+Annotated tag rejected before publication; tag unchanged.
+
+Present GhostGet with the shared studio design conventions.
+
+- Group related studio tools by purpose, shorten the opening copy, and keep installation within reach.
+- Make account access visible across public pages and explain regional analytics consent.
+- Apply the shared footer, muted dotted text links, and immediate analytics withdrawal protection.
 
 ## 0.18.62
 
