@@ -141,3 +141,8 @@
 - Confirm installation with `bunx skills list --global`. If Bun or network access is unavailable, continue with repository-native tools instead of blocking delivery.
 - Treat ALGAL receipts as execution evidence, not provider attestation, and preserve the repository's normal verification and release gates.
 <!-- algal-skills:end -->
+
+<!-- wordcell-search:start -->
+- Search from the repository root with `bun run kb:search "query" --json` or `bun run kb:search:local "query" --json`. Both use the Wordcell executable installed by the frozen runtime dependency, with local exact candidates and selected source passages. Keep this graph’s existing immutable Wordcell pin; do not add a second KB-only version or invoke a package runner during a query.
+- Read the matched Markdown and linked sources before relying on a result. Keep private notes and confidential queries local; hosted reranking requires a separate approved vault and query. The [pinned reranking reference](https://github.com/hraness/wordcell/blob/v0.24.0/docs/reranking.md) describes transmitted snippets, credentials, provider charges and the fallback receipt. A successful search exit does not establish that hosted reranking ran.
+<!-- wordcell-search:end -->

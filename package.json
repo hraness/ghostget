@@ -688,7 +688,8 @@
     "kb:check:lane": "bunx --bun --package @hraness/wordcell@0.24.0 wordcell check --root kb --no-catalog",
     "kb:check": "bunx --bun --package @hraness/wordcell@0.24.0 wordcell check --root kb && bunx --bun --package @hraness/wordcell@0.24.0 wordcell agents check --root kb --repo .",
     "kb:catalog": "bunx --bun --package @hraness/wordcell@0.24.0 wordcell catalog --root kb",
-    "kb:search": "bunx --bun --package @hraness/wordcell@0.24.0 wordcell search --root kb --mode exact --selected-passage",
+    "kb:search": "wordcell search --root kb --mode exact --selected-passage",
+    "kb:search:local": "wordcell search --root kb --mode exact --selected-passage",
     "prepack": "bun run check",
     "check:effect": "bun scripts/check-effect-architecture.ts",
     "generate:og": "bun scripts/generate-og.tsx"
