@@ -446,6 +446,141 @@ describe("WhatsApp content-free interaction projection helper", () => {
     }
   });
 
+  test("maps the short legacy system JID to the fixed unsupported sentinel", async () => {
+    const path = createStore();
+    try {
+      const database = new Database(join(path, "wacli.db"), { strict: true });
+      try {
+        database.query("INSERT INTO chats(jid, kind) VALUES (?1, ?2)")
+          .run("1@s.whatsapp.net", "dm");
+        database.query(`
+          INSERT INTO messages(chat_jid,msg_id,sender_jid,ts,from_me)
+          VALUES (?1,?2,NULL,?3,?4)
+        `).run("1@s.whatsapp.net", "LEGACY-SYSTEM-1", 1_776_513_603, 0);
+      } finally {
+        database.close();
+      }
+      chmodSync(join(path, "wacli.db"), 0o600);
+      expect(await response(path, request(path, {
+        cursor: "3",
+        cursorAnchor: "a86ecbd8b98eb6466c2b584a5b3d3ca0458230bbd6ecc86981d57ca4aaa81830",
+        limit: 1,
+      }))).toMatchObject({
+        status: "succeeded",
+        interactions: [{ rowid: "4", chatJid: "0@s.whatsapp.net", chatKind: "unknown" }],
+      });
+    } finally {
+      rmSync(path, { recursive: true, force: true });
+    }
+  });
+
+  test("normalizes only known legacy participant fields and retains valid senders", async () => {
+    const path = createStore();
+    try {
+      const database = new Database(join(path, "wacli.db"), { strict: true });
+      try {
+        database.query(`
+          INSERT INTO messages(chat_jid,msg_id,sender_jid,ts,from_me)
+          VALUES
+            ('15557654321@s.whatsapp.net','LEGACY-DM-OUT','15557654321@s.whatsapp.net',1776513603,1),
+            ('120363123456789012@g.us','LEGACY-GROUP-OUT','120363123456789012@g.us',1776513604,1),
+            ('120363123456789012@g.us','LEGACY-GROUP-IN-OWNER',?1,1776513605,0),
+            ('15557654321@s.whatsapp.net','LEGACY-DM-OUT-DEVICE','15557654321:7@s.whatsapp.net',1776513606,1),
+            ('120363123456789012@g.us','LEGACY-GROUP-IN-LID','999999999999999:4@lid',1776513607,0),
+            ('120363123456789012@g.us','VALID-GROUP-IN','15559876543:5@s.whatsapp.net',1776513608,0),
+            ('15557654321@s.whatsapp.net','VALID-DM-OUT',?1,1776513609,1),
+            ('120363123456789012@g.us','VALID-GROUP-OUT-LID','999999999999999:4@lid',1776513610,1)
+        `).run(OWNER_JID);
+      } finally {
+        database.close();
+      }
+      chmodSync(join(path, "wacli.db"), 0o600);
+      expect(await response(path, request(path, {
+        cursor: "3",
+        cursorAnchor: "a86ecbd8b98eb6466c2b584a5b3d3ca0458230bbd6ecc86981d57ca4aaa81830",
+        limit: 8,
+      }))).toMatchObject({
+        status: "succeeded",
+        interactions: [
+          { rowid: "4", messageId: "LEGACY-DM-OUT", senderJid: null },
+          { rowid: "5", messageId: "LEGACY-GROUP-OUT", senderJid: null },
+          { rowid: "6", messageId: "LEGACY-GROUP-IN-OWNER", senderJid: null },
+          { rowid: "7", messageId: "LEGACY-DM-OUT-DEVICE", senderJid: null },
+          { rowid: "8", messageId: "LEGACY-GROUP-IN-LID", senderJid: null },
+          { rowid: "9", messageId: "VALID-GROUP-IN", senderJid: "15559876543:5@s.whatsapp.net" },
+          { rowid: "10", messageId: "VALID-DM-OUT", senderJid: OWNER_JID },
+          { rowid: "11", messageId: "VALID-GROUP-OUT-LID", senderJid: "999999999999999:4@lid" },
+        ],
+      });
+    } finally {
+      rmSync(path, { recursive: true, force: true });
+    }
+  });
+
+  for (const invalid of [
+    { label: "outgoing DM participant", chat: "15557654321@s.whatsapp.net", sender: "15559876543@s.whatsapp.net", fromMe: 1 },
+    { label: "incoming DM participant", chat: "15557654321@s.whatsapp.net", sender: "15559876543@s.whatsapp.net", fromMe: 0 },
+    { label: "outgoing group participant", chat: "120363123456789012@g.us", sender: "15559876543@s.whatsapp.net", fromMe: 1 },
+    { label: "outgoing group chat", chat: "120363123456789012@g.us", sender: "120363987654321098@g.us", fromMe: 1 },
+    { label: "incoming group chat", chat: "120363123456789012@g.us", sender: "120363987654321098@g.us", fromMe: 0 },
+    { label: "incoming group same-chat sender", chat: "120363123456789012@g.us", sender: "120363123456789012@g.us", fromMe: 0 },
+  ] as const) {
+    test(`rejects unrelated or contradictory legacy ${invalid.label}`, async () => {
+      const path = createStore();
+      try {
+        const database = new Database(join(path, "wacli.db"), { strict: true });
+        try {
+          database.query(`
+            INSERT INTO messages(chat_jid,msg_id,sender_jid,ts,from_me)
+            VALUES (?1,'INVALID-LEGACY-SENDER',?2,1776513603,?3)
+          `).run(invalid.chat, invalid.sender, invalid.fromMe);
+        } finally {
+          database.close();
+        }
+        chmodSync(join(path, "wacli.db"), 0o600);
+        expect(await response(path, request(path, {
+          cursor: "3",
+          cursorAnchor: "a86ecbd8b98eb6466c2b584a5b3d3ca0458230bbd6ecc86981d57ca4aaa81830",
+          limit: 1,
+        }))).toMatchObject({ status: "failed", errorCode: "projection-invalid" });
+      } finally {
+        rmSync(path, { recursive: true, force: true });
+      }
+    });
+  }
+
+  test("rejects unrelated outgoing participant IDs across PN, LID, and device aliases", async () => {
+    await assertAsyncProperty(fc.asyncProperty(
+      fc.integer({ min: 10_000, max: 9_999_999 }),
+      fc.constantFrom("s.whatsapp.net", "lid"),
+      fc.option(fc.integer({ min: 0, max: 99_999 }), { nil: undefined }),
+      fc.constantFrom("15557654321@s.whatsapp.net", "120363123456789012@g.us"),
+      async (participant, server, device, chat) => {
+        const path = createStore();
+        try {
+          const sender = `${participant}${device === undefined ? "" : `:${device}`}@${server}`;
+          const database = new Database(join(path, "wacli.db"), { strict: true });
+          try {
+            database.query(`
+              INSERT INTO messages(chat_jid,msg_id,sender_jid,ts,from_me)
+              VALUES (?1,'INVALID-LEGACY-PROPERTY',?2,1776513603,1)
+            `).run(chat, sender);
+          } finally {
+            database.close();
+          }
+          chmodSync(join(path, "wacli.db"), 0o600);
+          expect(await response(path, request(path, {
+            cursor: "3",
+            cursorAnchor: "a86ecbd8b98eb6466c2b584a5b3d3ca0458230bbd6ecc86981d57ca4aaa81830",
+            limit: 1,
+          }))).toMatchObject({ status: "failed", errorCode: "projection-invalid" });
+        } finally {
+          rmSync(path, { recursive: true, force: true });
+        }
+      },
+    ), { numRuns: 20 });
+  });
+
   test("preserves rowids above JavaScript's safe-integer range", async () => {
     const path = createStore();
     try {

@@ -2390,24 +2390,22 @@
 // Preserve the same projections and allowances:
 // 12,154,912 + 12,387 + 4,096 = 12,171,395 packed;
 // 24,054,352 + 353 + 65 = 24,054,770 payload.
-// The 0.18.65 editorial release preserves that runtime and file inventory.
-// Two byte-identical packs with the same qualified toolchain measured 625
-// entries, 12,155,065 packed and 24,054,930 payload bytes. The 578-byte payload
-// increase is the new changelog entry; article and image files are website-only.
-// Retain every projection and allowance:
-// 12,155,065 + 12,387 + 4,096 = 12,171,548 packed;
-// 24,054,930 + 353 + 65 = 24,055,348 payload.
-// The 0.18.67 encoded-privacy release measures 625 entries under the same
-// Node 24.20.0 / npm 11.19.0 / darwin-arm64 toolchain. Two packs are identical.
-// Preserve the reviewed platform projections and portability allowances.
+// The 0.18.68 encoded analytics privacy repair release retains
+// the 625-entry inventory after rebuilding dist. Two byte-identical packs with
+// the same qualified toolchain measured 12,144,090 packed and 24,058,093
+// payload bytes; archive SHA-256
+// ff4b2c54c3cc2e08319353d3f60660e8b7a73c20b38320e27d1ee170ce8f2b2a.
+// Retain the reviewed projections and allowances:
+// 12,144,090 + 12,387 + 4,096 = 12,160,573 packed;
+// 24,058,093 + 353 + 65 = 24,058,511 payload.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "GhostGet 0.18.67 encoded analytics privacy release over the verified 0.18.66 runtime",
+  scope: "GhostGet 0.18.68 encoded analytics privacy repair release over the verified 0.18.67 runtime",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "f3dd9f77d58483c9ad0668cbf2b5aa9c1c63c7f9207c08719f52382b5f4274ce",
-  packedBytes: 12_143_320,
-  unpackedBytes: 24_055_358,
+  archiveSha256: "ff4b2c54c3cc2e08319353d3f60660e8b7a73c20b38320e27d1ee170ce8f2b2a",
+  packedBytes: 12_144_090,
+  unpackedBytes: 24_058_093,
   entryCount: 625,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

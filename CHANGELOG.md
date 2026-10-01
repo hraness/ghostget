@@ -7,12 +7,20 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
-## 0.18.67
+## 0.18.68
 
 Remove encoded personal identifiers and credentials from browser diagnostics.
 
 - Use the shared bounded redactor before truncating analytics text.
 - Preserve private route exclusions and query-free diagnostics.
+
+## 0.18.67
+
+Accept the short legacy system JIDs and inconsistent participant fields emitted by supported wacli migrations when projecting body-free WhatsApp interaction counts.
+
+- Map bounded short system JIDs to the existing unsupported sentinel.
+- Drop participant fields that contradict the stored message direction instead of failing the complete page.
+- Keep the strict schema, owner, cursor, and no-message-body guards intact.
 
 ## 0.18.66
 

@@ -62,6 +62,11 @@ const MAX_MESSAGE_DATABASE_BYTES = 2n * 1024n * 1024n * 1024n;
 const SQLITE_CACHE_KIB = 4_096;
 const MAX_UNIX_SECONDS = 253_402_300_799n;
 const SYSTEM_SENTINEL_JID = "0@s.whatsapp.net";
+// Older wacli stores use short numeric JIDs for system rows.  They are not
+// person or conversation identifiers and must stay outside the contact
+// interaction projection.  Keep the public projection's single sentinel
+// while accepting the bounded legacy spelling.
+const LEGACY_SYSTEM_JID = /^[0-9]@s\.whatsapp\.net$/u;
 const MESSAGE_EXPORT_SESSION_MAX_MESSAGES = 500_000;
 type MessageExportSessionSelfChatsExcluded = "none-detected" | "present-excluded";
 
@@ -505,7 +510,7 @@ function sqliteBigInt(value: unknown): bigint {
   return fail("projection-invalid");
 }
 
-function projectedJid(value: unknown, nullable = false): string | null {
+function projectedJid(value: unknown, nullable = false, allowLegacySystem = false): string | null {
   if (nullable && (value === null || value === "")) return null;
   if (
     typeof value !== "string"
@@ -513,6 +518,7 @@ function projectedJid(value: unknown, nullable = false): string | null {
     || value.length > 96
     || !(
       value === SYSTEM_SENTINEL_JID
+      || (allowLegacySystem && typeof value === "string" && LEGACY_SYSTEM_JID.test(value))
       || /^[0-9]{5,20}(?::[0-9]{1,5})?@s\.whatsapp\.net$/u.test(value)
       || /^[0-9]{5,32}(?::[0-9]{1,5})?@lid$/u.test(value)
       || /^[0-9]{5,32}(?:-[0-9]{5,20})?@g\.us$/u.test(value)
@@ -530,6 +536,43 @@ function legacyInteractionParticipantJid(value: string): string {
   return value.endsWith("@lid")
     ? `${match[1]}@lid`
     : `${match[1]}@s.whatsapp.net`;
+}
+
+function legacyInteractionSender(
+  item: Readonly<{
+    chatJid: string;
+    chatKind: "dm" | "group" | "broadcast" | "newsletter" | "unknown";
+    senderJid: string | null;
+    fromMe: boolean;
+  }>,
+  owner: WhatsAppMatchedOwnerIdentity,
+): string | null {
+  if (item.senderJid === null || (item.chatKind !== "dm" && item.chatKind !== "group")) {
+    return item.senderJid;
+  }
+  if (item.chatKind === "group" && item.senderJid.endsWith("@g.us")) {
+    // Some outgoing migrated rows carry this exact chat JID in sender_jid.
+    // Other group JIDs and incoming chat senders remain invalid participants.
+    return item.fromMe && item.senderJid === item.chatJid ? null : item.senderJid;
+  }
+  const sender = legacyInteractionParticipantJid(item.senderJid);
+  const self = new Set(owner.selfJids);
+  const chat = item.chatKind === "dm"
+    ? legacyInteractionParticipantJid(item.chatJid)
+    : item.chatJid;
+  if (item.chatKind === "dm" && item.fromMe && sender === chat) {
+    // Wacli records the recipient in sender_jid for some outgoing direct
+    // messages.  The direction already carries the only fact PeopleBlade
+    // needs; dropping this inconsistent participant keeps the interaction
+    // body-free and prevents a false sender identity.
+    return null;
+  }
+  if (item.chatKind === "group" && !item.fromMe && self.has(sender)) {
+    // Incoming migrated rows may carry an exact session-proved owner alias.
+    // It identifies no counterparty; unrelated outgoing senders remain invalid.
+    return null;
+  }
+  return item.senderJid;
 }
 
 function assertMessageDirection(
@@ -567,12 +610,12 @@ function projectItem(
   exactRowKeys(row, ["rowid", "chat_jid", "msg_id", "sender_jid", "ts", "from_me", "chat_kind"]);
   const rowid = sqliteBigInt(row.rowid);
   const seconds = sqliteBigInt(row.ts);
-  const fromMe = sqliteBigInt(row.from_me);
+  const fromMeValue = sqliteBigInt(row.from_me);
   if (
     rowid < 1n
     || seconds < 0n
     || seconds > MAX_UNIX_SECONDS
-    || (fromMe !== 0n && fromMe !== 1n)
+    || (fromMeValue !== 0n && fromMeValue !== 1n)
     || typeof row.msg_id !== "string"
     || !/^[A-Za-z0-9._~:-]{1,256}$/u.test(row.msg_id)
     || (row.chat_kind !== "dm"
@@ -581,14 +624,21 @@ function projectItem(
       && row.chat_kind !== "newsletter"
       && row.chat_kind !== "unknown")
   ) fail("projection-invalid");
-  const chatJid = projectedJid(row.chat_jid)! as string;
+  const rawChatJid = projectedJid(row.chat_jid, false, true)! as string;
+  const chatJid = LEGACY_SYSTEM_JID.test(rawChatJid) ? SYSTEM_SENTINEL_JID : rawChatJid;
+  const fromMe = fromMeValue === 1n;
   const projected = Object.freeze({
     rowid: rowid.toString(),
     chatJid,
     messageId: row.msg_id,
-    senderJid: projectedJid(row.sender_jid, true),
+    senderJid: legacyInteractionSender({
+      chatJid,
+      chatKind: chatJid === SYSTEM_SENTINEL_JID ? "unknown" : row.chat_kind,
+      senderJid: projectedJid(row.sender_jid, true),
+      fromMe,
+    }, owner),
     timestamp: new Date(Number(seconds) * 1_000).toISOString(),
-    fromMe: fromMe === 1n,
+    fromMe,
     chatKind: chatJid === SYSTEM_SENTINEL_JID ? "unknown" : row.chat_kind,
   });
   assertMessageDirection(projected, owner, "legacy-interaction");
