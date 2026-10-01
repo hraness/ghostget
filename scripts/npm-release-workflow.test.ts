@@ -1430,6 +1430,7 @@ describe("npm publication contract", () => {
     expect(budget).toContain("785b8fa60c329d7ac46bc8fcf4d959b5fa9d96455bba9e7cdea63f6a3827c4f6");
     expect(Object.isFrozen(repairPackageMeasurement)).toBeTrue();
     expect(repairPackageMeasurement).toMatchObject({
+      scope: "GhostGet 0.18.71 roster-bound group automation over the verified 0.18.65 package",
       archiveSha256: "869505039ff55197d8dbab2c49f923e4effaeb71ea124ee2e59852a84127ab4e",
       packedBytes: 12_183_657, unpackedBytes: 24_145_741, entryCount: 626,
       packedPlatformProjection: 12_387, packedPortabilityAllowance: 4_096,
