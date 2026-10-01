@@ -24,8 +24,12 @@ export type AutomationCapability = Readonly<{ available: boolean; reason: string
 /** Trusted adapter signal for a positively observed complete-empty group roster.
  * Missing, partial and unavailable rosters must never produce this signal. */
 export class AutomationGroupBindingChangedError extends Error {
-  constructor(readonly identity: AutomationIdentity, readonly coordinate: AutomationCoordinate) {
+  readonly identity: AutomationIdentity;
+  readonly coordinate: AutomationCoordinate;
+  constructor(identity: AutomationIdentity, coordinate: AutomationCoordinate) {
     super(AUTOMATION_BINDING_CHANGED_REASON);
+    this.identity = identity;
+    this.coordinate = coordinate;
     this.name = "AutomationGroupBindingChangedError";
   }
 }
