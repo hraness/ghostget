@@ -28,7 +28,7 @@ Install [Bun 1.3.14](https://bun.sh/docs/installation) if needed, then install
 GhostGet and read a public page:
 
 ```sh
-bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.62/hraness-ghostget-0.18.62.tgz
+bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.64/hraness-ghostget-0.18.64.tgz
 ghostget read https://example.com
 ```
 
@@ -49,14 +49,33 @@ which always names the latest published release. Upgrading from Wrench? Read the
 The optional Agent Skill teaches your agent when and how to use GhostGet:
 
 ```sh
-npx skills add hraness/ghostget#v0.18.62
+npx skills add hraness/ghostget#v0.18.64
 # With Bun instead:
-bunx skills add hraness/ghostget#v0.18.62
+bunx skills add hraness/ghostget#v0.18.64
 ```
 
 Start a new agent session, then ask: “Use GhostGet to read https://example.com
 and summarize it.” The skill is instructions for your agent; the CLI install
 above supplies the executable.
+
+### Update the CLI
+
+Supported global Bun and npm installs on macOS and Linux check for a stable
+GhostGet release before ordinary commands, at most once a day. Install the
+GitHub CLI (`gh`) and authenticate it with `gh auth login --hostname github.com`
+to let the updater download verified release archives. If your installed CLI
+does not have `update`, repeat this guide's global CLI install command once.
+Run `ghostget update` to update now,
+`ghostget update check --json` to inspect a release, or `ghostget update status`
+to see the saved setting. Use `ghostget update disable` to turn automatic updates
+off and `ghostget update enable` to turn them on. Exact version pins require
+`enable` before following new releases.
+
+Set `HRANESS_NO_UPDATE=1` for a command that must use the installed version.
+CI, nested clients, help, and gateway-only mode skip automatic checks. Manage
+source checkouts, project dependencies, and unsupported installations with their
+package manager. Agent Skill copies are refreshed separately through the skill
+installer. Updating the CLI preserves connected accounts and saved content.
 
 ## When to use something else
 
@@ -164,7 +183,7 @@ firewall.
 
 ## Built-in provider catalog
 
-This v0.18.62 source tree supports executable actions for 21 services: Beeper,
+This v0.18.64 source tree supports executable actions for 21 services: Beeper,
 Bluesky, ClasificadosOnline, Facebook, Facebook Groups, Facebook Marketplace,
 GitHub, Gmail, Hacker News, Instagram, iMessage, LinkedIn, Reddit, Substack,
 Threads, TikTok, Twitch, WebMCP Registry, WhatsApp, X, and YouTube. LinkedIn
@@ -248,7 +267,7 @@ For that same released coordinate, install GhostGet in an agent or application
 that owns its own model, planning, tool loop, approvals, and interface:
 
 ```sh
-bun add https://github.com/hraness/ghostget/releases/download/v0.18.62/hraness-ghostget-0.18.62.tgz
+bun add https://github.com/hraness/ghostget/releases/download/v0.18.64/hraness-ghostget-0.18.64.tgz
 ```
 
 ```ts

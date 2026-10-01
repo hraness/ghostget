@@ -67,6 +67,7 @@ Control GhostGet
   ghostget approvals|permissions|connections
                                       Every control action as a command
   ghostget doctor                     Check everything GhostGet needs
+  ghostget update [check|status]       Update the installed CLI or inspect it
 
 Extend GhostGet
   ghostget adapter|plugin|contracts   Add and check site support
@@ -466,7 +467,24 @@ type HelpTopic =
  * Help topics by command or topic name. `delegate` names a command that owns
  * its help: `ghostget help <name>` runs `ghostget <name> --help`.
  */
+const updateHelp = `Usage: ghostget update [check|status|enable|disable] [--json]
+
+Supported global Bun and npm installs on macOS and Linux update before ordinary
+commands, at most once a day.
+Use check to inspect the latest release, status for saved settings, disable to
+stop automatic updates, or enable to resume them. Exact version pins require
+enable before tracking new releases. Install the GitHub CLI (gh), then run
+gh auth login --hostname github.com to authenticate it for verified downloads.
+An older CLI without update needs the documented global install command once.
+
+HRANESS_NO_UPDATE=1 skips automatic updates for one command. CI, nested clients,
+gateway-only mode, help, and version do not check for updates automatically.
+Manage project dependencies, source checkouts, and other installs with their
+package manager.
+`;
+
 const HELP_TOPICS: Readonly<Record<string, HelpTopic>> = {
+  update: { text: updateHelp },
   read: { text: readHelp },
   inspect: { text: readHelp },
   clip: { text: clipHelp },

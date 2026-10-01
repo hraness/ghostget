@@ -17,14 +17,14 @@ If Bun is missing, stop and direct the user to the official
 [Bun installation guide](https://bun.sh/docs/installation). Do not switch
 package managers or pipe an unreviewed installer into a shell.
 
-This reference is authored for the exact v0.18.62 release coordinate. Use it
+This reference is authored for the exact v0.18.64 release coordinate. Use it
 only from the matching release-bound Agent Skill after its canonical archive and
 immutable GitHub Release exist. If the coordinate is not public, stop instead
 of substituting `main`, another tag, or a different package version. Install
 that exact release and verify a public-page read:
 
 ```sh
-bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.62/hraness-ghostget-0.18.62.tgz
+bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.64/hraness-ghostget-0.18.64.tgz
 ghostget read https://example.com
 ```
 
@@ -47,21 +47,21 @@ for the requested workflow; an unconnected provider or missing media tool does
 not prevent a public-page read, and overall provider readiness can be false on
 a fresh installation.
 
-The package is `@hraness/ghostget`; `@hraness/ghostget@0.18.62` is an optional npm
+The package is `@hraness/ghostget`; `@hraness/ghostget@0.18.64` is an optional npm
 mirror only after verified registry publication. Canonical installation does not
 wait for registry publication.
 
 When upgrading from Wrench, use `ghostget` for new commands and
 `GHOSTGET_STATE_HOME` for an explicit state root. Existing state is selected in
 place; do not rename, copy, or delete a state directory as part of the upgrade.
-The [migration guide](https://github.com/hraness/ghostget/blob/v0.18.62/docs/ghostget-migration.md)
+The [migration guide](https://github.com/hraness/ghostget/blob/v0.18.64/docs/ghostget-migration.md)
 explains the retained state aliases and durable protocol names.
 
 Do not clone the repository merely to run the CLI. Importing the SDK is a
 separate project dependency and does not install a global command:
 
 ```sh
-bun add https://github.com/hraness/ghostget/releases/download/v0.18.62/hraness-ghostget-0.18.62.tgz
+bun add https://github.com/hraness/ghostget/releases/download/v0.18.64/hraness-ghostget-0.18.64.tgz
 ```
 
 `ghostget adapter sync-bundled` upgrades exact bundled baselines, including an
@@ -81,3 +81,22 @@ or another operating-system dependency only when the requested route needs
 it and the user has authorized that machine change. Re-run doctor after the
 install. Do not weaken a provider or archive boundary when an optional tool is
 absent.
+
+## Update the CLI
+
+Supported global Bun and npm installs on macOS and Linux check for a stable
+GhostGet release before ordinary commands, at most once a day. Install the
+GitHub CLI (`gh`) and authenticate it with `gh auth login --hostname github.com`
+to let the updater download verified release archives. If your installed CLI
+does not have `update`, repeat this guide's global CLI install command once.
+Run `ghostget update` to update now,
+`ghostget update check --json` to inspect a release, or `ghostget update status`
+to see the saved setting. Use `ghostget update disable` to turn automatic updates
+off and `ghostget update enable` to turn them on. Exact version pins require
+`enable` before following new releases.
+
+Set `HRANESS_NO_UPDATE=1` for a command that must use the installed version.
+CI, nested clients, help, and gateway-only mode skip automatic checks. Manage
+source checkouts, project dependencies, and unsupported installations with their
+package manager. Agent Skill copies are refreshed separately through the skill
+installer. Updating the CLI preserves connected accounts and saved content.

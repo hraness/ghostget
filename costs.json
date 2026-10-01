@@ -32,6 +32,27 @@
         "maxCalendarDays": 90
       },
       "status": "capture-required; public execution rejects before credentials or network"
+    },
+    "local:cli-update-policy": {
+      "kind": "authoritative",
+      "retention": "persistent",
+      "owner": "src/update.ts",
+      "deletion": "src/update.ts",
+      "budget": {
+        "maxBytesPerStateFile": 16384,
+        "maxCoordinationEntries": 4096
+      },
+      "source": "Explicit update policy and verified installed release receipts; no account or captured content"
+    },
+    "local:cli-update-archives": {
+      "kind": "derived",
+      "retention": "persistent",
+      "owner": "src/update.ts",
+      "source": "Verified immutable release archives retained for global package-manager replay",
+      "budget": {
+        "maxBytesPerArchive": 536870912
+      },
+      "expiry": "Retain manager-referenced archives; cleanup requires proving no installation or running manager references them"
     }
   },
   "exempt": []

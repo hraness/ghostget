@@ -45,6 +45,7 @@
         <a href="/docs/reference/provider-capabilities/">Providers</a>
         <a href="/docs/">Docs</a>
         <a href="https://github.com/hraness/ghostget">GitHub <span aria-hidden="true">↗</span></a>
+        <a href="https://account.hraness.com/">Account</a>
       </nav>
     </header>
     <main class="guide-main" id="main" tabindex="-1">
@@ -91,6 +92,12 @@
           <h2 id="native-cli">A provider CLI is pinned bytes behind a semantic contract</h2>
           <p>A source plugin can use the <code>local-cli</code> transport only when it records the exact executable SHA-256 for every supported platform and binds every upstream archive or release-manifest artifact that the provider publishes. Each operation owns a fixed argument template and strict projection. Callers cannot select a command, flag, endpoint, target, environment variable, plugin, or output path.</p>
           <p>GhostGet starts the exact executable without a shell under private config, data, cache, and temporary roots. It strips ambient credentials and defaults, enforces its own deadline and byte bounds, and treats a lost or malformed post-dispatch response as indeterminate. A version range, package-manager channel, tag, launcher, or reported version cannot replace executable-byte identity.</p>
+        </section>
+
+        <section aria-labelledby="cli-updates">
+          <h2 id="cli-updates">CLI updates use verified releases</h2>
+          <p>Supported global installations check the fixed GhostGet GitHub repository for a stable immutable release. The updater verifies the selected archive and its published SHA-256 before asking the installation's package manager to replace it. It waits for running commands to finish and leaves connected accounts and saved content in place. Source checkouts and project dependencies keep their existing package-manager workflow.</p>
+          <p>Automatic checks run before ordinary commands, at most once a day. Use <code>ghostget update disable</code> to opt out, <code>ghostget update status</code> to inspect the setting, or <code>HRANESS_NO_UPDATE=1</code> for a command that must use the installed version. Exact version pins require <code>ghostget update enable</code> before following new releases. See the <a href="/docs/tutorials/getting-started/#cli-updates">update guide</a> for requirements and limits.</p>
         </section>
 
         <section aria-labelledby="plugins-boundary">

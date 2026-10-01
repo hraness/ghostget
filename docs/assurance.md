@@ -2014,12 +2014,12 @@ Release admits source only with the exact commit's successful default-branch CI 
 - Assumptions: `github-api`, `github-enforcement`
 - Not verified: Only the enumerated example cases are checked.
 
-#### `release-source-codeql-exact-two-languages`
+#### `release-source-codeql-exact-four-languages`
 
-Source admission requires exactly the Actions and JavaScript/TypeScript CodeQL jobs and analyses on the exact source and current main; missing or extra languages, or two exact-source CodeQL runs, are rejected.
+Source admission requires exactly the Actions, JavaScript/TypeScript, Python, and Rust CodeQL jobs and analyses on the exact source and current main; missing or extra languages, or two exact-source CodeQL runs, are rejected.
 
 - Evidenced by example test.
-- Source: `docs/publishing.md`: “Admission requires exactly those two jobs and analyses, with missing or extra languages rejected.”
+- Source: `docs/publishing.md`: “Admission requires exactly those four jobs and analyses, with missing or extra languages rejected.”
 - Evidence: `scripts/github-release-artifact.test.ts`
 - Assumptions: `github-api`, `github-enforcement`
 - Not verified: Only the enumerated example cases are checked.

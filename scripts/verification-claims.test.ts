@@ -547,7 +547,7 @@ describe("guideline coverage", () => {
       inserted.push(line, "");
       const changed = guide.lines.toSpliced(point, 0, ...inserted).join("\n");
       expect(await findingsFor({ [guide.path]: changed }, register)).toEqual([unruled(guide.path, words.join(" "))]);
-    }));
+    }), {}, "verification-claims/guideline-additions");
   });
 
   test("changing any guideline requires reviewing its claims and digest", async () => {
