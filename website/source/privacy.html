@@ -45,6 +45,7 @@
         <a href="/docs/reference/provider-capabilities/">Providers</a>
         <a href="/docs/">Docs</a>
         <a href="https://github.com/hraness/ghostget">GitHub <span aria-hidden="true">↗</span></a>
+        <a href="https://account.hraness.com/">Account</a>
       </nav>
     </header>
     <main class="guide-main" id="main" tabindex="-1">
@@ -104,6 +105,7 @@
         <section aria-labelledby="website-analytics">
           <h2 id="website-analytics">ghostget.com measures pages, not people</h2>
           <p>ghostget.com is a static documentation site. On the canonical production host only, an optional PostHog bootstrap can record page view, page leave, Core Web Vitals, bounded browser errors, not-found pages, clicks on links to other sites, clicks on the home page install and getting-started links, and copies of the install commands. A click or copy event carries only a fixed name for the link, its destination host, or the install method, never the copied text. The analytics library is bundled with the site and loads no remote code. The runtime is cookieless, personless, memory-only, DNT-aware, and restricted to that host.</p>
+          <p>The shared footer asks Hraness Accounts whether a consent notice applies in your region. If consent is required or the region cannot be determined, analytics stays off until you accept. Your choice is saved in this browser’s local storage. Do Not Track keeps analytics off even after acceptance.</p>
           <p>Campaign tags (<code>utm_*</code>) and ad click identifiers such as <code>gclid</code> are kept so campaigns can be measured. Every other URL query parameter and every fragment is stripped before an event can leave the browser, and error reports drop query strings, email addresses, and credentials. The site does not use replay, identity, feature flags, broad autocapture, console capture, or person profiles. It does not record form input, local file paths, CLI state, or provider account material. JavaScript is optional, and every public page remains readable without it.</p>
         </section>
 

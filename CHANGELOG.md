@@ -7,6 +7,14 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.63
+
+Present GhostGet with the shared studio design conventions.
+
+- Group related studio tools by purpose, shorten the opening copy, and keep installation within reach.
+- Make account access visible across public pages and explain regional analytics consent.
+- Apply the shared footer, muted dotted text links, and immediate analytics withdrawal protection.
+
 ## 0.18.62
 
 Keep search queries out of website analytics.
