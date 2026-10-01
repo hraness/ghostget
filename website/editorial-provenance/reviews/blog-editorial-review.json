@@ -1,0 +1,114 @@
+{
+  "reviews": [
+    {
+      "slug": "introducing-ghostget",
+      "bodySha256": "f76638820957ac1f602f24732c8016df0d9238617d9cc83a5955e5268098cd3b",
+      "approved": true,
+      "reviewer": "Codex editorial review (AI)",
+      "reviewerType": "ai",
+      "reviewedOn": "2026-09-30",
+      "humanReview": null,
+      "scores": {
+        "readerUtility": 2,
+        "originalEvidence": 1,
+        "factualConfidence": 2,
+        "hostFit": 2,
+        "voiceIntegrity": 2,
+        "maintenanceValue": 2
+      },
+      "total": 11,
+      "observations": [
+        "The email-thread example explains when a named action saves navigation while pointing unfamiliar visual tasks to browser control; it establishes fit before listing features.",
+        "Reading and consequential writes are separated through concrete account, preview, and unknown-outcome behavior, with exact public commands supplying a complete first step."
+      ]
+    },
+    {
+      "slug": "built-on-ghostget",
+      "bodySha256": "1fabb17d38561245759e2b08676447248c1cb1a8691ded53f6fbf801b5002961",
+      "approved": true,
+      "reviewer": "Codex editorial review (AI)",
+      "reviewerType": "ai",
+      "reviewedOn": "2026-09-30",
+      "humanReview": null,
+      "scores": {
+        "readerUtility": 2,
+        "originalEvidence": 1,
+        "factualConfidence": 2,
+        "hostFit": 2,
+        "voiceIntegrity": 2,
+        "maintenanceValue": 2
+      },
+      "total": 11,
+      "observations": [
+        "The hub now uses current runtime relations, avoiding the stale export relationship that incorrectly assigned the legacy importer to the current TextButler product.",
+        "The incomplete-conversation example explains why source context and truncation metadata matter downstream, giving the hub a useful lesson beyond a product list."
+      ]
+    },
+    {
+      "slug": "ghostget-claims-register",
+      "bodySha256": "f9b2a15d30957535a71df20cddeb27d979634a27528b72dd2d1620109b486497",
+      "approved": true,
+      "reviewer": "Codex editorial review (AI)",
+      "reviewerType": "ai",
+      "reviewedOn": "2026-09-30",
+      "humanReview": null,
+      "scores": {
+        "readerUtility": 2,
+        "originalEvidence": 1,
+        "factualConfidence": 2,
+        "hostFit": 2,
+        "voiceIntegrity": 2,
+        "maintenanceValue": 2
+      },
+      "total": 11,
+      "observations": [
+        "The timeout example separates loss of the reply from failure of the action and explains why an empty search result may not settle the outcome.",
+        "The idempotency discussion identifies both reusing a key and service-side behavior as necessary, avoiding the mistaken implication that a locally generated identifier prevents remote duplicates."
+      ]
+    },
+    {
+      "slug": "releases-that-prove-their-origin",
+      "bodySha256": "856a51df8aa4f3354fe5f72fc66bb44397f0fb5f343178c28b457af6ace32c46",
+      "approved": true,
+      "reviewer": "Codex editorial review (AI)",
+      "reviewerType": "ai",
+      "reviewedOn": "2026-09-30",
+      "humanReview": null,
+      "scores": {
+        "readerUtility": 2,
+        "originalEvidence": 1,
+        "factualConfidence": 2,
+        "hostFit": 2,
+        "voiceIntegrity": 2,
+        "maintenanceValue": 2
+      },
+      "total": 11,
+      "observations": [
+        "The article distinguishes byte integrity from builder identity before showing verification commands, so a matching checksum is not presented as proof of origin.",
+        "Installing the exact verified local archive completes the trust chain; downloading or installing a different file would break the connection the earlier checks establish."
+      ]
+    },
+    {
+      "slug": "replayable-property-tests",
+      "bodySha256": "7cb44c1f8533bfe3293b204bf4e7a03fb876eb93e1cf85739e10a33745ce94c8",
+      "approved": true,
+      "reviewer": "Codex editorial review (AI)",
+      "reviewerType": "ai",
+      "reviewedOn": "2026-09-30",
+      "humanReview": null,
+      "scores": {
+        "readerUtility": 2,
+        "originalEvidence": 2,
+        "factualConfidence": 2,
+        "hostFit": 2,
+        "voiceIntegrity": 2,
+        "maintenanceValue": 2
+      },
+      "total": 12,
+      "observations": [
+        "The real __proto__ regression supplies a concrete reason to generate awkward structured values, and the public fast-check sample makes the replay mechanism portable.",
+        "The article pairs a seed/path recipe with a permanent minimal example, explaining why a dependency upgrade can change replay while the explicit regression remains useful."
+      ]
+    }
+  ]
+}

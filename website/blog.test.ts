@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,6 +15,7 @@ import {
   BLOG_POSTS,
   BUILT_ON_RELATIONS,
   blogPostPath,
+  blogPostJsonLd,
   blogSitemapPaths,
   fillBlogShell,
   ghostgetRelations,
@@ -26,6 +28,8 @@ import {
   type BlogPost,
   type BlogSite,
 } from "./blog";
+
+import { editorialImages, editorialImage, editorialImageUrl, editorialImageSrcSet } from "./editorial-images";
 
 const websiteRoot = dirname(fileURLToPath(import.meta.url));
 const site: BlogSite = {
@@ -47,7 +51,7 @@ describe("GhostGet blog admission", () => {
     expect(() => assertArticleAdmissions(admissions)).not.toThrow();
     for (const post of BLOG_POSTS) {
       expect(post.admission.href).toBe(blogPostPath(post.slug));
-      expect(post.admission.drafting).toBe("ai-from-source");
+      expect(post.admission.drafting).toBe("ai");
       expect(post.admission.review?.reviewerType).toBe("ai");
       expect(post.admission.humanReview).toBeNull();
       if (post.admission.lifecycle === "indexable") {
@@ -60,24 +64,25 @@ describe("GhostGet blog admission", () => {
   test("an AI review is disclosed as AI and never called human", () => {
     for (const post of BLOG_POSTS) {
       const sentence = articleProvenanceSentence(articleProvenanceFromAdmission(post.admission));
-      expect(sentence).toBe(`Drafted with AI from the source code and reviewed by ${post.admission.review?.reviewer}.`);
-      expect(sentence).toMatch(/\bClaude\b/u);
+      expect(sentence).toBe(`Drafted with AI and reviewed by ${post.admission.review?.reviewer}.`);
+      expect(sentence).toMatch(/\bAI\b/u);
       expect(sentence).not.toMatch(/human/iu);
     }
   });
 
-  test("every post body renders with the Hraness byline, provenance note, sources, and related products", async () => {
+  test("every post body renders with the Hraness byline, provenance note, sources, and the article image", async () => {
     for (const post of BLOG_POSTS) {
       const fragment = await readFile(join(websiteRoot, "source/blog", post.bodyFile), "utf8");
       expect(fragment).not.toContain("<h1");
       const main = renderBlogPostMain(post, fragment);
-      expect(main).toContain(">By Hraness</span>");
+      expect(main).toContain('By <a href="https://hraness.com" rel="author">Hraness</a>');
       expect(main).toContain('class="plain-publication__provenance"');
       expect(main).toContain('class="plain-publication__sources"');
-      expect(main).toContain('class="plain-publication__related"');
-      expect(main.match(/\{\{[A-Z0-9_]+\}\}/gu) ?? []).toEqual(
-        fragment.includes("{{GHOSTGET_RELEASE}}") ? expect.arrayContaining(["{{GHOSTGET_RELEASE}}"]) : [],
-      );
+      expect(main).toContain('class="editorial-figure"');
+      expect(main).not.toMatch(/(?:Published|Updated|Checked) <time/u);
+      for (const placeholder of main.match(/\{\{[A-Z0-9_]+\}\}/gu) ?? []) {
+        expect(["{{GHOSTGET_RELEASE}}", "{{LAUNCH_FILM}}"] ).toContain(placeholder);
+      }
       expect(main).not.toContain("{{BLOG_");
       for (const [, href] of main.matchAll(/href="([^"]+)"/gu)) {
         expect(href).toMatch(/^(?:https:\/\/|\/|#)/u);
@@ -172,5 +177,56 @@ describe("Built on GhostGet hub", () => {
       relationship: "Example uses GhostGet.",
       role: "Example product.",
     }])).toThrow(/Review the new GhostGet relation/u);
+  });
+});
+
+
+describe("Editorial image delivery", () => {
+  test("every promoted image matches its completed SlopCamera receipt and responsive files", async () => {
+    expect(editorialImages).toHaveLength(10);
+    for (const image of editorialImages) {
+      const bytes = await readFile(join(websiteRoot, "public", image.src));
+      expect(createHash("sha256").update(bytes).digest("hex")).toBe(image.imageSha256);
+      const receipt = JSON.parse(await readFile(join(websiteRoot, image.provenance.receipt), "utf8"));
+      const job = JSON.parse(await readFile(join(websiteRoot, image.provenance.job), "utf8"));
+      const prompt = await readFile(join(websiteRoot, image.provenance.prompt), "utf8");
+      expect(receipt.outputs[0].sha256).toBe(image.imageSha256);
+      expect(receipt.localValidation.status).toBe("decode-passed");
+      expect(job.state).toBe("completed");
+      expect(job.noSlopcameraRetry).toBe(true);
+      expect(job.clientMaxRetries).toBe(0);
+      expect(createHash("sha256").update(prompt.trim()).digest("hex")).toBe(image.provenance.promptSha256);
+      expect(job.request.promptSha256).toBe(image.provenance.promptSha256);
+      for (const derivative of image.derivatives) {
+        const derived = await readFile(join(websiteRoot, "public", derivative.src));
+        expect(createHash("sha256").update(derived).digest("hex")).toBe(derivative.sha256);
+        expect(derived.byteLength).toBeLessThan(bytes.byteLength);
+      }
+    }
+  });
+
+  test("blog cards, figures, social metadata, and schema use each article's own image", async () => {
+    const shell = await readFile(join(websiteRoot, "source/blog.html"), "utf8");
+    const index = renderBlogIndexMain();
+    expect(index).not.toContain("<time");
+    expect(index.match(/class="blog-entry-image"/gu)).toHaveLength(BLOG_POSTS.length);
+    for (const post of BLOG_POSTS) {
+      const image = editorialImage(blogPostPath(post.slug));
+      expect(image).toBeDefined();
+      const body = await readFile(join(websiteRoot, "source/blog", post.bodyFile), "utf8");
+      const main = renderBlogPostMain(post, body);
+      const page = fillBlogShell(shell, site, { canonicalPath: blogPostPath(post.slug), description: post.dek, indexable: true, ogType: "article", title: post.title }, main);
+      expect(main).toContain(`srcset="${editorialImageSrcSet(image!)}"`);
+      expect(index).toContain(`srcset="${editorialImageSrcSet(image!)}"`);
+      expect(main).toContain('href="https://slopcamera.com">SlopCamera</a>');
+      expect(main).not.toContain("editorial-provenance/");
+      expect(page).toContain(`property="og:image" content="${editorialImageUrl(image!)}"`);
+      expect(page).toContain(`name="twitter:image" content="${editorialImageUrl(image!)}"`);
+      const graph = blogPostJsonLd(post, site, [], "#organization")["@graph"] as Array<Record<string, unknown>>;
+      const article = graph.find(entry => entry["@type"] === "BlogPosting");
+      expect(article?.image).toMatchObject({ contentUrl: editorialImageUrl(image!), creditText: image!.credit, width: 1536, height: 864 });
+      expect(article?.datePublished).toBe(`${post.published}T00:00:00.000Z`);
+      expect(article?.dateModified).toBe(`${post.updated}T00:00:00.000Z`);
+    }
   });
 });

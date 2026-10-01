@@ -216,6 +216,35 @@ describe("ghostget.com analytics contract", () => {
     expect(ATTRIBUTION_PARAMETERS.has("ref")).toBe(false);
   });
 
+  test("drops private data in property names at the root and inside objects and arrays", () => {
+    for (const key of [
+      "0@-.AA",
+      "reader@example.com",
+      "reader%40example.com",
+      "phx_private_key",
+      "Bearer private_access_token",
+      "https://example.com/path?code=private_value",
+      "/path?token=private_value",
+    ]) {
+      const capture = sanitizeCapture({
+        event: "$pageview",
+        properties: {
+          [key]: "present",
+          $current_url: home.href,
+          $lib: "posthog-js",
+          token,
+          utm_source: "news",
+          safe_metric: 1,
+          diagnostic: { [key]: "present", safe_metric: 2, items: [{ [key]: "present", safe_metric: 3 }] },
+        },
+      }, home);
+      expect(capture).not.toBeNull();
+      expect(Object.hasOwn(capture!.properties, key)).toBe(false);
+      expect(capture!.properties.diagnostic).toEqual({ safe_metric: 2, items: [{ safe_metric: 3 }] });
+      expect(capture!.properties).toMatchObject({ $lib: "posthog-js", token, utm_source: "news", safe_metric: 1 });
+    }
+  });
+
   test("drops foreign, preview, and local hosts", () => {
     for (const href of ["https://preview.example.com/", "https://ghostget-git-x.vercel.app/", "http://localhost:3000/"]) {
       expect(sanitizeCapture({ event: "$pageview", properties: { $current_url: href, token } }, evidenceFor("/", href))).toBeNull();

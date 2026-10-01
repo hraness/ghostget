@@ -6,8 +6,8 @@
     <meta name="color-scheme" content="light dark">
     <meta name="theme-color" content="#fbf1c7" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">
-    <title>Agentic-web index spoofing, and why attested operations still matter</title>
-    <meta name="description" content="Known Agents measures inbound bot impersonation. That check does not establish a safe outbound GhostGet operation or name its operator.">
+    <title>How to verify a web agent’s identity</title>
+    <meta name="description" content="A bot name in an HTTP request is a claim. Learn how identity checks work and why authentication and permission answer separate questions.">
     <meta name="robots" content="noindex, follow">
     <link rel="canonical" href="https://ghostget.com/agentic-web-spoofing/">
     <link rel="icon" href="/icon.png" type="image/png" sizes="32x32">
@@ -18,16 +18,16 @@
     {{MARKDOWN_ALTERNATE}}
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="GhostGet">
-    <meta property="og:title" content="Agentic-web index spoofing, and why attested operations still matter">
-    <meta property="og:description" content="Known Agents measures inbound bot impersonation. That check does not establish a safe outbound GhostGet operation or name its operator.">
+    <meta property="og:title" content="How to verify a web agent’s identity">
+    <meta property="og:description" content="A bot name in an HTTP request is a claim. Learn how identity checks work and why authentication and permission answer separate questions.">
     <meta property="og:url" content="https://ghostget.com/agentic-web-spoofing/">
     <meta property="og:image" content="{{EDITORIAL_IMAGE_URL}}">
     <meta property="og:image:alt" content="{{EDITORIAL_IMAGE_ALT}}">
     <meta property="og:image:width" content="{{EDITORIAL_IMAGE_WIDTH}}">
     <meta property="og:image:height" content="{{EDITORIAL_IMAGE_HEIGHT}}">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Agentic-web index spoofing, and why attested operations still matter">
-    <meta name="twitter:description" content="Known Agents measures inbound bot impersonation. That check does not establish a safe outbound GhostGet operation or name its operator.">
+    <meta name="twitter:title" content="How to verify a web agent’s identity">
+    <meta name="twitter:description" content="A bot name in an HTTP request is a claim. Learn how identity checks work and why authentication and permission answer separate questions.">
     <meta name="twitter:image" content="{{EDITORIAL_IMAGE_URL}}">
     <meta name="twitter:image:alt" content="{{EDITORIAL_IMAGE_ALT}}">
     <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
@@ -49,94 +49,29 @@
       </nav>
     </header>
     <main class="guide-main" id="main" tabindex="-1">
-      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">GhostGet</a></li><li aria-current="page">Index spoofing and attested operations</li></ol></nav>
+      <nav aria-label="More articles" class="breadcrumbs"><a href="/blog/">Blog</a></nav>
       <article class="guide-article">
-        <header class="guide-hero">
-          <p class="eyebrow">Argument · GhostGet {{GHOSTGET_VERSION}}</p>
-          <h1>A claimed agent name is not an attested web operation.</h1>
-          <p class="answer-lede"><a href="https://knownagents.com/insights">The Agentic Web Index</a> counts inbound impersonation when a request claims a recognized agent identity and then fails that identity's supported authentication. That measurement is useful and bounded. It still leaves the outbound problem that <a href="https://ghostget.com/">GhostGet</a> answers: name the job, bind the account and transport, and refuse to treat a familiar bot string, live browser, or missing contract as proof.</p>
-          {{EDITORIAL_FIGURE}}
-          <p class="review-note">This argument uses the live Known Agents insights page fetched for this draft, the dated <a href="https://hraness.com/reading/agentic-web-index-spoofing-and-security">Hraness Reading digest of that index</a>, and the public {{GHOSTGET_RELEASE}} pages for the <a href="https://ghostget.com/">GhostGet home</a>, <a href="https://ghostget.com/docs/reference/provider-capabilities/">provider capability attestation</a>, <a href="https://ghostget.com/docs/explanation/security-model/">security guide</a>, and <a href="https://ghostget.com/compare/personal-agents-browser-use/">personal-agents comparison</a>. Operation counts are the current release attestation, substituted at site build time. The live spoofing chart does not publish an operator name beside every rate, so this page does not invent those names.</p>
-        </header>
-
-        <section aria-labelledby="spoofed-visit">
-          <h2 id="spoofed-visit">A spoofed visit fails a check, not an attribution</h2>
-          <p>Known Agents defines the unit on <a href="https://knownagents.com/insights">The Agentic Web Index</a>: “A visit is considered spoofed when it claims a recognized agent identity but fails that agent's supported authentication method, such as verified IP or Web Bot Auth.” The index is therefore a comparison between a claimed name and a supported proof. A user-agent string that merely looks like a listed crawler or assistant is not enough to enter the measurement as authentic traffic.</p>
-          <p>The same methodology page keeps detection separate from blame: “A failed check indicates that the visit was likely impersonating the named agent; it does not identify the software or operator that actually made the request.” A site that logs a spoofed Googlebot hit still does not know which crawler, scanner, or person sent it. The named identity is the costume. The operator stays unknown.</p>
-          <p>The measurement also has a hard edge: “Agents without a supported authentication method are not included in these measurements.” Unauthenticated traffic can still arrive. The index simply refuses to score impersonation for identities that cannot be checked. That is the same refusal GhostGet makes on the outbound side when a contract is missing: absence of proof is not treated as a passing grade.</p>
-          <p>The live insights page updates daily. In the snapshot fetched for this draft, the highest listed spoofed-traffic rate was 0.5% for a Search Engine Crawler identity. An AI Assistant identity sat at 0.2%. Several AI Search Crawler and AI Data Scraper identities sat at 0.1%. An AI Agent identity appeared in the same list at 0.0%. Those figures are displayed rates on participating sites, not a ranked operator table, and they are not copied from the dated digest below.</p>
-          <p>The 12 August 2026 <a href="https://hraness.com/reading/agentic-web-index-spoofing-and-security">Hraness Reading digest</a> recorded a different completed-day snapshot: Googlebot at 0.5% of impersonated traffic, and several AI-related identities at 0.1% or less. That digest is a dated reading of the same public index, published from <a href="https://hraness.com">hraness.com</a>. It is not this page, and this page does not reprint its idea list. Both snapshots stay directional. Known Agents writes: “Results characterize the observed network and broader directional trends; they should not be interpreted as a precise census of global web traffic.” The index draws completed days from more than 5,000 participating websites whose composition can change.</p>
-        </section>
-
-        <section aria-labelledby="credential-paths">
-          <h2 id="credential-paths">Credential paths are now ordinary web targets</h2>
-          <p>The live index also publishes an active-threat note beside the spoofing charts: “We are observing a widespread campaign impersonating AI bots to scan websites for vulnerabilities.” The next sentence names the object of those scans: “The attacker appears to be targeting credential and configuration paths used by AI coding tools.” Impersonation is the cover. The payload is a request for files that an agent, cloud account, or deployment environment might leave on a reachable origin.</p>
-          <p>The same section lists recent top targeted paths. The fetched examples include <code>/.config/anthropic/credentials/default.json</code>, <code>/.claude/settings.json</code>, <code>/.hermes/.env</code>, <code>/.openclaw/.env</code>, <code>/.codex/config.toml</code>, <code>/.aws/credentials</code>, <code>/.npmrc</code>, and several <code>.env</code> variants. Those paths are public in the index. They are not GhostGet operations, and they are not evidence that any listed coding tool authorized the request.</p>
-          <p>This is inbound reconnaissance wearing a bot name. It does not grant the sender those secrets, and it does not tell a receiving site who sent the probe. It does tell an operator something narrower: agent tooling has a public filesystem vocabulary, and scanners are already asking the web for it. A local capability layer that keeps credentials opaque still matters after you have read that list.</p>
-        </section>
-
-        <section aria-labelledby="outbound-bind">
-          <h2 id="outbound-bind">Attested operations bind the request before it leaves</h2>
-          <p>The <a href="https://ghostget.com/">GhostGet home</a> states the product boundary in one sentence: each authenticated operation is typed, bounded, and tied to one account and transport. The caller brings the model and interface. GhostGet supplies the local capability and custody layer. It supplies no AI model or planner; its terminal controls review accounts, approvals, and permissions and list local output files. The home page also states the fail-closed rule in public: GhostGet never switches to a browser fallback silently.</p>
-          <p>The <a href="https://ghostget.com/docs/explanation/security-model/">security guide</a> makes the bind exact. An authenticated GhostGet operation binds one named outcome to an exact provider, transport, account realm, contract version, implementation, input, and risk. Credentials stay opaque to the caller. When those facts drift, the operation stops instead of changing transports or falling back to general browser control. The same guide binds generic writes to an exact preview and confirmation, and owner messaging to explicit permissions plus a bounded, revocable conversation grant. It refuses to retry an indeterminate dispatch.</p>
-          <p>The current release attests {{PROVIDER_CAPABILITY_OPERATION_COUNT}} operations across {{PROVIDER_CAPABILITY_ADAPTER_COUNT}} bundled public adapters. {{PROVIDER_CAPABILITY_OBSERVED_COUNT}} are <code>observed</code>. {{PROVIDER_CAPABILITY_CAPTURE_REQUIRED_COUNT}} remain <code>capture-required</code>. Those figures are the same release-bound counts published on the <a href="https://ghostget.com/docs/reference/provider-capabilities/">provider capability attestation</a>. This page does not add a provider, invent an extra operation, or treat a reservation as ready. Telegram is absent from those manifests. GhostGet does not install a Telegram Bot API substitute or claim Telegram contact access.</p>
-          <p><code>observed</code> marks a reviewed contract, not a ready account or runtime. Generic operations still need local admission. The <code>messaging.automation.*</code> entries are owner-host permission ceilings and cannot dispatch through generic <code>invoke</code> or <code>confirm</code>. <code>capture-required</code> is an inert reservation. The attestation page says a missing or <code>capture-required</code> operation stays unavailable rather than falling back to general browser control. That is the outbound counterpart of the index rule that excludes identities with no supported authentication method.</p>
-        </section>
-
-        <section aria-labelledby="two-proofs">
-          <h2 id="two-proofs">Inbound authentication and outbound attestation answer different questions</h2>
-          <p>The personal-agents comparison asks whether a persistent browser loop can stand in for a named contract. This page asks a different question: whether a claimed inbound identity, or a low displayed spoofing rate, can stand in for that same contract. Both pages refuse a substitution. They refuse different substitutes.</p>
-          <div class="table-scroll" role="region" aria-labelledby="two-proofs" tabindex="0">
-            <table>
-              <thead>
-                <tr>
-                  <th scope="col">Decision</th>
-                  <th scope="col">Agentic Web Index spoofing check</th>
-                  <th scope="col">GhostGet attested operation</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <th scope="row">What is named</th>
-                  <td>A recognized inbound agent identity</td>
-                  <td>A named outbound outcome such as <code>messaging.list</code></td>
-                </tr>
-                <tr>
-                  <th scope="row">What proves it</th>
-                  <td>That identity's supported authentication method, such as verified IP or Web Bot Auth</td>
-                  <td>Exact provider, transport, account realm, contract version, implementation, input, and risk</td>
-                </tr>
-                <tr>
-                  <th scope="row">Failed check</th>
-                  <td>The visit is counted as spoofed. The real operator stays unknown</td>
-                  <td>The operation stops. A <code>capture-required</code> reservation stays inert</td>
-                </tr>
-                <tr>
-                  <th scope="row">No supported method</th>
-                  <td>The identity is excluded from the spoofing measurement</td>
-                  <td>The reservation cannot plan or execute, and GhostGet does not invent a browser fallback</td>
-                </tr>
-                <tr>
-                  <th scope="row">Secrets</th>
-                  <td>Recent probes request agent, cloud, package, and environment credential paths</td>
-                  <td>Credentials stay opaque to the caller and terminate only at sinks declared by the capability</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <p>A displayed 0.5% or 0.1% spoofed-traffic rate does not make an unreviewed GhostGet operation safe to invent. The index is an inbound sample with a changing participant set. The attestation is a finite outbound catalog. Neighboring surfaces still do not inherit authority: LinkedIn's official contact adapter does not grant its consumer-web inbox adapter, and an Instagram inbox summary does not authorize an individual thread read. Those examples are published on the security page so a gap stays visible.</p>
-          <p>The <a href="https://ghostget.com/compare/personal-agents-browser-use/">comparison of browser-using personal agents with attested GhostGet operations</a> covers Instinct, Grok Bots, ChatGPT Work, and the password-reset recovery that finished a broken browser job. A separate argument covers <a href="https://ghostget.com/vms-cannot-contain-agents/">why a VM is not an attested web operation</a>. Read the comparison for the product-loop argument. Read the VM page for the containment argument. Read this page for the inbound-identity argument. The pages do not reprint one another.</p>
-        </section>
-
-        <aside class="guide-callout" aria-labelledby="spoofing-next">
-          <h2 id="spoofing-next">Read the live index, then the current contract</h2>
-          <p>Start with <a href="https://knownagents.com/insights">The Agentic Web Index on Known Agents</a>. Keep the dated <a href="https://hraness.com/reading/agentic-web-index-spoofing-and-security">Hraness Reading digest</a> as a 12 August snapshot, and the rest of <a href="https://hraness.com">hraness.com</a> as the publisher of that digest. Then read the <a href="https://ghostget.com/">GhostGet home</a> for the capability-layer claim, the <a href="https://ghostget.com/docs/reference/provider-capabilities/">provider capability attestation</a> for every current operation and completeness mark, the <a href="https://ghostget.com/docs/explanation/security-model/">security guide</a> before binding an account, the <a href="https://ghostget.com/compare/personal-agents-browser-use/">personal-agents comparison</a> when the question is browser use rather than inbound spoofing, and the <a href="https://ghostget.com/vms-cannot-contain-agents/">VM-containment argument</a> when the question is a guest machine rather than a claimed identity.</p>
-        </aside>
+<header class="guide-hero">
+<h1>How to verify a web agent’s identity</h1>
+<p class="answer-lede">A request can call itself a familiar crawler without coming from that crawler. To make decisions based on an agent’s identity, a website needs a check tied to the sender, such as a verified network origin or a signed request.</p>
+{{EDITORIAL_FIGURE}}
+{{ESSAY_PROVENANCE}}
+</header>
+<section aria-labelledby="a-name-is-a-claim"><h2 id="a-name-is-a-claim">A user-agent name is supplied by the caller</h2>
+<p>The HTTP <code>User-Agent</code> header describes the client making a request. The caller supplies that text. A crawler name can help classify traffic, but copying the name does not require control of the crawler’s infrastructure or signing keys.</p>
+<p>Imagine a request for a private endpoint that carries the name of a search engine’s bot. Granting access because the string looks familiar would let any caller make the same claim. The access decision needs evidence beyond the label.</p></section>
+<section aria-labelledby="check-the-sender"><h2 id="check-the-sender">Check the sender using its supported method</h2>
+<p>Some crawlers document the network addresses or DNS checks a site can use to verify them. Signed-request systems instead let a receiver validate a signature and the identity associated with its key. Use the method the claimed sender publishes, and apply the complete check.</p>
+<p><a href="https://knownagents.com/insights">Known Agents’ Agentic Web Index</a> distinguishes a claimed identity from its supported authentication. It counts a request as spoofed when that identity claim fails the relevant check. The failed check does not identify the actual software or person behind the request.</p>
+<p>For a concrete example of a published verification method, <a href="https://developers.google.com/search/docs/crawling-indexing/verifying-googlebot">Google’s crawler documentation</a> describes IP-list and DNS verification. <a href="https://www.rfc-editor.org/rfc/rfc9421">HTTP Message Signatures</a> defines a mechanism for signing selected parts of an HTTP message.</p></section>
+<section aria-labelledby="identity-and-permission"><h2 id="identity-and-permission">Decide what that identity may do</h2>
+<p>Authentication answers who is making a request. Authorization answers whether that caller may perform the requested action. A verified bot may be allowed to read public pages while having no access to account data or publishing controls.</p>
+<p>The same distinction matters when you give your own agent tools. Selecting an account establishes which account a request uses. It does not make every possible action on that account appropriate. A tool should define its actions and require the relevant permission for each one.</p>
+<p>GhostGet applies that distinction through named account actions and previews for consequential writes. Its <a href="/docs/explanation/security-model/">security guide</a> describes those controls. Website owners still need to enforce their own authentication and access rules on incoming traffic.</p></section>
       </article>
     </main>
     <aside aria-label="GhostGet project information" class="site-disclosure">
-      <p>GhostGet {{GHOSTGET_VERSION}} · MIT · <a href="{{GHOSTGET_REPOSITORY}}">Source on GitHub</a> · <a href="/about/">About</a> · <a href="/contact/">Contact</a> · <a href="/privacy/">Privacy</a> · <a href="/llms.txt">llms.txt</a></p>
-      <p class="privacy-note">Privacy: cookieless PostHog analytics measure page lifecycle and Core Web Vitals. No person profiles, replay, broad autocapture, or URL queries beyond campaign tags; Do Not Track is honored.</p>
+      <p>GhostGet · MIT · <a href="{{GHOSTGET_REPOSITORY}}">Source on GitHub</a> · <a href="/about/">About</a> · <a href="/contact/">Contact</a> · <a href="/privacy/">Privacy</a> · <a href="/llms.txt">llms.txt</a></p>
     </aside>
     {{HRANESS_SITE_FOOTER}}
   </body>

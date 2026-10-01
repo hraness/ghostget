@@ -1,0 +1,97 @@
+[
+  {
+    "url": "https://docs.aws.amazon.com/ec2/latest/devguide/ec2-api-idempotency.html",
+    "checkedOn": "2026-09-30",
+    "status": 200,
+    "excerpts": [
+      "kAclAssociation TerminateInstances The following API actions optionally support idempotency using a client token . The corresponding AWS CLI commands also support idempotency using a client token. A client token is a unique, case-sensitive string of up to 64 ASCII characters. To make an idempotent API request using one of these actions, specify a client token ",
+      "veloper Guide Idempotency in Amazon EC2 RunInstances idempotency Examples Retry recommendations for idempotent requests Ensuring idempotency in Amazon EC2 API requests When you make a mutating API request, the request typically returns a result before the operation's asynchronous workflows have completed. Operations might also time out or encounter other ser"
+    ]
+  },
+  {
+    "url": "https://fast-check.dev/docs/core-blocks/runners/",
+    "checkedOn": "2026-09-30",
+    "status": 200,
+    "excerpts": [
+      "appened. There are four major reasons for check to end: Reasons failed interrupted counterexample / counterexamplePath / error failure of the predicate true true / false not null too many pre-conditions failures true false null execution took too long given interruptAfterTimeLimit true true null successful run false true / false null Rewrite assert with check functi"
+    ]
+  },
+  {
+    "url": "https://fast-check.dev/docs/advanced/model-based-testing/",
+    "checkedOn": "2026-09-30",
+    "status": 200,
+    "excerpts": [
+      " Model based testing | fast-check {\"@context\":\"https://schema.org\",\"@type\":\"BreadcrumbList\",\"itemListElement\":[{\"@type\":\"ListItem\",\"item\":\"https://fast-check.dev/docs/advanced/\",\"name\":\"Advanced\",\"position\":1},{\"@type\":\"ListItem\",\"item\":\"https://fast-check",
+      "ed without it as well. In the context of fast-check, model-based testing involves defining a set of commands that can be seen as potential actions to be executed on your system. Each command consists of two elements: a check to verify if the action can be executed in the current context, and the action itself, which also performs assertions. Typically, we "
+    ]
+  },
+  {
+    "url": "https://cli.github.com/manual/gh_attestation_verify",
+    "checkedOn": "2026-09-30",
+    "status": 200,
+    "excerpts": [
+      "by the verification process. Ideally, the path of the signer workflow is also validated using the --signer-workflow or --cert-identity flags. Please note: if your attestation was generated via a reusable workflow then that reusable workflow is the signer whose identity needs to be validated. In this situation, you must use either the --signer-workflow or the --si",
+      "<string> Enforce that the digest associated with the source repository matches the provided value --source-ref <string> Enforce that the git ref associated with the source repository matches the provided value -t , --template <string> Format JSON output using a Go template; see \"gh help formatting\" Examples # Verify an artifact linked with a repository $ gh ",
+      "--custom-trusted-root <string> Path to a trusted_root.jsonl file; likely for offline verification --deny-self-hosted-runners Fail verification for attestations generated on self-hosted runners -d , --digest-alg <string> (default \"sha256\") The algorithm used to compute a digest of the artifact: {sha256|sha512} --format <string> Output format: {json} --hostname <string> Con"
+    ]
+  },
+  {
+    "url": "https://www.rfc-editor.org/rfc/rfc8785",
+    "checkedOn": "2026-09-30",
+    "status": 200,
+    "excerpts": [
+      " RFC 8785: JSON Canonicalization Scheme (JCS) | RFC Editor function _updateScrollbarWidth(){if(!document.body||!document.body.style)return;document.body.style.setProperty('--rfc-editor-org-scrollbar-width',(window.innerWidth-document.documentElement.clientWidth)+'px')}window",
+      " RFC 8785: JSON Canonicalization Scheme (JCS) | RFC Editor function _updateScrollbarWidth(){if(!document.body||!document.body.style)return;document.body.style.setProperty('--rfc-editor-org-scrollbar-width',(window.innerWidth-document.documentElement.clientWidth)+'p"
+    ]
+  },
+  {
+    "url": "https://developers.google.com/search/docs/crawling-indexing/verifying-googlebot",
+    "checkedOn": "2026-09-30",
+    "status": 200,
+    "excerpts": [
+      "ming to be from Google. Google's crawlers and fetchers fall into three categories: Type Description Reverse DNS mask IP ranges Common crawlers The common crawlers used for Google's products (such as Googlebot). They always respect robots.txt rules for automatic crawls. crawl-***-***-***-***.googlebot.com or geo-crawl-***-***-***-***.geo.googlebot.com comm",
+      "tem\": \"https://developers.google.com/crawling/docs/crawlers-fetchers/verify-google-requests\" }] } Skip to main content Crawling infrastructure / English Deutsch Espa\u00f1ol Espa\u00f1ol \u2013 Am\u00e9rica Latina Fran\u00e7ais Indonesia Italiano Polski Portugu\u00eas \u2013 Brasil Ti\u00ea\u0301ng Vi\u00ea\u0323t T\u00fcrk\u00e7e \u0420\u0443\u0441\u0441\u043a\u0438\u0439 \u0627\u0644\u0639\u0631\u0628\u064a\u0651\u0629 \u0939\u093f\u0902\u0926\u0940 \u0e20\u0e32\u0e29\u0e32\u0e44\u0e17\u0e22 \u4e2d\u6587 \u2013 \u7b80\u4f53 \u4e2d\u6587 \u2013 \u7e41\u9ad4 \u65e5\u672c\u8a9e \ud55c\uad6d\uc5b4 Sign in Home Docs Crawling in"
+    ]
+  },
+  {
+    "url": "https://www.rfc-editor.org/rfc/rfc9421",
+    "checkedOn": "2026-09-30",
+    "status": 200,
+    "excerpts": [
+      " RFC 9421: HTTP Message Signatures | RFC Editor function _updateScrollbarWidth(){if(!document.body||!document.body.style)return;document.body.style.setProperty('--rfc-editor-org-scrollbar-width',(window.innerWidth-document.documentElement.clientWidth)+'px')}window.addEventListener('",
+      " RFC 9421: HTTP Message Signatures | RFC Editor function _updateScrollbarWidth(){if(!document.body||!document.body.style)return;document.body.style.setProperty('--rfc-editor-org-scrollbar-width',(window.innerWidth-document.documentElement.clientWidth)+'px')}window."
+    ]
+  },
+  {
+    "url": "https://raw.githubusercontent.com/hraness/textbutler/main/README.md",
+    "checkedOn": "2026-09-30",
+    "status": 200,
+    "excerpts": []
+  },
+  {
+    "url": "https://knownagents.com/insights",
+    "checkedOn": "2026-09-30",
+    "status": 200,
+    "excerpts": [
+      "re most frequently impersonated, and how spoofing activity changes over time. A visit is considered spoofed when it claims a recognized agent identity but fails that agent's supported authentication method, such as verified IP or HTTP message signature (Web Bot Auth). Active Threat: AI Bot Spoofing Campaign We are observing a widespread campaign impersona",
+      "t is considered spoofed when it claims a recognized agent identity but fails that agent's supported authentication method, such as verified IP or HTTP message signature (Web Bot Auth). Active Threat: AI Bot Spoofing Campaign We are observing a widespread campaign impersonating AI bots to scan websites for vulnerabilities. The attacker appears to be targeting cre"
+    ]
+  },
+  {
+    "url": "https://developer.android.com/google/play/integrity/overview",
+    "status": 200,
+    "checkedOn": "2026-09-30",
+    "title": "Overview of the Play Integrity API &nbsp;|&nbsp; Android Developers",
+    "matchedTerms": [
+      "integrity",
+      "command",
+      "user",
+      "device"
+    ]
+  },
+  {
+    "url": "https://www.sudo.ws/docs/man/sudoers.man/",
+    "status": "unavailable",
+    "reason": "HTTP Error 403: Forbidden"
+  }
+]

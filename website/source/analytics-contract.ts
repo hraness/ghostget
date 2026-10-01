@@ -319,6 +319,9 @@ function sanitizeValue(
   depth: number,
   seen: WeakSet<object>,
 ): unknown {
+  // Names can carry the same private data as values. Drop unsafe keys rather
+  // than renaming them, which could merge unrelated properties.
+  if (redactText(key) !== key) return undefined;
   // The SDK derives search-engine query text from the original referrer URL.
   if (/^\$?(?:(?:initial|session_entry|prev_pageview)_)?ph_keyword$/iu.test(key)) return undefined;
   const name = normalizedPropertyName(key);

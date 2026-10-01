@@ -6,8 +6,8 @@
     <meta name="color-scheme" content="light dark">
     <meta name="theme-color" content="#fbf1c7" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">
-    <title>How agents reach the web: browser-use, Playwright MCP, Firecrawl, Composio, and GhostGet</title>
-    <meta name="description" content="Six ways agents reach the web, from browser-driving libraries to reader services and integration platforms, compared with GhostGet's named actions.">
+    <title>How agents reach the web</title>
+    <meta name="description" content="Choose a page reader, browser tool, or account integration around the work the agent needs to do.">
     <meta name="robots" content="max-image-preview:large">
     <link rel="canonical" href="https://ghostget.com/compare/">
     <link rel="icon" href="/icon.png" type="image/png" sizes="32x32">
@@ -18,18 +18,18 @@
     {{MARKDOWN_ALTERNATE}}
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="GhostGet">
-    <meta property="og:title" content="How agents reach the web: browser-use, Playwright MCP, Firecrawl, Composio, and GhostGet">
-    <meta property="og:description" content="Six ways agents reach the web, from browser-driving libraries to reader services and integration platforms, compared with GhostGet's named actions.">
+    <meta property="og:title" content="How agents reach the web">
+    <meta property="og:description" content="Choose a page reader, browser tool, or account integration around the work the agent needs to do.">
     <meta property="og:url" content="https://ghostget.com/compare/">
-    <meta property="og:image" content="https://ghostget.com/og.png">
-    <meta property="og:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
-    <meta property="og:image:width" content="1200">
-    <meta property="og:image:height" content="630">
+    <meta property="og:image" content="{{EDITORIAL_IMAGE_URL}}">
+    <meta property="og:image:alt" content="{{EDITORIAL_IMAGE_ALT}}">
+    <meta property="og:image:width" content="{{EDITORIAL_IMAGE_WIDTH}}">
+    <meta property="og:image:height" content="{{EDITORIAL_IMAGE_HEIGHT}}">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="How agents reach the web: browser-use, Playwright MCP, Firecrawl, Composio, and GhostGet">
-    <meta name="twitter:description" content="Six ways agents reach the web, from browser-driving libraries to reader services and integration platforms, compared with GhostGet's named actions.">
-    <meta name="twitter:image" content="https://ghostget.com/og.png">
-    <meta name="twitter:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
+    <meta name="twitter:title" content="How agents reach the web">
+    <meta name="twitter:description" content="Choose a page reader, browser tool, or account integration around the work the agent needs to do.">
+    <meta name="twitter:image" content="{{EDITORIAL_IMAGE_URL}}">
+    <meta name="twitter:image:alt" content="{{EDITORIAL_IMAGE_ALT}}">
     <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
     <meta name="ghostget-posthog-key" content="{{POSTHOG_KEY}}">
     <script type="application/ld+json">{{JSON_LD}}</script>
@@ -52,51 +52,51 @@
       <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">GhostGet</a></li><li aria-current="page">Comparisons</li></ol></nav>
       <article class="guide-article">
         <header class="guide-hero">
-          <p class="eyebrow">Comparison · GhostGet {{GHOSTGET_VERSION}}</p>
-          <h1>Six ways agents reach the web, and where GhostGet fits</h1>
-          <p class="answer-lede">“Browser use for agents” names four of the six approaches below: agent libraries that drive the browser for you, tool servers that give your agent browser controls, browser CLIs that let it steer from the shell, and hosted browsers you rent by the session. The fifth skips your browser entirely: reader services fetch the URL and return Markdown. The sixth skips web pages: integration platforms call app APIs with sign-ins they manage. GhostGet offers named, reviewed actions that each return one result, and the agent never gets a browser to steer.</p>
-          <p class="review-note">This page describes each project as published in September 2026, with Crawl4AI, Composio, Arcade, and Pipedream Connect checked on 28 September 2026, and GhostGet {{GHOSTGET_RELEASE}}. Linked pages cover one tool each in more detail.</p>
+
+          <h1>How agents reach the web</h1>
+          <p class="answer-lede">An agent may need the text of a page, control of a browser, or an action inside an account. Those jobs call for different tools. Choose the interface around the result you need, then decide where it should run.</p>
+          {{EDITORIAL_FIGURE}}
         </header>
 
         <section aria-labelledby="lane-libraries">
           <h2 id="lane-libraries">Agent libraries drive the browser for you</h2>
-          <p><a href="https://github.com/browser-use/browser-use">browser-use</a>, <a href="https://github.com/browserbase/stagehand">Stagehand</a>, and <a href="https://www.skyvern.com/">Skyvern</a> own the whole job. You hand them a goal in plain language, and the model loops: observe the page through a DOM serialization or screenshot, plan the next step, act through CDP or Playwright, and repeat until the goal is done. This is the right shape for open-ended multi-step work. The cost profile is the loop itself: every step re-reads the page, so context grows with task length, and the model decides each click inside a surface you cannot enumerate in advance.</p>
+          <p><a href="https://github.com/browser-use/browser-use">browser-use</a>, <a href="https://github.com/browserbase/stagehand">Stagehand</a>, and <a href="https://www.skyvern.com/">Skyvern</a> provide tools for building browser-driven workflows. You hand them a goal in plain language, and the model loops: observe the page through a DOM serialization or screenshot, plan the next step, act through CDP or Playwright, and repeat until the goal is done. This fits work where the next step depends on what the page shows. Each observation and action adds work, so the amount of page state returned matters.</p>
           <p><a href="/compare/browser-use/">GhostGet vs browser-use</a> covers the detailed boundary difference.</p>
         </section>
 
         <section aria-labelledby="lane-tools">
           <h2 id="lane-tools">Tool servers give your agent browser controls</h2>
-          <p><a href="https://github.com/microsoft/playwright-mcp">Playwright MCP</a> and <a href="https://github.com/ChromeDevTools/chrome-devtools-mcp">chrome-devtools-mcp</a> keep the agent you already run in charge and expose browser actions as MCP tools. Your agent calls <code>browser_click</code> or <code>browser_snapshot</code>; the page's accessibility tree streams back into its context after each call. Microsoft's own reported benchmark puts a typical Playwright MCP task near 114,000 tokens against about 27,000 for its disk-first CLI sibling, so this approach pays for flexibility in context size. Your harness's permission prompts are the guardrail; the page decides what the agent sees next.</p>
+          <p><a href="https://github.com/microsoft/playwright-mcp">Playwright MCP</a> and <a href="https://github.com/ChromeDevTools/chrome-devtools-mcp">chrome-devtools-mcp</a> keep the agent you already run in charge and expose browser actions as MCP tools. Your agent calls <code>browser_click</code> or <code>browser_snapshot</code>; the page's accessibility tree streams back into its context after each call. The amount of page state returned affects context use. Your agent’s permissions and the tool server’s controls determine which actions it can perform.</p>
           <p><a href="/compare/playwright-mcp/">GhostGet vs Playwright MCP</a> covers the token and authority trade in detail.</p>
         </section>
 
         <section aria-labelledby="lane-cli">
           <h2 id="lane-cli">Browser CLIs put steering in the shell</h2>
-          <p><a href="https://github.com/vercel-labs/agent-browser">agent-browser</a> and the <a href="https://playwright.dev/">Playwright CLI</a> turn browser control into commands an agent composes: <code>open</code>, <code>click</code>, <code>type</code>, <code>snapshot</code>, <code>eval</code>. The token cost is lower than streamed page state because snapshots land on disk or stdout when asked. The authority question stays open: the agent chooses selectors, coordinates, and JavaScript, so every page it reaches is a place it can act.</p>
-          <p>GhostGet itself pins <code>agent-browser</code> 0.32.3 as an internal dependency for page captures that need rendering. The agent never reaches it: GhostGet caps how many of those browsers run at once, and no GhostGet interface accepts a selector, coordinate, or script. <a href="/compare/agent-browser/">GhostGet vs agent-browser</a> explains how GhostGet uses the same engine without handing it to the agent.</p>
+          <p><a href="https://github.com/vercel-labs/agent-browser">agent-browser</a> and the <a href="https://playwright.dev/">Playwright CLI</a> turn browser control into commands an agent composes: <code>open</code>, <code>click</code>, <code>type</code>, <code>snapshot</code>, <code>eval</code>. The agent requests snapshots when it needs to inspect the page. The commands it can run determine whether it can navigate, click, fill fields, or execute JavaScript.</p>
+          <p>GhostGet uses a browser internally for page captures that need rendering. The caller requests the page rather than supplying selectors, coordinates, or scripts. <a href="/compare/agent-browser/">GhostGet vs agent-browser</a> explains how GhostGet uses the same engine without handing it to the agent.</p>
         </section>
 
         <section aria-labelledby="lane-hosted">
           <h2 id="lane-hosted">Hosted browsers you rent by the session</h2>
-          <p><a href="https://www.browserbase.com/">Browserbase</a>, <a href="https://steel.dev/">Steel</a>, and <a href="https://www.hyperbrowser.ai/">Hyperbrowser</a> sell managed cloud sessions: parallel Chromium with proxies, stealth, replay, and compliance tiers that the three approaches above can run on. They answer where the browser runs and at what scale, not what the agent is allowed to do once it is inside one.</p>
+          <p><a href="https://www.browserbase.com/">Browserbase</a>, <a href="https://steel.dev/">Steel</a>, and <a href="https://www.hyperbrowser.ai/">Hyperbrowser</a> offer managed browser sessions that your code or agent can control. This can reduce the work of operating browser infrastructure. Account permissions and allowed actions still need to be configured for the task.</p>
           <p><a href="/compare/browserbase/">GhostGet vs Browserbase</a> covers when hosted sessions are the right tool and when local named operations replace the session entirely.</p>
         </section>
 
         <section aria-labelledby="lane-readers">
           <h2 id="lane-readers">Reader services fetch the URL for you</h2>
-          <p><a href="https://firecrawl.dev/">Firecrawl</a> and <a href="https://jina.ai/reader">Jina AI Reader</a> remove the steering entirely: you hand them a URL, their servers fetch and render it, and clean Markdown or structured data comes back. Firecrawl grows that one call into a pipeline with crawl, map, search, interact, and agent endpoints, billed in per-page credits. Jina Reader keeps it to a prefix, <code>r.jina.ai</code>, rate-limited without a key and billed by output tokens with one. Neither leaves a file on your machine by default. <a href="https://github.com/unclecode/crawl4ai">Crawl4AI</a> is the open-source option you run yourself: a Python crawler on Playwright, built for whole-site crawls and RAG pipelines.</p>
+          <p><a href="https://firecrawl.dev/">Firecrawl</a> and <a href="https://jina.ai/reader">Jina AI Reader</a> remove the steering entirely: you hand them a URL, their servers fetch and render it, and clean Markdown or structured data comes back. Firecrawl also offers whole-site crawling and structured extraction. Jina Reader exposes a URL-prefix interface at <code>r.jina.ai</code>. Your application decides how to store the returned content. <a href="https://github.com/unclecode/crawl4ai">Crawl4AI</a> is the open-source option you run yourself: a Python crawler on Playwright, built for whole-site crawls and RAG pipelines.</p>
           <p><a href="/compare/firecrawl/">GhostGet vs Firecrawl</a> and <a href="/compare/jina-reader/">GhostGet vs Jina Reader</a> compare hosted fetching with a local read that saves Markdown into a searchable vault.</p>
         </section>
 
         <section aria-labelledby="lane-integrations">
           <h2 id="lane-integrations">Integration platforms act in your apps</h2>
-          <p><a href="https://composio.dev">Composio</a>, <a href="https://www.arcade.dev">Arcade</a>, and <a href="https://pipedream.com/docs/connect">Pipedream Connect</a> skip the browser and call app APIs. They offer large integration catalogs with managed sign-in, built for products whose agents act for many users. GhostGet covers far fewer services, keeps each sign-in on your machine for one person’s agent, and shows a preview before each write.</p>
+          <p><a href="https://composio.dev">Composio</a>, <a href="https://www.arcade.dev">Arcade</a>, and <a href="https://pipedream.com/docs/connect">Pipedream Connect</a> skip the browser and call app APIs. They offer large integration catalogs with managed sign-in, built for products whose agents act for many users. GhostGet keeps account connections on your machine and provides the actions listed in its service directory, with previews for consequential writes.</p>
         </section>
 
         <section aria-labelledby="lane-named">
           <h2 id="lane-named">Where GhostGet fits</h2>
-          <p>GhostGet does not give the agent a browser at any layer. The agent requests a reviewed outcome such as <code>messaging.list</code> or a page read; the kernel binds the exact account, transport, contract version, and risk level; one exchange runs; one structured result comes back. The agent has nowhere to navigate, no selector to guess, and no cookie it can copy out. When a service changes shape, the action stays unavailable until it is reviewed again instead of improvising a new path.</p>
-          <p>This trades reach for certainty: anything not in the <a href="/docs/reference/provider-capabilities/">supported action set</a> is unavailable, by design. Public-page reads need no account; a measured article read returns about a tenth of the raw page's bytes, and the homepage shows the numbers.</p>
+          <p>GhostGet accepts named requests such as reading a page or listing messages in a conversation. It handles the selected connection and returns structured output. The agent can use that result without driving the underlying browser or API.</p>
+          <p>Use the <a href="/docs/reference/provider-capabilities/">service directory</a> to check whether the action your task needs is supported. GhostGet reports unavailable actions instead of silently switching to general browser control.</p>
         </section>
 
         <section aria-labelledby="lane-table">
@@ -133,13 +133,13 @@
                 <tr>
                   <th scope="row"><a href="/compare/browserbase/">Browserbase</a></th>
                   <td>A cloud browser session your code or agent drives</td>
-                  <td>Scale, stealth, and replay for the approaches above</td>
+                  <td>A managed browser environment for the approaches above</td>
                   <td>Browser workloads that need managed infrastructure</td>
                 </tr>
                 <tr>
                   <th scope="row"><a href="/compare/firecrawl/">Firecrawl</a> and <a href="/compare/jina-reader/">Jina Reader</a></th>
                   <td>Clean Markdown or structured data from the service's own fetch and rendering</td>
-                  <td>Only pages the hosted service can reach, at a per-page credit or per-token price</td>
+                  <td>Pages the service can reach under its access and usage rules</td>
                   <td>URL collection and extraction you want someone else's infrastructure to run</td>
                 </tr>
                 <tr>
@@ -161,8 +161,8 @@
 
         <section aria-labelledby="lane-choose">
           <h2 id="lane-choose">Choose the approach before the tool</h2>
-          <p>If the job is open-ended, a browser-driving agent earns its context cost. If the job recurs, the fixed contract wins: a named operation is cheaper in tokens, safer in blast radius, and reviewable in a way a thousand improvised clicks are not. An agent setup can use both: a browser driver for one-off work, and fixed actions for the paths that must be right every time.</p>
-          <p>GhostGet supplies those fixed actions. It publishes no hosted browser, reader service, MCP server, or agent loop; it supplies the local operations your agent calls from whatever harness you already use.</p>
+          <p>For a known URL, start with a reader. For an unfamiliar visual workflow, use browser control. For a supported account task, a named action can reduce the navigation and page interpretation the agent must do. One setup can use all three.</p>
+          <p>Choose hosted or local execution separately, based on where the required data and account connections belong.</p>
         </section>
 
         <aside class="guide-callout" aria-labelledby="compare-next">
@@ -172,8 +172,7 @@
       </article>
     </main>
     <aside aria-label="GhostGet project information" class="site-disclosure">
-      <p>GhostGet {{GHOSTGET_VERSION}} · MIT · <a href="{{GHOSTGET_REPOSITORY}}">Source on GitHub</a> · <a href="/about/">About</a> · <a href="/contact/">Contact</a> · <a href="/privacy/">Privacy</a> · <a href="/llms.txt">llms.txt</a></p>
-      <p class="privacy-note">Privacy: cookieless PostHog analytics measure page lifecycle and Core Web Vitals. No person profiles, replay, broad autocapture, or URL queries beyond campaign tags; Do Not Track is honored.</p>
+      <p>GhostGet · MIT · <a href="{{GHOSTGET_REPOSITORY}}">Source on GitHub</a> · <a href="/about/">About</a> · <a href="/contact/">Contact</a> · <a href="/privacy/">Privacy</a> · <a href="/llms.txt">llms.txt</a></p>
     </aside>
     {{HRANESS_SITE_FOOTER}}
   </body>

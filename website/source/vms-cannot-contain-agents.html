@@ -6,8 +6,8 @@
     <meta name="color-scheme" content="light dark">
     <meta name="theme-color" content="#fbf1c7" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">
-    <title>VMs cannot contain agents, and why attested web operations still matter</title>
-    <meta name="description" content="The Wednesday 26 August 2026 rough.day tech edition ranked Trail of Bits' argument that VMs cannot reliably contain cyber-capable AI agents. A guest machine does not establish a safe GhostGet operation.">
+    <title>What a virtual machine isolates, and what an agent can still do</title>
+    <meta name="description" content="Virtual machines isolate a computing environment. Network access, account permissions, and shared files determine what an agent can reach outside it.">
     <meta name="robots" content="noindex, follow">
     <link rel="canonical" href="https://ghostget.com/vms-cannot-contain-agents/">
     <link rel="icon" href="/icon.png" type="image/png" sizes="32x32">
@@ -18,16 +18,16 @@
     {{MARKDOWN_ALTERNATE}}
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="GhostGet">
-    <meta property="og:title" content="VMs cannot contain agents, and why attested web operations still matter">
-    <meta property="og:description" content="The Wednesday 26 August 2026 rough.day tech edition ranked Trail of Bits' argument that VMs cannot reliably contain cyber-capable AI agents. A guest machine does not establish a safe GhostGet operation.">
+    <meta property="og:title" content="What a virtual machine isolates, and what an agent can still do">
+    <meta property="og:description" content="Virtual machines isolate a computing environment. Network access, account permissions, and shared files determine what an agent can reach outside it.">
     <meta property="og:url" content="https://ghostget.com/vms-cannot-contain-agents/">
     <meta property="og:image" content="{{EDITORIAL_IMAGE_URL}}">
     <meta property="og:image:alt" content="{{EDITORIAL_IMAGE_ALT}}">
     <meta property="og:image:width" content="{{EDITORIAL_IMAGE_WIDTH}}">
     <meta property="og:image:height" content="{{EDITORIAL_IMAGE_HEIGHT}}">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="VMs cannot contain agents, and why attested web operations still matter">
-    <meta name="twitter:description" content="The Wednesday 26 August 2026 rough.day tech edition ranked Trail of Bits' argument that VMs cannot reliably contain cyber-capable AI agents. A guest machine does not establish a safe GhostGet operation.">
+    <meta name="twitter:title" content="What a virtual machine isolates, and what an agent can still do">
+    <meta name="twitter:description" content="Virtual machines isolate a computing environment. Network access, account permissions, and shared files determine what an agent can reach outside it.">
     <meta name="twitter:image" content="{{EDITORIAL_IMAGE_URL}}">
     <meta name="twitter:image:alt" content="{{EDITORIAL_IMAGE_ALT}}">
     <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
@@ -49,92 +49,30 @@
       </nav>
     </header>
     <main class="guide-main" id="main" tabindex="-1">
-      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">GhostGet</a></li><li aria-current="page">VMs and attested operations</li></ol></nav>
+      <nav aria-label="More articles" class="breadcrumbs"><a href="/blog/">Blog</a></nav>
       <article class="guide-article">
-        <header class="guide-hero">
-          <p class="eyebrow">Argument · GhostGet {{GHOSTGET_VERSION}}</p>
-          <h1>A VM is not an attested web operation.</h1>
-          <p class="answer-lede">The Wednesday 26 August 2026 <a href="https://rough.day">rough.day</a> tech edition ranked “Trail of Bits argues VMs cannot reliably contain cyber-capable AI agents” as item four. The live source is Artem Dinaburg’s 26 August 2026 post <a href="https://blog.trailofbits.com/2026/08/26/vms-wont-contain-cyber-capable-agents/">VMs won’t contain cyber-capable agents</a>. <a href="https://ghostget.com/">GhostGet</a> does not treat that isolation story as its job. It names a provider operation, attests whether the current contract can run it, and refuses to pretend a missing operation was proven.</p>
-          {{EDITORIAL_FIGURE}}
-          <p class="review-note">This argument uses the live Trail of Bits post fetched for this draft, the Wednesday 26 August 2026 <a href="https://rough.day">rough.day</a> tech edition, the <a href="https://rough.day/info">rough.day selection notes</a>, and the public {{GHOSTGET_RELEASE}} pages for the <a href="https://ghostget.com/">GhostGet home</a>, <a href="https://ghostget.com/docs/reference/provider-capabilities/">provider capability attestation</a>, <a href="https://ghostget.com/docs/explanation/security-model/">security guide</a>, <a href="https://ghostget.com/agentic-web-spoofing/">inbound index-spoofing argument</a>, and <a href="https://ghostget.com/compare/personal-agents-browser-use/">personal-agents comparison</a>. Operation counts are the current release attestation, substituted at site build time.</p>
-        </header>
-
-        <section aria-labelledby="wednesday-edition">
-          <h2 id="wednesday-edition">Wednesday ranked a containment claim, not a GhostGet contract</h2>
-          <p><a href="https://rough.day">rough.day</a> considers reporting from the previous 24 hours, groups related coverage, and publishes up to six stories per category when the day supports that many. Its <a href="https://rough.day/info">selection notes</a> say the tech edition favors demonstrated impact and durable change over product promotion. The Wednesday 26 August 2026 tech list placed the Trail of Bits argument at rank four, with blog.trailofbits.com as the source host.</p>
-          <p>The ranked title is the edition’s headline. The live post title is “VMs won’t contain cyber-capable agents,” published 26 August 2026 by Artem Dinaburg. This page names both. It does not reprint the edition summary or the post’s exploit tables.</p>
-          <p><a href="https://hraness.com">Hraness</a> publishes GhostGet and this site. The edition is an independent ranking of a public security argument. It is not a GhostGet release note, and a ranked story does not add a provider operation.</p>
-        </section>
-
-        <section aria-labelledby="shared-surface">
-          <h2 id="shared-surface">A guest machine still shares a hypervisor, side channels, and egress</h2>
-          <p>Dinaburg writes that a useful agent VM has to share resources with the host and almost always needs some network access. Those shared pathways are the problem. In the post, GPT 5.6-Cyber escaped a QEMU/KVM guest on a Debian 12 host three times: first through a recently disclosed host-kernel bug, then through a guest-networking library that still shipped a known hole on oldstable, then through a chain that included 0-days in QEMU and KVM.</p>
-          <p>The post’s plain statement is that you can no longer assume a mere VM will contain a sufficiently advanced AI agent. An off-the-shelf VM leaves too much attack surface. Even a display adds surface. A later Firecracker run hardlocked the machine from remaining kernel flaws and did not complete an escape in the time available. The post treats that as a harder target, not a closed box.</p>
-          <p>Hypervisor bugs, unmarked library holes, host services reachable through guest networking, and side-channel attempts all sat inside that one experiment. Egress was not an extra concern after isolation. It was one of the escape paths. GhostGet does not claim to close those paths. It does not sell a hypervisor, a microVM, or a hostile-code sandbox.</p>
-        </section>
-
-        <section aria-labelledby="named-operation">
-          <h2 id="named-operation">Attestation names the operation before anything leaves</h2>
-          <p>GhostGet’s job is the opposite of a general sandbox. A sandbox tries to let an agent roam, then hopes the box holds. GhostGet starts with the named outcome an agent may request. The <a href="https://ghostget.com/">GhostGet home</a> states that each authenticated operation is typed, bounded, and tied to one account and transport. The caller brings the model and interface. GhostGet supplies the local capability and custody layer. It supplies no AI model or planner; its terminal controls review accounts, approvals, and permissions and list local output files.</p>
-          <p>The <a href="https://ghostget.com/docs/explanation/security-model/">security guide</a> makes the bind exact. An authenticated operation binds one named outcome to an exact provider, transport, account realm, contract version, implementation, input, and risk. Credentials stay opaque to the caller. When those facts drift, the operation stops instead of changing transports or falling back to general browser control.</p>
-          <p>The current release attests {{PROVIDER_CAPABILITY_OPERATION_COUNT}} operations across {{PROVIDER_CAPABILITY_ADAPTER_COUNT}} bundled public adapters. {{PROVIDER_CAPABILITY_OBSERVED_COUNT}} are <code>observed</code>. {{PROVIDER_CAPABILITY_CAPTURE_REQUIRED_COUNT}} remain <code>capture-required</code>. Those figures are the same release-bound counts published on the <a href="https://ghostget.com/docs/reference/provider-capabilities/">provider capability attestation</a>. This page does not add a provider, invent an extra operation, or treat a reservation as ready. Telegram is absent from those manifests. GhostGet does not install a Telegram Bot API substitute or claim Telegram contact access.</p>
-          <p><code>observed</code> marks a reviewed contract, not a ready account or runtime. Generic operations still need local admission. The <code>messaging.automation.*</code> entries are owner-host permission ceilings and cannot dispatch through generic <code>invoke</code> or <code>confirm</code>. <code>capture-required</code> is an inert reservation. The attestation page says a missing or <code>capture-required</code> operation stays unavailable rather than falling back to general browser control. Absence of a reviewed contract is not treated as a passing containment test.</p>
-        </section>
-
-        <section aria-labelledby="three-refusals">
-          <h2 id="three-refusals">Containment, identity, and browser recovery answer different questions</h2>
-          <p>The <a href="https://ghostget.com/agentic-web-spoofing/">index-spoofing argument</a> asks whether a claimed inbound bot name can stand in for an outbound contract. The <a href="https://ghostget.com/compare/personal-agents-browser-use/">personal-agents comparison</a> asks whether a persistent browser loop can stand in for that same contract. This page asks whether a VM around the agent can stand in for attestation. The pages refuse different substitutes.</p>
-          <div class="table-scroll" role="region" aria-labelledby="three-refusals" tabindex="0">
-            <table>
-              <thead>
-                <tr>
-                  <th scope="col">Decision</th>
-                  <th scope="col">Off-the-shelf agent VM</th>
-                  <th scope="col">GhostGet attested operation</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <th scope="row">What is named</th>
-                  <td>A guest machine that should contain the agent</td>
-                  <td>A named outbound outcome such as <code>messaging.list</code></td>
-                </tr>
-                <tr>
-                  <th scope="row">What remains shared</th>
-                  <td>Hypervisor, host kernel, guest networking, and often a display</td>
-                  <td>Exact provider, transport, account realm, contract version, implementation, input, and risk</td>
-                </tr>
-                <tr>
-                  <th scope="row">Failed check</th>
-                  <td>The guest can still reach the host. The post records three escapes</td>
-                  <td>The operation stops. A <code>capture-required</code> reservation stays inert</td>
-                </tr>
-                <tr>
-                  <th scope="row">Missing proof</th>
-                  <td>A harder hypervisor is still not a completed containment proof</td>
-                  <td>The reservation cannot plan or execute, and GhostGet does not invent a browser fallback</td>
-                </tr>
-                <tr>
-                  <th scope="row">Job of the layer</th>
-                  <td>Let the agent roam inside a box</td>
-                  <td>Name the operation and attest whether it is available</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <p>A Firecracker run, successful or not, still does not name <code>messaging.list</code> or mark a reservation <code>observed</code>. The post is evidence that isolation remains leaky. It is not a GhostGet capability grant.</p>
-          <p>Read the spoofing page for inbound identity. Read the comparison for browser-using personal agents. Read this page for why a guest machine is not an attested operation. A later argument covers <a href="https://ghostget.com/paypal-grapheneos-attestation/">PayPal treating GrapheneOS as rooted as device-policy attestation rather than a named web operation</a>. A sourced take covers <a href="https://ghostget.com/rumour-is-the-exploit/">why a rumour that is enough for agentic search is still not a named web operation</a>. A news take covers <a href="https://ghostget.com/omarchy-root-escalation/">why a desktop that lets any user process escalate to root is still not a named web operation</a>. The pages do not reprint one another.</p>
-        </section>
-
-        <aside class="guide-callout" aria-labelledby="vm-next">
-          <h2 id="vm-next">Read the post and the edition, then the current contract</h2>
-          <p>Start with <a href="https://blog.trailofbits.com/2026/08/26/vms-wont-contain-cyber-capable-agents/">VMs won’t contain cyber-capable agents</a>. Keep the Wednesday 26 August 2026 ranking on <a href="https://rough.day">rough.day</a> and the <a href="https://rough.day/info">selection notes</a> as the edition record. <a href="https://hraness.com">hraness.com</a> is the publisher of GhostGet. Then read the <a href="https://ghostget.com/docs/reference/provider-capabilities/">provider capability attestation</a> for every current operation and completeness mark, the <a href="https://ghostget.com/agentic-web-spoofing/">index-spoofing argument</a> when the question is a claimed inbound identity rather than a guest machine, the <a href="https://ghostget.com/paypal-grapheneos-attestation/">PayPal GrapheneOS device-policy argument</a> when the question is a rooted-phone check rather than containment, the <a href="https://ghostget.com/rumour-is-the-exploit/">rumour sourced take</a> when the question is a search direction rather than a guest machine, and the <a href="https://ghostget.com/omarchy-root-escalation/">Omarchy desktop-root news take</a> when the question is a host privilege grant rather than a guest machine.</p>
-        </aside>
+<header class="guide-hero">
+<h1>What a virtual machine isolates, and what an agent can still do</h1>
+<p class="answer-lede">A virtual machine gives an agent a separate computing environment. The connections you allow into and out of that environment still determine its reach: network access, shared files, and signed-in accounts each make something outside the machine available.</p>
+{{EDITORIAL_FIGURE}}
+{{ESSAY_PROVENANCE}}
+</header>
+<section aria-labelledby="start-with-resources"><h2 id="start-with-resources">List the resources the task needs</h2>
+<p>Consider an agent researching public web pages. It needs network access and a place to save notes. It does not need your personal message history, cloud administrator credentials, or a writable copy of your home directory.</p>
+<p>That resource list is a useful starting point for isolation. A separate environment limits the files and processes immediately available to the agent. Narrow network and file permissions then limit what it can reach beyond that environment.</p></section>
+<section aria-labelledby="connections-cross-the-machine"><h2 id="connections-cross-the-machine">Connections cross the machine boundary</h2>
+<p>If you sign the agent’s browser into a social account, a post can affect that account even though the browser runs in a VM. If you mount a host directory with write access, changes in the guest can alter those shared files. Those effects use the connections you provided.</p>
+<p>A VM also depends on the software that implements it. Artem Dinaburg’s <a href="https://blog.trailofbits.com/2026/08/26/vms-wont-contain-cyber-capable-agents/">Trail of Bits analysis of VM containment</a> examines why relying on that layer alone is inadequate for highly capable adversarial agents. The practical design question is which resources remain accessible if one layer fails.</p></section>
+<section aria-labelledby="control-the-action"><h2 id="control-the-action">Control account actions separately</h2>
+<p>Account tools can reduce the set of requests an agent can make. A tool that reads a conversation need not expose account settings or a general browser. A publishing tool can prepare the exact text and account for review before it submits anything.</p>
+<p>GhostGet supplies named actions and confirmation flows for supported services. It does not isolate hostile code from your operating system. A VM, restricted operating-system account, and application permissions address different parts of that problem and can be used together.</p></section>
+<section aria-labelledby="plan-the-recovery"><h2 id="plan-the-recovery">Plan for effects that outlive the environment</h2>
+<p>Deleting a VM does not retract a message it sent. Restoring a disk snapshot does not restore a remote service to the same point in time. Keep a record of consequential requests and check the remote result before retrying after a failure.</p>
+<p>For GhostGet’s account behavior, read the <a href="/docs/explanation/security-model/">security guide</a>. For choosing how the agent reaches websites in the first place, compare <a href="/compare/personal-agents-browser-use/">browser control and named actions</a>.</p></section>
       </article>
     </main>
     <aside aria-label="GhostGet project information" class="site-disclosure">
-      <p>GhostGet {{GHOSTGET_VERSION}} · MIT · <a href="{{GHOSTGET_REPOSITORY}}">Source on GitHub</a> · <a href="/about/">About</a> · <a href="/contact/">Contact</a> · <a href="/privacy/">Privacy</a> · <a href="/llms.txt">llms.txt</a></p>
-      <p class="privacy-note">Privacy: cookieless PostHog analytics measure page lifecycle and Core Web Vitals. No person profiles, replay, broad autocapture, or URL queries beyond campaign tags; Do Not Track is honored.</p>
+      <p>GhostGet · MIT · <a href="{{GHOSTGET_REPOSITORY}}">Source on GitHub</a> · <a href="/about/">About</a> · <a href="/contact/">Contact</a> · <a href="/privacy/">Privacy</a> · <a href="/llms.txt">llms.txt</a></p>
     </aside>
     {{HRANESS_SITE_FOOTER}}
   </body>
