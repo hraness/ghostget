@@ -24,7 +24,7 @@
         "@hraness/design-kit": "github:hraness/design-kit#v0.36.3",
         "@hraness/direct": "https://github.com/hraness/direct/releases/download/v0.7.21/hraness-direct-0.7.21.tgz",
         "@hraness/posthog": "https://github.com/hraness/posthog/releases/download/v0.3.11/hraness-posthog-0.3.11.tgz",
-        "@hraness/site-footer": "https://github.com/hraness/site-footer/releases/download/v0.20.5/hraness-site-footer-0.20.5.tgz",
+        "@hraness/site-footer": "https://github.com/hraness/site-footer/releases/download/v0.20.7/hraness-site-footer-0.20.7.tgz",
         "@hraness/ui": "github:hraness/ui#v0.5.18",
         "@hraness/web-discovery": "github:hraness/web-discovery#v0.13.0",
         "@informalsystems/quint": "0.32.0",
@@ -147,7 +147,7 @@
 
     "@hraness/result": ["@hraness/result@github:hraness/result#17b311c", {}, "hraness-result-17b311c", "sha512-OzIzJ598pWxKqpuYO+Omki/LYlhZ+bg04u7N0DuhW9FoAruP3ocRs4eyCyWxEEa4gtpEG9AEaTlheYnDlXh2mQ=="],
 
-    "@hraness/site-footer": ["@hraness/site-footer@https://github.com/hraness/site-footer/releases/download/v0.20.5/hraness-site-footer-0.20.5.tgz", { "peerDependencies": { "react": ">=18 <20" }, "optionalPeers": ["react"] }, "sha512-TjjjT7cZeg73p9PKzDIJUGvWdV6eYt8IMDI4LtKswwYNzRceedsBnuuRnYb5FcLEyrV3TweEs1eAyqHGYt1XoA=="],
+    "@hraness/site-footer": ["@hraness/site-footer@https://github.com/hraness/site-footer/releases/download/v0.20.7/hraness-site-footer-0.20.7.tgz", { "peerDependencies": { "react": ">=18 <20" }, "optionalPeers": ["react"] }, "sha512-0t2p999hJMoxqYt+kFvNvR0fXkKsLKoF4fQkN6chCiRWFF+Xw18AdP9PxBBFbcFavtedNsgeDlPiFSwQopEAIg=="],
 
     "@hraness/suite-accounts": ["@hraness/suite-accounts@github:hraness/suite-accounts#715486f", { "dependencies": { "@convex-dev/better-auth": "0.12.5", "@hraness/result": "github:hraness/result#17b311c0b31cf456777efc7d7f5fa1f1cafefe74", "@stylexjs/stylex": "0.19.0", "better-auth": "1.6.25", "convex": "1.44.0", "jose": "6.2.4" }, "peerDependencies": { "react": ">=18.3.1 <20", "react-dom": ">=18.3.1 <20" }, "optionalPeers": ["react", "react-dom"] }, "hraness-suite-accounts-715486f", "sha512-oLzc9WsZR+In0o4kAPSOFrd4C5cMCsAY2/x4CMFnYOcJ2cl048vNC8ODT4ZvE7vHmoqkAELH6ywGq+1ju2Y99w=="],
 

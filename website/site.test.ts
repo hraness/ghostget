@@ -211,16 +211,16 @@ describe("ghostget.com static site", () => {
       devDependencies: {
         "@hraness/design-kit": "github:hraness/design-kit#v0.36.3",
 
-        "@hraness/site-footer": "https://github.com/hraness/site-footer/releases/download/v0.20.5/hraness-site-footer-0.20.5.tgz",
+        "@hraness/site-footer": "https://github.com/hraness/site-footer/releases/download/v0.20.7/hraness-site-footer-0.20.7.tgz",
         "@hraness/ui": "github:hraness/ui#v0.5.18",
       },
     });
     expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.36.3"');
     expect(lockfile).toContain('"@hraness/ui": "github:hraness/ui#v0.5.18"');
 
-    expect(lockfile).toContain('"@hraness/site-footer": "https://github.com/hraness/site-footer/releases/download/v0.20.5/hraness-site-footer-0.20.5.tgz"');
+    expect(lockfile).toContain('"@hraness/site-footer": "https://github.com/hraness/site-footer/releases/download/v0.20.7/hraness-site-footer-0.20.7.tgz"');
     expect(lockfile).toContain(
-      '"@hraness/site-footer": ["@hraness/site-footer@https://github.com/hraness/site-footer/releases/download/v0.20.5/hraness-site-footer-0.20.5.tgz"',
+      '"@hraness/site-footer": ["@hraness/site-footer@https://github.com/hraness/site-footer/releases/download/v0.20.7/hraness-site-footer-0.20.7.tgz"',
     );
   });
 
@@ -926,8 +926,8 @@ describe("ghostget.com static site", () => {
     const expectedFooterHrefs = [
       HRANESS_HOME_URL,
       "https://account.hraness.com/support?product=ghostget&amp;source=web#support",
-      "https://hraness.com/privacy",
       ...hranessSocialLinks.map(({ href }) => href),
+      "https://hraness.com/privacy",
     ];
     const productionFooter = renderHranessSiteFooter({
       mailingList: ghostgetMailingListConfig({ VERCEL_ENV: "production" }),
@@ -976,11 +976,12 @@ describe("ghostget.com static site", () => {
       const footerOrder = [
         'aria-label="Hraness home"',
         'data-slot="hraness-support-link"',
-        'data-slot="hraness-cookie-consent"',
         'aria-label="Hraness links"',
+        'data-slot="hraness-cookie-consent"',
       ].map((marker) => footer!.indexOf(marker));
       expect(footerOrder.every((offset) => offset >= 0)).toBe(true);
       expect(footerOrder).toEqual([...footerOrder].sort((left, right) => left - right));
+      expect(footer).toContain('data-consent-placement="flow"');
       expect(footer).toContain(`action="${HRANESS_MAILING_SUBSCRIBE_URL}"`);
       expect(footer).toContain('name="audience" type="hidden" value="wrench"');
       expect(footer).toContain('name="website"');
