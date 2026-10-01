@@ -7,6 +7,13 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.68
+
+Remove encoded personal identifiers and credentials from browser diagnostics.
+
+- Use the shared bounded redactor before truncating analytics text.
+- Preserve private route exclusions and query-free diagnostics.
+
 ## 0.18.67
 
 Accept the short legacy system JIDs and inconsistent participant fields emitted by supported wacli migrations when projecting body-free WhatsApp interaction counts.

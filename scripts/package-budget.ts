@@ -2390,22 +2390,22 @@
 // Preserve the same projections and allowances:
 // 12,154,912 + 12,387 + 4,096 = 12,171,395 packed;
 // 24,054,352 + 353 + 65 = 24,054,770 payload.
-// The 0.18.67 WhatsApp projection and analytics-host repair release retains
+// The 0.18.68 encoded analytics privacy repair release retains
 // the 625-entry inventory after rebuilding dist. Two byte-identical packs with
-// the same qualified toolchain measured 12,144,036 packed and 24,057,867
+// the same qualified toolchain measured 12,144,090 packed and 24,058,093
 // payload bytes; archive SHA-256
-// 0d15ceffd2d5603f73a9beb1696726da8ae87aca8a2dfb4d8d4f61ac5d20ec41.
+// ff4b2c54c3cc2e08319353d3f60660e8b7a73c20b38320e27d1ee170ce8f2b2a.
 // Retain the reviewed projections and allowances:
-// 12,144,036 + 12,387 + 4,096 = 12,160,519 packed;
-// 24,057,867 + 353 + 65 = 24,058,285 payload.
+// 12,144,090 + 12,387 + 4,096 = 12,160,573 packed;
+// 24,058,093 + 353 + 65 = 24,058,511 payload.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "GhostGet 0.18.67 WhatsApp projection and analytics-host repair release over the verified 0.18.64 runtime",
+  scope: "GhostGet 0.18.68 encoded analytics privacy repair release over the verified 0.18.67 runtime",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "0d15ceffd2d5603f73a9beb1696726da8ae87aca8a2dfb4d8d4f61ac5d20ec41",
-  packedBytes: 12_144_036,
-  unpackedBytes: 24_057_867,
+  archiveSha256: "ff4b2c54c3cc2e08319353d3f60660e8b7a73c20b38320e27d1ee170ce8f2b2a",
+  packedBytes: 12_144_090,
+  unpackedBytes: 24_058_093,
   entryCount: 625,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
