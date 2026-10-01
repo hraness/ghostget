@@ -7,7 +7,7 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
-## 0.18.66
+## 0.18.67
 
 Automate selected group conversations in Beeper, iMessage, and WhatsApp.
 
@@ -17,6 +17,15 @@ Automate selected group conversations in Beeper, iMessage, and WhatsApp.
 - Stop an enrollment and revoke its sends when the account, conversation, or
   participant list changes, including changes observed before a restart.
 - Recheck the group before sending and require a new enrollment after a change.
+- Keep analytics preferences compact and their panel inside the viewport.
+- Use one product navigation row across marketing pages and documentation.
+
+## 0.18.66
+
+Select the European PostHog UI only for the exact validated ingestion origin.
+
+- Replace the ambiguous substring match with exact origin equality.
+- Preserve fixed trusted PostHog UI URLs.
 
 ## 0.18.65
 

@@ -57,7 +57,7 @@ The plan is for GhostGet to stay small. Your agent does the thinking, and GhostG
 Post 9 of 9, 192 characters
 
 ```text
-GhostGet is free, MIT licensed, and runs on macOS and Linux. The first step reads a public page and needs no account. Latest release: v0.18.66.
+GhostGet is free, MIT licensed, and runs on macOS and Linux. The first step reads a public page and needs no account. Latest release: v0.18.67.
 
 https://ghostget.com/blog/introducing-ghostget/
 ```
@@ -115,7 +115,7 @@ The plan is for GhostGet to stay small. Your agent does the thinking, and GhostG
 Post 9 of 9, 192 characters
 
 ```text
-GhostGet is free, MIT licensed, and runs on macOS and Linux. The first step reads a public page and needs no account. Latest release: v0.18.66.
+GhostGet is free, MIT licensed, and runs on macOS and Linux. The first step reads a public page and needs no account. Latest release: v0.18.67.
 
 https://ghostget.com/blog/introducing-ghostget/
 ```
@@ -173,7 +173,7 @@ The plan is for GhostGet to stay small. Your agent does the thinking, and GhostG
 Post 9 of 9, 192 characters
 
 ```text
-GhostGet is free, MIT licensed, and runs on macOS and Linux. The first step reads a public page and needs no account. Latest release: v0.18.66.
+GhostGet is free, MIT licensed, and runs on macOS and Linux. The first step reads a public page and needs no account. Latest release: v0.18.67.
 
 https://ghostget.com/blog/introducing-ghostget/
 ```
@@ -197,7 +197,7 @@ GhostGet is for Claude Code, Codex, Cursor, and other agents that run commands o
 
 The plan is for GhostGet to stay small. Your agent does the thinking, and GhostGet runs only actions someone has reviewed. Each new service arrives as reviewed actions with their own previews.
 
-GhostGet is free, MIT licensed, and runs on macOS and Linux. The first step reads a public page and needs no account. Latest release: v0.18.66.
+GhostGet is free, MIT licensed, and runs on macOS and Linux. The first step reads a public page and needs no account. Latest release: v0.18.67.
 
 https://ghostget.com/blog/introducing-ghostget/
 ```
@@ -224,8 +224,8 @@ Topics: Developer Tools, Artificial Intelligence, Open Source
 - Sometimes a post goes through but the answer gets lost on the way back. GhostGet writes down every send before it leaves and never sends it again on its own until it knows what happened.
 - Anything beyond a read starts as a preview that shows the service, the account, and exactly what will be sent. Your agent can prepare it. Nothing is sent until someone confirms that exact preview.
 - GhostGet is for Claude Code, Codex, Cursor, and other agents that run commands on your Mac or Linux machine and need to read the web and use the accounts you already have.
-- GhostGet is free, MIT licensed, and runs on macOS and Linux. The first step reads a public page and needs no account. Latest release: v0.18.66.
-- Latest release: v0.18.66. https://ghostget.com/blog/introducing-ghostget/
+- GhostGet is free, MIT licensed, and runs on macOS and Linux. The first step reads a public page and needs no account. Latest release: v0.18.67.
+- Latest release: v0.18.67. https://ghostget.com/blog/introducing-ghostget/
 
 ## Beats
 
@@ -251,4 +251,4 @@ Topics: Developer Tools, Artificial Intelligence, Open Source
 - claimsTotal: 248. verification/claims.json, every claim
 - claimsEvidenced: 229. verification/claims.json, status evidenced
 - claimsConfigReadback: 15. verification/claims.json, layer configuration-readback
-- status: Latest release: v0.18.66. package.json version
+- status: Latest release: v0.18.67. package.json version

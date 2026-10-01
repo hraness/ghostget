@@ -465,7 +465,7 @@ function trackedYtDlpManifest(
 describe("Ghostget media manifest", () => {
   test("uses one Ghostget-owned schema and transcriber identity", () => {
     expect(GHOSTGET_MEDIA_SCHEMA_VERSION).toBe(1);
-    expect(GHOSTGET_MEDIA_VERSION).toBe("0.18.66");
+    expect(GHOSTGET_MEDIA_VERSION).toBe("0.18.67");
     expect(localTranscriptVariantSegments(localIdentity)).toEqual([
       "transcript",
       "local",

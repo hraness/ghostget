@@ -2399,24 +2399,27 @@
 // 24,054,930 + 353 + 65 = 24,055,348 payload.
 // The 0.18.65 archive SHA-256 is
 // 09e69ff231a08b63c399662cdcb0fe9a08c5f5faa563e5e855e2c6b832e8003f.
-// Group automation in 0.18.66 adds the pinned WhatsApp group source patch,
+// The analytics-only 0.18.66 preparation measured 625 entries, 12,143,254
+// packed bytes and 24,055,132 payload bytes with local archive SHA-256
+// b462796a666a3f7acccbbf052590f6f7b3db4f956307567dca313c6b13d3393a.
+// Group automation in 0.18.67 adds the pinned WhatsApp group source patch,
 // updates its native runtime, and expands the owner host and provider adapters.
 // Two byte-identical npm 11.19.0 packs under the same qualified Node/zlib
-// toolchain measured 626 entries, 12,181,965 packed and 24,141,390 payload bytes.
+// toolchain measured 626 entries, 12,182,129 packed and 24,141,741 payload bytes.
 // The single added entry is the source patch; the net addition over 0.18.65
-// is 26,900 packed and 86,460 payload bytes, including rebuilt SDK chunks and
+// is 27,064 packed and 86,811 payload bytes, including rebuilt SDK chunks and
 // documentation. Every archive entry matches its retained source bytes.
 // Keep all existing projections and allowances:
-// 12,181,965 + 12,387 + 4,096 = 12,198,448 packed;
-// 24,141,390 + 353 + 65 = 24,141,808 payload.
+// 12,182,129 + 12,387 + 4,096 = 12,198,612 packed;
+// 24,141,741 + 353 + 65 = 24,142,159 payload.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "GhostGet 0.18.66 roster-bound group automation over the verified 0.18.65 package",
+  scope: "GhostGet 0.18.67 roster-bound group automation over the verified 0.18.65 package",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "9d46802766c47e6c5d77943ecf5d95de2f4272da874ddf76cc6379b5a0d7e768",
-  packedBytes: 12_181_965,
-  unpackedBytes: 24_141_390,
+  archiveSha256: "349b558d9f0dc3005cccd2f9078059bc51a33ecf1ef23db475df367bcb1afba5",
+  packedBytes: 12_182_129,
+  unpackedBytes: 24_141_741,
   entryCount: 626,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
