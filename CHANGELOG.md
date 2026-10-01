@@ -7,7 +7,7 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
-## 0.18.67
+## 0.18.68
 
 Automate selected group conversations in Beeper, iMessage, and WhatsApp.
 
@@ -19,8 +19,14 @@ Automate selected group conversations in Beeper, iMessage, and WhatsApp.
 - Recheck the group before sending and require a new enrollment after a change.
 - Keep analytics preferences compact and their panel inside the viewport.
 - Use one product navigation row across marketing pages and documentation.
-- Accept legacy WhatsApp interaction rows with short system JIDs or
-  inconsistent participant fields while preserving body-free projection guards.
+
+## 0.18.67
+
+Accept the short legacy system JIDs and inconsistent participant fields emitted by supported wacli migrations when projecting body-free WhatsApp interaction counts.
+
+- Map bounded short system JIDs to the existing unsupported sentinel.
+- Drop participant fields that contradict the stored message direction instead of failing the complete page.
+- Keep the strict schema, owner, cursor, and no-message-body guards intact.
 
 ## 0.18.66
 

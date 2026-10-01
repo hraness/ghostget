@@ -136,7 +136,7 @@ export const HRANESS_LOGO_URL = "https://hraness.com/icon.png" as const;
 export const HRANESS_LINKEDIN_URL = "https://www.linkedin.com/company/hraness" as const;
 export const NPM_PACKAGE_URL = "https://www.npmjs.com/package/@hraness/ghostget" as const;
 export const SKILL_REPOSITORY = "hraness/ghostget" as const;
-export const CONTENT_REVIEWED_RELEASE = "v0.18.67" as const;
+export const CONTENT_REVIEWED_RELEASE = "v0.18.68" as const;
 export const DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com" as const;
 export const DEMO_PUBLIC_FILES = [
   "wrench-first-capture.gif",
