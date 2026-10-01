@@ -2,6 +2,7 @@
 // src/messaging-automation-validation.ts
 import { types } from "util";
 var AUTOMATION_ACTION_KINDS = Object.freeze(["text", "attachment", "reaction", "sticker", "link", "poll", "app-clip", "experience"]);
+var AUTOMATION_WHATSAPP_GROUP_JID = /^[1-9][0-9]{4,19}(?:-[1-9][0-9]{0,19})?@g\.us$/u;
 function automationRecord(value, keys) {
   if (types.isProxy(value) || typeof value !== "object" || value === null || Array.isArray(value) || ![Object.prototype, null].includes(Object.getPrototypeOf(value)))
     throw new Error("Messaging automation value must be a plain object.");
@@ -72,9 +73,30 @@ function parseAutomationCoordinate(value) {
     return Object.freeze({ provider, accountId: automationText(r2.accountId, 512), conversationId: automationText(r2.conversationId, 2048) });
   }
   const r = automationRecord(value, ["provider", "conversationJid"]);
-  if (provider !== "whatsapp" || typeof r.conversationJid !== "string" || !/^(?:[1-9][0-9]{4,14}@s\.whatsapp\.net|[1-9][0-9]{4,19}@lid)$/u.test(r.conversationJid))
-    throw new Error("Only exact individual WhatsApp conversations are supported.");
+  if (provider !== "whatsapp" || typeof r.conversationJid !== "string" || !/^(?:[1-9][0-9]{4,14}@s\.whatsapp\.net|[1-9][0-9]{4,19}@lid)$/u.test(r.conversationJid) && !AUTOMATION_WHATSAPP_GROUP_JID.test(r.conversationJid))
+    throw new Error("Only exact WhatsApp conversation JIDs are supported.");
   return Object.freeze({ provider, conversationJid: r.conversationJid });
+}
+function parseAutomationConversation(value) {
+  const r = automationRecord(value, ["coordinate", "title", "kind", "participants"]);
+  const coordinate = parseAutomationCoordinate(r.coordinate);
+  if (r.kind !== "single" && r.kind !== "group")
+    throw new Error("Messaging automation requires a verified conversation kind.");
+  const participants = automationArray(r.participants, r.kind === "group" ? 500 : 2).map((value2) => automationText(value2, 512));
+  if (participants.length < 1 || new Set(participants).size !== participants.length)
+    throw new Error("Messaging automation requires a complete distinct participant roster.");
+  if (coordinate.provider === "whatsapp" && AUTOMATION_WHATSAPP_GROUP_JID.test(coordinate.conversationJid) !== (r.kind === "group"))
+    throw new Error("WhatsApp conversation kind and exact JID disagree.");
+  return Object.freeze({ coordinate, title: r.title === null ? null : automationText(r.title, 512), kind: r.kind, participants: Object.freeze([...participants].sort()) });
+}
+function automationGroupOptions(value, keys) {
+  if (types.isProxy(value))
+    throw new Error("Messaging automation value must be a plain object.");
+  const present = value !== null && typeof value === "object" && Object.hasOwn(value, "includeGroups");
+  const r = automationRecord(value, present ? [...keys, "includeGroups"] : keys);
+  if (present && typeof r.includeGroups !== "boolean")
+    throw new Error("Messaging group selection must be boolean.");
+  return { ...r, includeGroups: present ? r.includeGroups : false };
 }
 function parseAutomationIdentity(value) {
   const r = automationRecord(value, ["provider", "authId", "accountIdentity", "accountSubject", "implementationIdentity", "sourceGeneration"]);
@@ -308,4 +330,4 @@ class OperationDeadline {
   }
 }
 
-export { OperationDeadlineError, AUTOMATION_ACTION_KINDS, automationRecord, automationText, automationId, automationDigest, automationInstant, automationInteger, automationArray, automationDate, parseAutomationCoordinate, parseAutomationIdentity, parseAutomationActionKind, parseAutomationAction, parseAutomationMessage };
+export { OperationDeadlineError, AUTOMATION_ACTION_KINDS, AUTOMATION_WHATSAPP_GROUP_JID, automationRecord, automationText, automationId, automationDigest, automationInstant, automationInteger, automationArray, automationDate, parseAutomationCoordinate, parseAutomationConversation, automationGroupOptions, parseAutomationIdentity, parseAutomationActionKind, parseAutomationAction, parseAutomationMessage };

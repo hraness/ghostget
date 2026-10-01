@@ -2397,15 +2397,27 @@
 // Retain every projection and allowance:
 // 12,155,065 + 12,387 + 4,096 = 12,171,548 packed;
 // 24,054,930 + 353 + 65 = 24,055,348 payload.
+// The 0.18.65 archive SHA-256 is
+// 09e69ff231a08b63c399662cdcb0fe9a08c5f5faa563e5e855e2c6b832e8003f.
+// Group automation in 0.18.66 adds the pinned WhatsApp group source patch,
+// updates its native runtime, and expands the owner host and provider adapters.
+// Two byte-identical npm 11.19.0 packs under the same qualified Node/zlib
+// toolchain measured 626 entries, 12,181,951 packed and 24,141,258 payload bytes.
+// The single added entry is the source patch; the net addition over 0.18.65
+// is 26,886 packed and 86,328 payload bytes, including rebuilt SDK chunks and
+// documentation. Every archive entry matches its retained source bytes.
+// Keep all existing projections and allowances:
+// 12,181,951 + 12,387 + 4,096 = 12,198,434 packed;
+// 24,141,258 + 353 + 65 = 24,141,676 payload.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "GhostGet 0.18.65 editorial release over the verified 0.18.64 runtime",
+  scope: "GhostGet 0.18.66 roster-bound group automation over the verified 0.18.65 package",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "09e69ff231a08b63c399662cdcb0fe9a08c5f5faa563e5e855e2c6b832e8003f",
-  packedBytes: 12_155_065,
-  unpackedBytes: 24_054_930,
-  entryCount: 625,
+  archiveSha256: "a4fe481dc9019fd41e5cb53c526d0ea3051fae7343002014d50ed726e7eb23f8",
+  packedBytes: 12_181_951,
+  unpackedBytes: 24_141_258,
+  entryCount: 626,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,

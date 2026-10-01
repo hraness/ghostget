@@ -7,6 +7,17 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.66
+
+Automate selected group conversations in Beeper, iMessage, and WhatsApp.
+
+- Let clients discover and enroll a group with its exact account and participant
+  list. Direct conversations remain the default.
+- Begin each group enrollment with new messages, excluding earlier history.
+- Stop an enrollment and revoke its sends when the account, conversation, or
+  participant list changes, including changes observed before a restart.
+- Recheck the group before sending and require a new enrollment after a change.
+
 ## 0.18.65
 
 Make GhostGet's articles and comparisons calmer, clearer, and more consistent.
