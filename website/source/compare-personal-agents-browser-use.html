@@ -6,8 +6,8 @@
     <meta name="color-scheme" content="light dark">
     <meta name="theme-color" content="#fbf1c7" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">
-    <title>Browser-using personal agents and GhostGet's named web actions</title>
-    <meta name="description" content="Persistent personal agents work through a general browser. GhostGet gives an agent a fixed list of named web actions, and anything unlisted stays unavailable.">
+    <title>Browser control or named actions: choosing an agent tool</title>
+    <meta name="description" content="Choose browser control for unfamiliar visual work and named actions for repeated tasks with known inputs, outputs, and account permissions.">
     <meta name="robots" content="max-image-preview:large">
     <link rel="canonical" href="https://ghostget.com/compare/personal-agents-browser-use/">
     <link rel="icon" href="/icon.png" type="image/png" sizes="32x32">
@@ -18,16 +18,16 @@
     {{MARKDOWN_ALTERNATE}}
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="GhostGet">
-    <meta property="og:title" content="Browser-using personal agents and GhostGet's named web actions">
-    <meta property="og:description" content="Persistent personal agents work through a general browser. GhostGet gives an agent a fixed list of named web actions, and anything unlisted stays unavailable.">
+    <meta property="og:title" content="Browser control or named actions: choosing an agent tool">
+    <meta property="og:description" content="Choose browser control for unfamiliar visual work and named actions for repeated tasks with known inputs, outputs, and account permissions.">
     <meta property="og:url" content="https://ghostget.com/compare/personal-agents-browser-use/">
     <meta property="og:image" content="{{EDITORIAL_IMAGE_URL}}">
     <meta property="og:image:alt" content="{{EDITORIAL_IMAGE_ALT}}">
     <meta property="og:image:width" content="{{EDITORIAL_IMAGE_WIDTH}}">
     <meta property="og:image:height" content="{{EDITORIAL_IMAGE_HEIGHT}}">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Browser-using personal agents and GhostGet's named web actions">
-    <meta name="twitter:description" content="Persistent personal agents work through a general browser. GhostGet gives an agent a fixed list of named web actions, and anything unlisted stays unavailable.">
+    <meta name="twitter:title" content="Browser control or named actions: choosing an agent tool">
+    <meta name="twitter:description" content="Choose browser control for unfamiliar visual work and named actions for repeated tasks with known inputs, outputs, and account permissions.">
     <meta name="twitter:image" content="{{EDITORIAL_IMAGE_URL}}">
     <meta name="twitter:image:alt" content="{{EDITORIAL_IMAGE_ALT}}">
     <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
@@ -49,91 +49,36 @@
       </nav>
     </header>
     <main class="guide-main" id="main" tabindex="-1">
-      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">GhostGet</a></li><li aria-current="page">Personal agents and named operations</li></ol></nav>
+      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">GhostGet</a></li><li aria-current="page">Browser control or named actions: choosing an agent tool</li></ol></nav>
       <article class="guide-article">
-        <header class="guide-hero">
-          <p class="eyebrow">Comparison · GhostGet {{GHOSTGET_VERSION}}</p>
-          <h1>Browser-using personal agents and GhostGet’s named web actions</h1>
-          <p class="answer-lede"><a href="https://hraness.com/reading/personal-agents-notes-instinct-grok-bots-chatgpt-work">Anish Acharya's notes on Instinct, Grok Bots, and ChatGPT Work</a> describe persistent personal agents with cloud(ish) computers, browser access, cached credentials, and recurring loops. <a href="https://ghostget.com/">GhostGet</a> is a different kind of tool: a local layer that holds your sign-ins and offers the agent named actions, with no general browser control.</p>
-          {{EDITORIAL_FIGURE}}
-          <p class="review-note">This comparison uses only Acharya's published notes and the public {{GHOSTGET_RELEASE}} pages for <a href="https://ghostget.com/">GhostGet home</a>, <a href="https://ghostget.com/docs/reference/provider-capabilities/">provider support</a>, and <a href="https://ghostget.com/docs/explanation/security-model/">security</a>.</p>
-        </header>
-
-        <section aria-labelledby="acharya-notes">
-          <h2 id="acharya-notes">Persistent personal agents treat the browser as the work surface</h2>
-          <p>Acharya names three products: Instinct, Grok Bots, and ChatGPT Work. He reads them as a distillation of earlier OpenClaw patterns: persistent agents with cloud(ish) computers, browser access, cached credentials, recurring loops, and a top-level orchestrator that can see other agents and dispatch work.</p>
-          <p>He writes that browser use is now good enough for most web-based work, with CAPTCHAs, 2FA, and occasional brittle flows as the remaining friction. The product variable he watches is presumptuousness and resourcefulness: how much permission the agent assumes, and how it recovers when a flow breaks.</p>
-          <p>Instinct and Grok Bots are the aggressive pair in those notes. Acharya had both shop and purchase overnight. When Instinct could not reach one website, it reset the password and finished the task. ChatGPT Work is the least aggressive of the three. He records reluctance around credentials, payments, and consequential actions, and treats that as a compliance choice rather than a missing browser.</p>
-          <p>The question he leaves open is product design and distribution: which first loop earns enough trust, context, and permission to expand into the rest of a life. This page does not answer that product question. It asks a narrower one that GhostGet can answer from its public contract: which web operations are supported, and what happens when they are not.</p>
-        </section>
-
-        <section aria-labelledby="attested-set">
-          <h2 id="attested-set">GhostGet exposes a finite supported set</h2>
-          <p>The current release offers {{PROVIDER_CALLABLE_ACTION_COUNT}} supported provider actions. That count covers generic commands; owner-only messaging permissions are listed separately. The <a href="https://ghostget.com/docs/reference/provider-capabilities/">provider support directory</a> groups those actions by service and access method. This page does not add a provider or invent an extra operation.</p>
-          <p>An action that is missing, blocked, or no longer matches its reviewed contract stays unavailable. Telegram is not supported in this release, and GhostGet does not install a Telegram Bot API substitute or claim Telegram contact access.</p>
-          <p>The <a href="https://ghostget.com/">GhostGet home</a> states the same boundary in product terms. GhostGet lets an agent capture pages, preserve media, read supported connected services, and invoke reviewed account operations. Each authenticated operation is typed, bounded, and tied to one account and transport. The caller brings the model and interface. GhostGet supplies the local capability and custody layer. It supplies no AI model or planner; its terminal controls review accounts, approvals, and permissions and list local output files.</p>
-        </section>
-
-        <section aria-labelledby="browser-vs-named">
-          <h2 id="browser-vs-named">General browser use is a different contract</h2>
-          <p>Acharya's agents keep a live browser, cached credentials, and a recurring loop. GhostGet begins with the exact outcome an agent may request. It exposes a small semantic operation such as <code>messaging.list</code> and keeps the browser, provider plumbing, account session, and credentials inside a local kernel. The <a href="https://ghostget.com/docs/explanation/security-model/">security guide</a> states that credentials stay opaque to the caller, and that GhostGet does not silently move between an official API, browser session, linked-device store, or portable plugin.</p>
-          <div class="table-scroll" role="region" aria-labelledby="browser-vs-named" tabindex="0">
-            <table>
-              <thead>
-                <tr>
-                  <th scope="col">Decision</th>
-                  <th scope="col">Persistent personal agent with browser use</th>
-                  <th scope="col">GhostGet named operation</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <th scope="row">What the caller asks for</th>
-                  <td>A loop that can drive the live web, including recovery when a flow breaks</td>
-                  <td>A named outcome such as <code>messaging.list</code>, not cookies, selectors, scripts, arbitrary HTTP, or every signed-in tab</td>
-                </tr>
-                <tr>
-                  <th scope="row">Credentials</th>
-                  <td>Cached credentials on a cloud computer that the agent can keep using</td>
-                  <td>Opaque to the caller and bound to one account realm, provider target, and transport</td>
-                </tr>
-                <tr>
-                  <th scope="row">Missing or drifted capability</th>
-                  <td>Recover in the browser. Acharya records a password reset that completed the original task</td>
-                  <td>Stop and report that the action is unavailable. GhostGet never switches to a browser fallback silently</td>
-                </tr>
-                <tr>
-                  <th scope="row">Consequential write</th>
-                  <td>Product-dependent presumptuousness, including overnight purchase in the Instinct and Grok notes</td>
-                  <td>Generic R2 and R3 writes need an exact short-lived preview and confirmation. Owner messaging uses an exact prepared plan under explicit permissions and a bounded, revocable conversation grant. An indeterminate dispatch is not retried</td>
-                </tr>
-                <tr>
-                  <th scope="row">Completeness</th>
-                  <td>Browser use is good enough for most web work, modulo CAPTCHAs, 2FA, and brittle flows</td>
-                  <td>Incomplete reads stay incomplete. An unavailable action cannot run until a newly reviewed contract exists</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <p>The home page already places browser automation in that split. Browser tools remain useful for visual workflows, UI testing, and exploratory interaction. What GhostGet adds is a reviewed semantic operation with no hidden DOM-action fallback.</p>
-        </section>
-
-        <section aria-labelledby="reservations">
-          <h2 id="reservations">Unavailable actions fail closed</h2>
-          <p>When an origin, account proof, request, status, field, or response shape changes, the affected operation stops. That is the fail-closed rule documented on the <a href="https://ghostget.com/docs/explanation/security-model/">security page</a>. The action cannot run until authorized evidence establishes a newly reviewed contract.</p>
-          <p>The same rule keeps neighboring surfaces from inheriting authority. LinkedIn's official contact adapter does not grant authority to its separate consumer-web inbox adapter. An Instagram inbox summary does not authorize an individual thread read. Those examples are published on the security page so a gap stays visible instead of being filled by the next available tab.</p>
-          <p>Acharya's password-reset recovery is the opposite move: the agent used the live site to create a new path to the original job. GhostGet refuses that substitution. A missing, blocked, or drifted contract stays unavailable. It does not become general browser control, caller-selected HTTP, or another transport.</p>
-        </section>
-
-        <aside class="guide-callout" aria-labelledby="compare-next">
-          <h2 id="compare-next">Read the notes, then the current contract</h2>
-          <p>Start with <a href="https://hraness.com/reading/personal-agents-notes-instinct-grok-bots-chatgpt-work">Acharya's Instinct, Grok Bots, and ChatGPT Work notes</a>. Then read the <a href="https://ghostget.com/">GhostGet home</a> for the capability-layer claim, the <a href="https://ghostget.com/docs/reference/provider-capabilities/">provider support directory</a> for every current action, and the <a href="https://ghostget.com/docs/explanation/security-model/">security guide</a> before binding an account. Separate arguments cover <a href="https://ghostget.com/agentic-web-spoofing/">inbound index spoofing and why a claimed bot identity still does not establish an outbound operation</a>, and <a href="https://ghostget.com/vms-cannot-contain-agents/">why a VM does not establish a safe web operation</a>.</p>
-        </aside>
+<header class="guide-hero">
+<h1>Browser control or named actions: choosing an agent tool</h1>
+<p class="answer-lede">A browser-driving agent chooses its next click from what the page shows. A tool with named actions accepts a specific request and returns a result. Choose between them by how much of the task is known before the agent starts.</p>
+{{EDITORIAL_FIGURE}}
+{{ESSAY_PROVENANCE}}
+</header>
+<section aria-labelledby="exploration"><h2 id="exploration">Use browser control when the path is part of the problem</h2>
+<p>Suppose an agent needs to find a setting in an unfamiliar application. The menu labels, page layout, and available controls determine the next step. Browser automation lets it inspect those details, navigate, and respond to what it finds.</p>
+<p>This flexibility is useful for visual checks, unfamiliar forms, and tasks that span several pages. It also means the agent must interpret intermediate page state. The result depends on the page, the available browser controls, and the agent’s decisions at each step.</p>
+<p><a href="https://github.com/browser-use/browser-use">browser-use</a> supplies a browser-driving agent library. <a href="https://github.com/microsoft/playwright-mcp">Playwright MCP</a> exposes browser controls to an agent you already use. Their interfaces suit different setups, but both allow the agent to steer.</p></section>
+<section aria-labelledby="repeatable-actions"><h2 id="repeatable-actions">Use a named action when the request is already clear</h2>
+<p>Finding recent messages in a known conversation does not necessarily require deciding which screen to open. A tool can accept the conversation identifier and return the messages directly. The agent then works with the result instead of the navigation around it.</p>
+<p>GhostGet exposes this kind of interface for the actions in its <a href="/docs/reference/provider-capabilities/">service directory</a>. Account selection and credentials stay inside the connection. The agent supplies the documented inputs and receives the action’s output.</p>
+<p>A supported action can use a browser internally without exposing browser control to the caller. That is how some GhostGet page captures render content: the agent requests the page, while the tool controls the rendering steps.</p></section>
+<section aria-labelledby="compare-the-work"><h2 id="compare-the-work">Compare the work the agent must do</h2>
+<div class="table-scroll" role="region" aria-labelledby="compare-the-work" tabindex="0"><table><thead><tr><th scope="col">Task</th><th scope="col">Browser control</th><th scope="col">Named action</th></tr></thead><tbody>
+<tr><th scope="row">Find an unfamiliar setting</th><td>Explore menus and inspect the page.</td><td>Needs an action that already covers the setting.</td></tr>
+<tr><th scope="row">Read a known conversation</th><td>Navigate to it and extract the messages.</td><td>Pass its identifier to a supported read action.</td></tr>
+<tr><th scope="row">Publish a prepared post</th><td>Fill and submit the site’s form through the browser tool.</td><td>Prepare the exact account and content, then confirm the write.</td></tr>
+<tr><th scope="row">The site changes</th><td>The agent may find another path through the interface.</td><td>Affected GhostGet actions stop when the response no longer matches what they expect.</td></tr>
+</tbody></table></div></section>
+<section aria-labelledby="combine-tools"><h2 id="combine-tools">Give each tool a defined role</h2>
+<p>An agent setup can use both approaches. Browser control handles exploration; a named action handles a repeatable task once the required input is known. Make the handoff explicit so a failed read does not become an unexpected write in another tool.</p>
+<p>GhostGet does not silently replace an unavailable action with browser control. Check the <a href="/docs/reference/provider-capabilities/">supported actions</a> before connecting an account, then use the <a href="/docs/explanation/security-model/">security guide</a> to understand confirmation and recovery.</p></section>
       </article>
     </main>
     <aside aria-label="GhostGet project information" class="site-disclosure">
-      <p>GhostGet {{GHOSTGET_VERSION}} · MIT · <a href="{{GHOSTGET_REPOSITORY}}">Source on GitHub</a> · <a href="/about/">About</a> · <a href="/contact/">Contact</a> · <a href="/privacy/">Privacy</a> · <a href="/llms.txt">llms.txt</a></p>
-      <p class="privacy-note">Privacy: cookieless PostHog analytics measure page lifecycle and Core Web Vitals. No person profiles, replay, broad autocapture, or URL queries beyond campaign tags; Do Not Track is honored.</p>
+      <p>GhostGet · MIT · <a href="{{GHOSTGET_REPOSITORY}}">Source on GitHub</a> · <a href="/about/">About</a> · <a href="/contact/">Contact</a> · <a href="/privacy/">Privacy</a> · <a href="/llms.txt">llms.txt</a></p>
     </aside>
     {{HRANESS_SITE_FOOTER}}
   </body>

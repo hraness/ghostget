@@ -54,7 +54,8 @@ import {
   socialImageSiteDetails,
 } from "@hraness/web-discovery/social-image/card";
 import { SOCIAL_IMAGE_BRAND_MARK, SOCIAL_IMAGE_DESCRIPTION, SOCIAL_IMAGE_HOME_PAGE, socialSite } from "./social-image";
-import { BLOG_POSTS, blogPostPath, blogSitemapPaths } from "./blog";
+import { BLOG_POSTS, blogPostPath, blogSitemapPaths, indexablePosts } from "./blog";
+import { essayReviews } from "./essay-reviews";
 import {
   parseWebmcpRegistrySnapshot,
   webmcpProviderPages,
@@ -208,13 +209,13 @@ describe("ghostget.com static site", () => {
     expect(packageFiles).not.toContain("vercel.json");
     expect(manifest).toMatchObject({
       devDependencies: {
-        "@hraness/design-kit": "github:hraness/design-kit#v0.35.0",
+        "@hraness/design-kit": "github:hraness/design-kit#v0.35.2",
 
         "@hraness/site-footer": "https://github.com/hraness/site-footer/releases/download/v0.20.5/hraness-site-footer-0.20.5.tgz",
         "@hraness/ui": "github:hraness/ui#v0.5.18",
       },
     });
-    expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.35.0"');
+    expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.35.2"');
     expect(lockfile).toContain('"@hraness/ui": "github:hraness/ui#v0.5.18"');
 
     expect(lockfile).toContain('"@hraness/site-footer": "https://github.com/hraness/site-footer/releases/download/v0.20.5/hraness-site-footer-0.20.5.tgz"');
@@ -608,7 +609,8 @@ describe("ghostget.com static site", () => {
     expect(html).not.toContain("data-analytics-event");
     // The navigation and maker GitHub links plus the content-footer link.
     expect(html.match(new RegExp(`href="${REPOSITORY_URL}"`, "gu"))).toHaveLength(3);
-    expect(html).toContain("Privacy: cookieless PostHog analytics");
+    expect(html).not.toContain("Privacy: cookieless PostHog analytics");
+    expect(html).toContain('href="/privacy/"');
     expect(html).toContain('href="/compare/personal-agents-browser-use/"');
     for (const path of NOINDEX_ESSAY_PATHS) expect(html).not.toContain(`href="${path}"`);
     expect(html).toContain('href="/docs/how-to/connect-beeper/"');
@@ -622,7 +624,7 @@ describe("ghostget.com static site", () => {
     expect(argumentsSection).toContain('<h2 id="arguments-title">Arguments and comparisons</h2>');
     expect(argumentsSection).toContain('<div class="card-grid editorial-card-grid">');
     expect(argumentsSection?.match(/<article class="card(?: editorial-card)?">/gu)).toHaveLength(
-      INDEXABLE_EDITORIAL_IMAGES.length + 1,
+      INDEXABLE_EDITORIAL_IMAGES.length,
     );
     expect(guidesSection?.match(/<article class="card">/gu)).toHaveLength(6);
     expect(argumentsSection).toContain('href="/compare/"');
@@ -632,7 +634,7 @@ describe("ghostget.com static site", () => {
     }
     for (const image of editorialImages) {
       expect(argumentsSection?.includes(`href="${image.canonicalPath}"`)).toBe(
-        !isNoindexDocumentPath(image.canonicalPath),
+        !image.canonicalPath.startsWith("/blog/") && !isNoindexDocumentPath(image.canonicalPath),
       );
       expect(guidesSection).not.toContain(`href="${image.canonicalPath}"`);
     }
@@ -726,7 +728,8 @@ describe("ghostget.com static site", () => {
     expect(notFound).toContain(
       '<meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">',
     );
-    expect(notFound).toContain("Privacy: cookieless PostHog analytics");
+    expect(notFound).not.toContain("Privacy: cookieless PostHog analytics");
+    expect(notFound).toContain('href="/privacy/"');
     // The shared design-kit status page: the homepage's primary action, three
     // next links, one quiet agent line, and known pages for "Did you mean".
     expect(notFound).toContain('<div class="hraness-status-page" data-hraness-status-routes="');
@@ -755,7 +758,7 @@ describe("ghostget.com static site", () => {
     expect(llms).toContain(`${SITE_ORIGIN}/docs/tutorials/getting-started/`);
     expect(llms).toContain(`${SITE_ORIGIN}/compare/personal-agents-browser-use/`);
     for (const path of NOINDEX_ESSAY_PATHS) expect(llms).not.toContain(`${SITE_ORIGIN}${path}`);
-    expect(llms).toContain("six ways agents reach the web");
+    expect(llms).toContain("[How agents reach the web](https://ghostget.com/compare/)");
     expect(llms).toContain(`${SITE_ORIGIN}/docs/how-to/connect-beeper/`);
     expect(llms).toContain(
       `${String(beeperOperationCount)} supported actions. ${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.cliBackedOperationCount)} run through the pinned \`@beeper/cli\` 0.6.2 executable and ${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.desktopLoopbackOperationCount)} use fixed Desktop loopback reads.`,
@@ -785,7 +788,7 @@ describe("ghostget.com static site", () => {
     expect(INDEXABLE_PUBLIC_PAGES).toHaveLength(PUBLIC_PAGES.length - NOINDEX_ESSAY_PATHS.length);
     expect(sitemap.match(/<url>/gu)).toHaveLength(INDEXABLE_PUBLIC_PAGES.length + blogPaths.length);
     expect(sitemap).toContain('xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"');
-    expect(sitemap.match(/<image:image>/gu)).toHaveLength(INDEXABLE_EDITORIAL_IMAGES.length);
+    expect(sitemap.match(/<image:image>/gu)).toHaveLength(INDEXABLE_EDITORIAL_IMAGES.length + indexablePosts().length);
     for (const page of INDEXABLE_PUBLIC_PAGES) {
       expect(sitemap).toContain(`<loc>${SITE_ORIGIN}${page.canonicalPath}</loc>`);
     }
@@ -838,9 +841,10 @@ describe("ghostget.com static site", () => {
       const path = blogPostPath(post.slug);
       const postHtml = await readFile(join(websiteRoot, "dist", path.slice(1), "index.html"), "utf8");
       expect(postHtml).toContain(`<link rel="canonical" href="${SITE_ORIGIN}${path}">`);
-      expect(postHtml).toContain('<span class="plain-publication__byline" data-author-kind="organization">By Hraness</span>');
-      expect(postHtml).toContain(`<p class="plain-publication__provenance" data-drafting="ai-from-source" data-reviewer-type="ai">Drafted with AI from the source code and reviewed by ${post.admission.review?.reviewer}.</p>`);
-      expect(postHtml).toContain('<section aria-labelledby="article-related-products" class="plain-publication__related">');
+      expect(postHtml).toContain('By <a href="https://hraness.com" rel="author">Hraness</a>');
+      expect(postHtml).toContain(`<p class="plain-publication__provenance" data-drafting="ai" data-reviewer-type="ai">Drafted with AI and reviewed by ${post.admission.review?.reviewer}.</p>`);
+      expect(postHtml).toContain('class="editorial-figure"');
+      expect(postHtml).not.toMatch(/(?:Published|Updated|Checked) <time/u);
       expect(postHtml).not.toContain("{{");
       const indexable = post.admission.lifecycle === "indexable";
       expect(postHtml.includes('<meta name="robots" content="noindex">')).toBe(!indexable);
@@ -1206,7 +1210,9 @@ describe("ghostget.com static site", () => {
         "utf8",
       );
       expect(markdown.startsWith("# ")).toBe(true);
-      expect(markdown).toContain("GhostGet");
+      let renderedHeading = "";
+      new HTMLRewriter().on("h1", { text(chunk) { renderedHeading += chunk.text; } }).transform(pageHtml);
+      expect(markdown.split("\n")[0]).toBe(`# ${renderedHeading.replace(/\s+/gu, " ").trim()}`);
       expect(markdown).not.toMatch(/<\/[a-z]+>/i);
       expect(markdown.length).toBeGreaterThan(400);
 
@@ -1228,7 +1234,7 @@ describe("ghostget.com static site", () => {
 
       if (definition.canonicalPath !== "/") {
         expect(pageHtml).toContain('class="answer-lede"');
-        expect(pageHtml).toContain('aria-label="Breadcrumb"');
+        expect(pageHtml).toContain(isNoindexDocumentPath(definition.canonicalPath) ? 'aria-label="More articles"' : 'aria-label="Breadcrumb"');
         expect(pageHtml.match(/<h2\b/gu)?.length ?? 0).toBeGreaterThanOrEqual(2);
         expect(pageGraph).toEqual(expect.arrayContaining([
           expect.objectContaining({
@@ -1312,9 +1318,9 @@ describe("ghostget.com static site", () => {
       expect(page?.html).not.toContain('fetchpriority="high"');
       expect(page?.html).toContain(`alt="${image.alt}"`);
       expect(page?.html).toContain(image.caption);
-      expect(page?.html).toContain(image.credit);
+      expect(page?.html).toContain(`Generated with <a href="${image.creditUrl}">SlopCamera</a>.`);
       expect(image.credit).toMatch(
-        /^Editorial illustration generated with (?:Atet|SlopCamera)\.$/u,
+        /^Generated with SlopCamera\.$/u,
       );
       expect(page?.html).not.toContain("editorial-provenance/");
       expect(page?.html).not.toContain("gateway_");
@@ -1323,14 +1329,14 @@ describe("ghostget.com static site", () => {
       const reviewNoteIndex = page?.html.indexOf('class="review-note"') ?? -1;
       expect(answerLedeIndex).toBeGreaterThan(-1);
       expect(figureIndex).toBeGreaterThan(answerLedeIndex);
-      expect(reviewNoteIndex).toBeGreaterThan(figureIndex);
+      expect(reviewNoteIndex).toBe(-1);
 
       const editorialMarkdown = await readFile(
         join(websiteRoot, "dist", markdownSiblingPath(image.canonicalPath).slice(1)),
         "utf8",
       );
       expect(editorialMarkdown).toContain(`![${image.alt}](${imageUrl})`);
-      expect(editorialMarkdown).toContain(`${image.caption} ${image.credit}`);
+      expect(editorialMarkdown).toContain(`Generated with [SlopCamera](${new URL(image.creditUrl).href}).`);
 
       const structuredMatch = /<script type="application\/ld\+json">([^<]+)<\/script>/u
         .exec(page?.html ?? "");
@@ -1789,221 +1795,23 @@ describe("ghostget.com static site", () => {
       ],
     });
 
-    const personalAgents = pages.find((page) =>
-      page.definition.canonicalPath === "/compare/personal-agents-browser-use/");
-    expect(personalAgents?.html).toContain(
-      "<h1>Browser-using personal agents and GhostGet’s named web actions</h1>",
-    );
-    expect(personalAgents?.html).toContain(
-      "https://hraness.com/reading/personal-agents-notes-instinct-grok-bots-chatgpt-work",
-    );
-    expect(personalAgents?.html).toContain("https://ghostget.com/");
-    expect(personalAgents?.html).toContain("https://ghostget.com/docs/reference/provider-capabilities/");
-    expect(personalAgents?.html).toContain("https://ghostget.com/docs/explanation/security-model/");
-    expect(personalAgents?.html).toContain(
-      `The current release offers ${providerDirectory.entries.reduce((sum, entry) => sum + entry.supportedActionCount, 0)} supported provider actions.`,
-    );
-    expect(personalAgents?.html).toContain("Telegram is not supported in this release");
-    expect(personalAgents?.html).toContain("Instinct");
-    expect(personalAgents?.html).toContain("Grok Bots");
-    expect(personalAgents?.html).toContain("ChatGPT Work");
-    expect(personalAgents?.html).toContain("never switches to a browser fallback silently");
-    expect(personalAgents?.html).toContain("https://ghostget.com/agentic-web-spoofing/");
-    expect(personalAgents?.html).toContain("https://ghostget.com/vms-cannot-contain-agents/");
-    expect(personalAgents?.html).not.toContain("{{PROVIDER_CAPABILITY");
-    expect(personalAgents?.html).not.toMatch(/capture-required|<code>observed<\/code>/iu);
+    // The written explanations have independent editorial review. These checks
+    // cover their publishing contract without pinning retired news prose or counts.
+    for (const [sourceFile, record] of Object.entries(essayReviews)) {
+      const essay = pages.find((page) => page.definition.sourceFile === sourceFile);
+      expect(essay, sourceFile).toBeDefined();
+      expect(essay?.html, sourceFile).toContain('class="plain-publication__provenance"');
+      expect(essay?.html, sourceFile).toContain('data-reviewer-type="ai"');
+      expect(essay?.html, sourceFile).toContain(`Drafted with AI and reviewed by ${record.review.reviewer}.`);
+      expect(essay?.html, sourceFile).not.toContain('<time');
+      expect(essay?.html, sourceFile).not.toContain('{{PROVIDER_CAPABILITY');
+      expect(essay?.html, sourceFile).not.toContain('{{ESSAY_PROVENANCE}}');
+      if (essay !== undefined) {
+        expect(essay.html.includes(`<meta name="robots" content="${NOINDEX_ROBOTS}">`), sourceFile)
+          .toBe(isNoindexDocumentPath(essay.definition.canonicalPath));
+      }
+    }
 
-    const agenticWebSpoofing = pages.find((page) =>
-      page.definition.canonicalPath === "/agentic-web-spoofing/");
-    expect(agenticWebSpoofing?.html).toContain(
-      "<h1>A claimed agent name is not an attested web operation.</h1>",
-    );
-    expect(agenticWebSpoofing?.html).toContain("https://knownagents.com/insights");
-    expect(agenticWebSpoofing?.html).toContain(
-      "https://hraness.com/reading/agentic-web-index-spoofing-and-security",
-    );
-    expect(agenticWebSpoofing?.html).toContain("https://hraness.com");
-    expect(agenticWebSpoofing?.html).toContain("https://ghostget.com/");
-    expect(agenticWebSpoofing?.html).toContain("https://ghostget.com/docs/reference/provider-capabilities/");
-    expect(agenticWebSpoofing?.html).toContain("https://ghostget.com/docs/explanation/security-model/");
-    expect(agenticWebSpoofing?.html).toContain(
-      "https://ghostget.com/compare/personal-agents-browser-use/",
-    );
-    expect(agenticWebSpoofing?.html).toContain(
-      "A visit is considered spoofed when it claims a recognized agent identity but fails that agent's supported authentication method, such as verified IP or Web Bot Auth.",
-    );
-    expect(agenticWebSpoofing?.html).toContain(
-      "A failed check indicates that the visit was likely impersonating the named agent; it does not identify the software or operator that actually made the request.",
-    );
-    expect(agenticWebSpoofing?.html).toContain(
-      "Agents without a supported authentication method are not included in these measurements.",
-    );
-    expect(agenticWebSpoofing?.html).toContain(
-      "Results characterize the observed network and broader directional trends; they should not be interpreted as a precise census of global web traffic.",
-    );
-    expect(agenticWebSpoofing?.html).toContain(
-      "We are observing a widespread campaign impersonating AI bots to scan websites for vulnerabilities.",
-    );
-    expect(agenticWebSpoofing?.html).toContain(
-      `The current release attests ${attestation.operationCount} operations across ${attestation.adapterCount} bundled public adapters.`,
-    );
-    expect(agenticWebSpoofing?.html).toContain(
-      `${attestation.observedCount} are <code>observed</code>. ${attestation.captureRequiredCount} remain <code>capture-required</code>.`,
-    );
-    expect(agenticWebSpoofing?.html).toContain("Telegram is absent from those manifests");
-    expect(agenticWebSpoofing?.html).toContain("this page does not invent those names");
-    expect(agenticWebSpoofing?.html).toContain("The pages do not reprint one another.");
-    expect(agenticWebSpoofing?.html).toContain("https://ghostget.com/vms-cannot-contain-agents/");
-    expect(agenticWebSpoofing?.html).not.toContain("{{PROVIDER_CAPABILITY");
-
-    const vmsCannotContainAgents = pages.find((page) =>
-      page.definition.canonicalPath === "/vms-cannot-contain-agents/");
-    expect(vmsCannotContainAgents?.html).toContain(
-      "<h1>A VM is not an attested web operation.</h1>",
-    );
-    expect(vmsCannotContainAgents?.html).toContain(
-      "https://blog.trailofbits.com/2026/08/26/vms-wont-contain-cyber-capable-agents/",
-    );
-    expect(vmsCannotContainAgents?.html).toContain("VMs won’t contain cyber-capable agents");
-    expect(vmsCannotContainAgents?.html).toContain("https://rough.day");
-    expect(vmsCannotContainAgents?.html).toContain("https://rough.day/info");
-    expect(vmsCannotContainAgents?.html).toContain("Wednesday 26 August 2026");
-    expect(vmsCannotContainAgents?.html).toContain("Trail of Bits argues VMs cannot reliably contain cyber-capable AI agents");
-    expect(vmsCannotContainAgents?.html).toContain("https://hraness.com");
-    expect(vmsCannotContainAgents?.html).toContain("https://ghostget.com/");
-    expect(vmsCannotContainAgents?.html).toContain("https://ghostget.com/docs/reference/provider-capabilities/");
-    expect(vmsCannotContainAgents?.html).toContain("https://ghostget.com/agentic-web-spoofing/");
-    expect(vmsCannotContainAgents?.html).toContain(
-      "https://ghostget.com/compare/personal-agents-browser-use/",
-    );
-    expect(vmsCannotContainAgents?.html).toContain(
-      `The current release attests ${attestation.operationCount} operations across ${attestation.adapterCount} bundled public adapters.`,
-    );
-    expect(vmsCannotContainAgents?.html).toContain(
-      `${attestation.observedCount} are <code>observed</code>. ${attestation.captureRequiredCount} remain <code>capture-required</code>.`,
-    );
-    expect(vmsCannotContainAgents?.html).toContain("Telegram is absent from those manifests");
-    expect(vmsCannotContainAgents?.html).toContain("does not sell a hypervisor, a microVM, or a hostile-code sandbox");
-    expect(vmsCannotContainAgents?.html).toContain("The pages do not reprint one another.");
-    expect(vmsCannotContainAgents?.html).toContain("https://ghostget.com/paypal-grapheneos-attestation/");
-    expect(vmsCannotContainAgents?.html).toContain("https://ghostget.com/rumour-is-the-exploit/");
-    expect(vmsCannotContainAgents?.html).toContain("https://ghostget.com/omarchy-root-escalation/");
-    expect(vmsCannotContainAgents?.html).not.toContain("{{PROVIDER_CAPABILITY");
-    expect(vmsCannotContainAgents?.html).not.toContain("stripedex.com");
-    expect(vmsCannotContainAgents?.html).not.toContain("spongeresearch.com");
-
-    const paypalGrapheneOsAttestation = pages.find((page) =>
-      page.definition.canonicalPath === "/paypal-grapheneos-attestation/");
-    expect(paypalGrapheneOsAttestation?.html).toContain(
-      "<h1>Device policy is not a named web operation.</h1>",
-    );
-    expect(paypalGrapheneOsAttestation?.html).toContain(
-      "https://news.ycombinator.com/item?id=49462253",
-    );
-    expect(paypalGrapheneOsAttestation?.html).toContain("Tell HN: PayPal blocks GrapheneOS");
-    expect(paypalGrapheneOsAttestation?.html).toContain("https://rough.day");
-    expect(paypalGrapheneOsAttestation?.html).toContain("https://rough.day/info");
-    expect(paypalGrapheneOsAttestation?.html).toContain("Thursday 27 August 2026");
-    expect(paypalGrapheneOsAttestation?.html).toContain(
-      "PayPal app crashes on GrapheneOS, citing a root-detection security violation",
-    );
-    expect(paypalGrapheneOsAttestation?.html).toContain(
-      "com.paypal.oslo.app.rasp.RootDetectionSecurityException: Security policy violation: s=root",
-    );
-    expect(paypalGrapheneOsAttestation?.html).toContain("https://hraness.com");
-    expect(paypalGrapheneOsAttestation?.html).toContain("https://ghostget.com/");
-    expect(paypalGrapheneOsAttestation?.html).toContain("https://ghostget.com/docs/reference/provider-capabilities/");
-    expect(paypalGrapheneOsAttestation?.html).toContain("https://ghostget.com/agentic-web-spoofing/");
-    expect(paypalGrapheneOsAttestation?.html).toContain("https://ghostget.com/vms-cannot-contain-agents/");
-    expect(paypalGrapheneOsAttestation?.html).toContain(
-      `The current release attests ${attestation.operationCount} operations across ${attestation.adapterCount} bundled public adapters.`,
-    );
-    expect(paypalGrapheneOsAttestation?.html).toContain(
-      `${attestation.observedCount} are <code>observed</code>. ${attestation.captureRequiredCount} remain <code>capture-required</code>.`,
-    );
-    expect(paypalGrapheneOsAttestation?.html).toContain("Telegram is absent from those manifests");
-    expect(paypalGrapheneOsAttestation?.html).toContain("does not invent a PayPal API");
-    expect(paypalGrapheneOsAttestation?.html).toContain("The pages do not reprint one another.");
-    expect(paypalGrapheneOsAttestation?.html).toContain("https://ghostget.com/rumour-is-the-exploit/");
-    expect(paypalGrapheneOsAttestation?.html).toContain("https://ghostget.com/omarchy-root-escalation/");
-    expect(paypalGrapheneOsAttestation?.html).not.toContain("{{PROVIDER_CAPABILITY");
-    expect(paypalGrapheneOsAttestation?.html).not.toContain("stripedex.com");
-    expect(paypalGrapheneOsAttestation?.html).not.toContain("spongeresearch.com");
-
-    const rumourIsTheExploit = pages.find((page) =>
-      page.definition.canonicalPath === "/rumour-is-the-exploit/");
-    expect(rumourIsTheExploit?.html).toContain(
-      "<h1>A rumour is not a named web operation.</h1>",
-    );
-    expect(rumourIsTheExploit?.html).toContain("Sourced take");
-    expect(rumourIsTheExploit?.html).toContain(
-      "https://anil.recoil.org/notes/rumour-is-the-exploit",
-    );
-    expect(rumourIsTheExploit?.html).toContain(
-      "https://hraness.com/reading/rumour-is-the-exploit",
-    );
-    expect(rumourIsTheExploit?.html).toContain(
-      "Just a rumour of a bug is enough to find a security exploit these days",
-    );
-    expect(rumourIsTheExploit?.html).toContain("Monday 31 August 2026");
-    expect(rumourIsTheExploit?.html).toContain("22 August 2026");
-    expect(rumourIsTheExploit?.html).toContain("https://hraness.com");
-    expect(rumourIsTheExploit?.html).toContain("https://ghostget.com/");
-    expect(rumourIsTheExploit?.html).toContain("https://ghostget.com/docs/reference/provider-capabilities/");
-    expect(rumourIsTheExploit?.html).toContain("https://ghostget.com/vms-cannot-contain-agents/");
-    expect(rumourIsTheExploit?.html).toContain("https://ghostget.com/paypal-grapheneos-attestation/");
-    expect(rumourIsTheExploit?.html).toContain(
-      `The current release attests ${attestation.operationCount} operations across ${attestation.adapterCount} bundled public adapters.`,
-    );
-    expect(rumourIsTheExploit?.html).toContain(
-      `${attestation.observedCount} are <code>observed</code>. ${attestation.captureRequiredCount} remain <code>capture-required</code>.`,
-    );
-    expect(rumourIsTheExploit?.html).toContain("Telegram is absent from those manifests");
-    expect(rumourIsTheExploit?.html).toContain("does not reconstruct exploits");
-    expect(rumourIsTheExploit?.html).toContain("does not reprint the essay");
-    expect(rumourIsTheExploit?.html).toContain("The pages do not reprint one another.");
-    expect(rumourIsTheExploit?.html).toContain("https://ghostget.com/omarchy-root-escalation/");
-    expect(rumourIsTheExploit?.html).not.toContain("{{PROVIDER_CAPABILITY");
-    expect(rumourIsTheExploit?.html).not.toContain("stripedex.com");
-    expect(rumourIsTheExploit?.html).not.toContain("spongeresearch.com");
-    expect(rumourIsTheExploit?.html).not.toMatch(/percent-encod|proof.of.concept|PoC|payload|exploit step/iu);
-
-    const omarchyRootEscalation = pages.find((page) =>
-      page.definition.canonicalPath === "/omarchy-root-escalation/");
-    expect(omarchyRootEscalation?.html).toContain(
-      "<h1>A root-capable desktop is not a named web operation.</h1>",
-    );
-    expect(omarchyRootEscalation?.html).toContain("News take");
-    expect(omarchyRootEscalation?.html).toContain("https://0xcc.io/posts/omarchy-root-creds/");
-    expect(omarchyRootEscalation?.html).toContain("Omarchy: Any User Process Can Escalate to Root");
-    expect(omarchyRootEscalation?.html).toContain("https://rough.day");
-    expect(omarchyRootEscalation?.html).toContain("https://rough.day/info");
-    expect(omarchyRootEscalation?.html).toContain("Sunday 30 August 2026");
-    expect(omarchyRootEscalation?.html).toContain(
-      "Omarchy desktop environment allows any user process to escalate to root",
-    );
-    expect(omarchyRootEscalation?.html).toContain("https://hraness.com");
-    expect(omarchyRootEscalation?.html).toContain("https://ghostget.com/");
-    expect(omarchyRootEscalation?.html).toContain("https://ghostget.com/docs/reference/provider-capabilities/");
-    expect(omarchyRootEscalation?.html).toContain("https://ghostget.com/vms-cannot-contain-agents/");
-    expect(omarchyRootEscalation?.html).toContain("https://ghostget.com/paypal-grapheneos-attestation/");
-    expect(omarchyRootEscalation?.html).toContain("https://ghostget.com/rumour-is-the-exploit/");
-    expect(omarchyRootEscalation?.html).toContain(
-      `The current release attests ${attestation.operationCount} operations across ${attestation.adapterCount} bundled public adapters.`,
-    );
-    expect(omarchyRootEscalation?.html).toContain(
-      `${attestation.observedCount} are <code>observed</code>. ${attestation.captureRequiredCount} remain <code>capture-required</code>.`,
-    );
-    expect(omarchyRootEscalation?.html).toContain("Telegram is absent from those manifests");
-    expect(omarchyRootEscalation?.html).toContain("does not decide which desktop processes may become root");
-    expect(omarchyRootEscalation?.html).toContain("does not reprint the post");
-    expect(omarchyRootEscalation?.html).toContain("The pages do not reprint one another.");
-    expect(omarchyRootEscalation?.html).not.toContain("{{PROVIDER_CAPABILITY");
-    expect(omarchyRootEscalation?.html).not.toContain("stripedex.com");
-    expect(omarchyRootEscalation?.html).not.toContain("spongeresearch.com");
-    expect(omarchyRootEscalation?.html).not.toMatch(
-      /percent-encod|proof.of.concept|PoC|payload|exploit step|docker\.sock|\/etc\/shadow/iu,
-    );
     const docsIndex = pages.find((page) =>
       page.definition.canonicalPath === "/docs/");
     expect(docsIndex?.html).toContain(
@@ -2083,10 +1891,10 @@ describe("ghostget.com static site", () => {
     const compareIndex = pages.find((page) =>
       page.definition.canonicalPath === "/compare/");
     expect(compareIndex?.html).toContain(
-      "<h1>Six ways agents reach the web, and where GhostGet fits</h1>",
+      "<h1>How agents reach the web</h1>",
     );
     expect(compareIndex?.html).toContain('<h2 id="lane-integrations">Integration platforms act in your apps</h2>');
-    expect(compareIndex?.html).toContain("checked on 28 September 2026");
+    expect(compareIndex?.html).not.toMatch(/checked on \d|<time/iu);
     expect(compareIndex?.html).not.toMatch(/five ways/iu);
     for (const comparePath of [
       "/compare/browser-use/",

@@ -2382,21 +2382,29 @@
 // SHA-256 ed461e46d1d9d4514cffe577415bd641d3cbfbd1c3cde0619d0fe55acf6170bb.
 // The forward 0.18.64 updater preserves that studio source and failed-tag
 // history. Two identical packs under the same toolchain measured 625 entries,
-// 12,154,912 packed and 24,054,352 payload bytes; SHA-256 below. The measured
-// addition is one src/update.ts file, 2,069 packed and 7,325 payload bytes.
+// 12,154,912 packed and 24,054,352 payload bytes; SHA-256
+// 99bdbc86d7e2016b7a003496d4d6a2bec847d6c8c3b01aed57c1b55a3b25cbb3.
+// The measured addition is one src/update.ts file, 2,069 packed and 7,325 payload bytes.
 // The 425-byte payload increase over the previous updater candidate is solely
 // CHANGELOG.md, retaining studio changes and the annotated-tag failure.
 // Preserve the same projections and allowances:
 // 12,154,912 + 12,387 + 4,096 = 12,171,395 packed;
 // 24,054,352 + 353 + 65 = 24,054,770 payload.
+// The 0.18.65 editorial release preserves that runtime and file inventory.
+// Two byte-identical packs with the same qualified toolchain measured 625
+// entries, 12,155,065 packed and 24,054,930 payload bytes. The 578-byte payload
+// increase is the new changelog entry; article and image files are website-only.
+// Retain every projection and allowance:
+// 12,155,065 + 12,387 + 4,096 = 12,171,548 packed;
+// 24,054,930 + 353 + 65 = 24,055,348 payload.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget 0.18.64 CLI updater over preserved tagged studio main773c537",
+  scope: "GhostGet 0.18.65 editorial release over the verified 0.18.64 runtime",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "99bdbc86d7e2016b7a003496d4d6a2bec847d6c8c3b01aed57c1b55a3b25cbb3",
-  packedBytes: 12_154_912,
-  unpackedBytes: 24_054_352,
+  archiveSha256: "09e69ff231a08b63c399662cdcb0fe9a08c5f5faa563e5e855e2c6b832e8003f",
+  packedBytes: 12_155_065,
+  unpackedBytes: 24_054_930,
   entryCount: 625,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
