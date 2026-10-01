@@ -2351,14 +2351,22 @@
 // Preserve the same projections and allowances:
 // 12,152,630 + 12,387 + 4,096 = 12,169,113 packed;
 // 24,046,313 + 353 + 65 = 24,046,731 unpacked.
+// The 0.18.63 studio design release over reviewed main 20c1f999 retains
+// exactly 624 entries after its changelog, current version pins and rebuilt dist.
+// Two npm 11.19.0 packs --ignore-scripts with official Node 24.20.0 on darwin
+// arm64 measured 12,140,613 packed and 24,047,027 unpacked bytes; byte-identical
+// archive SHA-256 9f6ff0fac3c7bd70ecb5f94c11e0b3ee5a7e5bb48cb77a24129f0af4e7538a39.
+// Preserve the reviewed platform projections and portability allowances:
+// 12,140,613 + 12,387 + 4,096 = 12,157,096 packed;
+// 24,047,027 + 353 + 65 = 24,047,445 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget 0.18.60 observability release over reviewed analytics 8e0f67ef",
+  scope: "Ghostget 0.18.63 studio design release over reviewed main 20c1f999",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "3b8b932ef3cc79e037cef6ea6b8cdad7778e897f363c00024dfd6d9d426bb030",
-  packedBytes: 12_152_630,
-  unpackedBytes: 24_046_313,
+  archiveSha256: "9f6ff0fac3c7bd70ecb5f94c11e0b3ee5a7e5bb48cb77a24129f0af4e7538a39",
+  packedBytes: 12_140_613,
+  unpackedBytes: 24_047_027,
   entryCount: 624,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
