@@ -7,6 +7,14 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.69
+
+Preserve body-free WhatsApp interaction counts for legacy group rows that repeat the exact chat JID as their sender field.
+
+- Drop only the exact same-chat group JID, regardless of stored direction.
+- Continue rejecting different group JIDs and unrelated participant identities.
+- Keep the strict schema, owner, cursor, and no-message-body guards intact.
+
 ## 0.18.68
 
 Remove encoded personal identifiers and credentials from browser diagnostics.
