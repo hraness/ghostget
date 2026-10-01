@@ -1,3 +1,5 @@
+import { getBrowserConsent, installConsentTransport } from "@hraness/posthog/consent";
+
 // ghostget.com browser analytics. The pinned posthog-js build is bundled into
 // this module, so the page never loads remote SDK code. The event contract and
 // every scrub rule live in `analytics-contract.ts`.
@@ -49,47 +51,59 @@ function initializeBrowserAnalytics(): void {
     )
   ) return;
 
-  const evidence: BrowserEvidence = {
-    href: window.location.href,
-    referrer: document.referrer,
-    route: metaContent(document, ANALYTICS_ROUTE_META),
-  };
-  posthog.init(key, createBrowserConfig(host, evidence) as Parameters<typeof posthog.init>[1]);
-  const target = posthog as unknown as PostHogCaptureTarget;
+  const consent = getBrowserConsent();
+  if (consent === undefined) return;
+  let initialized = false;
+  consent.subscribe(() => {
+    if (!consent.allowed() || initialized || !installConsentTransport(posthog, consent)) return;
+    initialized = true;
+    const evidence: BrowserEvidence = {
+      href: window.location.href,
+      referrer: document.referrer,
+      route: metaContent(document, ANALYTICS_ROUTE_META),
+    };
+    posthog.init(key, createBrowserConfig(host, evidence, () => consent.allowed()) as Parameters<typeof posthog.init>[1]);
+    const target = posthog as unknown as PostHogCaptureTarget;
 
-  const route = resolveRoute(window.location.href, evidence);
-  if (route?.pageKind === "not_found") posthog.capture("page not found");
+    const route = resolveRoute(window.location.href, evidence);
+    if (route?.pageKind === "not_found") posthog.capture("page not found");
 
-  const reportException = createExceptionReporter(posthog);
-  window.addEventListener("error", (event) => {
-    if (event.error instanceof Error) reportException(event.error, "window_error");
-  });
-  window.addEventListener("unhandledrejection", (event) => {
-    reportException(event.reason, "unhandled_rejection");
-  });
+    const reportException = createExceptionReporter(posthog);
+    window.addEventListener("error", (event) => {
+      if (!consent.allowed()) return;
+      if (event.error instanceof Error) reportException(event.error, "window_error");
+    });
+    window.addEventListener("unhandledrejection", (event) => {
+      if (!consent.allowed()) return;
+      reportException(event.reason, "unhandled_rejection");
+    });
 
-  document.addEventListener(INSTALL_COPIED_EVENT, (event) => {
-    const detail = event instanceof CustomEvent ? event.detail as unknown : undefined;
-    const command = detail !== null && typeof detail === "object" ? (detail as { command?: unknown }).command : undefined;
-    if (typeof command === "string" && event.target instanceof Element) {
-      captureInstallCommandCopied(target, command, placementFor(event.target));
-    }
-  });
+    document.addEventListener(INSTALL_COPIED_EVENT, (event) => {
+      if (!consent.allowed()) return;
+      const detail = event instanceof CustomEvent ? event.detail as unknown : undefined;
+      const command = detail !== null && typeof detail === "object" ? (detail as { command?: unknown }).command : undefined;
+      if (typeof command === "string" && event.target instanceof Element) {
+        captureInstallCommandCopied(target, command, placementFor(event.target));
+      }
+    });
 
-  document.addEventListener("copy", () => {
-    const anchor = document.getSelection()?.anchorNode;
-    const element = anchor instanceof Element ? anchor : anchor?.parentElement;
-    const control = element?.closest<HTMLElement>("[data-install-command]");
-    const command = control?.dataset.installCommand;
-    if (control && command !== undefined) captureInstallCommandCopied(target, command, placementFor(control));
-  });
+    document.addEventListener("copy", () => {
+      if (!consent.allowed()) return;
+      const anchor = document.getSelection()?.anchorNode;
+      const element = anchor instanceof Element ? anchor : anchor?.parentElement;
+      const control = element?.closest<HTMLElement>("[data-install-command]");
+      const command = control?.dataset.installCommand;
+      if (control && command !== undefined) captureInstallCommandCopied(target, command, placementFor(control));
+    });
 
-  document.addEventListener("click", (event) => {
-    if (event.button !== 0 || !(event.target instanceof Element)) return;
-    const cta = event.target.closest<HTMLAnchorElement>("a[data-analytics-cta]")?.dataset.analyticsCta;
-    if (cta !== undefined) captureCta(target, cta);
-    const link = event.target.closest<HTMLAnchorElement>("a[href]");
-    if (link !== null) captureOutboundLink(target, link.href, placementFor(link));
+    document.addEventListener("click", (event) => {
+      if (!consent.allowed()) return;
+      if (event.button !== 0 || !(event.target instanceof Element)) return;
+      const cta = event.target.closest<HTMLAnchorElement>("a[data-analytics-cta]")?.dataset.analyticsCta;
+      if (cta !== undefined) captureCta(target, cta);
+      const link = event.target.closest<HTMLAnchorElement>("a[href]");
+      if (link !== null) captureOutboundLink(target, link.href, placementFor(link));
+    });
   });
 }
 

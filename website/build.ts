@@ -1,4 +1,4 @@
-import { marketing, product, renderMarketingCopy } from "./portfolio-copy";
+import { marketing, renderMarketingCopy } from "./portfolio-copy";
 import { releaseArchiveUrl } from "./github-release-artifact.mjs";
 import { snapshotMarketingPreset } from "./marketing-preset";
 import { createHash } from "node:crypto";
@@ -44,7 +44,7 @@ import {
   claimsTemplateValues,
   readClaimsRegisterSource,
 } from "./claims-register";
-import type { PortfolioProductId } from "@hraness/design-kit/portfolio";
+import { portfolioRelatedGroups, type PortfolioProductId } from "@hraness/design-kit/portfolio";
 import { highlightCode, type SyntaxLanguage } from "@hraness/design-kit/syntax-highlighting";
 import { renderStatusPageHtml, type StatusPageLink } from "@hraness/design-kit";
 import { renderPlatformBadges, renderPlatformInstall } from "./platform-install";
@@ -654,26 +654,32 @@ function renderEditorialFigure(image: EditorialImage): string {
           </figure>`;
 }
 
-/** The homepage's related-product tiers, in display order. */
-export const RELATED_CARD_GROUPS = {
-  "{{RELATED_PLATFORM_CARDS}}": ["gobstopper", "xcb", "aicharts"],
-  "{{RELATED_APP_CARDS}}": ["peopleblade", "soulscrape", "message-like-me", "kb"],
-} as const satisfies Readonly<Record<string, readonly PortfolioProductId[]>>;
+/** The homepage keeps its curated siblings; the registry owns their categories. */
+export const RELATED_PRODUCT_IDS = ["gobstopper", "xcb", "aicharts", "peopleblade", "soulscrape", "message-like-me", "kb"] as const satisfies readonly PortfolioProductId[];
 
-/**
- * Static related-product cards, as the shared `MarketingRelated` draws them:
- * the portfolio mark, the product name, and its one-line description. Every
- * Copy comes from the checked portfolio snapshot; artwork comes from the design kit.
- */
-export function renderRelatedCards(ids: readonly PortfolioProductId[]): string {
-  return ids.map((id) => {
-    const { canonicalUrl, mark, messaging, oneLiner } = product(id);
-    if (!mark.startsWith("data:image/svg+xml,")) throw new Error(`The ${id} portfolio mark must be an inert SVG data URL.`);
-    return `<a class="hraness-marketing-related__card" data-hraness-marketing="card" href="${escapeHtml(canonicalUrl)}">`
-      + `<span aria-hidden="true" class="hraness-marketing-related__card-mark"><img alt="" decoding="async" height="44" src="${escapeHtml(mark)}" width="44"></span>`
-      + `<span class="hraness-marketing-related__card-text"><h4 class="hraness-marketing-related__card-name">${escapeHtml(messaging.names.name)}</h4>`
-      + `<span class="hraness-marketing-related__card-role">${escapeHtml(oneLiner)}</span></span></a>`;
-  }).join("\n              ");
+/** Static equivalent of the shared MarketingRelated category and card markup. */
+export function renderRelatedGroups(ids: readonly PortfolioProductId[]): string {
+  return portfolioRelatedGroups(ids).map((group) => {
+    const cards = group.items.map(({ href, mark, name, role, domain, productId }) => {
+      if (!mark.startsWith("data:image/svg+xml,")) throw new Error(`The ${productId} portfolio mark must be an inert SVG data URL.`);
+      return `<li class="hraness-marketing-related__item"><a class="hraness-marketing-related__card" data-foil="" data-hraness-marketing="card" data-product-id="${escapeHtml(productId)}" href="${escapeHtml(href)}">`
+        + `<span aria-hidden="true" class="hraness-marketing-related__card-mark"><span aria-hidden="true" class="hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="28" src="${escapeHtml(mark)}" width="28"><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span></span>`
+        + `<div class="hraness-marketing-related__card-text"><div class="hraness-marketing-related__card-heading"><h4 class="hraness-marketing-related__card-name">${escapeHtml(name)}</h4>`
+        + `<span class="hraness-marketing-related__card-domain">${escapeHtml(domain)}</span></div>`
+        + `<span class="hraness-marketing-related__card-role">${escapeHtml(role)}</span></div></a></li>`;
+    }).join("\n");
+    return `<div class="hraness-marketing-related__group" data-tone="${group.tone}">`
+      + `<div class="hraness-marketing-related__group-header"><h3 class="hraness-marketing-related__group-heading" id="${escapeHtml(group.headingId)}">${escapeHtml(group.heading)}</h3></div>`
+      + `<ul aria-labelledby="${escapeHtml(group.headingId)}" class="hraness-marketing-related__list">${cards}</ul></div>`;
+  }).join("\n");
+}
+
+/** Keep portfolio masks in the hashed stylesheet under the site’s strict CSP. */
+function renderRelatedStyles(ids: readonly PortfolioProductId[]): string {
+  const masks = portfolioRelatedGroups(ids).flatMap((group) => group.items.map(({ productId, mark }) =>
+    `.hraness-marketing-related__card[data-product-id="${productId}"] .hraness-foil-mark__paint { --hraness-foil-mask: url(${JSON.stringify(mark)}); }`,
+  ));
+  return [".hraness-marketing-related__card .hraness-foil-mark { --hraness-foil-size: 28px; }", ...masks].join("\n");
 }
 
 function renderEditorialCards(): string {
@@ -978,12 +984,8 @@ function renderTemplate(
     }
     if (page.canonicalPath === "/") {
       rendered = replaceRequired(rendered, "{{EDITORIAL_CARDS}}", renderEditorialCards());
-      for (const [placeholder, ids] of Object.entries(RELATED_CARD_GROUPS)) {
-        if (!rendered.includes(placeholder)) throw new Error(`Template is missing ${placeholder}.`);
-        const cards = renderRelatedCards(ids);
-        rendered = rendered.replaceAll(placeholder, () => cards);
-      }
-    } else if (/\{\{(?:EDITORIAL_CARDS|RELATED_[A-Z]+_CARDS)\}\}/u.test(rendered)) {
+      rendered = replaceRequired(rendered, "{{RELATED_GROUPS}}", renderRelatedGroups(RELATED_PRODUCT_IDS));
+    } else if (/\{\{(?:EDITORIAL_CARDS|RELATED_GROUPS)\}\}/u.test(rendered)) {
       throw new Error("Editorial and related cards belong only on the homepage.");
     }
   } else if (rendered.includes("{{JSON_LD}}")) {
@@ -1461,7 +1463,7 @@ export async function buildWebsite(
   const postHog = postHogEnvironment(environment);
   // The UI facade establishes its complete layer order before the static
   // marketing grammar and footer. Product tokens and composition follow them.
-  const compiledCss = `${uiCss}\n\n${designKitFontsCss.trim()}\n\n${designKitTypographyCss.trim()}\n\n${designKitProductMarketingCss.trim()}\n\n${designKitPlainSiteCss.replace('@import "./site-shell.css";', "").trim()}\n\n${designKitPlainPublicationCss.trim()}\n\n${designKitStatusPageCss.trim()}\n\n${designKitMockupsCss.trim()}\n\n${hranessSiteFooterCss.trim()}\n\n${paperThemeCss.trim()}\n\n${paletteSystemCss.trim()}\n\n${paletteBridgeCss.replace('@import "./palette-system.css";', "").trim()}\n\n${css.trimEnd()}\n\n${marketingPreset.files.get("product-marketing-preset.css")!.toString("utf8")}\n\n${marketingForcedColorsCss.trim()}\n`;
+  const compiledCss = `${uiCss}\n\n${designKitFontsCss.trim()}\n\n${designKitTypographyCss.trim()}\n\n${designKitProductMarketingCss.trim()}\n\n${designKitPlainSiteCss.replace('@import "./site-shell.css";', "").trim()}\n\n${designKitPlainPublicationCss.trim()}\n\n${designKitStatusPageCss.trim()}\n\n${designKitMockupsCss.trim()}\n\n${hranessSiteFooterCss.trim()}\n\n${paperThemeCss.trim()}\n\n${paletteSystemCss.trim()}\n\n${paletteBridgeCss.replace('@import "./palette-system.css";', "").trim()}\n\n${renderRelatedStyles(RELATED_PRODUCT_IDS)}\n\n${css.trimEnd()}\n\n${marketingPreset.files.get("product-marketing-preset.css")!.toString("utf8")}\n\n${marketingForcedColorsCss.trim()}\n`;
   const cssAsset = `/assets/styles-${contentHash(compiledCss)}.css`;
   const analyticsAsset = `/assets/analytics-${contentHash(analytics)}.js`;
   const skillInstallAsset = `/assets/skill-install-${contentHash(skillInstall)}.js`;
