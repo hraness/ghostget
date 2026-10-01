@@ -15,6 +15,11 @@ Accept the short legacy system JIDs and inconsistent participant fields emitted 
 - Drop participant fields that contradict the stored message direction instead of failing the complete page.
 - Keep the strict schema, owner, cursor, and no-message-body guards intact.
 
+Select the European PostHog UI only for the exact validated ingestion origin.
+
+- Replace the ambiguous substring match with exact origin equality.
+- Preserve fixed trusted PostHog UI URLs.
+
 ## 0.18.65
 
 Make GhostGet's articles and comparisons calmer, clearer, and more consistent.
