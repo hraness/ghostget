@@ -1076,6 +1076,10 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
   max-width: 72rem;
 }
 
+:is(.guide-article, .blog-main) :is(h2, h3, h4)[id] {
+  scroll-margin-block-start: calc(var(--hraness-sticky-offset, 5rem) + 2.5rem);
+}
+
 .guide-hero {
   padding: clamp(4.5rem, 10vw, 8rem) 0 clamp(3.5rem, 8vw, 6rem);
 }
@@ -3786,6 +3790,21 @@ a[href] {
   text-underline-offset: 0.2em;
 }
 a[href]:where(:hover, :focus-visible) { text-decoration-color: currentColor; }
+
+/* Keep settled analytics choices in the footer, clear of reading content.
+ * The shared required-consent prompt retains its original placement. */
+[data-slot="hraness-site-footer"] [data-slot="hraness-cookie-consent"]:is([data-consent-state="clear"], [data-consent-state="declined"]) {
+  inset: auto;
+  position: static;
+  z-index: auto;
+}
+
+@media (max-width: 40rem) {
+  [data-slot="hraness-site-footer"] [data-slot="hraness-cookie-consent"]:is([data-consent-state="clear"], [data-consent-state="declined"]) details > div {
+    inset-inline: 0 auto;
+    max-inline-size: calc(100vw - var(--page-inline) - var(--page-inline));
+  }
+}
 
 /* Static counterpart of design-kit MarketingAccount and MarketingAccountActions. */
 .hraness-marketing-account {

@@ -7,6 +7,19 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.65
+
+Make GhostGet's articles and comparisons calmer, clearer, and more consistent.
+
+- Rewrite the blog and essays around useful explanations, with accurate sources
+  and independent AI review records.
+- Add a consistent SlopCamera illustration series with responsive images,
+  including the missing image for the web-access guide.
+- Keep linked headings below navigation and settled analytics preferences in
+  the footer, clear of reading content.
+- Remove private values embedded in analytics property names, including nested
+  records, before sending website events.
+
 ## 0.18.64
 
 Supported global CLI installs update to the latest stable release before an
