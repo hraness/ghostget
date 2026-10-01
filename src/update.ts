@@ -27,7 +27,7 @@ export function ghostgetUpdateOptions(
 export async function startGhostgetUpdate(argv: readonly string[], depth: number | null): Promise<StartupResult> {
   try { return await runCliUpdate(ghostgetUpdateOptions(argv, depth)); }
   catch {
-    process.stderr.write("GhostGet could not check its update policy. Review ghostget status and ghostget web rules set.\n");
+    process.stderr.write("GhostGet could not check its update policy, or its policy state is unavailable. Review ghostget status and ghostget web rules set.\n");
     return { handled: true, exitCode: 1, release: async () => {} };
   }
 }

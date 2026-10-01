@@ -24,6 +24,18 @@
         }
       ]
     },
+    "verification-claims/guideline-additions": {
+      "file": "scripts/verification-claims.test.ts",
+      "entries": [
+        {
+          "kind": "counterexample",
+          "seed": 80249490,
+          "path": "0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0",
+          "origin": "Required run 36792160811 (verification job 110147643479) shrank a Keep Keep guideline addition while the committed release-source CodeQL claim still quoted the old two-language documentation. The committed-register example rejects that stale quote independently.",
+          "regression": "parses strictly and agrees with every scanned guide, source, and evidence path"
+        }
+      ]
+    },
     "verification-oracles/url-candidates": {
       "file": "scripts/verification-oracles.test.ts",
       "entries": [
