@@ -209,13 +209,13 @@ describe("ghostget.com static site", () => {
     expect(packageFiles).not.toContain("vercel.json");
     expect(manifest).toMatchObject({
       devDependencies: {
-        "@hraness/design-kit": "github:hraness/design-kit#v0.35.2",
+        "@hraness/design-kit": "github:hraness/design-kit#v0.36.3",
 
         "@hraness/site-footer": "https://github.com/hraness/site-footer/releases/download/v0.20.5/hraness-site-footer-0.20.5.tgz",
         "@hraness/ui": "github:hraness/ui#v0.5.18",
       },
     });
-    expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.35.2"');
+    expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.36.3"');
     expect(lockfile).toContain('"@hraness/ui": "github:hraness/ui#v0.5.18"');
 
     expect(lockfile).toContain('"@hraness/site-footer": "https://github.com/hraness/site-footer/releases/download/v0.20.5/hraness-site-footer-0.20.5.tgz"');
