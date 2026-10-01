@@ -458,14 +458,14 @@ export function sanitizeCapture(
   };
 }
 
-export function createBrowserConfig(host: string, evidence: BrowserEvidence): Readonly<Record<string, unknown>> {
+export function createBrowserConfig(host: string, evidence: BrowserEvidence, isAllowed: () => boolean = () => true): Readonly<Record<string, unknown>> {
   return {
     advanced_disable_feature_flags: true,
     advanced_disable_feature_flags_on_first_load: true,
     advanced_disable_flags: true,
     api_host: host,
     autocapture: false,
-    before_send: (capture: unknown) => sanitizeCapture(capture, evidence),
+    before_send: (capture: unknown) => isAllowed() ? sanitizeCapture(capture, evidence) : null,
     capture_dead_clicks: false,
     // Exceptions go through the budgeted reporter in analytics.ts.
     capture_exceptions: false,
@@ -503,6 +503,8 @@ export function createBrowserConfig(host: string, evidence: BrowserEvidence): Re
     rageclick: false,
     rate_limiting: { events_burst_limit: 12, events_per_second: 2 },
     respect_dnt: true,
+    // Do not retain a batch that could outlive a visitor’s consent.
+    request_batching: false,
     ui_host: host.includes("eu.i.posthog.com") ? "https://eu.posthog.com" : "https://us.posthog.com",
   };
 }

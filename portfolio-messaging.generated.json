@@ -5,7 +5,7 @@
   "portfolio": {
     "contract": "hraness.portfolio-public/v1",
     "url": "https://hraness.com/portfolio.json",
-    "digest": "sha256:3e82dac495694ca14dbdea88c58d6781f23725a4005231eb0b5eb4e68d4e4907"
+    "digest": "sha256:ba365e481a8b15c4a19503b1628e1b7ae9399e47055dde02bae124183a3e1447"
   },
   "messaging": {
     "formatVersion": 1,
@@ -25,7 +25,7 @@
     "long": "Agents that run commands reach the web through a browser they steer click by click, or through credentials they should never hold. GhostGet is a free, open-source CLI and TypeScript SDK that gives them a third route: a fixed list of reviewed web actions. Read a URL as Markdown, keep a searchable copy on your machine, archive one media item with SHA-256 records, or act in a connected account such as Gmail, Beeper, or X through one named operation. A measured article read costs about 3,800 tokens where the raw page carries 36,000. Consequential writes need an exact preview and your confirmation, and the agent never sees a login.",
     "hero": {
       "heading": "Your agent gets the result without clicking around.",
-      "summary": "A free CLI and TypeScript SDK for Claude Code, Codex, Cursor, and other agents that run commands. Read a page as Markdown, save a media item, or use a connected account.",
+      "summary": "Read pages, save media, and use connected accounts through your agent.",
       "primaryAction": "Tell your agent",
       "secondaryAction": "See it work"
     },
@@ -52,7 +52,7 @@
       "arguments-title": "Arguments and comparisons",
       "how-agents-reach-the-web": "How agents reach the web",
       "maker-title": "Hraness",
-      "related-title": "From the same studio.",
+      "related-title": "Other tools from our studio",
       "related-tools": "The agent platform",
       "related-apps": "The personal apps",
       "final-title": "Read your first page in two commands.",

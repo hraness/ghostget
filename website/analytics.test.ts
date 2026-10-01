@@ -115,6 +115,20 @@ describe("ghostget.com analytics contract", () => {
     });
   });
 
+  test("the consent gate blocks captures again after withdrawal without changing privacy filters", () => {
+    let allowed = false;
+    const config = createBrowserConfig("https://us.i.posthog.com", home, () => allowed);
+    const beforeSend = config.before_send as (capture: unknown) => { properties: Record<string, unknown> } | null;
+    const capture = { event: "$pageview", properties: { $current_url: home.href, token, email: "private@example.com" } };
+    expect(beforeSend(capture)).toBeNull();
+    allowed = true;
+    expect(beforeSend(capture)?.properties).toMatchObject({ site_id: "ghostget" });
+    expect(beforeSend(capture)?.properties).not.toHaveProperty("email");
+    allowed = false;
+    expect(beforeSend(capture)).toBeNull();
+    expect(config.request_batching).toBe(false);
+  });
+
   test("every built public page reports its own route, never not-found", async () => {
     for (const page of PUBLIC_PAGES) {
       const route = resolveRoute(`https://ghostget.com${page.canonicalPath}?gclid=x`, evidenceFor(page.canonicalPath));

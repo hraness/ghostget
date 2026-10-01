@@ -2263,11 +2263,11 @@ body {
 
 .provider-card h3 a {
   color: var(--foreground);
-  text-decoration: none;
+  text-decoration-line: underline;
 }
 
 .provider-card h3 a:hover {
-  text-decoration: underline;
+  text-decoration-line: underline;
   text-decoration-color: var(--ghostget-action);
 }
 
@@ -2669,10 +2669,6 @@ body {
   padding-block: var(--hraness-marketing-hero-space, 3.5rem 4rem);
 }
 
-.ghostget-product-hero .hraness-marketing-hero__heading {
-  max-inline-size: 18ch;
-  font-size: var(--hraness-paper-heading-size);
-}
 
 .ghostget-product-hero .hraness-marketing-hero__copy {
   gap: 1.1rem;
@@ -2687,11 +2683,6 @@ body {
   margin-block-start: 0;
 }
 
-@media (min-width: 62rem) {
-  .ghostget-product-hero {
-    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-  }
-}
 
 .hraness-marketing-header :where(a, button) {
   min-block-size: 2.75rem;
@@ -3056,9 +3047,6 @@ body {
   text-decoration-color: var(--ghostget-action);
 }
 
-.ghostget-product-hero .hraness-marketing-hero__heading {
-  max-inline-size: 16ch;
-}
 
 .ghostget-product-hero .hraness-marketing-hero__summary {
   max-inline-size: 36rem;
@@ -3152,7 +3140,7 @@ body {
 }
 
 .home-reading .card h3 a {
-  text-decoration: none;
+  text-decoration-line: underline;
 }
 
 .home-reading .card :is(h3 a, a):hover h3,
@@ -3311,7 +3299,7 @@ body {
   min-block-size: 2rem;
   align-items: center;
   padding: 0;
-  text-decoration: underline;
+  text-decoration-line: underline;
   text-decoration-color: color-mix(in srgb, currentColor 30%, transparent);
 }
 
@@ -3417,10 +3405,6 @@ body {
 }
 
 /* Related products: plain rows. */
-.ghostget-related-apps {
-  --hraness-marketing-grid-columns: 2;
-}
-
 .hraness-marketing-card-row .hraness-marketing-card {
   box-shadow: none;
 }
@@ -3435,16 +3419,7 @@ body {
   padding-block: 1.75rem;
 }
 
-@media (min-width: 62rem) {
-  .ghostget-product-hero {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
-}
 
-[data-hraness-marketing-preset="editorial"] .ghostget-product-hero .hraness-marketing-hero__heading {
-  font-size: clamp(2.375rem, 1.8rem + 2vw, 3.25rem);
-  max-inline-size: 20ch;
-}
 
 .proof-transcript,
 .proof-transcript code {
@@ -3801,4 +3776,96 @@ body {
   .hraness-platform-install__command-bar,
   .hraness-platform-badges,
   .hraness-platform-badges__item { color: CanvasText; }
+}
+
+/* Shared studio convention for text links; controls retain their own decoration line. */
+a[href] {
+  text-decoration-style: dotted;
+  text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+a[href]:where(:hover, :focus-visible) { text-decoration-color: currentColor; }
+
+/* Static counterpart of design-kit MarketingAccount and MarketingAccountActions. */
+.hraness-marketing-account {
+  align-items: center;
+  border-top: var(--hraness-marketing-rule, 1px solid var(--line));
+  color: var(--foreground);
+  display: grid;
+  gap: 2rem 4rem;
+  grid-template-columns: minmax(0, 1fr);
+  padding-block: clamp(2.5rem, 6vw, 4rem);
+  scroll-margin-top: calc(var(--hraness-sticky-offset, 5rem) + 2rem);
+}
+.hraness-marketing-account__copy { min-width: 0; }
+.hraness-marketing-account__heading {
+  font-family: var(--font-text);
+  font-size: clamp(1.625rem, 1.3rem + 1vw, 2.25rem);
+  font-weight: 550;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  margin: 0;
+  text-wrap: balance;
+}
+.hraness-marketing-account__summary {
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 1rem 0 0;
+  max-width: 42ch;
+  text-wrap: pretty;
+}
+.hraness-marketing-account__actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+  min-width: 0;
+}
+.hraness-marketing-account__primary,
+.hraness-marketing-account__sign-in {
+  align-items: center;
+  display: inline-flex;
+  font-family: var(--font-text);
+  font-size: 1.0625rem;
+  line-height: 1.3;
+  min-height: 3.5rem;
+}
+.hraness-marketing-account__primary {
+  background: var(--primary);
+  border: 1px solid transparent;
+  border-radius: 0.625rem;
+  color: var(--primary-foreground);
+  font-weight: 550;
+  justify-content: center;
+  max-width: 100%;
+  padding: 0.875rem 1.5rem;
+  text-align: center;
+  text-decoration: none;
+}
+.hraness-marketing-account__primary:hover {
+  background: color-mix(in oklch, var(--primary) 88%, var(--foreground));
+}
+a.hraness-marketing-account__sign-in {
+  color: var(--foreground);
+  font-weight: 450;
+  text-decoration-line: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
+  text-underline-offset: 0.22em;
+}
+a.hraness-marketing-account__sign-in:is(:hover, :focus-visible) {
+  text-decoration-color: currentColor;
+}
+.hraness-marketing-account__actions a:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}
+@media (min-width: 50rem) {
+  .hraness-marketing-account { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
+@media (forced-colors: active) {
+  .hraness-marketing-account__primary { background: ButtonFace; border-color: ButtonText; color: ButtonText; }
+  a.hraness-marketing-account__sign-in,
+  a.hraness-marketing-account__sign-in:is(:hover, :focus-visible) { text-decoration-color: LinkText; }
 }
