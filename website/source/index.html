@@ -55,6 +55,7 @@
           <a href="/docs/">Docs</a>
           <a href="https://github.com/hraness/ghostget"
           >GitHub <span aria-hidden="true">↗</span></a>
+          <a href="https://account.hraness.com/">Account</a>
         </nav>
         <div class="hraness-marketing-header__actions">
           <a class="hraness-marketing-action" data-analytics-cta="header-install" data-emphasis="primary" href="#start">Install</a>
@@ -66,15 +67,35 @@
       <div class="hraness-marketing-page">
         <header aria-labelledby="brand-name" class="hraness-marketing-hero ghostget-product-hero" data-align="start" data-hraness-marketing="hero" data-tone="paper">
           <div class="hraness-marketing-hero__copy">
-            <p class="home-eyebrow">Web actions for agents</p>
             <h1 class="hraness-marketing-hero__heading" id="brand-name">{{PORTFOLIO_HERO_START}} <span class="hero-heading-accent">{{PORTFOLIO_HERO_END}}</span></h1>
             <p class="hraness-marketing-hero__summary hero-explainer">{{PORTFOLIO_HERO_SUMMARY}}</p>
+            <div class="hraness-marketing-hero__install">{{GHOSTGET_PLATFORM_INSTALL}}</div>
             <div class="hraness-marketing-hero__actions">
-              <a class="hraness-marketing-action" data-analytics-cta="hero-install" data-emphasis="primary" href="#start">{{PORTFOLIO_PRIMARY_ACTION}}</a>
               <a class="home-text-link" data-analytics-cta="hero-see-it-work" href="/docs/tutorials/getting-started/#demo">{{PORTFOLIO_SECONDARY_ACTION}} <span aria-hidden="true">→</span></a>
             </div>
-            <p class="hraness-marketing-hero__boundary">Free and MIT licensed · macOS and Linux with Bun 1.3.14 · Release {{GHOSTGET_RELEASE}}</p>
           </div>
+
+        </header>
+
+        <section aria-labelledby="uses-heading" class="hraness-marketing-section" data-hraness-marketing="section" data-layout="stack" id="uses">
+          <div class="hraness-marketing-section__heading-group">
+            <p class="home-eyebrow">What it does</p>
+            <h2 class="hraness-marketing-section__heading" id="uses-heading">{{PORTFOLIO_HEADING:uses-heading}}</h2>
+          </div>
+          <dl aria-label="GhostGet in three points" class="hraness-marketing-pillars" data-hraness-marketing="pillars">
+            <div><dt>Read</dt><dd>Turn a public URL into Markdown your agent can inspect on the spot or keep in a local knowledge base.</dd></div>
+            <div><dt>Archive</dt><dd>Save one media item you’re allowed to access, with its transcript and source details. Playlists, live streams, and DRM-protected media are not supported.</dd></div>
+            <div><dt>Act</dt><dd>Use supported actions across {{PROVIDER_SURFACE_COUNT}} services, including Beeper, Gmail, and YouTube. Most need a connected account. Check the provider list for available actions.</dd></div>
+          </dl>
+        </section>
+
+        <section aria-labelledby="how-it-works-heading" class="hraness-marketing-section" data-hraness-marketing="section" data-layout="split" id="how-it-works">
+          <div class="hraness-marketing-section__heading-group">
+            <p class="home-eyebrow">How it works</p>
+            <h2 class="hraness-marketing-section__heading" id="how-it-works-heading">{{PORTFOLIO_HEADING:how-it-works-heading}}</h2>
+            <p class="hraness-marketing-section__summary">GhostGet runs supported actions and returns their results. Connect an account only when the action needs one.</p>
+          </div>
+          <div class="hraness-marketing-section__body">
           <div class="hraness-marketing-hero__frame">
             <figure class="hraness-marketing-proof-frame" data-hraness-marketing="proof-frame">
               <div aria-hidden="true" class="hraness-marketing-proof-frame__chrome"><span class="hraness-marketing-proof-frame__lights"><span class="hraness-marketing-proof-frame__light"></span><span class="hraness-marketing-proof-frame__light"></span><span class="hraness-marketing-proof-frame__light"></span></span><span class="hraness-marketing-proof-frame__title">Read a page · Terminal</span></div>
@@ -100,27 +121,6 @@ This domain is for use in documentation examples without needing permission. Avo
               </figcaption>
             </figure>
           </div>
-        </header>
-
-        <section aria-labelledby="uses-heading" class="hraness-marketing-section" data-hraness-marketing="section" data-layout="stack" id="uses">
-          <div class="hraness-marketing-section__heading-group">
-            <p class="home-eyebrow">What it does</p>
-            <h2 class="hraness-marketing-section__heading" id="uses-heading">{{PORTFOLIO_HEADING:uses-heading}}</h2>
-          </div>
-          <dl aria-label="GhostGet in three points" class="hraness-marketing-pillars" data-hraness-marketing="pillars">
-            <div><dt>Read</dt><dd>Turn a public URL into Markdown your agent can inspect on the spot or keep in a local knowledge base.</dd></div>
-            <div><dt>Archive</dt><dd>Save one media item you’re allowed to access, with its transcript and source details. Playlists, live streams, and DRM-protected media are not supported.</dd></div>
-            <div><dt>Act</dt><dd>Use supported actions across {{PROVIDER_SURFACE_COUNT}} services, including Beeper, Gmail, and YouTube. Most need a connected account. Check the provider list for available actions.</dd></div>
-          </dl>
-        </section>
-
-        <section aria-labelledby="how-it-works-heading" class="hraness-marketing-section" data-hraness-marketing="section" data-layout="split" id="how-it-works">
-          <div class="hraness-marketing-section__heading-group">
-            <p class="home-eyebrow">How it works</p>
-            <h2 class="hraness-marketing-section__heading" id="how-it-works-heading">{{PORTFOLIO_HEADING:how-it-works-heading}}</h2>
-            <p class="hraness-marketing-section__summary">GhostGet runs supported actions and returns their results. Connect an account only when the action needs one.</p>
-          </div>
-          <div class="hraness-marketing-section__body">
             <ol aria-label="One GhostGet request" class="hraness-marketing-flow" data-hraness-marketing="flow">
               <li class="hraness-marketing-flow__step"><span aria-hidden="true" class="hraness-marketing-flow__number">01</span><div class="hraness-marketing-flow__body"><strong class="hraness-marketing-flow__label">Name the job</strong><p class="hraness-marketing-flow__detail">Ask your agent to read a page, check an inbox, or save a video.</p></div></li>
               <li class="hraness-marketing-flow__step"><span aria-hidden="true" class="hraness-marketing-flow__number">02</span><div class="hraness-marketing-flow__body"><strong class="hraness-marketing-flow__label">Match one action</strong><p class="hraness-marketing-flow__detail">Your agent selects an action from the installed capability list.</p></div></li>
@@ -200,7 +200,6 @@ This domain is for use in documentation examples without needing permission. Avo
               <p>“Install GhostGet {{GHOSTGET_RELEASE}}, then use it to read https://example.com and summarize it.”</p>
             </aside>
             <div class="command-stack">
-              {{GHOSTGET_PLATFORM_INSTALL}}
               <div class="hraness-marketing-proof-frame" data-hraness-marketing="proof-frame">
                 <div aria-hidden="true" class="hraness-marketing-proof-frame__chrome"><span class="hraness-marketing-proof-frame__lights"><span class="hraness-marketing-proof-frame__light"></span><span class="hraness-marketing-proof-frame__light"></span><span class="hraness-marketing-proof-frame__light"></span></span><span class="hraness-marketing-proof-frame__title">Then read a page · Terminal</span></div><div class="hraness-marketing-proof-frame__content">
                 <pre tabindex="0" aria-label="Read a public page">{{GHOSTGET_READ_CODE}}</pre></div>
@@ -260,10 +259,10 @@ This domain is for use in documentation examples without needing permission. Avo
             <p>Connections and saved results stay on your machine. Actions contact the service you choose.</p>
           </header>
           <dl class="hraness-marketing-trust-grid">
-            <div class="hraness-marketing-trust-item"><dt>Keep sign-ins local</dt><dd>GhostGet binds a connection to one account and service. Your agent receives results without cookies or tokens. For X, <code>ghostget vault import-x</code> can import a token from a 1Password field reference.</dd></div>
-            <div class="hraness-marketing-trust-item"><dt>Preview account changes</dt><dd>Writes need your confirmation of a preview, or a limited grant you set up for owner messaging. A write with an unknown result is not sent again.</dd></div>
-            <div class="hraness-marketing-trust-item"><dt>Keep earlier reads</dt><dd>Provider-read snapshots are encrypted locally. A failed refresh leaves the last verified copy available; owner messaging keeps its own private history.</dd></div>
-            <div class="hraness-marketing-trust-item"><dt>Stop when a service changes</dt><dd>Affected actions stop until reviewed. GhostGet does not improvise a browser workaround or bypass sign-in, payment, access controls, or DRM.</dd></div>
+            <div class="hraness-marketing-trust-item"><dt>Keep sign-ins local</dt><dd>Each connection belongs to one account and service. Your sign-in stays on your machine; your agent receives the results.</dd></div>
+            <div class="hraness-marketing-trust-item"><dt>Preview account changes</dt><dd>Review account changes before they happen, or choose which messages GhostGet may send for you.</dd></div>
+            <div class="hraness-marketing-trust-item"><dt>Keep earlier reads</dt><dd>Saved reads are encrypted on your machine. If a refresh fails, your earlier copy is still there.</dd></div>
+            <div class="hraness-marketing-trust-item"><dt>Stop when a service changes</dt><dd>An action stops when its service changes, so you can check what happened before trying again.</dd></div>
           </dl>
             <figure class="launch-figure">
               {{LAUNCH_MOCKUP:preview}}
@@ -274,26 +273,30 @@ This domain is for use in documentation examples without needing permission. Avo
           <div class="hraness-marketing-section__heading-group">
             <p class="home-eyebrow">Compare</p>
             <h2 class="hraness-marketing-section__heading" id="comparison-title">{{PORTFOLIO_HEADING:comparison-title}}</h2>
-            <p class="hraness-marketing-section__summary">Browser tools give the model a browser to drive. Reader services fetch pages on their own servers. Integration platforms manage your sign-ins for you. GhostGet runs reviewed actions on your machine and returns one result. <a href="/compare/">Compare the approaches</a> in detail.</p>
+            <p class="hraness-marketing-section__summary">GhostGet runs named actions on your machine. Browser tools let the model choose its steps; hosted services handle reading, browsing, or account connections for you.</p>
           </div>
           <div class="hraness-marketing-section__body">
-            <div aria-labelledby="comparison-title" class="table-scroll" role="region" tabindex="0">
-              <table>
-                <thead><tr><th scope="col">Approach</th><th scope="col">Best fit</th><th scope="col">How GhostGet differs</th></tr></thead>
-                <tbody>
-                  <tr><th scope="row">Your agent’s built-in web fetch</th><td>Quick lookups with nothing to install. Claude Code’s WebFetch, for example, returns a small model’s answer about the page.</td><td>Returns the page’s content as Markdown and can save it on your machine.</td></tr>
-                  <tr><th scope="row"><a href="/compare/firecrawl/">Firecrawl</a> and <a href="/compare/jina-reader/">Jina Reader</a></th><td>Hosted URL-to-Markdown, crawling, and search, metered per page or per token</td><td>Reads one page on your machine with no key or meter. No crawl or search.</td></tr>
-                  <tr><th scope="row"><a href="https://github.com/unclecode/crawl4ai">Crawl4AI</a></th><td>Open-source Python crawling of whole sites for RAG pipelines, on your own machine</td><td>Reads one URL at a time, and also runs actions in accounts you connect.</td></tr>
-                  <tr><th scope="row"><a href="/compare/browser-use/">browser-use</a></th><td>Open-ended, multi-step browsing where the model observes the page and decides each step</td><td>The model chooses no steps. Each call runs one reviewed action or stops with an error.</td></tr>
-                  <tr><th scope="row"><a href="/compare/playwright-mcp/">Playwright MCP</a></th><td>Giving an existing agent live browser controls, with the accessibility tree streamed into context per step</td><td>One result per call. No page state goes back into the agent’s context.</td></tr>
-                  <tr><th scope="row"><a href="/compare/agent-browser/">agent-browser</a></th><td>Shell-level browser steering an agent composes itself: open, click, type, snapshot</td><td>GhostGet runs agent-browser internally for pages that need rendering, and the agent can’t steer it.</td></tr>
-                  <tr><th scope="row"><a href="/compare/browserbase/">Browserbase + Stagehand</a></th><td>Managed cloud browser sessions at scale, with proxies, stealth, and session replay</td><td>Runs on your machine with no remote browser, and never falls back to a browser when an action is missing or has changed.</td></tr>
-                  <tr><th scope="row"><a href="https://composio.dev">Composio</a>, <a href="https://www.arcade.dev">Arcade</a>, and <a href="https://pipedream.com/docs/connect">Pipedream Connect</a></th><td>Large app-integration catalogs with managed sign-in, for products whose agents act for many users</td><td>Covers far fewer services. Sign-ins stay on your machine, and each write shows a preview first.</td></tr>
-                  <tr><th scope="row"><a href="https://docs.apify.com/integrations/mcp">Apify MCP</a></th><td>Discovering and running eligible Apify Store Actors through a hosted MCP service, with access to results and storage</td><td>Each provider action and implementation must be named and reviewed before it can run.</td></tr>
-                  <tr><th scope="row">GhostGet</th><td>Repeated account and page work where you want to know exactly what the agent can do</td><td>Encrypted local copies of reads, a preview and a record for every write, and actions that stop when a service changes.</td></tr>
-                </tbody>
-              </table>
-            </div>
+            <figure class="hraness-marketing-comparison">
+              <div class="hraness-marketing-comparison__scroll" aria-label="Tools for web and account work" role="region" tabindex="0">
+                <table class="hraness-marketing-comparison__table">
+                  <caption class="hraness-marketing-comparison__caption">Tools for web and account work</caption>
+                  <thead><tr><td class="hraness-marketing-comparison__corner"></td><th class="hraness-marketing-comparison__option" scope="col">Where it runs</th><th class="hraness-marketing-comparison__option" scope="col">Best for</th></tr></thead>
+                  <tbody>
+                  <tr><th class="hraness-marketing-comparison__row-label" scope="row">GhostGet</th><td class="hraness-marketing-comparison__cell"><span class="hraness-marketing-comparison__text">Your machine</span></td><td class="hraness-marketing-comparison__cell"><span class="hraness-marketing-comparison__text">Named page and account actions</span></td></tr>
+                  <tr><th class="hraness-marketing-comparison__row-label" scope="row">Your agent’s web fetch</th><td class="hraness-marketing-comparison__cell"><span class="hraness-marketing-comparison__text">Your agent</span></td><td class="hraness-marketing-comparison__cell"><span class="hraness-marketing-comparison__text">Quick lookups</span></td></tr>
+                  <tr><th class="hraness-marketing-comparison__row-label" scope="row"><a href="/compare/firecrawl/">Firecrawl</a> / <a href="/compare/jina-reader/">Jina Reader</a></th><td class="hraness-marketing-comparison__cell"><span class="hraness-marketing-comparison__text">Hosted service</span></td><td class="hraness-marketing-comparison__cell"><span class="hraness-marketing-comparison__text">Reading, crawling and search</span></td></tr>
+                  <tr><th class="hraness-marketing-comparison__row-label" scope="row"><a href="https://github.com/unclecode/crawl4ai">Crawl4AI</a></th><td class="hraness-marketing-comparison__cell"><span class="hraness-marketing-comparison__text">Your machine</span></td><td class="hraness-marketing-comparison__cell"><span class="hraness-marketing-comparison__text">Whole-site crawling</span></td></tr>
+                  <tr><th class="hraness-marketing-comparison__row-label" scope="row"><a href="/compare/browser-use/">browser-use</a></th><td class="hraness-marketing-comparison__cell"><span class="hraness-marketing-comparison__text">Agent-driven browser</span></td><td class="hraness-marketing-comparison__cell"><span class="hraness-marketing-comparison__text">Flexible, multi-step tasks</span></td></tr>
+                  <tr><th class="hraness-marketing-comparison__row-label" scope="row"><a href="/compare/playwright-mcp/">Playwright MCP</a></th><td class="hraness-marketing-comparison__cell"><span class="hraness-marketing-comparison__text">Local browser</span></td><td class="hraness-marketing-comparison__cell"><span class="hraness-marketing-comparison__text">Live browser controls</span></td></tr>
+                  <tr><th class="hraness-marketing-comparison__row-label" scope="row"><a href="/compare/agent-browser/">agent-browser</a></th><td class="hraness-marketing-comparison__cell"><span class="hraness-marketing-comparison__text">Local browser</span></td><td class="hraness-marketing-comparison__cell"><span class="hraness-marketing-comparison__text">Browser commands</span></td></tr>
+                  <tr><th class="hraness-marketing-comparison__row-label" scope="row"><a href="/compare/browserbase/">Browserbase + Stagehand</a></th><td class="hraness-marketing-comparison__cell"><span class="hraness-marketing-comparison__text">Managed cloud browser</span></td><td class="hraness-marketing-comparison__cell"><span class="hraness-marketing-comparison__text">Hosted browser sessions</span></td></tr>
+                  <tr><th class="hraness-marketing-comparison__row-label" scope="row"><a href="https://composio.dev">Composio</a> / <a href="https://www.arcade.dev">Arcade</a> / <a href="https://pipedream.com/docs/connect">Pipedream Connect</a></th><td class="hraness-marketing-comparison__cell"><span class="hraness-marketing-comparison__text">Managed integrations</span></td><td class="hraness-marketing-comparison__cell"><span class="hraness-marketing-comparison__text">Apps acting for many users</span></td></tr>
+                  <tr><th class="hraness-marketing-comparison__row-label" scope="row"><a href="https://docs.apify.com/integrations/mcp">Apify MCP</a></th><td class="hraness-marketing-comparison__cell"><span class="hraness-marketing-comparison__text">Hosted service</span></td><td class="hraness-marketing-comparison__cell"><span class="hraness-marketing-comparison__text">Running Apify Store Actors</span></td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <figcaption class="hraness-marketing-comparison__note">GhostGet is free and MIT licensed. Public-page reads need no key or usage plan. It reads one URL at a time and supports fewer connected services than the integration catalogs. <a href="/compare/">Read the detailed comparisons</a>.</figcaption>
+            </figure>
           </div>
         </section>
 
@@ -304,7 +307,7 @@ This domain is for use in documentation examples without needing permission. Avo
           </header>
           <div class="hraness-marketing-question-list">
             <details class="hraness-marketing-question"><summary>Which agents does it work with?</summary><div class="hraness-marketing-question__answer"><p>Any agent that can run commands: Claude Code, Codex, Cursor, Gemini CLI, or your own. The optional <a href="{{GHOSTGET_SKILLS}}">Agent Skill</a> teaches it the GhostGet commands and their limits in one step.</p></div></details>
-            <details class="hraness-marketing-question"><summary>Does GhostGet need an account?</summary><div class="hraness-marketing-question__answer"><p>Public-page reads need no account. Connect a service when you want its actions; Hraness Accounts sign-in is optional.</p></div></details>
+            <details class="hraness-marketing-question"><summary>Does GhostGet need an account?</summary><div class="hraness-marketing-question__answer"><p>Public-page reads need no account. Connect a service when you want its actions. A free <a href="https://account.hraness.com/">Hraness account</a> is optional and lets you manage support across our studio.</p></div></details>
             <details class="hraness-marketing-question"><summary>Does it use my credentials?</summary><div class="hraness-marketing-question__answer"><p>Yes, for connected services. Sign-ins stay in a local store and are omitted from GhostGet’s outputs. Your agent keeps any separate tools and permissions you give it.</p></div></details>
             <details class="hraness-marketing-question"><summary>What does it cost?</summary><div class="hraness-marketing-question__answer"><p>Nothing. GhostGet is free and MIT licensed, with no hosted tier and no paid plan. You pay your model provider and any service subscriptions you already have.</p></div></details>
             <details class="hraness-marketing-question"><summary>Does it phone home?</summary><div class="hraness-marketing-question__answer"><p>The CLI and SDK send no analytics. Actions, sign-in, and messaging sync contact their selected services. This website uses cookieless analytics and honors Do Not Track. See <a href="/privacy/">privacy details</a>.</p></div></details>
@@ -362,29 +365,22 @@ This domain is for use in documentation examples without needing permission. Avo
           </div>
         </section>
 
+        <section aria-labelledby="account-heading" class="hraness-marketing-account" id="account">
+          <div class="hraness-marketing-account__copy">
+            <h2 class="hraness-marketing-account__heading" id="account-heading">A free account, if you need one</h2>
+            <p class="hraness-marketing-account__summary">Optional studio support. GhostGet stays free to use without a Hraness account.</p>
+          </div>
+          <div class="hraness-marketing-account__actions">
+            <a class="hraness-marketing-account__primary" data-emphasis="primary" href="https://account.hraness.com/login">Create account</a>
+            <a class="hraness-marketing-account__sign-in" href="https://account.hraness.com/login">Sign in</a>
+          </div>
+        </section>
+
         <section aria-labelledby="related-title" class="hraness-marketing-related" data-hraness-marketing="related" id="related">
           <header class="hraness-marketing-related__header">
-            <p class="home-eyebrow">Related</p>
-            <h2 class="hraness-marketing-related__heading" id="related-title">{{PORTFOLIO_HEADING:related-title}}</h2>
-            <p class="hraness-marketing-related__summary">Other Hraness tools for agents and the people who use them.</p>
+            <h2 class="hraness-marketing-related__heading" id="related-title">Other tools from our studio</h2>
           </header>
-          <div class="hraness-marketing-related__group">
-            <div class="hraness-marketing-related__group-header">
-              <h3 class="hraness-marketing-related__group-heading" id="related-tools">{{PORTFOLIO_HEADING:related-tools}}</h3>
-              <p class="hraness-marketing-related__group-summary">The layer your agent runs through: sessions, accounts, web reads, and the models behind them.</p>
-            </div>
-            <div aria-label="The agent platform" class="hraness-marketing-card-row" data-hraness-marketing="card-row">
-              {{RELATED_PLATFORM_CARDS}}
-            </div>
-          </div>
-          <div class="hraness-marketing-related__group">
-            <div class="hraness-marketing-related__group-header">
-              <h3 class="hraness-marketing-related__group-heading" id="related-apps">{{PORTFOLIO_HEADING:related-apps}}</h3>
-            </div>
-            <div aria-label="The personal apps" class="hraness-marketing-card-row ghostget-related-apps" data-hraness-marketing="card-row">
-              {{RELATED_APP_CARDS}}
-            </div>
-          </div>
+          <div class="hraness-marketing-related__groups">{{RELATED_GROUPS}}</div>
         </section>
 
         <section aria-labelledby="final-title" class="hraness-marketing-cta" data-hraness-marketing="cta" data-tone="paper" id="closing">

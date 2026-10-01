@@ -10,7 +10,7 @@ import {
   renderHranessSiteFooter,
   type HranessMailingListConfig,
 } from "@hraness/site-footer";
-import { product } from "@hraness/design-kit/portfolio";
+import { product, portfolioRelatedGroups } from "@hraness/design-kit/portfolio";
 import { marketing, portfolio } from "./portfolio-copy";
 import { HranessSiteFooter } from "@hraness/site-footer/react";
 import { createElement } from "react";
@@ -208,18 +208,18 @@ describe("ghostget.com static site", () => {
     expect(packageFiles).not.toContain("vercel.json");
     expect(manifest).toMatchObject({
       devDependencies: {
-        "@hraness/design-kit": "github:hraness/design-kit#v0.33.0",
+        "@hraness/design-kit": "github:hraness/design-kit#v0.35.0",
 
-        "@hraness/site-footer": "github:hraness/site-footer#v0.20.1",
+        "@hraness/site-footer": "https://github.com/hraness/site-footer/releases/download/v0.20.5/hraness-site-footer-0.20.5.tgz",
         "@hraness/ui": "github:hraness/ui#v0.5.18",
       },
     });
-    expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.33.0"');
+    expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.35.0"');
     expect(lockfile).toContain('"@hraness/ui": "github:hraness/ui#v0.5.18"');
 
-    expect(lockfile).toContain('"@hraness/site-footer": "github:hraness/site-footer#v0.20.1"');
+    expect(lockfile).toContain('"@hraness/site-footer": "https://github.com/hraness/site-footer/releases/download/v0.20.5/hraness-site-footer-0.20.5.tgz"');
     expect(lockfile).toContain(
-      '"@hraness/site-footer": ["@hraness/site-footer@github:hraness/site-footer#60d6ba5"',
+      '"@hraness/site-footer": ["@hraness/site-footer@https://github.com/hraness/site-footer/releases/download/v0.20.5/hraness-site-footer-0.20.5.tgz"',
     );
   });
 
@@ -602,7 +602,7 @@ describe("ghostget.com static site", () => {
     expect(html).toContain("Review connected accounts, permissions, pending approvals, recent activity, and saved output files from the terminal");
     expect(html).toContain("ghostget tui");
     expect(html).toContain("ghostget control serve");
-    expect(html).toContain('class="table-scroll" role="region" tabindex="0"');
+    expect(html).toContain('class="table-scroll" role="region" aria-labelledby="measured-heading" tabindex="0"');
     expect(html).toContain('<a class="skip-link" href="#main">');
     // Outbound clicks are classified by destination host, so links carry no analytics tags.
     expect(html).not.toContain("data-analytics-event");
@@ -675,13 +675,18 @@ describe("ghostget.com static site", () => {
     const relatedSection = /<section\b[^>]*data-hraness-marketing="related"[\s\S]*?<\/section>/u.exec(html)?.[0];
     expect(relatedSection).toBeDefined();
     expect(relatedSection).toContain('hraness-marketing-related__group-heading');
-    for (const [id, href] of [["gobstopper", "https://gobstopper.sh"], ["xcb", "https://xcb.sh"], ["aicharts", "https://aicharts.io"], ["peopleblade", "https://peopleblade.com"], ["soulscrape", "https://soulscrape.com"], ["message-like-me", "https://textbutler.app"], ["kb", "https://wordcell.io"]] as const) {
-      const { mark } = product(id);
-      const canonical = portfolio.projects.find(entry => entry.id === id);
-      if (canonical === undefined) throw new Error(`Missing canonical related product: ${id}`);
-      const messaging = { names: { name: canonical.name } };
-      const oneLiner = canonical.description;
-      expect(relatedSection).toContain(`<a class="hraness-marketing-related__card" data-hraness-marketing="card" href="${href}"><span aria-hidden="true" class="hraness-marketing-related__card-mark"><img alt="" decoding="async" height="44" src="${mark.replaceAll("&", "&amp;").replaceAll('"', "&quot;")}" width="44"></span><span class="hraness-marketing-related__card-text"><h4 class="hraness-marketing-related__card-name">${messaging.names.name}</h4><span class="hraness-marketing-related__card-role">${oneLiner}</span></span></a>`);
+    const groups = portfolioRelatedGroups(["gobstopper", "xcb", "aicharts", "peopleblade", "soulscrape", "message-like-me", "kb"]);
+    expect(relatedSection).toContain("Other tools from our studio");
+    for (const group of groups) {
+      expect(relatedSection).toContain(`data-tone="${group.tone}"`);
+      expect(relatedSection).toContain(`aria-labelledby="${group.headingId}"`);
+      for (const item of group.items) {
+        expect(relatedSection).toContain(`href="${item.href}"`);
+        expect(relatedSection).toContain(item.name);
+        expect(relatedSection).toContain(item.role);
+        expect(relatedSection).toContain(item.domain);
+        expect(relatedSection).toContain(item.mark.replaceAll("&", "&amp;").replaceAll('"', "&quot;"));
+      }
     }
     expect(relatedSection).not.toMatch(/hraness-marketing-card__(?:title|meta|body)/u);
     expect(html.indexOf('data-hraness-marketing="related"')).toBeLessThan(html.indexOf('data-hraness-marketing="cta"'));
@@ -1402,15 +1407,15 @@ describe("ghostget.com static site", () => {
     expect(html).toContain(
       '<h2 class="hraness-marketing-section__heading" id="comparison-title">How GhostGet compares with other ways agents reach the web.</h2>',
     );
-    expect(html).toContain("<th scope=\"row\">Your agent’s built-in web fetch</th>");
-    expect(html).toContain('<a href="/compare/firecrawl/">Firecrawl</a> and <a href="/compare/jina-reader/">Jina Reader</a></th>');
+    expect(html).toContain('scope="row">Your agent’s web fetch</th>');
+    expect(html).toContain('<a href="/compare/firecrawl/">Firecrawl</a> / <a href="/compare/jina-reader/">Jina Reader</a></th>');
     expect(html).toContain('href="https://github.com/unclecode/crawl4ai">Crawl4AI</a>');
-    expect(html).toContain('<a href="https://composio.dev">Composio</a>, <a href="https://www.arcade.dev">Arcade</a>, and <a href="https://pipedream.com/docs/connect">Pipedream Connect</a></th>');
+    expect(html).toContain('<a href="https://composio.dev">Composio</a> / <a href="https://www.arcade.dev">Arcade</a> / <a href="https://pipedream.com/docs/connect">Pipedream Connect</a></th>');
     expect(html).not.toContain("Hosted integration breadth and managed end-user authentication");
     expect(html).toContain('href="https://docs.apify.com/integrations/mcp">Apify MCP</a>');
     expect(html).toContain('href="/compare/browserbase/">Browserbase + Stagehand</a>');
     expect(html).toContain(
-      "A write with an unknown result is not sent again.",
+      "If a write went out and its result is unknown, GhostGet won’t send it again.",
     );
 
     const gettingStarted = pages.find((page) => page.definition.canonicalPath === "/docs/tutorials/getting-started/");
@@ -2154,7 +2159,6 @@ describe("ghostget.com static site", () => {
     expect(html).toContain('id="measured"');
     expect(html).toContain("145,617 bytes");
     expect(html).toContain("9.7×");
-    expect(html).toContain("ghostget vault import-x");
     expect(html).toContain('href="/compare/"');
 
     const software = (graph as ReadonlyArray<Readonly<Record<string, unknown>>>).find((node) =>
