@@ -629,6 +629,10 @@ async function verifyPackagedSkill(
   ) {
     throw new Error("Packed Ghostget must pin the immutable Message Like Me v0.7.0 consumer contract.");
   }
+  if (!("@hraness/cli-update" in manifest.dependencies)
+    || manifest.dependencies["@hraness/cli-update"] !== "https://github.com/hraness/cli-update/releases/download/v0.1.0/hraness-cli-update-0.1.0.tgz") {
+    throw new Error("Packed GhostGet must pin the immutable CLI updater release.");
+  }
   const messageLikeMeRoot = join(
     consumer,
     "node_modules",
@@ -786,6 +790,16 @@ try {
     consumer,
     `ghostget ${packageVersion}\n`,
   );
+  const updateStatus = Bun.spawn([join(consumer, "node_modules", ".bin", "ghostget"), "update", "status", "--json"], {
+    cwd: consumer, stdin: "ignore", stdout: "pipe", stderr: "pipe", timeout: 15_000,
+    env: { ...process.env, GHOSTGET_STATE_HOME: join(consumer, "isolated-update-state"), HRANESS_SUPPORT: "off" },
+  });
+  const [updateExit, updateStdout, updateStderr] = await Promise.all([updateStatus.exited, new Response(updateStatus.stdout).text(), new Response(updateStatus.stderr).text()]);
+  const updateResult = requireRecord(JSON.parse(updateStdout) as unknown, "Installed CLI update status");
+  if (updateExit !== 0 || updateStderr !== "" || updateResult.schema !== "hraness.cli-update.v1"
+    || updateResult.package !== packageName || updateResult.status !== "unsupported" || updateResult.supported !== false) {
+    throw new Error("Installed project CLI must report unsupported updates with one JSON result.");
+  }
   await run([
     process.execPath,
     "--eval",

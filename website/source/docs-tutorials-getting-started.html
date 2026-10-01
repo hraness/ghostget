@@ -86,6 +86,13 @@
           <p>With Bun, use <code>{{GHOSTGET_SKILL_INSTALL_COMMAND_BUNX}}</code>. Start a new agent session, then ask: “Use GhostGet to read https://example.com and summarize it.” The skill supplies instructions; the CLI you installed supplies the executable.</p>
         </section>
 
+        <section aria-labelledby="cli-updates">
+          <h2 id="cli-updates">Keep the CLI up to date</h2>
+          <p>Supported global Bun and npm installs on macOS and Linux check for a stable release before ordinary commands, at most once a day. Install the <a href="https://cli.github.com/">GitHub CLI</a> and authenticate it with <code>gh auth login --hostname github.com</code> so GhostGet can download verified release archives. For an older CLI without <code>update</code>, repeat the global CLI install command in this guide once. Run <code>ghostget update</code> to update immediately or <code>ghostget update check --json</code> to inspect the latest release.</p>
+          <p>Use <code>ghostget update disable</code> to turn automatic updates off, <code>ghostget update enable</code> to turn them on, and <code>ghostget update status</code> to inspect the setting. Exact version pins require <code>enable</code> before following new releases. Set <code>HRANESS_NO_UPDATE=1</code> for a command that must use the installed version.</p>
+          <p>CI, nested clients, help, and gateway-only mode skip automatic checks. Manage source checkouts and project dependencies with their package manager. Refresh Agent Skill copies separately through the skill installer. Updating the CLI preserves your connected accounts and saved content.</p>
+        </section>
+
         <section aria-labelledby="save-pages">
           <h2 id="save-pages">Save and search pages</h2>
           <p>Choose a new directory for a local Markdown vault, then save your first page there:</p>

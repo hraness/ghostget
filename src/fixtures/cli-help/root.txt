@@ -35,6 +35,7 @@ Control GhostGet
   ghostget approvals|permissions|connections
                                       Every control action as a command
   ghostget doctor                     Check everything GhostGet needs
+  ghostget update [check|status]       Update the installed CLI or inspect it
 
 Extend GhostGet
   ghostget adapter|plugin|contracts   Add and check site support
