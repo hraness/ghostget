@@ -611,10 +611,10 @@ describe("npm-release environment scan", () => {
   });
 });
 
-describe("AGENTS.md pre-tag ruleset readback", () => {
+describe("AGENTS.md control-plane ruleset readback", () => {
   test("names all four live tag rulesets and both production branch rulesets", async () => {
     const agents = await readFile(agentsUrl, "utf8");
-    const readback = agents.split("\n").find((line) => line.startsWith("- Before every stable tag push"));
+    const readback = agents.split("\n").find((line) => line.startsWith("- At setup, after any control change, and during drift recovery"));
     expect(readback).toBeDefined();
     expect(readback).not.toContain("two exact active repository tag rulesets");
     expect(readback).toContain("all four active repository tag rulesets");

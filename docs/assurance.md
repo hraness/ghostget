@@ -40,11 +40,11 @@ Every claim below also lists its own not-verified scope.
 - `local-cli-birth-time-readiness`: Local-CLI readiness requires a nonzero immutable directory birth time for operation-private roots and reports the transport unavailable before staging credentials otherwise. No automated check covers this claim, and no plan phase schedules one. No test exercises the birth-time readiness requirement.
 - `npm-release-env-config`: GitHub environment npm-release has administrator bypass disabled, no reviewers, no secrets, sole protection rule branch_policy, and the single custom deployment policy tag v* with no branch admitted. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift. The listed tests check only the checked-in side of the contract.
 - `npm-trusted-publisher-binding`: The npm trusted publisher for @hraness/ghostget names exactly hraness/ghostget, release.yml and environment npm-release; no other relationship exists, package access requires 2FA and disallows tokens, and no npm token is stored in GitHub. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
-- `tag-ruleset-creation-only`: In each tag ruleset pair, the creation-only ruleset has the exact rule set [creation] and sole always-bypass User 894119; it never authorizes update or deletion. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
+- `tag-ruleset-creation-only`: In each tag ruleset pair, the creation-only ruleset has the exact rule set [creation] and always-bypass actors exactly User 894119 plus, for the stable v* pair only, the hraness-release-tagger App 5164973 Integration; it never authorizes update or deletion. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
 - `tag-ruleset-immutable`: In each tag ruleset pair, the immutable ruleset has exact rules [deletion, update] and no bypass actors; it never authorizes creation. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
 - `tag-rulesets-two-split-pairs`: Exactly four active repository tag rulesets form two split creation-only and immutable pairs, one targeting only `refs/tags/v*` and one targeting only `refs/tags/desktop-v*-macos-arm64`; any other active tag ruleset is drift, and the split semantics, not the ruleset IDs or names, carry the authority. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
-- `immutable-releases-enabled-before-tag`: Immediately before every stable tag push, signed-in administrator readback shows repository immutable Releases enabled=true. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift. An administrator could change the setting between the readback and publication.
-- `no-integration-tag-bypass`: Neither GitHub Actions nor any other Integration has a release-tag ruleset bypass. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
+- `immutable-releases-enabled-before-tag`: Repository immutable Releases stay enabled: administrator readback confirms enabled=true at setup, after any control change, and during drift recovery, and each Release run's immutable-release readback fails closed on a mutable Release. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift. An administrator could change the setting between readbacks; only the per-run immutable-release readback would then detect it.
+- `no-integration-tag-bypass`: Neither GitHub Actions nor any Integration other than the hraness-release-tagger App (stable v* tag creation only) has a release-tag ruleset bypass. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
 - `production-ref-lifecycle-ruleset`: Ruleset 21832074 targets exactly website-production and website-production-canary with no bypass actors and exact creation, deletion and non-fast-forward rules. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
 - `production-ref-update-ruleset-app-only`: Ruleset 21887484 supplies the sole update restriction on both production refs with exactly one Integration bypass, App 4783991, bypass_mode=always; no other actor (including Actions App 15368) may update either ref. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
 - `protect-main-ruleset`: Protect-main has no bypass actors, requires the pull-request path and exact Required CI check, approval minimum zero and require_code_owner_review=false while only one eligible code owner exists. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift. The listed tests check only the checked-in side of the contract.
@@ -69,7 +69,7 @@ These guidelines have no claim in the register, and no automated check covers th
 | `AGENTS.md` | Keep Ghostget a bring-your-own-agent… | Product-scope rule; no automated check covers it, and it states no safety or integrity property. |
 | `AGENTS.md` | Keep exactly one… | Skill-packaging rule; it states no safety or integrity property. |
 | `AGENTS.md` | Treat this repository… | Editorial scope rule for repository prose; no automated check covers it. |
-| `AGENTS.md` | An owner release… | Delegation of owner authority to agents; it governs who acts, while the readback and tag claims cover what must hold. |
+| `AGENTS.md` | `.github/workflows/auto-tag.yml` releases… | Release delegation: auto-tag and owner-session tagging govern who creates the tag, while the release-entry, reauthorization, ruleset, and readback claims cover what must hold. |
 | `website/AGENTS.md` | Keep the homepage's… | Presentation rule for the informational website; it states no safety or integrity property. |
 | `website/AGENTS.md` | Ordinary HTML pages… | Presentation rule for the informational website; it states no safety or integrity property. |
 | `website/AGENTS.md` | Keep the page useful… | Presentation rule for the informational website; it states no safety or integrity property. |
@@ -494,10 +494,10 @@ Connection and helper shutdown settle owned work before custody is released.
 
 #### `tag-ruleset-creation-only`
 
-In each tag ruleset pair, the creation-only ruleset has the exact rule set [creation] and sole always-bypass User 894119; it never authorizes update or deletion.
+In each tag ruleset pair, the creation-only ruleset has the exact rule set [creation] and always-bypass actors exactly User 894119 plus, for the stable v* pair only, the hraness-release-tagger App 5164973 Integration; it never authorizes update or deletion.
 
 - Not verified; intended layer: configuration readback.
-- Source: `AGENTS.md`: “In each pair, the creation-only ruleset must have exact rule `creation` and sole always-bypass User `894119`; it must never authorize update or deletion.”
+- Source: `AGENTS.md`: “In each pair, the creation-only ruleset must have exact rule `creation`; its always-bypass actors are exactly User `894119` plus, for the stable `v*` pair only, the `hraness-release-tagger` App `5164973` `Integration`; it must never authorize update or deletion.”
 - Evidence: none
 - Assumptions: `github-enforcement`, `administrator-readback`
 - Not verified: Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
@@ -525,22 +525,22 @@ Exactly four active repository tag rulesets form two split creation-only and imm
 
 #### `immutable-releases-enabled-before-tag`
 
-Immediately before every stable tag push, signed-in administrator readback shows repository immutable Releases enabled=true.
+Repository immutable Releases stay enabled: administrator readback confirms enabled=true at setup, after any control change, and during drift recovery, and each Release run's immutable-release readback fails closed on a mutable Release.
 
 - Not verified; intended layer: configuration readback.
-- Source: `AGENTS.md`: “Immediately before tag dispatch, require administrator readback that immutable Releases are enabled; grant no Administration to workflows.”
+- Source: `AGENTS.md`: “Keep immutable Releases enabled; an administrator re-reads that setting at setup, after any control change, and during drift recovery, and every Release run's immutable-release readback still fails closed on a mutable Release.”
 - Evidence: none
 - Assumptions: `github-enforcement`, `administrator-readback`
 - Not verified:
   - Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
-  - An administrator could change the setting between the readback and publication.
+  - An administrator could change the setting between readbacks; only the per-run immutable-release readback would then detect it.
 
 #### `no-integration-tag-bypass`
 
-Neither GitHub Actions nor any other Integration has a release-tag ruleset bypass.
+Neither GitHub Actions nor any Integration other than the hraness-release-tagger App (stable v* tag creation only) has a release-tag ruleset bypass.
 
 - Not verified; intended layer: configuration readback.
-- Source: `AGENTS.md`: “Never give GitHub Actions or another Integration a release-tag bypass.”
+- Source: `AGENTS.md`: “Never give GitHub Actions or any other Integration a release-tag bypass.”
 - Evidence: none
 - Assumptions: `github-enforcement`, `administrator-readback`
 - Not verified: Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
@@ -1362,7 +1362,7 @@ A Release attempt that published the canonical Release and then failed a later n
 
 - Evidenced by Quint model with production trace replay.
 - Source: `AGENTS.md`: “Manual recovery requires a positive current attempt and admits an unsuccessful latest attempt only through that attempt's own bounded job inventory proving all four or, when that attempt did not publish, through the earlier receipt attempt that the Release body names, whose own bounded inventory must prove all four”
-- Also covers: `AGENTS.md`: “when that receipt attempt attested but did not publish, through one of at most three attempts strictly between it and the latest whose own attempt record binds the exact owner actors, repository, workflow ID and path, tag push, tag, SHA, and completion and whose own complete bounded inventory proves all four; a wider gap fails closed, and the mutable body only selects which inventories to read.”
+- Also covers: `AGENTS.md`: “when that receipt attempt attested but did not publish, through one of at most three attempts strictly between it and the latest whose own attempt record binds the exact release actors, repository, workflow ID and path, tag push, tag, SHA, and completion and whose own complete bounded inventory proves all four; a wider gap fails closed, and the mutable body only selects which inventories to read.”
 - Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/verification-release-replay.test.ts`, `verification/quint/release.qnt`
 - Assumptions: `github-api`, `npm-registry`
 - Not verified:
@@ -1374,7 +1374,7 @@ A Release attempt that published the canonical Release and then failed a later n
 
 #### `npm-reauthorize-before-oidc`
 
-Before npm setup or OIDC minting, publish_npm reauthorizes the current attempt identically to the GitHub publisher (actor and triggering_actor 894119, repository 1316443113, workflow 323493609 at its path, protected tag, verified SHA, main ancestry); delegated reruns fail closed.
+Before npm setup or OIDC minting, publish_npm reauthorizes the current attempt identically to the GitHub publisher (actor and triggering_actor each owner 894119 or tagger bot 337004703, repository 1316443113, workflow 323493609 at its path, protected tag, verified SHA, main ancestry); reruns by any other identity fail closed.
 
 - Evidenced by example test.
 - Source: `AGENTS.md`: “Before `publish_npm` sets up npm or mints OIDC, bind its current attempt—including both `actor` and `triggering_actor`—to owner User `894119`”
@@ -2010,10 +2010,10 @@ No semantic provider operation or gateway call accepts caller-selected provider 
 
 #### `release-trigger-exact-tag-push-only`
 
-The Release workflow runs only on a protected direct tag push (no workflow_dispatch); the entry job rejects any event whose sender is not User 894119 or whose repository is not public Ghostget ID 1316443113.
+The Release workflow runs only on a protected direct tag push (no workflow_dispatch); the entry job rejects any event whose sender is not owner User 894119 or hraness-release-tagger[bot] Bot 337004703 matching the run actor, or whose repository is not public Ghostget ID 1316443113.
 
 - Evidenced by example test.
-- Source: `AGENTS.md`: “Bind every Release run at entry to a protected tag-push event and embedded sender owned by User `894119` in public Ghostget repository ID `1316443113`.”
+- Source: `AGENTS.md`: “Bind every Release run at entry to a protected tag-push event and embedded sender owned by User `894119` or `hraness-release-tagger[bot]` Bot `337004703` (matching the run actor) in public Ghostget repository ID `1316443113`.”
 - Evidence: `scripts/npm-release-workflow.test.ts`
 - Assumptions: `github-api`, `github-enforcement`
 - Not verified: Only the enumerated example cases are checked.
@@ -2161,7 +2161,7 @@ Every publication readback requires Actions bot ID 41898282 of type Bot and a de
 
 #### `release-reauthorize-attempt-before-checkout`
 
-Before the sole write-capable job checks out source, the current attempt's actor and triggering_actor must both be User 894119 and the attempt must bind Release workflow ID 323493609, its exact path, the verified direct tag object and current-main ancestry; delegated reruns fail closed.
+Before the sole write-capable job checks out source, the current attempt's actor and triggering_actor must each be owner User 894119 or hraness-release-tagger[bot] Bot 337004703 and the attempt must bind Release workflow ID 323493609, its exact path, the verified direct tag object and current-main ancestry; reruns by any other identity fail closed.
 
 - Evidenced by example test.
 - Source: `AGENTS.md`: “Before the sole write-capable job checks out source, use only `actions:read` to bind the exact current attempt—including both `actor` and `triggering_actor`”

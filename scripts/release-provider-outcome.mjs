@@ -53,6 +53,8 @@ const RELEASE_WORKFLOW = Object.freeze({
   path: ".github/workflows/release.yml",
 });
 const RELEASE_OWNER = Object.freeze({ id: 894119, type: "User" });
+// hraness-release-tagger[bot], which tags merged version bumps on main.
+const RELEASE_TAGGER = Object.freeze({ id: 337004703, type: "Bot" });
 const RELEASE_WORKFLOW_REQUEST_TIMEOUT_MILLISECONDS = 10_000;
 /**
  * Recovery reads at most this many attempts strictly between a receipt attempt
@@ -1980,10 +1982,10 @@ export function releaseWorkflowRunIdFromPublishedRelease({
 function expectReleaseOwner(value, label) {
   const actor = expectRecord(value, label);
   if (
-    actor.id !== RELEASE_OWNER.id
-    || actor.type !== RELEASE_OWNER.type
+    (actor.id !== RELEASE_OWNER.id || actor.type !== RELEASE_OWNER.type)
+    && (actor.id !== RELEASE_TAGGER.id || actor.type !== RELEASE_TAGGER.type)
   ) {
-    fail(`${label} is not the exact release owner`);
+    fail(`${label} is not the exact release owner or release tagger`);
   }
 }
 

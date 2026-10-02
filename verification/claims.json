@@ -432,7 +432,7 @@
     {
       "guide": "AGENTS.md",
       "anchor": "Follow `docs/publishing.md` for",
-      "digest": "e033b8aae003ae5dc6c589b0eddecb51bd56f88a52e00ea82b15503a07dc45b6",
+      "digest": "6e16f60769ddc8c70810da48a06bb42daddc2df66ae49cc423845de7aa368bd2",
       "claims": [
         "immutable-releases-enabled-before-tag",
         "npm-failure-never-blocks-canonical",
@@ -500,8 +500,8 @@
     },
     {
       "guide": "AGENTS.md",
-      "anchor": "Before every stable",
-      "digest": "6d2fca25bfc2c565fa820ebf33a76d6fea8a5b5b0086140edaa2834c00d479ed",
+      "anchor": "At setup, after any",
+      "digest": "2a1a885a18e0a3e67efde0428c59be20e0a8a4af0fefbd2f6a3d8c55dbf409dc",
       "claims": [
         "no-integration-tag-bypass",
         "production-branch-missing-is-hard-failure",
@@ -517,9 +517,9 @@
     },
     {
       "guide": "AGENTS.md",
-      "anchor": "An owner release",
-      "digest": "66138239e7bf28abd582c1e89cdef4171f01e94f5b5edc72b13b4d9697ade4ef",
-      "exempt": "Delegation of owner authority to agents; it governs who acts, while the readback and tag claims cover what must hold."
+      "anchor": "`.github/workflows/auto-tag.yml` releases",
+      "digest": "444e9a6014b24b99f0d14ab92d3952c14884bec7aa1f120b750ead8c9bb33994",
+      "exempt": "Release delegation: auto-tag and owner-session tagging govern who creates the tag, while the release-entry, reauthorization, ruleset, and readback claims cover what must hold."
     },
     {
       "guide": "AGENTS.md",
@@ -533,7 +533,7 @@
     {
       "guide": "AGENTS.md",
       "anchor": "Bind every Release",
-      "digest": "b365033a267079e63f0c8fb78b5a0674b73a5e14e31811b853c0ee7775d2dfcc",
+      "digest": "178f8333e11952ec759d78961595e9bd14cfb06a39c1393fd1de45d3e40fd21d",
       "claims": [
         "release-reauthorize-attempt-before-checkout",
         "release-reauthorize-only-actions-read",
@@ -543,7 +543,7 @@
     {
       "guide": "AGENTS.md",
       "anchor": "Before `publish_npm` sets",
-      "digest": "d8434b598993f639c00e3c43c518e66c9407d6c29b476c7224efb8e292f4e6dc",
+      "digest": "14a3fd59f065ee3d4f1618c125ce2d284d0c12a2f4f13905206ca2a7a684d863",
       "claims": [
         "npm-admit-registry-identity-provenance",
         "npm-artifact-by-numeric-id-bound",
@@ -4786,11 +4786,11 @@
     },
     {
       "id": "release-trigger-exact-tag-push-only",
-      "statement": "The Release workflow runs only on a protected direct tag push (no workflow_dispatch); the entry job rejects any event whose sender is not User 894119 or whose repository is not public Ghostget ID 1316443113.",
+      "statement": "The Release workflow runs only on a protected direct tag push (no workflow_dispatch); the entry job rejects any event whose sender is not owner User 894119 or hraness-release-tagger[bot] Bot 337004703 matching the run actor, or whose repository is not public Ghostget ID 1316443113.",
       "area": "release",
       "source": {
         "path": "AGENTS.md",
-        "quote": "Bind every Release run at entry to a protected tag-push event and embedded sender owned by User `894119` in public Ghostget repository ID `1316443113`."
+        "quote": "Bind every Release run at entry to a protected tag-push event and embedded sender owned by User `894119` or `hraness-release-tagger[bot]` Bot `337004703` (matching the run actor) in public Ghostget repository ID `1316443113`."
       },
       "layer": "example",
       "status": "evidenced",
@@ -5114,7 +5114,7 @@
     },
     {
       "id": "release-reauthorize-attempt-before-checkout",
-      "statement": "Before the sole write-capable job checks out source, the current attempt's actor and triggering_actor must both be User 894119 and the attempt must bind Release workflow ID 323493609, its exact path, the verified direct tag object and current-main ancestry; delegated reruns fail closed.",
+      "statement": "Before the sole write-capable job checks out source, the current attempt's actor and triggering_actor must each be owner User 894119 or hraness-release-tagger[bot] Bot 337004703 and the attempt must bind Release workflow ID 323493609, its exact path, the verified direct tag object and current-main ancestry; reruns by any other identity fail closed.",
       "area": "release",
       "source": {
         "path": "AGENTS.md",
@@ -5646,13 +5646,13 @@
       "alsoQuotes": [
         {
           "path": "AGENTS.md",
-          "quote": "when that receipt attempt attested but did not publish, through one of at most three attempts strictly between it and the latest whose own attempt record binds the exact owner actors, repository, workflow ID and path, tag push, tag, SHA, and completion and whose own complete bounded inventory proves all four; a wider gap fails closed, and the mutable body only selects which inventories to read."
+          "quote": "when that receipt attempt attested but did not publish, through one of at most three attempts strictly between it and the latest whose own attempt record binds the exact release actors, repository, workflow ID and path, tag push, tag, SHA, and completion and whose own complete bounded inventory proves all four; a wider gap fails closed, and the mutable body only selects which inventories to read."
         }
       ]
     },
     {
       "id": "npm-reauthorize-before-oidc",
-      "statement": "Before npm setup or OIDC minting, publish_npm reauthorizes the current attempt identically to the GitHub publisher (actor and triggering_actor 894119, repository 1316443113, workflow 323493609 at its path, protected tag, verified SHA, main ancestry); delegated reruns fail closed.",
+      "statement": "Before npm setup or OIDC minting, publish_npm reauthorizes the current attempt identically to the GitHub publisher (actor and triggering_actor each owner 894119 or tagger bot 337004703, repository 1316443113, workflow 323493609 at its path, protected tag, verified SHA, main ancestry); reruns by any other identity fail closed.",
       "area": "npm",
       "source": {
         "path": "AGENTS.md",
@@ -5960,11 +5960,11 @@
     },
     {
       "id": "tag-ruleset-creation-only",
-      "statement": "In each tag ruleset pair, the creation-only ruleset has the exact rule set [creation] and sole always-bypass User 894119; it never authorizes update or deletion.",
+      "statement": "In each tag ruleset pair, the creation-only ruleset has the exact rule set [creation] and always-bypass actors exactly User 894119 plus, for the stable v* pair only, the hraness-release-tagger App 5164973 Integration; it never authorizes update or deletion.",
       "area": "control-plane",
       "source": {
         "path": "AGENTS.md",
-        "quote": "In each pair, the creation-only ruleset must have exact rule `creation` and sole always-bypass User `894119`; it must never authorize update or deletion."
+        "quote": "In each pair, the creation-only ruleset must have exact rule `creation`; its always-bypass actors are exactly User `894119` plus, for the stable `v*` pair only, the `hraness-release-tagger` App `5164973` `Integration`; it must never authorize update or deletion."
       },
       "layer": "configuration-readback",
       "status": "not-verified",
@@ -6023,11 +6023,11 @@
     },
     {
       "id": "immutable-releases-enabled-before-tag",
-      "statement": "Immediately before every stable tag push, signed-in administrator readback shows repository immutable Releases enabled=true.",
+      "statement": "Repository immutable Releases stay enabled: administrator readback confirms enabled=true at setup, after any control change, and during drift recovery, and each Release run's immutable-release readback fails closed on a mutable Release.",
       "area": "control-plane",
       "source": {
         "path": "AGENTS.md",
-        "quote": "Immediately before tag dispatch, require administrator readback that immutable Releases are enabled; grant no Administration to workflows."
+        "quote": "Keep immutable Releases enabled; an administrator re-reads that setting at setup, after any control change, and during drift recovery, and every Release run's immutable-release readback still fails closed on a mutable Release."
       },
       "layer": "configuration-readback",
       "status": "not-verified",
@@ -6038,16 +6038,16 @@
       ],
       "notVerified": [
         "Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.",
-        "An administrator could change the setting between the readback and publication."
+        "An administrator could change the setting between readbacks; only the per-run immutable-release readback would then detect it."
       ]
     },
     {
       "id": "no-integration-tag-bypass",
-      "statement": "Neither GitHub Actions nor any other Integration has a release-tag ruleset bypass.",
+      "statement": "Neither GitHub Actions nor any Integration other than the hraness-release-tagger App (stable v* tag creation only) has a release-tag ruleset bypass.",
       "area": "control-plane",
       "source": {
         "path": "AGENTS.md",
-        "quote": "Never give GitHub Actions or another Integration a release-tag bypass."
+        "quote": "Never give GitHub Actions or any other Integration a release-tag bypass."
       },
       "layer": "configuration-readback",
       "status": "not-verified",
