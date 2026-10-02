@@ -93,16 +93,21 @@ version, `src/version.ts`, generated package bytes, installation examples,
 changelog, and asset filename together. Dependency upgrades must preserve the
 reviewed native browser and cookie contracts and pass their focused checks.
 
-Immediately before tag dispatch, require signed-in administrator readback that
-immutable Releases are enabled. Keep Administration out of workflow tokens;
-the residual control-plane setting-toggle window remains explicit. Create one
-direct lightweight `v<version>` tag on the admitted package commit and push only
-that exact ref. Do not overwrite, annotate-convert, move, or delete a historical
-tag to recover a run. Both the actor and triggering actor must be exact User
-`894119`; the protected tag, public repository `hraness/ghostget` / `1316443113`,
-and Release workflow `323493609` remain bound at each capability boundary.
+Merging the version bump releases it. When that commit's own `CI` run for its
+push to `main` succeeds, `.github/workflows/auto-tag.yml` creates one direct
+lightweight `v<version>` tag on that exact commit through the
+`hraness-release-tagger` GitHub App, which starts **Release**. Auto-tag never
+moves or replaces an existing tag. Do not overwrite, annotate-convert, move, or
+delete a historical tag to recover a run. The actor and triggering actor must
+each be owner User `894119` or `hraness-release-tagger[bot]` Bot `337004703`;
+the protected tag, public repository `hraness/ghostget` / `1316443113`, and
+Release workflow `323493609` remain bound at each capability boundary. Keep
+Administration out of workflow tokens; an administrator re-reads the immutable
+Releases setting and tag rulesets at setup, after any control change, and during
+drift recovery, and the residual setting-toggle window remains explicit.
 
-Push the tag only after the admitted commit's own `CI` run for its push to
+If auto-tag did not run, the owner pushes the same lightweight tag. Push it
+only after the admitted commit's own `CI` run for its push to
 `main` has completed successfully. Release admission reads that run once and
 never waits, so a tag pushed while it still runs fails the first Release
 attempt; the automatic website promotion then refuses the successful rerun,
@@ -286,7 +291,8 @@ verify, attest, and publish jobs. It is checkout-free, runs no product source or
 `id-token: write`, and enters the `npm-release` environment. In order it:
 
 1. Reauthorizes the current attempt exactly like the GitHub publisher: owner
-   User `894119` as actor and triggering actor, public repository ID
+   User `894119` or `hraness-release-tagger[bot]` Bot `337004703` as actor and
+   triggering actor, public repository ID
    `1316443113`, Release workflow `323493609` at its exact path, the protected
    tag ref and verified source SHA, and current-main ancestry.
 2. Pins npm 11.19.0 and establishes clean publication defaults: empty user and
@@ -519,14 +525,15 @@ immutable release and inspect current authority; never delete or rewrite it.
 If another immutable release becomes Latest, recover from its actual coordinate.
 A supersession after the final read is not observable by the completed workflow.
 
-Immediately before the tag push that dispatches **Release**, a signed-in
+At setup, after any control change, and during drift recovery, a signed-in
 administrator must read back immutable Releases as `enabled=true` and two exact
 active repository tag rulesets whose sole ref target is `refs/tags/v*`. The
-creation ruleset must contain only `creation` and give sole always-bypass
-authority to User ID `894119`. The immutable ruleset must contain only
+creation ruleset must contain only `creation` and give always-bypass authority
+to exactly User ID `894119` and the `hraness-release-tagger` App `5164973`
+`Integration`. The immutable ruleset must contain only
 `deletion` plus `update` and have no bypass actors. Never combine those rules:
-the owner bypass may create a release tag but cannot move or delete one, while
-every other User or Integration is denied creation. Rulesets `22311815`,
+the owner and tagger bypasses may create a release tag but cannot move or
+delete one, while every other User or Integration is denied creation. Rulesets `22311815`,
 currently named `Release tag creation`, and `19989752`, currently named
 `Immutable version tags`, are retained live evidence, but their numeric IDs and
 names are not authority: the split semantics are. If either evidence coordinate
@@ -539,8 +546,8 @@ with a residual administrator-toggle window that repeated workflow reads
 cannot remove. The created and terminal
 Release readbacks and tag reads must still report exact immutable authority.
 
-For an owner-requested release, the agent may run these administrator readbacks
-and the subsequent exact tag push programmatically through the existing owner
+When auto-tag did not run, for an owner-requested release the agent may run
+these administrator readbacks and the subsequent exact tag push programmatically through the existing owner
 User `894119` session. Verify the signed-in User identity and administrator
 access to `hraness/ghostget` before use. The release request supplies
 conversational approval; the fresh readbacks and all source, tag,
@@ -548,8 +555,8 @@ immutable-release, and delivery gates remain required. Stop on missing access,
 control drift, or a provider or runtime denial. Keep the existing tag actors and
 workflow permissions unchanged.
 
-Run this with the signed-in administrator session immediately before creating
-the tag. First resolve the two unique candidates from the repository ruleset
+Run this with the signed-in administrator session at setup, after any control
+change, and during drift recovery. First resolve the two unique candidates from the repository ruleset
 list, then set the IDs below to those captured numeric IDs. The validation
 records their required split semantics alongside GitHub's immutable-Release
 diagnostic without granting the workflow Administration:
@@ -593,10 +600,8 @@ if (
   value.source_type !== "Repository" ||
   value.source !== "hraness/ghostget" ||
   value.enforcement !== "active" ||
-  bypass.length !== 1 ||
-  bypass[0]?.actor_id !== 894119 ||
-  bypass[0]?.actor_type !== "User" ||
-  bypass[0]?.bypass_mode !== "always" ||
+  JSON.stringify(bypass.map((actor) => [actor?.actor_type, actor?.actor_id, actor?.bypass_mode]).sort()) !==
+    '[["Integration",5164973,"always"],["User",894119,"always"]]' ||
   refName === null ||
   typeof refName !== "object" ||
   !Array.isArray(refName.include) ||
@@ -610,7 +615,10 @@ process.stdout.write(`${JSON.stringify({
   id: value.id,
   name: value.name,
   semantics: {
-    bypass: { actorId: 894119, actorType: "User", mode: "always" },
+    bypass: [
+      { actorId: 894119, actorType: "User", mode: "always" },
+      { actorId: 5164973, actorType: "Integration", mode: "always" },
+    ],
     enforcement: value.enforcement,
     ref: refName.include[0],
     rules: ruleTypes,

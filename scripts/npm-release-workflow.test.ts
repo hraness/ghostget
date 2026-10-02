@@ -2421,6 +2421,50 @@ describe("npm publication contract", () => {
     }
   });
 
+  test("authorizes a tag pushed by the owner or the release tagger and no one else", async () => {
+    const workflow = await readFile(releaseWorkflowUrl, "utf8");
+    const script = workflowStepScript(workflow, "Verify immutable owner and public repository identity");
+    const directory = await mkdtemp(join(tmpdir(), "ghostget-release-authorize-"));
+    const eventPath = join(directory, "event.json");
+    const repositoryEvent = {
+      id: GHOSTGET_REPOSITORY_ID,
+      full_name: "hraness/ghostget",
+      visibility: "public",
+      private: false,
+      default_branch: "main",
+    };
+    const runCase = async (actorId: string, sender: Readonly<{ id: number; type: string }>) => {
+      await writeFile(eventPath, `${JSON.stringify({ sender, repository: repositoryEvent })}\n`, "utf8");
+      return runWorkflowScript(script, {
+        EXPECTED_ACTOR_ID: "894119",
+        EXPECTED_REPOSITORY: "hraness/ghostget",
+        EXPECTED_REPOSITORY_ID: String(GHOSTGET_REPOSITORY_ID),
+        GITHUB_ACTOR_ID: actorId,
+        GITHUB_EVENT_NAME: "push",
+        GITHUB_EVENT_PATH: eventPath,
+        GITHUB_REPOSITORY: "hraness/ghostget",
+        GITHUB_REPOSITORY_ID: String(GHOSTGET_REPOSITORY_ID),
+        REF_PROTECTED: "true",
+        TAGGER_ACTOR_ID: "337004703",
+      });
+    };
+    try {
+      expect((await runCase("894119", { id: 894119, type: "User" })).exitCode).toBe(0);
+      expect((await runCase("337004703", { id: 337004703, type: "Bot" })).exitCode).toBe(0);
+      for (const [actorId, sender] of [
+        ["41898282", { id: 41898282, type: "Bot" }],
+        ["337004703", { id: 337004703, type: "User" }],
+        ["894119", { id: 894119, type: "Bot" }],
+        ["894119", { id: 337004703, type: "Bot" }],
+        ["337004703", { id: 894119, type: "User" }],
+      ] as const) {
+        expect((await runCase(actorId, sender)).exitCode).not.toBe(0);
+      }
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   test("reauthorizes the exact owner on the current Release attempt before checkout", async () => {
     const workflow = await readFile(releaseWorkflowUrl, "utf8");
     const script = workflowStepScript(workflow, "Reauthorize current release attempt");
@@ -2551,9 +2595,14 @@ esac
         name: "Renamed release run presentation",
       });
       expect(presentationDrift.exitCode).toBe(0);
+      const tagger = { id: 337004703, type: "Bot" };
+      expect((await runCase({ ...validAttempt, actor: tagger, triggering_actor: tagger })).exitCode).toBe(0);
       for (const hostileAttempt of [
         { ...validAttempt, actor: { id: 7, type: "User" } },
         { ...validAttempt, triggering_actor: { id: 7, type: "User" } },
+        { ...validAttempt, actor: { id: 41898282, type: "Bot" }, triggering_actor: { id: 41898282, type: "Bot" } },
+        { ...validAttempt, actor: { id: 337004703, type: "User" }, triggering_actor: { id: 337004703, type: "User" } },
+        { ...validAttempt, actor: { id: 894119, type: "Bot" }, triggering_actor: { id: 894119, type: "Bot" } },
         { ...validAttempt, run_attempt: 1 },
         { ...validAttempt, workflow_id: 7 },
         { ...validAttempt, path: ".github/workflows/other.yml" },
@@ -3236,7 +3285,12 @@ fi
       }
     }
     expect(workflowWriters).toEqual(["dependabot-auto-merge.yml:enable", "release.yml:publish"]);
-    expect(contentsWriteOccurrences).toBe(2);
+    // The third write is auto-tag.yml's hraness-release-tagger App token,
+    // which creates the release tag; its job's GITHUB_TOKEN stays read-only.
+    const autoTag = await readFile(new URL("auto-tag.yml", workflowsUrl), "utf8");
+    expect(autoTag.match(/contents:\s*write/gu)).toEqual(["contents: write"]);
+    expect(autoTag).toContain("          permission-contents: write\n");
+    expect(contentsWriteOccurrences).toBe(3);
     expect(workflow).not.toContain("VERCEL_TOKEN");
     expect(workflow).not.toContain("projectSettings");
     expect(workflow).not.toContain("redeploy");
@@ -5810,6 +5864,17 @@ fi
       value: runPresentationDrift,
       workflowRunId: providerReleaseWorkflowRunId,
     })).toEqual(runPresentationDrift);
+    const taggerRun = providerReleaseWorkflowRun({
+      actor: { id: 337004703, login: "hraness-release-tagger[bot]", type: "Bot" },
+      run_attempt: 3,
+      triggering_actor: { id: 337004703, login: "hraness-release-tagger[bot]", type: "Bot" },
+    });
+    expect(exactReleaseWorkflowRun({
+      ...coordinates,
+      expectedRunAttempt: "3",
+      value: taggerRun,
+      workflowRunId: providerReleaseWorkflowRunId,
+    })).toEqual(taggerRun);
 
     const receipt = releaseSourceReceipt({
       ...coordinates,
@@ -5850,6 +5915,10 @@ fi
       { actor: { id: 894119, login: "0thernet", type: "Bot" } },
       { triggering_actor: { id: 7, login: "0thernet", type: "User" } },
       { triggering_actor: { id: 894119, login: "0thernet", type: "Bot" } },
+      { actor: { id: 41898282, login: "github-actions[bot]", type: "Bot" } },
+      { actor: { id: 337004703, login: "hraness-release-tagger[bot]", type: "User" } },
+      { triggering_actor: { id: 41898282, login: "github-actions[bot]", type: "Bot" } },
+      { triggering_actor: { id: 337004703, login: "hraness-release-tagger[bot]", type: "User" } },
       { repository: { ...repository, id: 1 } },
       { repository: { ...repository, full_name: "hraness/copied" } },
       { repository: { ...repository, private: true } },
