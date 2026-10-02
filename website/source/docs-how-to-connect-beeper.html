@@ -61,7 +61,7 @@
         <section aria-labelledby="choose-beeper-path">
           <h2 id="choose-beeper-path">Choose direct Beeper or GhostGet</h2>
           <p><strong>Use Beeper directly when you want its first-party breadth.</strong> Connect the <a href="https://developers.beeper.com/desktop-api/mcp/">built-in Beeper Desktop MCP</a> to a supported client, or use the <a href="https://github.com/beeper/cli">official Beeper CLI</a> for its broader first-party command surface.</p>
-          <p><strong>Choose GhostGet when the boundary is part of the requirement.</strong> Native Beeper CLI and Desktop MCP paths may expose broader first-party breadth. GhostGet adds exact executable and adapter-version pinning; a named, typed semantic allowlist; write previews, durable receipts, contract-specific reconciliation for generic CLI mutations, and no blind retry after an indeterminate dispatch; encrypted snapshots; and versioned Message Like Me and contact-interaction exports. It wraps only the actions listed for this release.</p>
+          <p><strong>Choose GhostGet when the boundary is part of the requirement.</strong> Native Beeper CLI and Desktop MCP paths may expose broader first-party breadth. GhostGet adds exact executable and adapter-version pinning; a named, typed semantic allowlist; write previews, durable receipts, contract-specific reconciliation for generic CLI mutations, and no blind retry after an indeterminate dispatch; encrypted snapshots; and versioned TextButler and contact-interaction exports. It wraps only the actions listed for this release.</p>
         </section>
 
         <section aria-labelledby="actions">
@@ -149,9 +149,9 @@ ghostget messaging preview --input @/absolute/private/beeper-turn.json \
 
         <section aria-labelledby="exports">
           <h2 id="exports">Export local history for another bounded tool</h2>
-          <p>Separate GhostGet workflows can produce a private Message Like Me bundle or a body-free contact-interaction summary from Beeper's locally materialized history. These workflows are not part of the {{BEEPER_OBSERVED_OPERATION_COUNT}} supported actions.</p>
+          <p>Separate GhostGet workflows can produce a private TextButler bundle or a body-free contact-interaction summary from Beeper's locally materialized history. These workflows are not part of the {{BEEPER_OBSERVED_OPERATION_COUNT}} supported actions.</p>
           <div class="command-panel"><pre><code>ghostget beeper export-message-like-me --auth beeper-main \
-  --output /absolute/path/to/new-message-like-me-bundle --json
+  --output /absolute/path/to/new-textbutler-bundle --json
 
 umask 077
 ghostget beeper export-contact-interactions --auth beeper-main --json \

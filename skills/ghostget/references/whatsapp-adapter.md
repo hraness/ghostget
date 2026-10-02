@@ -1,7 +1,7 @@
-# WhatsApp local Message Like Me export
+# WhatsApp local export for TextButler
 
 Use this reference to turn one existing account-bound Wacli projection into a
-private Message Like Me bundle. The export reads local state. It does not pair
+private TextButler bundle. The export reads local state. It does not pair
 a device, synchronize WhatsApp, open a network connection, or send a message.
 
 ## Runtime identity
@@ -49,16 +49,16 @@ complete helper stream and exact child exit settle.
 
 ## Bundle identity
 
-The output is Message Like Me local-message bundle schema 2:
+The output is the TextButler local message bundle format, schema 2:
 
 - source `wacli-local@1.0.0`;
 - provider `whatsapp@0.15.0`;
 - network `whatsapp`;
-- immutable consumer `@hraness/message-like-me` v0.7.0;
+- immutable consumer TextButler v0.7.0;
 - six NDJSON artifacts plus `manifest.json`.
 
-GhostGet imports Message Like Me's public schema-2 constants, parser, and types.
-The standalone release gate runs the real Message Like Me v0.7.0 CLI against a
+GhostGet imports TextButler's public schema-2 constants, parser, and types.
+The standalone release gate runs the real TextButler v0.7.0 CLI against a
 GhostGet-generated seven-file bundle.
 
 The output directory is mode `0700`; its files are mode `0600`. GhostGet writes

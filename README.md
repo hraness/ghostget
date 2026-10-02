@@ -291,7 +291,7 @@ programmatic plugin types and bounded validators.
 helpers, `@hraness/ghostget/beeper` exposes the body-free Beeper contact
 interaction export, `@hraness/ghostget/apple-photos` exposes exact local Photos
 contact evidence, `@hraness/ghostget/whatsapp` exposes the bounded private
-Message Like Me export, `@hraness/ghostget/omni` exposes normalized
+TextButler export, `@hraness/ghostget/omni` exposes normalized
 cross-provider reads, and `@hraness/ghostget/messaging` exposes agentic messaging
 route discovery and resolution, `@hraness/ghostget/messaging-automation` exposes the trusted owner messaging host, and `@hraness/ghostget/contracts` exposes the machine-checkable contract parsers and schemas. Importing any SDK entrypoint does not start the CLI.
 Importing the package root also does not inspect local state or load provider
@@ -630,7 +630,7 @@ GhostGet will not install or expose this surface until it can bind the TDLib
 authorization lifecycle, account identity, local database, paging behavior,
 and message-history completeness without weakening the linked-device boundary.
 
-### Native WhatsApp Message Like Me export
+### Native WhatsApp export for TextButler
 
 The [WhatsApp provider guide](https://ghostget.com/docs/how-to/export-whatsapp/) documents
 the pinned macOS arm64 Wacli runtime, bounded local reads, and private export.
@@ -642,9 +642,9 @@ ghostget whatsapp export-message-like-me --auth whatsapp-main \
   --output /absolute/private/path/new-whatsapp-bundle --json
 ```
 
-GhostGet writes six NDJSON artifacts plus `manifest.json` using Message Like Me
-local-message bundle schema 2, source `wacli-local@1.0.0`, provider
-`whatsapp@0.15.0`, and the immutable Message Like Me 0.7.0 consumer. The
+GhostGet writes six NDJSON artifacts plus `manifest.json` using the TextButler
+local message bundle format, schema 2, source `wacli-local@1.0.0`, provider
+`whatsapp@0.15.0`, and the immutable TextButler 0.7.0 consumer. The
 receipt reports bounded local coverage and `remote-history-incomplete` because
 an admitted `wacli.db` cannot prove complete remote WhatsApp history.
 
@@ -842,7 +842,7 @@ to Desktop only, not network delivery.
 The messaging facade resolves one provider-native conversation, reads current
 bounded context, previews an authored one-to-eight-bubble turn, and executes it
 through the existing GhostGet confirmation and run kernel. GhostGet remains the
-only live provider boundary. A caller may use Message Like Me or another local
+only live provider boundary. A caller may use TextButler or another local
 evidence tool for drafting, but an archive, contact record, name, handle,
 participant match, or merged person is never a send target.
 
@@ -939,12 +939,12 @@ to the owner-driven automation host and admit no generic invocation. GhostGet do
 destructive, caller-selected network, or arbitrary-filesystem commands into
 agent authority.
 
-Create a private, agent-ready Message Like Me bundle from every connected
+Create a private, agent-ready TextButler bundle from every connected
 account materialized by Beeper Desktop:
 
 ```sh
 ghostget beeper export-message-like-me --auth beeper-main \
-  --output /absolute/path/to/new-message-like-me-bundle --json
+  --output /absolute/path/to/new-textbutler-bundle --json
 ```
 
 For contact or rolodex enrichment, derive a smaller body-free relationship

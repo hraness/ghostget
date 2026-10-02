@@ -1682,7 +1682,7 @@ describe("ghostget.com static site", () => {
       "write previews, durable receipts, contract-specific reconciliation for generic CLI mutations, and no blind retry",
     );
     expect(beeper?.html).toContain("encrypted snapshots");
-    expect(beeper?.html).toContain("versioned Message Like Me and contact-interaction exports");
+    expect(beeper?.html).toContain("versioned TextButler and contact-interaction exports");
     expect(beeper?.html).toContain("It wraps only the actions listed for this release");
     expect(beeper?.html).toContain(`all ${beeperFacts.cliCommandCount} public manual command paths`);
     expect(beeper?.html.match(/Beeper's supported action names and access methods/gu))
@@ -1764,13 +1764,14 @@ describe("ghostget.com static site", () => {
       "<h1>Export WhatsApp history for TextButler</h1>",
     );
     expect(whatsapp?.html).toContain(
-      "one private bundle for TextButler (formerly Message Like Me) in the Message Like Me schema-2 format",
+      "one private bundle for TextButler in the TextButler local message bundle format, schema 2",
     );
     expect(whatsapp?.html).toContain("six NDJSON files plus <code>manifest.json</code>");
     expect(whatsapp?.html).toContain("local-message schema <code>2</code>");
     expect(whatsapp?.html).toContain("<code>wacli-local@1.0.0</code>");
     expect(whatsapp?.html).toContain("<code>whatsapp@0.15.0</code>");
-    expect(whatsapp?.html).toContain("Message Like Me v0.7.0");
+    expect(whatsapp?.html).toContain("TextButler v0.7.0");
+    expect(whatsapp?.html).not.toMatch(/message like me|hraness\/message-like-me/iu);
     expect(whatsapp?.html).toContain("phone-number (PN) and linked-identity (LID)");
     expect(whatsapp?.html).toContain("Reaction rows are excluded");
     expect(whatsapp?.html).toContain("<code>reaction-state-unproven</code>");
