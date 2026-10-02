@@ -54,7 +54,7 @@
         <header class="guide-hero provider-guide-hero">
           <p class="eyebrow">How-to guide · WhatsApp local export · {{GHOSTGET_RELEASE}}</p>
           <h1>Export WhatsApp history for TextButler</h1>
-          <p class="answer-lede">GhostGet reads an existing account-bound Wacli store and publishes one private bundle for TextButler (formerly Message Like Me) in the Message Like Me schema-2 format. This export does not pair a device, synchronize WhatsApp, open a network connection, or send a message.</p>
+          <p class="answer-lede">GhostGet reads an existing account-bound Wacli store and publishes one private bundle for TextButler in the TextButler local message bundle format, schema 2. This export does not pair a device, synchronize WhatsApp, open a network connection, or send a message.</p>
           <p class="review-note">The current native export is available on macOS arm64 with official Wacli {{WHATSAPP_WACLI_VERSION}}. The <code>whatsapp-web</code> adapter {{WHATSAPP_ADAPTER_VERSION}} exposes {{WHATSAPP_OBSERVED_OPERATION_COUNT}} generic bounded R1 reads over that local projection. Its separate owner-only automation permissions do not turn those reads into send commands.</p>
         </header>
 
@@ -63,7 +63,7 @@
           <div class="command-panel"><pre><code>ghostget whatsapp export-message-like-me --auth whatsapp-main \
   --output /absolute/private/path/new-whatsapp-bundle --json</code></pre></div>
           <p>The destination must be a new absolute directory below an owner-controlled parent. GhostGet writes six NDJSON files plus <code>manifest.json</code> into a private sibling directory, verifies the complete schema and hashes, then publishes all seven files with one atomic rename.</p>
-          <p>The immutable consumer is <a href="https://github.com/hraness/message-like-me/releases/tag/v0.7.0">Message Like Me v0.7.0</a>. The bundle identifies local-message schema <code>2</code>, source <code>wacli-local@1.0.0</code>, provider <code>whatsapp@0.15.0</code>, and network <code>whatsapp</code>.</p>
+          <p>The immutable consumer is <a href="https://github.com/hraness/textbutler/releases/tag/v0.7.0">TextButler v0.7.0</a>. The bundle identifies local-message schema <code>2</code>, source <code>wacli-local@1.0.0</code>, provider <code>whatsapp@0.15.0</code>, and network <code>whatsapp</code>.</p>
         </section>
 
         <section aria-labelledby="included">
@@ -86,7 +86,7 @@
               <thead><tr><th scope="col">Boundary</th><th scope="col">Reviewed identity</th></tr></thead>
               <tbody>
                 <tr><th scope="row">GhostGet</th><td><code>{{GHOSTGET_RELEASE}}</code></td></tr>
-                <tr><th scope="row">Message Like Me</th><td><a href="https://github.com/hraness/message-like-me/releases/tag/v0.7.0">v0.7.0</a></td></tr>
+                <tr><th scope="row">TextButler</th><td><a href="https://github.com/hraness/textbutler/releases/tag/v0.7.0">v0.7.0</a></td></tr>
                 <tr><th scope="row">Official Wacli</th><td><a href="https://github.com/openclaw/wacli/releases/tag/v{{WHATSAPP_WACLI_VERSION}}">v{{WHATSAPP_WACLI_VERSION}}</a> at <a href="https://github.com/openclaw/wacli/commit/{{WHATSAPP_WACLI_COMMIT}}"><code>{{WHATSAPP_WACLI_COMMIT}}</code></a></td></tr>
                 <tr><th scope="row">macOS arm64 archive SHA-256</th><td><code>{{WHATSAPP_ARCHIVE_SHA256}}</code></td></tr>
                 <tr><th scope="row">macOS arm64 executable SHA-256</th><td><code>{{WHATSAPP_BINARY_SHA256}}</code></td></tr>
