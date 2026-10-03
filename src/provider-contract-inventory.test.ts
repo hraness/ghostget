@@ -44,6 +44,16 @@ const registry = createProviderPluginRegistry(generatedProviderPlugins);
 const rows = [];
 const currentOnlyRows = [];
 const legacyRows = [];
+const predecessorHackerNewsWriter = "66b9744caeb514cd9c4a749db4baaca84346098b162cdf4bcba653b7e9d9408a";
+const predecessorHackerNewsReaders = [
+  "e4c9e459c0185428d759994a160200b5d883119caca828b6ae7469124ef82f14",
+  "c54f71de41c0df51a36f8a1c80b092b4534ffbd16aedacfba599d68e8f6b4130",
+  "ff716adff5a4f962a765020474325037d0d4795c61f086c13e5d2adc61484ec8",
+  "da3cdd6465b92ce933004fb9e3f2bf3dd48811e766079647d2cdaec43e507e1d",
+  "e4c9e459c0185428d759994a160200b5d883119caca828b6ae7469124ef82f14",
+  "c54f71de41c0df51a36f8a1c80b092b4534ffbd16aedacfba599d68e8f6b4130",
+  "ff716adff5a4f962a765020474325037d0d4795c61f086c13e5d2adc61484ec8",
+];
 const predecessorRedditWriter = "646a29b320373f50ccdf9ae8b8b60d5147428f0f899a226480c2c5b009294d8a";
 const predecessorRedditReaders = [
   "64a4c1e78ce8565a50613f63ff605f0f57f488617ef31386b5ddce5e3db885c9",
@@ -148,11 +158,14 @@ for (const plugin of registry.list()) {
           );
           const isPredecessorReddit = binding.surfaceId === "reddit" && !operation.name.startsWith("flair.");
           const isPredecessorSubstack = binding.surfaceId === "substack" && !operation.name.startsWith("subscribers.");
+          const isPredecessorHackerNews = binding.surfaceId === "hacker-news";
           const legacyImplementations = isPredecessorReddit
             ? predecessorRedditReaders.map((hash) => Buffer.from(hash, "hex"))
             : isPredecessorSubstack
               ? predecessorSubstackReaders.map((hash) => Buffer.from(hash, "hex"))
-              : registeredLegacyImplementations;
+              : isPredecessorHackerNews
+                ? predecessorHackerNewsReaders.map((hash) => Buffer.from(hash, "hex"))
+                : registeredLegacyImplementations;
           if (binding.transport === "provider-api") {
           const contract = providerContracts.getProviderContract({
             provider: binding.surfaceId,
@@ -208,7 +221,9 @@ for (const plugin of registry.list()) {
             ? legacyHash(contract, Buffer.from(predecessorRedditWriter, "hex"), true)
             : isPredecessorSubstack
               ? legacyHash(contract, Buffer.from(predecessorSubstackWriter, "hex"), true)
-              : webContracts.webSessionContractHash(contract, registry);
+              : isPredecessorHackerNews
+                ? legacyHash(contract, Buffer.from(predecessorHackerNewsWriter, "hex"), true)
+                : webContracts.webSessionContractHash(contract, registry);
           acceptedLegacy &&= webContracts.isCompatibleWebSessionContractHash(contract, currentHash, registry);
           const includePredecessorInventory = appendCurrentRow([binding.transport, binding.surfaceId, operation.name, contractVersion,
             currentHash]);

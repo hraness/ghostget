@@ -310,9 +310,11 @@ const identities = Object.freeze({
   },
   "hacker-news-web": {
     schemaVersion: 1,
-    pluginVersion: "1.1.0",
-    implementationSha256: "66b9744caeb514cd9c4a749db4baaca84346098b162cdf4bcba653b7e9d9408a",
-    legacyCurrentReadImplementationSha256: [],
+    pluginVersion: "1.2.0",
+    implementationSha256: "72621e1e1caeacf2f8351c415c927edef7e19eee2b81bc46f4ce9e55649cf08b",
+    legacyCurrentReadImplementationSha256: [
+      "66b9744caeb514cd9c4a749db4baaca84346098b162cdf4bcba653b7e9d9408a",
+    ],
     legacyReadImplementationSha256: {
       test: "e4c9e459c0185428d759994a160200b5d883119caca828b6ae7469124ef82f14",
       production: "c54f71de41c0df51a36f8a1c80b092b4534ffbd16aedacfba599d68e8f6b4130",
