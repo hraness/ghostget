@@ -145,7 +145,8 @@ describe("X web provider plugin", () => {
     });
     expect(replies).toMatchObject({
       contractVersion: 1,
-      state: "capture-required",
+      state: "observed",
+      reconciliation: { kind: "provider-accepted-target-presence" },
     });
     expect(replies?.input.properties.body).toMatchObject({
       minLength: 1,

@@ -12,7 +12,7 @@ import {
 import type { GhostgetAuth } from "../auth";
 import type { BrowserSession } from "../browser";
 import { canonicalJson } from "../canonical-json";
-import type { WebSessionRecipe } from "../model";
+import type { OperationInput, WebSessionRecipe } from "../model";
 import { OperationDeadlineError } from "../operation-deadline";
 import type { WebSessionDispatchEvent } from "../web-session";
 import { embedPngChunk, encodePixelsOnlyPng, scrubXUploadImage } from "./x-image-provenance";
@@ -31,20 +31,20 @@ import {
 
 const MAIN_URL = "https://abs.twimg.com/responsive-web/client-web/main.abcdef12.js";
 const VIEWER_QUERY_ID = "9t128XgFic52jPUEkJMf6w";
-const BOOKMARKS_QUERY_ID = "-dgKZ58Dr9YSJYrcgEb5KA";
-const USER_TWEETS_QUERY_ID = "jeAA-59Y9FL7FmjgBNIVPw";
+const BOOKMARKS_QUERY_ID = "Glt3WAwBvNSPD-n_sqmX_A";
+const USER_TWEETS_QUERY_ID = "qJy3MbaNndtzxf9IqUzxMg";
 const FOLLOWING_QUERY_ID = "uwmIAx89XrXNuGY-Y7WFLg";
 const FOLLOWERS_QUERY_ID = "mrqxgX8JzwlL6pvYiC5CPA";
 const CONTACT_USER_ID = "998877665544332211";
-const SEARCH_TIMELINE_QUERY_ID = "auLkqtmHqYEpRvflfvLhyQ";
+const SEARCH_TIMELINE_QUERY_ID = "uGB-gNd5HE4TkpO70OcFNw";
 const ARTICLE_QUERY_ID = "_rbmb_NKLqKVBr5X_MSoMQ";
 const ARTICLE_BUNDLE_URL = "https://abs.twimg.com/responsive-web/client-web/bundle.TwitterArticles.305538ca.js";
 const ARTICLE_RESULT_QUERY_ID = "OF2ES8qTOPLFBU_oZWVkQw";
 const ARTICLE_TITLE_QUERY_ID = "brHFCBTXXg8WOqc7BnXfAw";
 const ARTICLE_CONTENT_QUERY_ID = "x4Pz2ifYkOD6uSvzxOIUig";
-const ARTICLE_ENTITIES_BUNDLE_URL = "https://abs.twimg.com/responsive-web/client-web/shared~bundle.TwitterArticles~ondemand.Verified~bundle.SettingsExtendedProfile~bundle.WorkHistory.d1314bba.js";
-const ARTICLE_CONVERTER_BUNDLE_URL = "https://abs.twimg.com/responsive-web/client-web/shared~bundle.Grok~bundle.GrokDrawer~bundle.ReaderMode~bundle.Birdwatch~bundle.TwitterArticles~bundle.Compose.02f6dc7a.js";
-const ARTICLE_UPLOADER_BUNDLE_URL = "https://abs.twimg.com/responsive-web/client-web/shared~bundle.LoggedInMain~ondemand.HoverCard~loader.AudioDock~loader.Dock~bundle.BookmarkFolders~bundle.Book.a9bac6ba.js";
+const ARTICLE_ENTITIES_BUNDLE_URL = "https://abs.twimg.com/responsive-web/client-web/shared~bundle.SettingsExtendedProfile~bundle.TwitterArticles~bundle.WorkHistory~ondemand.Verified.d1314bba.js";
+const ARTICLE_CONVERTER_BUNDLE_URL = "https://abs.twimg.com/responsive-web/client-web/shared~bundle.Birdwatch~bundle.Compose~bundle.Display~bundle.Grok~bundle.GrokDrawer~bundle.News~bundle.Ocf~bu.02f6dc7a.js";
+const ARTICLE_UPLOADER_BUNDLE_URL = "https://abs.twimg.com/responsive-web/client-web/shared~JetfuelWrapper~bundle.AccountVerification~bundle.AudioSpaceAnalytics~bundle.AudioSpaceDetail~bundle.Au.a9bac6ba.js";
 const VIEWER_ID = "123456789012345678";
 const FOCAL_POST_ID = "2078889282404569267";
 const CREATED_POST_ID = "2078889282404569266";
@@ -111,7 +111,7 @@ function articleHtml(): string {
 }
 
 function richArticleHtml(): string {
-  return `${homeHtml()}<script>p.u=e=>({31770:"bundle.TwitterArticles",31771:"shared~bundle.LoggedInMain~ondemand.HoverCard~loader.AudioDock~loader.Dock~bundle.BookmarkFolders~bundle.Book",31772:"shared~bundle.TwitterArticles~ondemand.Verified~bundle.SettingsExtendedProfile~bundle.WorkHistory",31773:"shared~bundle.Grok~bundle.GrokDrawer~bundle.ReaderMode~bundle.Birdwatch~bundle.TwitterArticles~bundle.Compose"})[e]||e)+"."+({31770:"305538c",31771:"a9bac6b",31772:"d1314bb",31773:"02f6dc7"})[e]+"a.js"</script>`;
+  return `${homeHtml()}<script>p.u=e=>({31770:"bundle.TwitterArticles",31771:"shared~JetfuelWrapper~bundle.AccountVerification~bundle.AudioSpaceAnalytics~bundle.AudioSpaceDetail~bundle.Au",31772:"shared~bundle.SettingsExtendedProfile~bundle.TwitterArticles~bundle.WorkHistory~ondemand.Verified",31773:"shared~bundle.Birdwatch~bundle.Compose~bundle.Display~bundle.Grok~bundle.GrokDrawer~bundle.News~bundle.Ocf~bu"})[e]||e)+"."+({31770:"305538c",31771:"a9bac6b",31772:"d1314bb",31773:"02f6dc7"})[e]+"a.js"</script>`;
 }
 
 function homeHtml(state: unknown = { featureSwitch: { user: { config: {} } } }): string {
@@ -517,6 +517,43 @@ describe("X authenticated internal-API runtime", () => {
     );
     expect(() => resolveCurrentXWebChunkUrl(html, "missing.12345678.js")).toThrow(
       "one unique reviewed logical chunk; reviewed evidence is stale",
+    );
+  });
+
+  test("resolves the map when X rotates the minified receiver and groups the literals", () => {
+    const html = [
+      "prefix;Ab.u=e=>({101:\"unrelated\",202:\"shared~bundle.LoggedInMain~bundle.HomeTimeline\"}",
+      ")[e]||e)+\".\"+({101:\"1111111\",202:\"deadbee\"}",
+      ")[e]+\"a.js\";suffix",
+    ].join("");
+    const grouped = html.replace("Ab.u=e=>({", "t9.u=e=>(({");
+
+    expect(resolveCurrentXWebChunkUrl(
+      html,
+      "shared~bundle.LoggedInMain~bundle.HomeTimeline.e992705a.js",
+    ).href).toBe(
+      "https://abs.twimg.com/responsive-web/client-web/shared~bundle.LoggedInMain~bundle.HomeTimeline.deadbeea.js",
+    );
+    expect(resolveCurrentXWebChunkUrl(
+      grouped,
+      "shared~bundle.LoggedInMain~bundle.HomeTimeline.e992705a.js",
+    ).href).toBe(
+      "https://abs.twimg.com/responsive-web/client-web/shared~bundle.LoggedInMain~bundle.HomeTimeline.deadbeea.js",
+    );
+  });
+
+  test("rejects a foreign .u assignment whose arrow does not open the map literals", () => {
+    const html = [
+      "prefix;q.u=e=>e.length;other();t.u=e=>({202:\"shared~bundle.LoggedInMain~bundle.HomeTimeline\"}",
+      ")[e]||e)+\".\"+({202:\"deadbee\"}",
+      ")[e]+\"a.js\";suffix",
+    ].join("");
+
+    expect(resolveCurrentXWebChunkUrl(
+      html,
+      "shared~bundle.LoggedInMain~bundle.HomeTimeline.e992705a.js",
+    ).href).toBe(
+      "https://abs.twimg.com/responsive-web/client-web/shared~bundle.LoggedInMain~bundle.HomeTimeline.deadbeea.js",
     );
   });
 
@@ -1256,7 +1293,7 @@ describe("X authenticated internal-API runtime", () => {
   });
 
   test("binds List-feed responses to one returned List identity", async () => {
-    const logicalChunk = "shared~loader.Dock~bundle.BookmarkFolders~bundle.Bookmarks~bundle.Explore~bundle.HomeTimeline~bundle.Notifica";
+    const logicalChunk = "shared~JetfuelWrapper~bundle.AudioSpaceDetail~bundle.AudioSpaceDiscovery~bundle.AudioSpacebarScreen~bundle.Bi";
     const html = `${homeHtml()}<script>p.u=e=>({101:"unrelated",202:"${logicalChunk}"})[e]||e)+"."+({101:"1111111",202:"deadbee"})[e]+"a.js"</script>`;
     for (const [returnedListId, expected] of [
       ["42", "succeeded"],
@@ -1274,7 +1311,7 @@ describe("X authenticated internal-API runtime", () => {
           });
         }
         if (request.url.hostname === "abs.twimg.com" && request.url.href !== MAIN_URL) {
-          return new Response(descriptor("ListLatestTweetsTimeline", "qIrerw_1oakhehcLoFbaOw", "query"), {
+          return new Response(descriptor("ListLatestTweetsTimeline", "FJ9uKqUTO7AoDHu1oU-s9w", "query"), {
             headers: { "content-type": "application/javascript" },
           });
         }
@@ -1800,11 +1837,18 @@ describe("X authenticated internal-API runtime", () => {
       }
       if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
       if (request.url.pathname.endsWith("/SearchTimeline")) {
-        expect(JSON.parse(request.url.searchParams.get("variables") ?? "null")).toMatchObject({
-          rawQuery: "from:CathPoaster -filter:replies",
-          count: 10,
-          querySource: "typed_query",
-          product: "Latest",
+        // The current X deployment routes SearchTimeline through POST; GET
+        // returns 404.
+        expect(request.method).toBe("POST");
+        expect(request.url.search).toBe("");
+        expect(JSON.parse(request.body ?? "null")).toMatchObject({
+          queryId: SEARCH_TIMELINE_QUERY_ID,
+          variables: {
+            rawQuery: "from:CathPoaster -filter:replies",
+            count: 10,
+            querySource: "typed_query",
+            product: "Latest",
+          },
         });
         return jsonResponse(searchFeedResponse(
           tweetEntry(FOCAL_POST_ID, "search hit"),
@@ -2263,13 +2307,13 @@ describe("X authenticated internal-API runtime", () => {
         expect(request.headers.get("cookie")).toBeNull();
         return new Response(mainBundle(
           descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
-          descriptor("TweetDetail", "zoF7_t363wZyzylk-BLfZQ", "query"),
+          descriptor("TweetDetail", "blErEeZkos5TDrWmrCp7cw", "query"),
         ), {
           headers: { "content-type": "application/javascript" },
         });
       }
       if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
-      if (request.url.pathname === "/i/api/graphql/zoF7_t363wZyzylk-BLfZQ/TweetDetail") {
+      if (request.url.pathname === "/i/api/graphql/blErEeZkos5TDrWmrCp7cw/TweetDetail") {
         expect(request.method).toBe("GET");
         expect([...request.url.searchParams.keys()]).toEqual(["variables"]);
         expect(JSON.parse(request.url.searchParams.get("variables") ?? "null")).toEqual({
@@ -2310,7 +2354,7 @@ describe("X authenticated internal-API runtime", () => {
       "GET https://x.com/home",
       "GET https://abs.twimg.com/responsive-web/client-web/main.abcdef12.js",
       `GET https://x.com/i/api/graphql/${VIEWER_QUERY_ID}/Viewer`,
-      "GET https://x.com/i/api/graphql/zoF7_t363wZyzylk-BLfZQ/TweetDetail",
+      "GET https://x.com/i/api/graphql/blErEeZkos5TDrWmrCp7cw/TweetDetail",
     ]);
   });
 
@@ -2342,7 +2386,7 @@ describe("X authenticated internal-API runtime", () => {
       if (request.url.href === MAIN_URL) {
         return new Response(mainBundle(
           descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
-          descriptor("TweetDetail", "zoF7_t363wZyzylk-BLfZQ", "query"),
+          descriptor("TweetDetail", "blErEeZkos5TDrWmrCp7cw", "query"),
         ), {
           headers: { "content-type": "application/javascript" },
         });
@@ -2372,7 +2416,7 @@ describe("X authenticated internal-API runtime", () => {
       if (request.url.href === MAIN_URL) {
         return new Response(mainBundle(
           descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
-          descriptor("TweetDetail", "zoF7_t363wZyzylk-BLfZQ", "query"),
+          descriptor("TweetDetail", "blErEeZkos5TDrWmrCp7cw", "query"),
         ), { headers: { "content-type": "application/javascript" } });
       }
       if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
@@ -2413,7 +2457,7 @@ describe("X authenticated internal-API runtime", () => {
       if (request.url.href === MAIN_URL) {
         return new Response(mainBundle(
           descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
-          descriptor("TweetDetail", "zoF7_t363wZyzylk-BLfZQ", "query"),
+          descriptor("TweetDetail", "blErEeZkos5TDrWmrCp7cw", "query"),
         ), { headers: { "content-type": "application/javascript" } });
       }
       if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
@@ -2727,12 +2771,12 @@ describe("X authenticated internal-API runtime", () => {
         });
       }
       if (request.url.href === ARTICLE_ENTITIES_BUNDLE_URL) {
-        return new Response('createEntity(E.Sg,"MUTABLE",{url:', {
+        return new Response('createEntity("LINK","MUTABLE",{url:', {
           headers: { "content-type": "application/javascript" },
         });
       }
       if (request.url.href === ARTICLE_CONVERTER_BUNDLE_URL) {
-        return new Response("mutability:s[i.mutability];inline_style_ranges:", {
+        return new Response("mutability:o[i.mutability];inline_style_ranges:", {
           headers: { "content-type": "application/javascript" },
         });
       }
@@ -2871,12 +2915,12 @@ describe("X authenticated internal-API runtime", () => {
         ].join(";"), { headers: { "content-type": "application/javascript" } });
       }
       if (request.url.href === ARTICLE_ENTITIES_BUNDLE_URL) {
-        return new Response('createEntity(E.Sg,"MUTABLE",{url:', {
+        return new Response('createEntity("LINK","MUTABLE",{url:', {
           headers: { "content-type": "application/javascript" },
         });
       }
       if (request.url.href === ARTICLE_CONVERTER_BUNDLE_URL) {
-        return new Response("mutability:s[i.mutability];inline_style_ranges:", {
+        return new Response("mutability:o[i.mutability];inline_style_ranges:", {
           headers: { "content-type": "application/javascript" },
         });
       }
@@ -3043,16 +3087,16 @@ describe("X authenticated internal-API runtime", () => {
       if (request.url.href === ARTICLE_ENTITIES_BUNDLE_URL) {
         return new Response([
           "createEntity(g.LA.MEDIA,g.Ei.IMMUTABLE",
-          "mediaCategory:K(e)",
+          "mediaCategory:A(e)",
           "mediaId:e.uploadId",
-          'createEntity(E.Sg,"MUTABLE",{url:',
+          'createEntity("LINK","MUTABLE",{url:',
         ].join(";"), { headers: { "content-type": "application/javascript" } });
       }
       if (request.url.href === ARTICLE_CONVERTER_BUNDLE_URL) {
         return new Response([
           "media_items:i.data?.mediaItems?.map",
           "media_category:e.mediaCategory",
-          "mutability:s[i.mutability]",
+          "mutability:o[i.mutability]",
           "inline_style_ranges:",
         ].join(";"), { headers: { "content-type": "application/javascript" } });
       }
@@ -3309,12 +3353,12 @@ describe("X authenticated internal-API runtime", () => {
         ].join(";"), { headers: { "content-type": "application/javascript" } });
       }
       if (request.url.href === ARTICLE_ENTITIES_BUNDLE_URL) {
-        return new Response('createEntity(E.Sg,"MUTABLE",{url:', {
+        return new Response('createEntity("LINK","MUTABLE",{url:', {
           headers: { "content-type": "application/javascript" },
         });
       }
       if (request.url.href === ARTICLE_CONVERTER_BUNDLE_URL) {
-        return new Response("mutability:s[i.mutability];inline_style_ranges:", {
+        return new Response("mutability:o[i.mutability];inline_style_ranges:", {
           headers: { "content-type": "application/javascript" },
         });
       }
@@ -3390,12 +3434,12 @@ describe("X authenticated internal-API runtime", () => {
         });
       }
       if (request.url.href === ARTICLE_ENTITIES_BUNDLE_URL) {
-        return new Response('createEntity(E.Sg,"MUTABLE",{url:', {
+        return new Response('createEntity("LINK","MUTABLE",{url:', {
           headers: { "content-type": "application/javascript" },
         });
       }
       if (request.url.href === ARTICLE_CONVERTER_BUNDLE_URL) {
-        return new Response("mutability:s[i.mutability];inline_style_ranges:", {
+        return new Response("mutability:o[i.mutability];inline_style_ranges:", {
           headers: { "content-type": "application/javascript" },
         });
       }
@@ -3449,8 +3493,8 @@ describe("X authenticated internal-API runtime", () => {
       if (request.url.href === MAIN_URL) {
         return new Response(mainBundle(
           descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
-          descriptor("CreateTweet", "GYdIGqVWfZNho79bQ2XDoA", "mutation"),
-          descriptor("TweetResultByRestId", "Xl0tsHf4AzflMRjbw9e70A", "query"),
+          descriptor("CreateTweet", "WNkbkQ_JLIofjdukTXahVA", "mutation"),
+          descriptor("TweetResultByRestId", "LbQZrAWyKPvExi8di3-EoA", "query"),
         ), { headers: { "content-type": "application/javascript" } });
       }
       if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
@@ -3466,7 +3510,7 @@ describe("X authenticated internal-API runtime", () => {
             semantic_annotation_ids: [],
           },
           features: {},
-          queryId: "GYdIGqVWfZNho79bQ2XDoA",
+          queryId: "WNkbkQ_JLIofjdukTXahVA",
         });
         return jsonResponse(createTweetResponse({ text: body }));
       }
@@ -3545,8 +3589,8 @@ describe("X authenticated internal-API runtime", () => {
           if (request.url.href === MAIN_URL) {
             return new Response(mainBundle(
               descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
-              descriptor("CreateTweet", "GYdIGqVWfZNho79bQ2XDoA", "mutation"),
-              descriptor("TweetResultByRestId", "Xl0tsHf4AzflMRjbw9e70A", "query"),
+              descriptor("CreateTweet", "WNkbkQ_JLIofjdukTXahVA", "mutation"),
+              descriptor("TweetResultByRestId", "LbQZrAWyKPvExi8di3-EoA", "query"),
             ), { headers: { "content-type": "application/javascript" } });
           }
           if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
@@ -3595,7 +3639,7 @@ describe("X authenticated internal-API runtime", () => {
           if (request.url.href === MAIN_URL) {
             return new Response(mainBundle(
               descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
-              descriptor("TweetResultByRestId", "Xl0tsHf4AzflMRjbw9e70A", "query"),
+              descriptor("TweetResultByRestId", "LbQZrAWyKPvExi8di3-EoA", "query"),
             ), { headers: { "content-type": "application/javascript" } });
           }
           if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
@@ -3631,7 +3675,7 @@ describe("X authenticated internal-API runtime", () => {
           if (request.url.href === MAIN_URL) {
             return new Response(mainBundle(
               descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
-              descriptor("TweetResultByRestId", "Xl0tsHf4AzflMRjbw9e70A", "query"),
+              descriptor("TweetResultByRestId", "LbQZrAWyKPvExi8di3-EoA", "query"),
             ), { headers: { "content-type": "application/javascript" } });
           }
           if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
@@ -3663,7 +3707,7 @@ describe("X authenticated internal-API runtime", () => {
           if (request.url.href === MAIN_URL) {
             return new Response(mainBundle(
               descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
-              descriptor("TweetResultByRestId", "Xl0tsHf4AzflMRjbw9e70A", "query"),
+              descriptor("TweetResultByRestId", "LbQZrAWyKPvExi8di3-EoA", "query"),
             ), { headers: { "content-type": "application/javascript" } });
           }
           if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
@@ -3695,8 +3739,8 @@ describe("X authenticated internal-API runtime", () => {
       if (request.url.href === MAIN_URL) {
         return new Response(mainBundle(
           descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
-          descriptor("CreateTweet", "GYdIGqVWfZNho79bQ2XDoA", "mutation"),
-          descriptor("TweetResultByRestId", "Xl0tsHf4AzflMRjbw9e70A", "query"),
+          descriptor("CreateTweet", "WNkbkQ_JLIofjdukTXahVA", "mutation"),
+          descriptor("TweetResultByRestId", "LbQZrAWyKPvExi8di3-EoA", "query"),
         ), { headers: { "content-type": "application/javascript" } });
       }
       if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
@@ -3755,8 +3799,8 @@ describe("X authenticated internal-API runtime", () => {
           if (request.url.href === MAIN_URL) {
             return new Response(mainBundle(
               descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
-              descriptor("CreateTweet", "GYdIGqVWfZNho79bQ2XDoA", "mutation"),
-              descriptor("TweetResultByRestId", "Xl0tsHf4AzflMRjbw9e70A", "query"),
+              descriptor("CreateTweet", "WNkbkQ_JLIofjdukTXahVA", "mutation"),
+              descriptor("TweetResultByRestId", "LbQZrAWyKPvExi8di3-EoA", "query"),
             ), { headers: { "content-type": "application/javascript" } });
           }
           if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
@@ -3790,7 +3834,7 @@ describe("X authenticated internal-API runtime", () => {
           if (request.url.href === MAIN_URL) {
             return new Response(mainBundle(
               descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
-              descriptor("TweetResultByRestId", "Xl0tsHf4AzflMRjbw9e70A", "query"),
+              descriptor("TweetResultByRestId", "LbQZrAWyKPvExi8di3-EoA", "query"),
             ), { headers: { "content-type": "application/javascript" } });
           }
           if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
@@ -3820,7 +3864,7 @@ describe("X authenticated internal-API runtime", () => {
           if (request.url.href === MAIN_URL) {
             return new Response(mainBundle(
               descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
-              descriptor("TweetResultByRestId", "Xl0tsHf4AzflMRjbw9e70A", "query"),
+              descriptor("TweetResultByRestId", "LbQZrAWyKPvExi8di3-EoA", "query"),
             ), { headers: { "content-type": "application/javascript" } });
           }
           if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
@@ -3884,8 +3928,8 @@ describe("X authenticated internal-API runtime", () => {
             if (request.url.href === MAIN_URL) {
               return new Response(mainBundle(
                 descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
-                descriptor("CreateTweet", "GYdIGqVWfZNho79bQ2XDoA", "mutation"),
-                descriptor("TweetResultByRestId", "Xl0tsHf4AzflMRjbw9e70A", "query"),
+                descriptor("CreateTweet", "WNkbkQ_JLIofjdukTXahVA", "mutation"),
+                descriptor("TweetResultByRestId", "LbQZrAWyKPvExi8di3-EoA", "query"),
               ), { headers: { "content-type": "application/javascript" } });
             }
             if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
@@ -3952,7 +3996,7 @@ describe("X authenticated internal-API runtime", () => {
       });
       const lastUpload = events.lastIndexOf("POST upload.x.com/i/media/upload.json");
       const admitted = events.indexOf("before 0");
-      const create = events.indexOf("POST x.com/i/api/graphql/GYdIGqVWfZNho79bQ2XDoA/CreateTweet");
+      const create = events.indexOf("POST x.com/i/api/graphql/WNkbkQ_JLIofjdukTXahVA/CreateTweet");
       expect(lastUpload).toBeGreaterThan(-1);
       expect(admitted).toBeGreaterThan(lastUpload);
       expect(create).toBeGreaterThan(admitted);
@@ -4000,8 +4044,8 @@ describe("X authenticated internal-API runtime", () => {
           if (request.url.href === MAIN_URL) {
             return new Response(mainBundle(
               descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
-              descriptor("CreateTweet", "GYdIGqVWfZNho79bQ2XDoA", "mutation"),
-              descriptor("TweetResultByRestId", "Xl0tsHf4AzflMRjbw9e70A", "query"),
+              descriptor("CreateTweet", "WNkbkQ_JLIofjdukTXahVA", "mutation"),
+              descriptor("TweetResultByRestId", "LbQZrAWyKPvExi8di3-EoA", "query"),
             ), { headers: { "content-type": "application/javascript" } });
           }
           if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
@@ -4044,8 +4088,8 @@ describe("X authenticated internal-API runtime", () => {
           if (request.url.href === MAIN_URL) {
             return new Response(mainBundle(
               descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
-              descriptor("CreateTweet", "GYdIGqVWfZNho79bQ2XDoA", "mutation"),
-              descriptor("TweetResultByRestId", "Xl0tsHf4AzflMRjbw9e70A", "query"),
+              descriptor("CreateTweet", "WNkbkQ_JLIofjdukTXahVA", "mutation"),
+              descriptor("TweetResultByRestId", "LbQZrAWyKPvExi8di3-EoA", "query"),
             ), { headers: { "content-type": "application/javascript" } });
           }
           if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
@@ -4107,8 +4151,8 @@ describe("X authenticated internal-API runtime", () => {
             if (request.url.href === MAIN_URL) {
               return new Response(mainBundle(
                 descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
-                descriptor("CreateTweet", "GYdIGqVWfZNho79bQ2XDoA", "mutation"),
-                descriptor("TweetResultByRestId", "Xl0tsHf4AzflMRjbw9e70A", "query"),
+                descriptor("CreateTweet", "WNkbkQ_JLIofjdukTXahVA", "mutation"),
+                descriptor("TweetResultByRestId", "LbQZrAWyKPvExi8di3-EoA", "query"),
               ), { headers: { "content-type": "application/javascript" } });
             }
             if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
@@ -4185,7 +4229,7 @@ describe("X authenticated internal-API runtime", () => {
       expect(pauses).toEqual([1_000]);
       const status = events.indexOf("GET upload.x.com/i/media/upload.json");
       const admitted = events.indexOf("before 0");
-      const create = events.indexOf("POST x.com/i/api/graphql/GYdIGqVWfZNho79bQ2XDoA/CreateTweet");
+      const create = events.indexOf("POST x.com/i/api/graphql/WNkbkQ_JLIofjdukTXahVA/CreateTweet");
       expect(status).toBeGreaterThan(-1);
       expect(admitted).toBeGreaterThan(status);
       expect(create).toBeGreaterThan(admitted);
@@ -4224,7 +4268,7 @@ describe("X authenticated internal-API runtime", () => {
             if (request.url.href === MAIN_URL) {
               return new Response(mainBundle(
                 descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
-                descriptor("CreateTweet", "GYdIGqVWfZNho79bQ2XDoA", "mutation"),
+                descriptor("CreateTweet", "WNkbkQ_JLIofjdukTXahVA", "mutation"),
               ), { headers: { "content-type": "application/javascript" } });
             }
             if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
@@ -4342,7 +4386,7 @@ describe("X authenticated internal-API runtime", () => {
             if (request.url.href === MAIN_URL) {
               return new Response(mainBundle(
                 descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
-                descriptor("CreateTweet", "GYdIGqVWfZNho79bQ2XDoA", "mutation"),
+                descriptor("CreateTweet", "WNkbkQ_JLIofjdukTXahVA", "mutation"),
               ), { headers: { "content-type": "application/javascript" } });
             }
             if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
@@ -4440,7 +4484,7 @@ describe("X authenticated internal-API runtime", () => {
       if (request.url.href === MAIN_URL) {
         return new Response(mainBundle(
           descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
-          descriptor("CreateTweet", "GYdIGqVWfZNho79bQ2XDoA", "mutation"),
+          descriptor("CreateTweet", "WNkbkQ_JLIofjdukTXahVA", "mutation"),
         ), { headers: { "content-type": "application/javascript" } });
       }
       if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
@@ -4486,7 +4530,7 @@ describe("X authenticated internal-API runtime", () => {
         if (request.url.href === MAIN_URL) {
           return new Response(mainBundle(
             descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
-            descriptor("CreateTweet", "GYdIGqVWfZNho79bQ2XDoA", "mutation"),
+            descriptor("CreateTweet", "WNkbkQ_JLIofjdukTXahVA", "mutation"),
           ), { headers: { "content-type": "application/javascript" } });
         }
         if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
@@ -4526,6 +4570,224 @@ describe("X authenticated internal-API runtime", () => {
       expect(after).toEqual([]);
       expect(calls.filter((call) => call.method === "POST")).toHaveLength(1);
     }
+  });
+
+  test("publishes one exact reply bound to its confirmed parent and verifies independent readback", async () => {
+    const calls: CapturedRequest[] = [];
+    const before: WebSessionDispatchEvent[] = [];
+    const accepted: unknown[] = [];
+    const after: WebSessionDispatchEvent[] = [];
+    const body = "reply fixture body";
+    const runtimeDependencies = dependencies(calls, (request) => {
+      if (request.url.href === "https://x.com/home") {
+        return new Response(homeHtml(), { headers: { "content-type": "text/html" } });
+      }
+      if (request.url.href === MAIN_URL) {
+        return new Response(mainBundle(
+          descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
+          descriptor("CreateTweet", "WNkbkQ_JLIofjdukTXahVA", "mutation"),
+          descriptor("TweetResultByRestId", "LbQZrAWyKPvExi8di3-EoA", "query"),
+        ), { headers: { "content-type": "application/javascript" } });
+      }
+      if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
+      if (request.url.pathname.endsWith("/CreateTweet")) {
+        const payload = JSON.parse(request.body ?? "null") as {
+          readonly variables: {
+            readonly reply?: {
+              readonly in_reply_to_tweet_id?: string;
+              readonly exclude_reply_user_ids?: readonly string[];
+            };
+          };
+        };
+        expect(payload.variables.reply).toEqual({
+          in_reply_to_tweet_id: FOCAL_POST_ID,
+          exclude_reply_user_ids: [],
+        });
+        return jsonResponse(createTweetResponse({ text: body, replyTo: FOCAL_POST_ID }));
+      }
+      if (request.url.pathname.endsWith("/TweetResultByRestId")) {
+        return jsonResponse(publishedTweetReadback({ text: body, replyTo: FOCAL_POST_ID }));
+      }
+      throw new Error(`unexpected test request ${request.url.href}`);
+    });
+
+    const result = await executeXWebOperation(
+      xRecipe("replies.create"),
+      { post_id: FOCAL_POST_ID, body },
+      xAuth,
+      {
+        dependencies: runtimeDependencies,
+        beforeDispatch: (event) => {
+          before.push(event);
+          return Promise.resolve();
+        },
+        afterProviderAcceptedMutationTarget: (event) => {
+          accepted.push(event);
+          return Promise.resolve();
+        },
+        afterDispatchVerified: (event) => {
+          after.push(event);
+          return Promise.resolve();
+        },
+      },
+    );
+
+    expect(result).toEqual({
+      status: "succeeded",
+      output: { posts: [{ id: CREATED_POST_ID, url: `https://x.com/i/status/${CREATED_POST_ID}` }] },
+      finalUrl: `https://x.com/i/status/${CREATED_POST_ID}`,
+      dispatchStarted: true,
+      dispatch: { planned: 1, started: 1, verified: 1 },
+    });
+    expect(before).toEqual([{
+      id: "replies.create",
+      index: 1,
+      progress: { planned: 1, started: 0, verified: 0 },
+    }]);
+    expect(accepted).toEqual([{
+      id: "replies.create",
+      index: 1,
+      target: {
+        schemaVersion: 1,
+        identifier: canonicalJson({ postId: CREATED_POST_ID, mediaId: null }),
+      },
+    }]);
+    expect(after).toEqual([{
+      id: "replies.create",
+      index: 1,
+      progress: { planned: 1, started: 1, verified: 1 },
+    }]);
+  });
+
+  test("leaves a reply indeterminate when independent readback binds a different parent", async () => {
+    const calls: CapturedRequest[] = [];
+    const accepted: unknown[] = [];
+    const body = "reply fixture body";
+    const result = await executeXWebOperation(
+      xRecipe("replies.create"),
+      { post_id: FOCAL_POST_ID, body },
+      xAuth,
+      {
+        dependencies: dependencies(calls, (request) => {
+          if (request.url.href === "https://x.com/home") {
+            return new Response(homeHtml(), { headers: { "content-type": "text/html" } });
+          }
+          if (request.url.href === MAIN_URL) {
+            return new Response(mainBundle(
+              descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
+              descriptor("CreateTweet", "WNkbkQ_JLIofjdukTXahVA", "mutation"),
+              descriptor("TweetResultByRestId", "LbQZrAWyKPvExi8di3-EoA", "query"),
+            ), { headers: { "content-type": "application/javascript" } });
+          }
+          if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
+          if (request.url.pathname.endsWith("/CreateTweet")) {
+            return jsonResponse(createTweetResponse({ text: body, replyTo: FOCAL_POST_ID }));
+          }
+          if (request.url.pathname.endsWith("/TweetResultByRestId")) {
+            return jsonResponse(publishedTweetReadback({ text: body, replyTo: QUOTED_POST_ID }));
+          }
+          throw new Error(`unexpected test request ${request.url.href}`);
+        }),
+        afterProviderAcceptedMutationTarget: (event) => {
+          accepted.push(event);
+          return Promise.resolve();
+        },
+      },
+    );
+
+    expect(result).toMatchObject({
+      status: "indeterminate",
+      dispatchStarted: true,
+      dispatch: { planned: 1, started: 1, verified: 0 },
+      error: "X may have accepted the current post dispatch; failure stage: independent-readback; reconcile before retrying",
+    });
+    expect(accepted).toHaveLength(1);
+  });
+
+  test("reconciles one exact accepted X reply against its recorded parent without a provider write", async () => {
+    const body = "Reconciled X reply";
+    const identifier = canonicalJson({ postId: CREATED_POST_ID, mediaId: null });
+    const reconcile = (input: OperationInput) => readXWebPublishedMutationTarget(
+      xRecipe("replies.create"),
+      input,
+      xAuth,
+      identifier,
+      {
+        dependencies: dependencies([], (request) => {
+          if (request.url.href === "https://x.com/home") {
+            return new Response(homeHtml(), { headers: { "content-type": "text/html" } });
+          }
+          if (request.url.href === MAIN_URL) {
+            return new Response(mainBundle(
+              descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
+              descriptor("TweetResultByRestId", "LbQZrAWyKPvExi8di3-EoA", "query"),
+            ), { headers: { "content-type": "application/javascript" } });
+          }
+          if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
+          if (request.url.pathname.endsWith("/TweetResultByRestId")) {
+            return jsonResponse(publishedTweetReadback({ text: body, replyTo: FOCAL_POST_ID }));
+          }
+          throw new Error(`unexpected X reply reconciliation request ${request.url.href}`);
+        }),
+      },
+    );
+    expect(await reconcile({ post_id: FOCAL_POST_ID, body })).toEqual({
+      present: true,
+      postId: CREATED_POST_ID,
+    });
+    await expect(reconcile({ post_id: QUOTED_POST_ID, body })).rejects.toThrow(
+      "did not bind the confirmed reply target",
+    );
+    await expect(reconcile({ post_id: FOCAL_POST_ID, body: `${body} changed` }))
+      .rejects.toThrow("did not bind the confirmed text");
+    await expect(readXWebPublishedMutationTarget(
+      xRecipe("replies.create"),
+      {
+        post_id: FOCAL_POST_ID,
+        body,
+        media: { kind: "file", reference: "fixture" },
+        media_type: "image/png",
+      },
+      xAuth,
+      identifier,
+    )).rejects.toThrow("does not accept a media attachment");
+    await expect(readXWebPublishedMutationTarget(
+      xRecipe("replies.create", 2),
+      { post_id: FOCAL_POST_ID, body },
+      xAuth,
+      identifier,
+    )).rejects.toThrow("supports only posts.publish@3");
+  });
+
+  test("rejects a reply media attachment before mutation dispatch", async () => {
+    const calls: CapturedRequest[] = [];
+    await expect(executeXWebOperation(
+      xRecipe("replies.create"),
+      {
+        post_id: FOCAL_POST_ID,
+        body: "reply with media",
+        media: { kind: "file", reference: "fixture" },
+        media_type: "image/png",
+      },
+      xAuth,
+      { dependencies: dependencies(calls, (request) => {
+        if (request.url.pathname.endsWith("/CreateTweet")) {
+          throw new Error("reply media dispatch must never reach the provider");
+        }
+        if (request.url.href === "https://x.com/home") {
+          return new Response(homeHtml(), { headers: { "content-type": "text/html" } });
+        }
+        if (request.url.href === MAIN_URL) {
+          return new Response(mainBundle(
+            descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
+            descriptor("CreateTweet", "WNkbkQ_JLIofjdukTXahVA", "mutation"),
+          ), { headers: { "content-type": "application/javascript" } });
+        }
+        if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
+        throw new Error(`unexpected test request ${request.url.href}`);
+      }) },
+    )).rejects.toThrow("X media upload is reviewed only for posts.publish");
+    expect(calls.filter((call) => call.method === "POST")).toHaveLength(0);
   });
 
   test("executes exact observed-v2 like and unlike mutations only after transaction bootstrap and verifies independent readback", async () => {
@@ -4605,7 +4867,7 @@ describe("X authenticated internal-API runtime", () => {
           return new Response(mainBundle(
             descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
             descriptor(fixture.operationName, fixture.queryId, "mutation"),
-            descriptor("TweetResultByRestId", "Xl0tsHf4AzflMRjbw9e70A", "query"),
+            descriptor("TweetResultByRestId", "LbQZrAWyKPvExi8di3-EoA", "query"),
           ), { headers: { "content-type": "application/javascript" } });
         }
         if (request.url.pathname.endsWith("/Viewer")) {
@@ -4625,7 +4887,7 @@ describe("X authenticated internal-API runtime", () => {
           });
           return jsonResponse(fixture.response);
         }
-        if (request.url.pathname === "/i/api/graphql/Xl0tsHf4AzflMRjbw9e70A/TweetResultByRestId") {
+        if (request.url.pathname === "/i/api/graphql/LbQZrAWyKPvExi8di3-EoA/TweetResultByRestId") {
           readbacks += 1;
           order.push(readbacks === 1 ? "preflight-readback" : "final-readback");
           expect(request.method).toBe("GET");
@@ -4704,9 +4966,9 @@ describe("X authenticated internal-API runtime", () => {
         "GET /home",
         "GET /responsive-web/client-web/main.abcdef12.js",
         `GET /i/api/graphql/${VIEWER_QUERY_ID}/Viewer`,
-        "GET /i/api/graphql/Xl0tsHf4AzflMRjbw9e70A/TweetResultByRestId",
+        "GET /i/api/graphql/LbQZrAWyKPvExi8di3-EoA/TweetResultByRestId",
         `POST ${mutationPath}`,
-        "GET /i/api/graphql/Xl0tsHf4AzflMRjbw9e70A/TweetResultByRestId",
+        "GET /i/api/graphql/LbQZrAWyKPvExi8di3-EoA/TweetResultByRestId",
       ]);
     }
   });
@@ -4722,7 +4984,7 @@ describe("X authenticated internal-API runtime", () => {
         return new Response(mainBundle(
           descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
           descriptor("FavoriteTweet", "lI07N6Otwv1PhnEgXILM7A", "mutation"),
-          descriptor("TweetResultByRestId", "Xl0tsHf4AzflMRjbw9e70A", "query"),
+          descriptor("TweetResultByRestId", "LbQZrAWyKPvExi8di3-EoA", "query"),
         ), { headers: { "content-type": "application/javascript" } });
       }
       if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
@@ -4769,7 +5031,7 @@ describe("X authenticated internal-API runtime", () => {
       if (request.url.href === MAIN_URL) {
         return new Response(mainBundle(
           descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
-          descriptor("TweetResultByRestId", "Xl0tsHf4AzflMRjbw9e70A", "query"),
+          descriptor("TweetResultByRestId", "LbQZrAWyKPvExi8di3-EoA", "query"),
         ), { headers: { "content-type": "application/javascript" } });
       }
       if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
@@ -4817,7 +5079,7 @@ describe("X authenticated internal-API runtime", () => {
       if (request.url.href === MAIN_URL) {
         return new Response(mainBundle(
           descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
-          descriptor("TweetResultByRestId", "Xl0tsHf4AzflMRjbw9e70A", "query"),
+          descriptor("TweetResultByRestId", "LbQZrAWyKPvExi8di3-EoA", "query"),
         ), { headers: { "content-type": "application/javascript" } });
       }
       if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());

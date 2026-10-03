@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
 import { describe, expect, test } from "bun:test";
 
 const predecessorDefaultInventorySha256 =
-  "3aef102dfcf019a2c258a782527f6a652df0127224cd7714339878c8e730eb26";
+  "137ed620f1303c06523b27828e2d96421a696324995d1040ead79f78053e8f43";
 const predecessorLegacyInventorySha256 = [
   "4abf50326edbc8c8294a2056a08fc7ab2fd038d2d798708b77e29df98c2a86d0",
   "112cb715f1466ed5eb29cf97116151ae8b6a56aeb8aa9c08ed26ebadd47b86be",
@@ -13,12 +13,12 @@ const predecessorLegacyInventorySha256 = [
   "303ca3ae1b44693bbbdbdcf48665c388eaaa8b677f982a2ebdc0ae9ccb82a8b4",
   "0b7b037e045497f96920c8e751711f767b6358589c39ba0ea9d9db880ddef2ca",
   "ce149cd1d2d695a693b2dac2c16c3b7f18b5ab1adb108a3dee07ae8031414255",
-  "0496b19acf9cb7d84c8cf335a54081a670e9d20ca7a07fabfb3f2bde69993857",
-  "a8afb05b1e43932893020c4421dad911945e29dd7f7c6deb3b8e4412e5b19038",
-  "adce058620ce1d6b4fe6596da3ca9e58e1e73dc83b699d883eda1e6795cb0f89",
-  "7c3c14073f83c6a18daff16381430e2cce010209c4efe8c966b4a4a197c48b34",
-  "2303c37a7595b44cbb997056d7b7d31e3ef706db9573166427768e738066ad12",
-  "bfafe93552d576c1a52da29ab5a56dfe7cf828b1e7b44bfd546937966c186f95",
+  "bd86ba538129bc589b587f270404f05e3b09fefe2ce85893c8e19280174ff2a4",
+  "5b9bd403c024ca09c68d5c5b9c3a1b08732776f2eb0396021e1bc5c083a28dbf",
+  "1849cd51e60fa86271aa23dcfc6fb263696110d82af71923503486ac6bcdf219",
+  "2b79a81b7e2a1538abb707eae68b9546be56e516605ddeaafcd227fbc7135e78",
+  "cb0e743af060195911cfb27b1d76dc766bdcfcd339f28beada2ba6a8b368abc5",
+  "216181b3f602e826efa60272d6dd4b28c883cee5d6cc468f1637d1d8bf858e06",
   "bf0e56da9f3b3529e59d2aa2c9d4b8c7e3c117be1b666c31288bcc8f90818ce3",
   "58e5e5b27881f30114891f7c266f901e7dda800d3f12309e420c602348816a58",
   "7db7a8a56a969f082a8fb588425d23e2525ee1fec8862d28606df29e2383db4b",
@@ -109,6 +109,16 @@ function predecessorWebContract(contract) {
       ? { ...contract.input, properties: { ...contract.input.properties, url: { ...url, format: "url" } } }
       : contract.input;
     return { ...contract, state: "capture-required", implementation: "hacker-news " + contract.operation + " requires a fresh reviewed authenticated first-party contract before execution", input };
+  }
+  if (contract.site === "x"
+    && contract.contractVersion === 1
+    && contract.operation === "replies.create") {
+    return { ...contract, state: "capture-required", implementation: "CreateTweet reply needs an authorized live fixture and reviewed transaction-header behavior" };
+  }
+  if (contract.site === "bluesky"
+    && contract.contractVersion === 1
+    && contract.operation === "replies.create") {
+    return { ...contract, state: "capture-required", implementation: "bluesky replies.create requires a fresh reviewed authenticated first-party contract before execution" };
   }
   if (contract.site !== "facebook-marketplace"
     || contract.operation !== "feeds.read"
@@ -353,7 +363,7 @@ describe("durable provider contract inventory", () => {
         rows: 324,
         sha256: predecessorDefaultInventorySha256,
         currentOnlyRows: 87,
-        currentOnlySha256: "b29cb94d703206f16b9457ed5ad4a45408cd562a48ea290c59289abc70ba2e07",
+        currentOnlySha256: "ac5f6b39808fefca6ae075bee201f87cc37e83be4df245f68d3754f866381131",
         automationRows: [
           ["linked-device", "whatsapp", "messaging.automation.read", 1],
           ["linked-device", "whatsapp", "messaging.automation.send.attachment", 1],
@@ -384,9 +394,9 @@ describe("durable provider contract inventory", () => {
           292,
           292,
           254,
-          228,
-          212,
-          166,
+          254,
+          238,
+          213,
           146,
           146,
           146,

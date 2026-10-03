@@ -164,8 +164,8 @@ const viewerEvidence = Object.freeze({
   operationName: "Viewer",
   operationType: "query" as const,
   queryId: "9t128XgFic52jPUEkJMf6w",
-  sourceChunk: "main.52fc4dd0aada586aa.js",
-  observedOn: "2026-09-17",
+  sourceChunk: "main.bbbbbc3a3b2a833ba.js",
+  observedOn: "2026-10-03",
 });
 
 function isRecord(value: unknown): value is JsonRecord {
@@ -585,7 +585,13 @@ function uniqueReviewedChunkMatch(
 export function resolveCurrentXWebChunkUrl(html: string, sourceChunk: string): URL {
   if (html.length > MAX_HOME_BYTES) throw new Error("X bootstrap exceeded its byte limit");
   const logicalName = sourceChunkLogicalName(sourceChunk);
-  const start = html.indexOf("p.u=e=>");
+  // The webpack chunk-filename property is `.u` assigned an `e=>` arrow over
+  // the chunk id; the minified receiver identifier rotates between drops (the
+  // reviewed 2026-09 drop used `p.u`, the 2026-10 drop uses `t.u`). Pin the
+  // property-and-arrow shape, optional grouping parens, and the opening map
+  // brace so a foreign `.u=` assignment cannot mis-bind the start.
+  const marker = /[A-Za-z$_][A-Za-z0-9$_]{0,3}\.u=e=>\({0,4}\{/u.exec(html);
+  const start = marker === null ? -1 : marker.index + marker[0].length - 1;
   const separator = "})[e]||e)+\".\"+({";
   const middle = start < 0 ? -1 : html.indexOf(separator, start);
   const suffix = middle < 0 ? -1 : html.indexOf("})[e]+\"a.js\"", middle + separator.length);
@@ -768,10 +774,10 @@ async function currentChunkText(bootstrap: XBootstrap, sourceChunk: string): Pro
 }
 
 const articleRichContractEvidence = Object.freeze({
-  uploader: "shared~bundle.LoggedInMain~ondemand.HoverCard~loader.AudioDock~loader.Dock~bundle.BookmarkFolders~bundle.Book.9549529d09fb73baa.js",
-  entities: "shared~bundle.TwitterArticles~ondemand.Verified~bundle.SettingsExtendedProfile~bundle.WorkHistory.f5f6edfb2fe9ac4ca.js",
-  converter: "shared~bundle.Grok~bundle.GrokDrawer~bundle.ReaderMode~bundle.Birdwatch~bundle.TwitterArticles~bundle.Compose.c851d723cd517177a.js",
-  observedOn: "2026-09-17",
+  uploader: "shared~JetfuelWrapper~bundle.AccountVerification~bundle.AudioSpaceAnalytics~bundle.AudioSpaceDetail~bundle.Au.0a24ad53f075c8b9a.js",
+  entities: "shared~bundle.SettingsExtendedProfile~bundle.TwitterArticles~bundle.WorkHistory~ondemand.Verified.b6268c6614e8269ea.js",
+  converter: "shared~bundle.Birdwatch~bundle.Compose~bundle.Display~bundle.Grok~bundle.GrokDrawer~bundle.News~bundle.Ocf~bu.1631dbb507848062a.js",
+  observedOn: "2026-10-03",
 });
 
 function requireCurrentBundleTokens(text: string, tokens: readonly string[], label: string): void {
@@ -789,10 +795,10 @@ async function assertCurrentArticleRichContract(
     currentChunkText(bootstrap, articleRichContractEvidence.converter),
   ]);
   requireCurrentBundleTokens(entities, [
-    'createEntity(E.Sg,"MUTABLE",{url:',
+    'createEntity("LINK","MUTABLE",{url:',
   ], "Article entity");
   requireCurrentBundleTokens(converter, [
-    'mutability:s[i.mutability]',
+    'mutability:o[i.mutability]',
     'inline_style_ranges:',
   ], "Article content converter");
   if (!includeImages) return;
@@ -814,7 +820,7 @@ async function assertCurrentArticleRichContract(
   ], "media uploader");
   requireCurrentBundleTokens(entities, [
     'createEntity(g.LA.MEDIA,g.Ei.IMMUTABLE',
-    'mediaCategory:K(e)',
+    'mediaCategory:A(e)',
     'mediaId:e.uploadId',
   ], "Article entity");
   requireCurrentBundleTokens(converter, [
@@ -1122,8 +1128,10 @@ function feedRequest(bootstrap: XBootstrap, input: OperationInput): FeedRequest 
     const rawQuery = stringInput(input, "query");
     return {
       operationId: "feeds.search",
+      // The current X deployment routes SearchTimeline through POST; GET
+      // returns 404.
       operationName: "SearchTimeline",
-      method: "GET",
+      method: "POST",
       variables: withCursor({ rawQuery, count, querySource: "typed_query", product: "Latest" }),
     };
   }
@@ -1407,35 +1415,44 @@ export async function readXWebPublishedMutationTarget(
     readonly dependencies?: XWebRuntimeDependencies;
   } = {},
 ): Promise<{ readonly present: true; readonly postId: string }> {
+  const isPublish = recipe.action === "posts.publish";
+  const isReply = recipe.action === "replies.create";
   if (
     recipe.site !== "x"
-    || recipe.action !== "posts.publish"
-    || (recipe.contractVersion !== 3 && recipe.contractVersion !== 4 && recipe.contractVersion !== 5)
+    || (!isPublish && !isReply)
+    || (isPublish && recipe.contractVersion !== 3 && recipe.contractVersion !== 4 && recipe.contractVersion !== 5)
+    || (isReply && recipe.contractVersion !== 1)
   ) {
-    throw new Error("X publish recovery supports only posts.publish@3, posts.publish@4, or posts.publish@5");
+    throw new Error(
+      "X publish recovery supports only posts.publish@3, posts.publish@4, posts.publish@5, or replies.create@1",
+    );
   }
   const target = parseXWebPublishedMutationTarget(identifier);
   const hasMedia = input.media !== undefined;
   const mediaType = xPublishMediaType(input.media_type, hasMedia);
+  if (isReply && hasMedia) {
+    throw new Error("X reply recovery does not accept a media attachment");
+  }
   if (hasMedia !== (target.mediaId !== null)) {
     throw new Error("X provider-accepted post target did not bind the confirmed attachment shape");
   }
   const text = requiredString(input.body, "input.body", MAX_X_CREATE_TWEET_TEXT_LENGTH);
+  const replyTo = isReply ? postId(input.post_id, "input.post_id") : null;
   const bootstrap = await bootstrapX(auth, recipe, options.dependencies);
   const viewer = await requireBoundViewer(bootstrap, auth);
   const readback = await tweetReadback(bootstrap, target.postId);
   const rebound = assertTweetBinding(
     readback,
     text,
-    null,
+    replyTo,
     null,
     viewer.id,
     target.mediaId,
     mediaType,
-    "X publish recovery readback",
+    `X ${recipe.action} recovery readback`,
   );
   if (rebound.id !== target.postId) {
-    throw new Error("X publish recovery readback changed the accepted post ID");
+    throw new Error(`X ${recipe.action} recovery readback changed the accepted post ID`);
   }
   return Object.freeze({ present: true, postId: target.postId });
 }
@@ -2992,7 +3009,10 @@ async function publishOne(
     ...created,
     mediaId: media?.id ?? null,
   });
-  if (mutationOperation !== "posts.publish") return created;
+  if (
+    mutationOperation !== "posts.publish"
+    && mutationOperation !== "replies.create"
+  ) return created;
   onFailureStage?.("independent-readback");
   const readback = await waitForTweetPublishReadback(
     bootstrap,

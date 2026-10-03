@@ -257,8 +257,9 @@ const identities = Object.freeze({
   "bluesky-web": {
     schemaVersion: 1,
     pluginVersion: "1.4.0",
-    implementationSha256: "478d1e92d3f266dde61c4808104da239a0cc60d5a3c7000d7d2733792641e861",
+    implementationSha256: "37096d27db4eebbfce70c3b1665f6cd00e3ce1efc27c8e3107cb19a28c9e86fa",
     legacyCurrentReadImplementationSha256: [
+      "478d1e92d3f266dde61c4808104da239a0cc60d5a3c7000d7d2733792641e861",
       "f16f456fd06952bdd28e4bbed6e6faaed9b2c18899487224453e7ef314f585e8",
       "81344b367a11c7dcaeff83386bc0f796c41260cb373b9818527f4cb55bc80d48",
       "e824f922748673edb9515055d208cfc4333c832b04cec528aa71f7be736e5846",
@@ -541,8 +542,11 @@ const identities = Object.freeze({
   "x-web": {
     schemaVersion: 1,
     pluginVersion: "1.4.0",
-    implementationSha256: "8cdc6996e77125b4435586126442aae33fedf7ea27f788bddd01f39efe4f8a09",
+    implementationSha256: "7b791fe596a286034bf89257434572c267031cae16d3bef422188c32f7c5a539",
     legacyCurrentReadImplementationSha256: [
+      "8ebee7a6e32e2e55f185379615ecb55ec4b494cc91e45ffa05b1534bd4941c78",
+      "d3cbabe754717ad18f06cb3b434eb87cbfcb6105c97e88c81653606d5916f4ea",
+      "8cdc6996e77125b4435586126442aae33fedf7ea27f788bddd01f39efe4f8a09",
       "e464e4e97ed3cbf430c2008251e45e0024508c64357325882718cba31e6bf9ea",
       "03d906c92bfb5c30eb2d66e161ec67f7a081efa75e2a210a62b117df70b2af00",
       "54589eaf65c7de95442dcff6a81327d0a32ec38f58560769e7b807519db10eeb",

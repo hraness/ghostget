@@ -65,6 +65,38 @@ function predecessorHackerNewsContractValue(
   });
 }
 
+function predecessorXWebContractValue(
+  contract: WebSessionContract,
+): WebSessionContract {
+  // The X replies.create contract graduated from a capture-required
+  // reservation to an observed mutation. Durable predecessor receipts carried
+  // the reserved state and reservation implementation text, so stored rows
+  // and compatibility checks must project the contract back to that exact
+  // predecessor value.
+  return Object.freeze({
+    ...contract,
+    state: "capture-required",
+    implementation:
+      "CreateTweet reply needs an authorized live fixture and reviewed transaction-header behavior",
+  });
+}
+
+function predecessorBlueskyWebContractValue(
+  contract: WebSessionContract,
+): WebSessionContract {
+  // The Bluesky replies.create contract graduated from a capture-required
+  // reservation to an observed mutation. Durable predecessor receipts carried
+  // the reserved state and reservation implementation text, so stored rows
+  // and compatibility checks must project the contract back to that exact
+  // predecessor value.
+  return Object.freeze({
+    ...contract,
+    state: "capture-required",
+    implementation:
+      "bluesky replies.create requires a fresh reviewed authenticated first-party contract before execution",
+  });
+}
+
 function predecessorCompatibleWebSessionContractValue(
   contract: WebSessionContract,
 ): unknown {
@@ -74,6 +106,18 @@ function predecessorCompatibleWebSessionContractValue(
     && contract.state === "observed"
     && predecessorHackerNewsWriteOperations.has(contract.operation)
   ) return predecessorHackerNewsContractValue(contract);
+  if (
+    contract.site === "x"
+    && contract.contractVersion === 1
+    && contract.state === "observed"
+    && contract.operation === "replies.create"
+  ) return predecessorXWebContractValue(contract);
+  if (
+    contract.site === "bluesky"
+    && contract.contractVersion === 1
+    && contract.state === "observed"
+    && contract.operation === "replies.create"
+  ) return predecessorBlueskyWebContractValue(contract);
   // The plugin advertises historical v1 and active v2 from one present
   // operation schema. Both exact predecessor rows carried the Oh cursor text.
   // Future versions must never inherit this compatibility projection.

@@ -120,6 +120,7 @@ describe("Bluesky authenticated API policy", () => {
       "profiles.read",
       "posts.publish",
       "posts.read",
+      "replies.create",
     ]);
     for (const action of BLUESKY_WEB_OPERATION_NAMES) {
       const observed = observedReads.has(action);

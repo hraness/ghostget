@@ -2052,6 +2052,340 @@ describe("Bluesky authenticated XRPC runtime", () => {
     ]);
   });
 
+  test("replies.create binds the exact parent post as root and parent, then verifies both readbacks", async () => {
+    const text = "Exact reply text";
+    const createdAt = new Date(2_000_000_000_000).toISOString();
+    const createdUri = `at://${VIEWER_DID}/app.bsky.feed.post/3lreplyfixture`;
+    const createdCid = `b${"q".repeat(40)}`;
+    const parentCid = `b${"a".repeat(40)}`;
+    const replyRef = {
+      root: { uri: POST_URI, cid: parentCid },
+      parent: { uri: POST_URI, cid: parentCid },
+    };
+    const expectedRecord = {
+      $type: "app.bsky.feed.post",
+      text,
+      createdAt,
+      reply: replyRef,
+    };
+    const calls: CapturedRequest[] = [];
+    const events: string[] = [];
+    const accepted: unknown[] = [];
+    const result = await executeBlueskyWebOperation(
+      recipe("replies.create"),
+      { post_uri: POST_URI, body: text },
+      blueskyAuth,
+      {
+        beforeDispatch: (event) => {
+          events.push(`before ${event.progress.started}`);
+          return Promise.resolve();
+        },
+        afterProviderAcceptedMutationTarget: (event) => {
+          accepted.push(event);
+          return Promise.resolve();
+        },
+        afterDispatchVerified: (event) => {
+          events.push(`after ${event.progress.verified}`);
+          return Promise.resolve();
+        },
+        dependencies: dependencies(calls, (request) => {
+          events.push(`${request.method} ${nsid(request)}`);
+          switch (nsid(request)) {
+            case "com.atproto.server.getSession":
+              return jsonResponse(sessionResponse());
+            case "app.bsky.feed.getPosts": {
+              expect(request.method).toBe("GET");
+              const uris = request.url.searchParams.getAll("uris");
+              if (uris.length === 1 && uris[0] === POST_URI) {
+                return jsonResponse({ posts: [postView()] });
+              }
+              expect(uris).toEqual([createdUri]);
+              return jsonResponse({
+                posts: [{
+                  uri: createdUri,
+                  cid: createdCid,
+                  author: {
+                    did: VIEWER_DID,
+                    handle: "viewer.test",
+                    displayName: "Synthetic viewer",
+                  },
+                  record: expectedRecord,
+                  indexedAt: createdAt,
+                  replyCount: 0,
+                  repostCount: 0,
+                  likeCount: 0,
+                  quoteCount: 0,
+                  viewer: {},
+                }],
+              });
+            }
+            case "com.atproto.repo.createRecord":
+              expect(request.method).toBe("POST");
+              expect(JSON.parse(String(request.body))).toEqual({
+                repo: VIEWER_DID,
+                collection: "app.bsky.feed.post",
+                record: expectedRecord,
+              });
+              return jsonResponse({ uri: createdUri, cid: createdCid });
+            case "com.atproto.repo.getRecord":
+              return jsonResponse({
+                uri: createdUri,
+                cid: createdCid,
+                value: expectedRecord,
+              });
+            default:
+              throw new Error(`unexpected Bluesky reply request ${nsid(request)}`);
+          }
+        }),
+      },
+    );
+    expect(result).toMatchObject({
+      status: "succeeded",
+      output: { posts: [{ uri: createdUri, cid: createdCid }] },
+      dispatchStarted: true,
+      dispatch: { planned: 1, started: 1, verified: 1 },
+    });
+    expect(events).toEqual([
+      "GET com.atproto.server.getSession",
+      "GET app.bsky.feed.getPosts",
+      "GET com.atproto.server.getSession",
+      "before 0",
+      "POST com.atproto.repo.createRecord",
+      "GET com.atproto.repo.getRecord",
+      "GET app.bsky.feed.getPosts",
+      "after 1",
+    ]);
+    expect(accepted).toEqual([{
+      id: "replies.create",
+      index: 1,
+      target: {
+        schemaVersion: 1,
+        identifier: canonicalJson({
+          uri: createdUri,
+          cid: createdCid,
+          createdAt,
+          media: null,
+        }),
+      },
+    }]);
+  });
+
+  test("replies.create inherits the thread root when the parent is itself a reply", async () => {
+    const text = "Nested reply";
+    const createdAt = new Date(2_000_000_000_000).toISOString();
+    const createdUri = `at://${VIEWER_DID}/app.bsky.feed.post/3lnestedfixture`;
+    const createdCid = `b${"2".repeat(40)}`;
+    const threadRoot = {
+      uri: `at://${AUTHOR_DID}/app.bsky.feed.post/3lrootfixture`,
+      cid: `b${"3".repeat(40)}`,
+    };
+    const parentCid = `b${"a".repeat(40)}`;
+    const replyRef = {
+      root: threadRoot,
+      parent: { uri: POST_URI, cid: parentCid },
+    };
+    const expectedRecord = {
+      $type: "app.bsky.feed.post",
+      text,
+      createdAt,
+      reply: replyRef,
+    };
+    const calls: CapturedRequest[] = [];
+    const parent = postView() as Record<string, unknown>;
+    parent.record = {
+      ...(parent.record as Record<string, unknown>),
+      reply: {
+        root: threadRoot,
+        parent: threadRoot,
+      },
+    };
+    const result = await executeBlueskyWebOperation(
+      recipe("replies.create"),
+      { post_uri: POST_URI, body: text },
+      blueskyAuth,
+      {
+        dependencies: dependencies(calls, (request) => {
+          switch (nsid(request)) {
+            case "com.atproto.server.getSession":
+              return jsonResponse(sessionResponse());
+            case "app.bsky.feed.getPosts": {
+              const uris = request.url.searchParams.getAll("uris");
+              if (uris.length === 1 && uris[0] === POST_URI) {
+                return jsonResponse({ posts: [parent] });
+              }
+              expect(uris).toEqual([createdUri]);
+              return jsonResponse({
+                posts: [{
+                  uri: createdUri,
+                  cid: createdCid,
+                  author: {
+                    did: VIEWER_DID,
+                    handle: "viewer.test",
+                    displayName: "Synthetic viewer",
+                  },
+                  record: expectedRecord,
+                  indexedAt: createdAt,
+                  replyCount: 0,
+                  repostCount: 0,
+                  likeCount: 0,
+                  quoteCount: 0,
+                  viewer: {},
+                }],
+              });
+            }
+            case "com.atproto.repo.createRecord":
+              expect(JSON.parse(String(request.body))).toEqual({
+                repo: VIEWER_DID,
+                collection: "app.bsky.feed.post",
+                record: expectedRecord,
+              });
+              return jsonResponse({ uri: createdUri, cid: createdCid });
+            case "com.atproto.repo.getRecord":
+              return jsonResponse({
+                uri: createdUri,
+                cid: createdCid,
+                value: expectedRecord,
+              });
+            default:
+              throw new Error(`unexpected Bluesky nested reply request ${nsid(request)}`);
+          }
+        }),
+      },
+    );
+    expect(result).toMatchObject({
+      status: "succeeded",
+      output: { posts: [{ uri: createdUri, cid: createdCid }] },
+      dispatch: { planned: 1, started: 1, verified: 1 },
+    });
+  });
+
+  test("reconciles one exact accepted Bluesky reply against the rebound parent references", async () => {
+    const text = "Reconciled Bluesky reply";
+    const createdAt = "2026-08-18T12:00:00.000Z";
+    const uri = `at://${VIEWER_DID}/app.bsky.feed.post/3lreplyreconcile`;
+    const cid = `b${"4".repeat(40)}`;
+    const parentCid = `b${"a".repeat(40)}`;
+    const record = {
+      $type: "app.bsky.feed.post",
+      text,
+      createdAt,
+      reply: {
+        root: { uri: POST_URI, cid: parentCid },
+        parent: { uri: POST_URI, cid: parentCid },
+      },
+    };
+    const identifier = canonicalJson({ uri, cid, createdAt, media: null });
+    const calls: CapturedRequest[] = [];
+    const result = await readBlueskyWebPublishedMutationTarget(
+      recipe("replies.create"),
+      { post_uri: POST_URI, body: text },
+      blueskyAuth,
+      identifier,
+      {
+        dependencies: dependencies(calls, (request) => {
+          switch (nsid(request)) {
+            case "com.atproto.server.getSession":
+              return jsonResponse(sessionResponse());
+            case "app.bsky.feed.getPosts": {
+              const uris = request.url.searchParams.getAll("uris");
+              if (uris.length === 1 && uris[0] === POST_URI) {
+                return jsonResponse({ posts: [postView()] });
+              }
+              expect(uris).toEqual([uri]);
+              return jsonResponse({
+                posts: [{
+                  uri,
+                  cid,
+                  author: { did: VIEWER_DID, handle: "viewer.test" },
+                  record,
+                  indexedAt: createdAt,
+                  replyCount: 0,
+                  repostCount: 0,
+                  likeCount: 0,
+                  quoteCount: 0,
+                  viewer: {},
+                }],
+              });
+            }
+            case "com.atproto.repo.getRecord":
+              return jsonResponse({ uri, cid, value: record });
+            default:
+              throw new Error(`unexpected Bluesky reply reconciliation request ${nsid(request)}`);
+          }
+        }),
+      },
+    );
+    expect(result).toEqual({ present: true, uri, cid });
+    expect(calls.every((request) => request.method === "GET")).toBeTrue();
+  });
+
+  test("rejects a reconciled Bluesky reply when the readback binds a different parent", async () => {
+    const text = "Mismatched reply";
+    const createdAt = "2026-08-18T12:00:00.000Z";
+    const uri = `at://${VIEWER_DID}/app.bsky.feed.post/3lreplymismatch`;
+    const cid = `b${"5".repeat(40)}`;
+    const parentCid = `b${"a".repeat(40)}`;
+    const record = {
+      $type: "app.bsky.feed.post",
+      text,
+      createdAt,
+      reply: {
+        root: { uri: POST_URI, cid: parentCid },
+        parent: { uri: POST_URI, cid: parentCid },
+      },
+    };
+    const identifier = canonicalJson({ uri, cid, createdAt, media: null });
+    const calls: CapturedRequest[] = [];
+    await expect(readBlueskyWebPublishedMutationTarget(
+      recipe("replies.create"),
+      { post_uri: POST_URI, body: text },
+      blueskyAuth,
+      identifier,
+      {
+        dependencies: dependencies(calls, (request) => {
+          switch (nsid(request)) {
+            case "com.atproto.server.getSession":
+              return jsonResponse(sessionResponse());
+            case "app.bsky.feed.getPosts": {
+              const uris = request.url.searchParams.getAll("uris");
+              if (uris.length === 1 && uris[0] === POST_URI) {
+                return jsonResponse({ posts: [postView()] });
+              }
+              return jsonResponse({
+                posts: [{
+                  uri,
+                  cid,
+                  author: { did: VIEWER_DID, handle: "viewer.test" },
+                  record: {
+                    ...record,
+                    reply: {
+                      root: {
+                        uri: `at://${AUTHOR_DID}/app.bsky.feed.post/other`,
+                        cid: `b${"z".repeat(40)}`,
+                      },
+                      parent: { uri: POST_URI, cid: parentCid },
+                    },
+                  },
+                  indexedAt: createdAt,
+                  replyCount: 0,
+                  repostCount: 0,
+                  likeCount: 0,
+                  quoteCount: 0,
+                  viewer: {},
+                }],
+              });
+            }
+            case "com.atproto.repo.getRecord":
+              return jsonResponse({ uri, cid, value: record });
+            default:
+              throw new Error(`unexpected Bluesky reply reconciliation request ${nsid(request)}`);
+          }
+        }),
+      },
+    )).rejects.toThrow("reply root and parent");
+    expect(calls.every((request) => request.method === "GET")).toBeTrue();
+  });
+
   test("all unproven operations acquire no session and dispatch nothing", () => {
     const inputs: Readonly<
       Partial<Record<WebSessionRecipe["action"], OperationInput>>
@@ -2062,7 +2396,6 @@ describe("Bluesky authenticated XRPC runtime", () => {
       "content.save": { post_uri: POST_URI, saved: true },
       "relationships.follow.set": { actor_did: AUTHOR_DID, followed: true },
       "posts.repost": { post_uri: POST_URI, reposted: true },
-      "replies.create": { post_uri: POST_URI, body: "No dispatch" },
       "posts.quote": { post_uri: POST_URI, body: "No dispatch" },
       "threads.publish": { items: ["No dispatch"] },
       "messaging.send": { convo_id: "convo-1", body: "No dispatch" },

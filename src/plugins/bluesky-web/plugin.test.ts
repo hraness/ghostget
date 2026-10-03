@@ -66,6 +66,7 @@ describe("Bluesky provider plugin", () => {
         "content.delete",
         "media.publish",
         "posts.publish",
+        "replies.create",
       ].sort());
     for (const [name, [key, value]] of Object.entries(expected)) {
       const operation = binding.operations.find((candidate) => candidate.name === name);

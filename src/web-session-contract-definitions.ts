@@ -368,6 +368,7 @@ const BLUESKY_WEB_OPERATIONS = operationPolicies("bluesky", [
   "posts.publish",
   "posts.read",
   "profiles.read",
+  "replies.create",
 ], {
   "media.publish": 2,
   "profiles.read": 2,
@@ -676,7 +677,7 @@ const x = {
   "messaging.send": contract("x", "messaging.send", "R3", "capture-required", "DM send requires exact current mutation and target binding"),
   "posts.publish": contract("x", "posts.publish", "R3", "observed", "current optional single-PNG or MP4 upload with pixels-only provenance scrub, CreateTweet tweet_text up to the reviewed 25000-unit long-post bound, strict CreateTweet response including note_tweet, durable accepted-target evidence, and fail-closed TweetResultByRestId readback for Made with AI labels", 5),
   "threads.publish": contract("x", "threads.publish", "R3", "capture-required", "ordered CreateTweet root/self-reply dispatch needs an authorized live fixture and reviewed transaction-header behavior"),
-  "replies.create": contract("x", "replies.create", "R3", "capture-required", "CreateTweet reply needs an authorized live fixture and reviewed transaction-header behavior"),
+  "replies.create": contract("x", "replies.create", "R3", "observed", "current CreateTweet reply mutation bound to the exact parent post ID with strict response in_reply_to_status_id_str binding, durable accepted-target evidence, and fail-closed independent post readback"),
   "posts.repost": contract("x", "posts.repost", "R3", "capture-required", "repost desired-state mutation needs an authorized live fixture and reviewed transaction-header behavior"),
   "posts.quote": contract("x", "posts.quote", "R3", "capture-required", "CreateTweet quote needs an authorized live fixture and reviewed transaction-header behavior; quote text uses the same reviewed 25000-unit CreateTweet bound as posts.publish", 2),
   "likes.set": contract("x", "likes.set", "R2", "observed", "current FavoriteTweet/UnfavoriteTweet desired-state mutations with ephemeral transaction header and independent TweetResultByRestId readback", 2),

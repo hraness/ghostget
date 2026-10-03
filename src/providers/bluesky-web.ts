@@ -137,10 +137,10 @@ export const BLUESKY_WEB_OPERATIONS = Object.freeze({
     "R3",
     "current code-owned plain-text and single-image uploadBlob/createRecord path with durable accepted-target evidence, authoritative getRecord binding, and bounded independent getPosts projection readback",
   ),
-  "replies.create": captureRequired(
+  "replies.create": observed(
     "write",
     "R3",
-    "the code-owned reply path needs an authorized live fixture proving exact root, parent, response, and readback binding",
+    "current code-owned createRecord reply path binds the exact parent post to its root and parent strong references, records durable accepted-target evidence, and proves actor, root, parent, response, and readback binding through authoritative getRecord plus independent getPosts projection",
   ),
   "posts.quote": captureRequired(
     "write",

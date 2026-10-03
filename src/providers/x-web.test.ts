@@ -124,7 +124,7 @@ describe("X query descriptor revision evidence", () => {
   test("marks the snapshot as evidence that can never authorize dispatch by itself", () => {
     expect(xWebQueryDescriptorEvidenceSnapshot.role).toBe("revision-evidence-only");
     expect(xWebQueryDescriptorEvidenceSnapshot.currentBundleResolutionRequired).toBe(true);
-    expect(xWebQueryDescriptorEvidenceSnapshot.observedOn).toBe("2026-09-17");
+    expect(xWebQueryDescriptorEvidenceSnapshot.observedOn).toBe("2026-10-03");
     expect(xWebQueryDescriptorEvidenceSnapshot.mainBundleUrl).toStartWith("https://abs.twimg.com/");
   });
 
@@ -142,13 +142,14 @@ describe("X query descriptor revision evidence", () => {
   test("records the current reviewed Bookmarks observation", () => {
     const bookmarks = evidence("Bookmarks");
     expect(bookmarks).toMatchObject({
-      queryId: "-dgKZ58Dr9YSJYrcgEb5KA",
-      sourceChunk: "shared~bundle.BookmarkFolders~bundle.Bookmarks.12cb1875a99ef5b3a.js",
-      observedOn: "2026-09-17",
+      queryId: "Glt3WAwBvNSPD-n_sqmX_A",
+      sourceChunk: "shared~bundle.BookmarkFolders~bundle.Bookmarks.292efce92afba9d3a.js",
+      observedOn: "2026-10-03",
     });
     expect(bookmarks.queryId).not.toBe("iblrFnKr6PZUR-dWpfXG6g");
     expect(bookmarks.queryId).not.toBe("tF6KOjmZM0WGcB2Q0mfwhw");
     expect(bookmarks.queryId).not.toBe("LoLaMO4GuHLEPJGhostgetH9kjAw");
+    expect(bookmarks.queryId).not.toBe("-dgKZ58Dr9YSJYrcgEb5KA");
     expect(JSON.stringify(xWebQueryDescriptorEvidenceSnapshot))
       .not.toContain("iblrFnKr6PZUR-dWpfXG6g");
     expect(JSON.stringify(xWebQueryDescriptorEvidenceSnapshot))
@@ -156,19 +157,21 @@ describe("X query descriptor revision evidence", () => {
     expect(JSON.stringify(xWebQueryDescriptorEvidenceSnapshot))
       .not.toContain("LoLaMO4GuHLEPJGhostgetH9kjAw");
     expect(JSON.stringify(xWebQueryDescriptorEvidenceSnapshot))
+      .not.toContain("-dgKZ58Dr9YSJYrcgEb5KA");
+    expect(JSON.stringify(xWebQueryDescriptorEvidenceSnapshot))
       .not.toContain("433463ce78e2afaba");
   });
 
   test("records the current reviewed UserTweets and SearchTimeline observations", () => {
     expect(evidence("UserTweets")).toMatchObject({
-      queryId: "jeAA-59Y9FL7FmjgBNIVPw",
-      sourceChunk: "main.52fc4dd0aada586aa.js",
-      observedOn: "2026-09-17",
+      queryId: "qJy3MbaNndtzxf9IqUzxMg",
+      sourceChunk: "main.bbbbbc3a3b2a833ba.js",
+      observedOn: "2026-10-03",
     });
     expect(evidence("SearchTimeline")).toMatchObject({
-      queryId: "auLkqtmHqYEpRvflfvLhyQ",
-      sourceChunk: "main.52fc4dd0aada586aa.js",
-      observedOn: "2026-09-17",
+      queryId: "uGB-gNd5HE4TkpO70OcFNw",
+      sourceChunk: "main.bbbbbc3a3b2a833ba.js",
+      observedOn: "2026-10-03",
     });
     expect(xWebSemanticOperationRegistry["feeds.user"]).toEqual({
       semanticOperation: "feeds.read",
@@ -192,52 +195,59 @@ describe("X query descriptor revision evidence", () => {
     expect(serialized).not.toContain("eviprbEPLvNG88V3smUngQ");
     expect(serialized).not.toContain("hyPfJYJ_XAtDYoslQc-Rgg");
     expect(serialized).not.toContain("hz_94eVAtrtQo_vO3my7Rw");
+    expect(serialized).not.toContain("auLkqtmHqYEpRvflfvLhyQ");
+    expect(serialized).not.toContain("jeAA-59Y9FL7FmjgBNIVPw");
   });
 
   test("records the current reviewed HomeLatestTimeline observation", () => {
     expect(evidence("HomeLatestTimeline")).toMatchObject({
-      queryId: "OQPHTgwczzp9RMAPt6BH9A",
-      sourceChunk: "shared~bundle.LoggedInMain~bundle.HomeTimeline~bundle.Compose.d2799da549fa4165a.js",
-      observedOn: "2026-09-17",
+      queryId: "Fh0y51H8g-iMubH-RmOLGA",
+      sourceChunk: "shared~bundle.Compose~bundle.HomeTimeline~bundle.LoggedInMain.6c22dfbf3ffe5e2da.js",
+      observedOn: "2026-10-03",
     });
     expect(evidence("HomeTimeline")).toMatchObject({
-      queryId: "og4a4SdSF3WiQkkwaPCdPg",
-      sourceChunk: "shared~bundle.LoggedInMain~bundle.HomeTimeline~bundle.Compose.d2799da549fa4165a.js",
-      observedOn: "2026-09-17",
+      queryId: "whgGeEQDhEDkPQEJiJvYQw",
+      sourceChunk: "shared~bundle.Compose~bundle.HomeTimeline~bundle.LoggedInMain.6c22dfbf3ffe5e2da.js",
+      observedOn: "2026-10-03",
     });
   });
 
   test("records the current reviewed CreateTweet observation", () => {
     expect(evidence("CreateTweet")).toMatchObject({
-      queryId: "GYdIGqVWfZNho79bQ2XDoA",
-      sourceChunk: "main.52fc4dd0aada586aa.js",
-      observedOn: "2026-09-17",
+      queryId: "WNkbkQ_JLIofjdukTXahVA",
+      sourceChunk: "main.bbbbbc3a3b2a833ba.js",
+      observedOn: "2026-10-03",
     });
+    expect(evidence("CreateTweet").queryId).not.toBe("GYdIGqVWfZNho79bQ2XDoA");
   });
 
   test("records the current reviewed Viewer and Article descriptor observations", () => {
     expect(evidence("Viewer")).toMatchObject({
       queryId: "9t128XgFic52jPUEkJMf6w",
-      sourceChunk: "main.52fc4dd0aada586aa.js",
-      observedOn: "2026-09-17",
+      sourceChunk: "main.bbbbbc3a3b2a833ba.js",
+      observedOn: "2026-10-03",
     });
     expect(evidence("Viewer").queryId).not.toBe("5XShkXk2oO2J7SYmTu6pvw");
     expect(JSON.stringify(xWebQueryDescriptorEvidenceSnapshot))
       .not.toContain("5XShkXk2oO2J7SYmTu6pvw");
     expect(JSON.stringify(xWebQueryDescriptorEvidenceSnapshot))
       .not.toContain("main.cd39a626fdb81748a.js");
+    expect(JSON.stringify(xWebQueryDescriptorEvidenceSnapshot))
+      .not.toContain("main.52fc4dd0aada586aa.js");
+    expect(JSON.stringify(xWebQueryDescriptorEvidenceSnapshot))
+      .not.toContain("main.a9c37180a4c75840a.js");
     expect(evidence("ArticleEntityDraftCreate")).toMatchObject({
       queryId: "_rbmb_NKLqKVBr5X_MSoMQ",
-      sourceChunk: "bundle.TwitterArticles.b3c21fed7d9db030a.js",
-      observedOn: "2026-09-17",
+      sourceChunk: "bundle.TwitterArticles.494649ff8cf64f16a.js",
+      observedOn: "2026-10-03",
     });
   });
 
   test("records the current reviewed UserByScreenName observation", () => {
     expect(evidence("UserByScreenName")).toMatchObject({
       queryId: "KybxDj9RrADIITXlGG8kpw",
-      sourceChunk: "main.52fc4dd0aada586aa.js",
-      observedOn: "2026-09-17",
+      sourceChunk: "main.bbbbbc3a3b2a833ba.js",
+      observedOn: "2026-10-03",
     });
     expect(JSON.stringify(xWebQueryDescriptorEvidenceSnapshot))
       .not.toContain("Gb-d6r0vxPOADdG62OEBpQ");
