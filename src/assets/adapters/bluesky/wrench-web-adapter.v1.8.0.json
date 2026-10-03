@@ -1,7 +1,7 @@
 {
   "schemaVersion": 4,
   "id": "bluesky-web",
-  "version": "1.9.0",
+  "version": "1.8.0",
   "displayName": "Bluesky (AT Protocol API)",
   "surfaceId": "bluesky",
   "origins": [
@@ -39,7 +39,7 @@
       }
     },
     "feeds.read": {
-      "description": "Read one bounded authenticated Bluesky home timeline, notification feed, private bookmark feed, or post search through fixed account-bound XRPC queries.",
+      "description": "Read one bounded authenticated Bluesky home timeline, notification feed, or private bookmark feed through fixed account-bound XRPC queries.",
       "risk": "R1",
       "sideEffect": "none",
       "idempotency": "none",
@@ -52,22 +52,7 @@
             "enum": [
               "home",
               "notifications",
-              "bookmarks",
-              "search"
-            ]
-          },
-          "query": {
-            "type": "string",
-            "description": "Exact post search query; required when feed is search",
-            "minLength": 1,
-            "maxLength": 512
-          },
-          "sort": {
-            "type": "string",
-            "description": "Exact reviewed search ranking; defaults to the provider order",
-            "enum": [
-              "top",
-              "latest"
+              "bookmarks"
             ]
           },
           "limit": {

@@ -75,7 +75,7 @@ export const BLUESKY_WEB_OPERATIONS = Object.freeze({
   "feeds.read": observed(
     "read",
     "R1",
-    "fixed getTimeline, listNotifications, and getBookmarks XRPC reads are account-bound and project bounded results",
+    "fixed getTimeline, listNotifications, getBookmarks, and searchPosts XRPC reads are account-bound and project bounded results",
   ),
   "posts.read": observed(
     "read",
@@ -491,6 +491,7 @@ export const BLUESKY_XRPC_METHODS = Object.freeze({
   "app.bsky.feed.getPostThread": "GET",
   "app.bsky.notification.listNotifications": "GET",
   "app.bsky.bookmark.getBookmarks": "GET",
+  "app.bsky.feed.searchPosts": "GET",
   "app.bsky.actor.getProfile": "GET",
   "chat.bsky.convo.listConvos": "GET",
   "chat.bsky.convo.getConvo": "GET",
@@ -527,6 +528,7 @@ const BLUESKY_XRPC_PROXIES = Object.freeze({
   "app.bsky.feed.getPostThread": BLUESKY_APPVIEW_PROXY,
   "app.bsky.notification.listNotifications": BLUESKY_NOTIFICATION_PROXY,
   "app.bsky.bookmark.getBookmarks": BLUESKY_APPVIEW_PROXY,
+  "app.bsky.feed.searchPosts": BLUESKY_APPVIEW_PROXY,
   "app.bsky.actor.getProfile": BLUESKY_APPVIEW_PROXY,
   "chat.bsky.convo.listConvos": BLUESKY_CHAT_PROXY,
   "chat.bsky.convo.getConvo": BLUESKY_CHAT_PROXY,
@@ -954,6 +956,33 @@ export function projectBlueskyFeed(
     posts: Object.freeze(posts),
     cursor: optionalString(response.cursor, "Bluesky timeline cursor", 8_192),
     truncated: feed.length > limit || response.cursor !== undefined,
+  });
+}
+
+export function projectBlueskySearchPosts(
+  value: unknown,
+  limit: number,
+): {
+  readonly posts: readonly BlueskyProjectedPost[];
+  readonly cursor: string | null;
+  readonly hitsTotal: number | null;
+  readonly truncated: boolean;
+} {
+  const response = record(value, "Bluesky search response");
+  const source = boundedArray(response.posts, "Bluesky search posts");
+  const posts = source.slice(0, limit).map((item) =>
+    projectBlueskyPost(record(item, "Bluesky search post"))
+  );
+  const hitsTotal = response.hitsTotal;
+  if (
+    hitsTotal !== undefined
+    && (!Number.isSafeInteger(hitsTotal) || (hitsTotal as number) < 0)
+  ) throw new Error("Bluesky search hitsTotal must be a non-negative integer");
+  return Object.freeze({
+    posts: Object.freeze(posts),
+    cursor: optionalString(response.cursor, "Bluesky search cursor", 8_192),
+    hitsTotal: hitsTotal === undefined ? null : (hitsTotal as number),
+    truncated: source.length > limit || response.cursor !== undefined,
   });
 }
 

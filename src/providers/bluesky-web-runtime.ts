@@ -83,6 +83,7 @@ import {
   projectBlueskyPostsResponse,
   projectBlueskyProfile,
   projectBlueskyProfileStats,
+  projectBlueskySearchPosts,
   projectBlueskyThread,
   type BlueskyBlobRef,
   type BlueskyProjectedPost,
@@ -1601,8 +1602,26 @@ async function executeFeedRead(
       }),
       limit,
     );
+  } else if (feed === "search") {
+    const query = inputString(input, "query", 512);
+    const sort = optionalInputString(input, "sort", 16);
+    if (sort !== undefined && sort !== "top" && sort !== "latest") {
+      throw new Error("input.sort must name top or latest");
+    }
+    output = projectBlueskySearchPosts(
+      await xrpc(client, "app.bsky.feed.searchPosts", {
+        query: {
+          q: [query],
+          ...(sort === undefined ? {} : { sort: [sort] }),
+          limit: [String(limit)],
+          ...(cursor === undefined ? {} : { cursor: [cursor] }),
+        },
+        proxy: BLUESKY_APPVIEW_PROXY,
+      }),
+      limit,
+    );
   } else {
-    throw new Error("input.feed must name home, notifications, or bookmarks");
+    throw new Error("input.feed must name home, notifications, bookmarks, or search");
   }
   return {
     status: "succeeded",
@@ -1611,7 +1630,9 @@ async function executeFeedRead(
       ? `${BLUESKY_APP_ORIGIN}/`
       : feed === "notifications"
         ? `${BLUESKY_APP_ORIGIN}/notifications`
-        : `${BLUESKY_APP_ORIGIN}/saved`,
+        : feed === "search"
+          ? `${BLUESKY_APP_ORIGIN}/search?q=${encodeURIComponent(inputString(input, "query", 512))}`
+          : `${BLUESKY_APP_ORIGIN}/saved`,
     dispatchStarted: false,
     dispatch: { planned: 0, started: 0, verified: 0 },
   };

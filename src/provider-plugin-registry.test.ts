@@ -563,8 +563,8 @@ describe("provider plugin definition and registry", () => {
         id: "bluesky-web",
         surface: "bluesky",
         version: "1.4.0",
-        current: "37096d27db4eebbfce70c3b1665f6cd00e3ce1efc27c8e3107cb19a28c9e86fa",
-        prior: "478d1e92d3f266dde61c4808104da239a0cc60d5a3c7000d7d2733792641e861",
+        current: "c00367893fa66a402af444e413382c3d43b6b504826a21593fa46bc211452949",
+        prior: "37096d27db4eebbfce70c3b1665f6cd00e3ce1efc27c8e3107cb19a28c9e86fa",
         operation: "profiles.read",
         contractVersion: 2,
       },
@@ -4167,21 +4167,17 @@ describe("provider plugin definition and registry", () => {
       [
         join(root, "bluesky", "wrench-web-adapter.v1.0.0.json"),
         [
+          "manifest.operations.feeds.read.input must exactly match authenticated web contract bluesky/feeds.read@1",
           "authenticated web contract bluesky/posts.publish@1 is not installed",
         ],
       ],
-      [
-        join(root, "bluesky", "wrench-web-adapter.v1.4.0.json"),
+      ...["1.4.0", "1.5.0"].map((version) => [
+        join(root, "bluesky", `wrench-web-adapter.v${version}.json`),
         [
+          "manifest.operations.feeds.read.input must exactly match authenticated web contract bluesky/feeds.read@1",
           "authenticated web contract bluesky/media.publish@1 is not installed",
         ],
-      ],
-      [
-        join(root, "bluesky", "wrench-web-adapter.v1.5.0.json"),
-        [
-          "authenticated web contract bluesky/media.publish@1 is not installed",
-        ],
-      ],
+      ] as const),
       ...["1.0.0", "1.1.0"].map((version) => [
         join(root, "linkedin", `wrench-web-adapter.v${version}.json`),
         [

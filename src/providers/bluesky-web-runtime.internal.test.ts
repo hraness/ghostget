@@ -779,6 +779,146 @@ describe("Bluesky authenticated XRPC runtime", () => {
     ]);
   });
 
+  test("binds the exact search query through the reviewed searchPosts XRPC read", async () => {
+    const calls: CapturedRequest[] = [];
+    const result = await executeBlueskyWebOperation(
+      recipe("feeds.read"),
+      {
+        feed: "search",
+        query: "ghostget agent",
+        sort: "latest",
+        limit: 1,
+        cursor: "cursor-one",
+      },
+      blueskyAuth,
+      {
+        dependencies: dependencies(calls, (request) => {
+          if (nsid(request) === "com.atproto.server.getSession") {
+            return jsonResponse(sessionResponse());
+          }
+          if (nsid(request) === "app.bsky.feed.searchPosts") {
+            expect(request.method).toBe("GET");
+            expect(request.headers.get("atproto-proxy")).toBe(
+              BLUESKY_APPVIEW_PROXY,
+            );
+            expect(Object.fromEntries(request.url.searchParams)).toEqual({
+              q: "ghostget agent",
+              sort: "latest",
+              limit: "1",
+              cursor: "cursor-one",
+            });
+            return jsonResponse({
+              posts: [postView(), postView()],
+              hitsTotal: 42,
+              cursor: "cursor-two",
+            });
+          }
+          throw new Error(`unexpected XRPC method ${nsid(request)}`);
+        }),
+      },
+    );
+    expect(result.status).toBe("succeeded");
+    expect(result.dispatchStarted).toBe(false);
+    expect(result.dispatch).toEqual({ planned: 0, started: 0, verified: 0 });
+    expect(result.finalUrl).toBe(
+      `https://bsky.app/search?q=${encodeURIComponent("ghostget agent")}`,
+    );
+    expect(result.output).toMatchObject({
+      feed: "search",
+      result: {
+        posts: [{ uri: POST_URI }],
+        cursor: "cursor-two",
+        hitsTotal: 42,
+        truncated: true,
+      },
+    });
+    expect(calls.map(nsid)).toEqual([
+      "com.atproto.server.getSession",
+      "app.bsky.feed.searchPosts",
+    ]);
+  });
+
+  test("omits unreviewed search parameters and binds default sort and bounds", async () => {
+    const calls: CapturedRequest[] = [];
+    const result = await executeBlueskyWebOperation(
+      recipe("feeds.read"),
+      { feed: "search", query: "hraness" },
+      blueskyAuth,
+      {
+        dependencies: dependencies(calls, (request) => {
+          if (nsid(request) === "com.atproto.server.getSession") {
+            return jsonResponse(sessionResponse());
+          }
+          if (nsid(request) === "app.bsky.feed.searchPosts") {
+            expect(Object.fromEntries(request.url.searchParams)).toEqual({
+              q: "hraness",
+              limit: "25",
+            });
+            return jsonResponse({ posts: [postView()] });
+          }
+          throw new Error(`unexpected XRPC method ${nsid(request)}`);
+        }),
+      },
+    );
+    expect(result.status).toBe("succeeded");
+    expect(result.output).toMatchObject({
+      feed: "search",
+      result: {
+        posts: [{ uri: POST_URI }],
+        cursor: null,
+        hitsTotal: null,
+        truncated: false,
+      },
+    });
+  });
+
+  test("rejects an unbound or malformed search input before dispatching a search request", async () => {
+    const inputs = [
+      [{ feed: "search" }, "input.query must be bounded text"],
+      [{ feed: "search", query: "x", sort: "relevant" }, "input.sort must name top or latest"],
+      [{ feed: "trending" }, "input.feed must name home, notifications, bookmarks, or search"],
+    ] as const;
+    for (const [input, message] of inputs) {
+      const calls: CapturedRequest[] = [];
+      await expect(executeBlueskyWebOperation(
+        recipe("feeds.read"),
+        input,
+        blueskyAuth,
+        {
+          dependencies: dependencies(calls, (request) =>
+            nsid(request) === "com.atproto.server.getSession"
+              ? jsonResponse(sessionResponse())
+              : jsonResponse({ posts: [postView()] })),
+        },
+      )).rejects.toThrow(message);
+      expect(calls.map(nsid)).toEqual(["com.atproto.server.getSession"]);
+    }
+  });
+
+  test("rejects unreviewed search responses without projecting them", async () => {
+    for (const response of [
+      jsonErrorResponse({ error: "UpstreamFailure" }, 500),
+      jsonResponse({ posts: [{ uri: 7 }] }),
+    ]) {
+      const calls: CapturedRequest[] = [];
+      await expect(executeBlueskyWebOperation(
+        recipe("feeds.read"),
+        { feed: "search", query: "hraness" },
+        blueskyAuth,
+        {
+          dependencies: dependencies(calls, (request) =>
+            nsid(request) === "com.atproto.server.getSession"
+              ? jsonResponse(sessionResponse())
+              : response),
+        },
+      )).rejects.toThrow();
+      expect(calls.map(nsid)).toEqual([
+        "com.atproto.server.getSession",
+        "app.bsky.feed.searchPosts",
+      ]);
+    }
+  });
+
   test("projects a public profile body-stream failure without retrying or leaking it", async () => {
     const privateSentinel = "private Bluesky stream sentinel";
     const calls: CapturedRequest[] = [];

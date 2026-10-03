@@ -346,6 +346,34 @@ describe("Bluesky authenticated API policy", () => {
       queryNames: [],
       proxy: null,
     });
+    const searchUrl = new URL(
+      "/xrpc/app.bsky.feed.searchPosts",
+      "https://morel.us-east.host.bsky.network",
+    );
+    searchUrl.searchParams.append("q", "ghostget agent");
+    searchUrl.searchParams.append("sort", "latest");
+    searchUrl.searchParams.append("limit", "25");
+    searchUrl.searchParams.append("cursor", "cursor-one");
+    expect(authorizeBlueskyXrpcRequest({
+      pdsOrigin: "https://morel.us-east.host.bsky.network",
+      nsid: "app.bsky.feed.searchPosts",
+      url: searchUrl,
+      method: "GET",
+      expectedQuery: {
+        q: ["ghostget agent"],
+        sort: ["latest"],
+        limit: ["25"],
+        cursor: ["cursor-one"],
+      },
+      hasBody: false,
+      proxy: BLUESKY_APPVIEW_PROXY,
+    })).toEqual({
+      nsid: "app.bsky.feed.searchPosts",
+      method: "GET",
+      path: "/xrpc/app.bsky.feed.searchPosts",
+      queryNames: ["cursor", "limit", "q", "sort"],
+      proxy: BLUESKY_APPVIEW_PROXY,
+    });
     url.searchParams.append("unexpected", "value");
     expect(() =>
       authorizeBlueskyXrpcRequest({

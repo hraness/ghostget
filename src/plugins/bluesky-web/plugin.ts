@@ -22,7 +22,7 @@ const desiredStateKeys = Object.freeze({
 
 const operations = webSessionContractOperations(
   Object.values(blueskyContracts),
-  "b6df3d0bdf8d4ed5ff7f43e3cb887192faaf4a9e57d3c14e3aa2f4bb5fe50b79",
+  "77700b89b3df050d8246a3c9a771072c45aa36d690b7b0efd31f86c095c5ef97",
   {
     "profiles.read": [1],
     "posts.publish": [2],

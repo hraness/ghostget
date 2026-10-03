@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
 import { describe, expect, test } from "bun:test";
 
 const predecessorDefaultInventorySha256 =
-  "137ed620f1303c06523b27828e2d96421a696324995d1040ead79f78053e8f43";
+  "ab6a7bcf46f8d6dfe79a2a9a75e163cc670ad13bc0a57b05bb1c31cfa064fe7d";
 const predecessorLegacyInventorySha256 = [
   "4abf50326edbc8c8294a2056a08fc7ab2fd038d2d798708b77e29df98c2a86d0",
   "112cb715f1466ed5eb29cf97116151ae8b6a56aeb8aa9c08ed26ebadd47b86be",
@@ -13,13 +13,13 @@ const predecessorLegacyInventorySha256 = [
   "303ca3ae1b44693bbbdbdcf48665c388eaaa8b677f982a2ebdc0ae9ccb82a8b4",
   "0b7b037e045497f96920c8e751711f767b6358589c39ba0ea9d9db880ddef2ca",
   "ce149cd1d2d695a693b2dac2c16c3b7f18b5ab1adb108a3dee07ae8031414255",
-  "bd86ba538129bc589b587f270404f05e3b09fefe2ce85893c8e19280174ff2a4",
-  "5b9bd403c024ca09c68d5c5b9c3a1b08732776f2eb0396021e1bc5c083a28dbf",
-  "1849cd51e60fa86271aa23dcfc6fb263696110d82af71923503486ac6bcdf219",
-  "2b79a81b7e2a1538abb707eae68b9546be56e516605ddeaafcd227fbc7135e78",
-  "cb0e743af060195911cfb27b1d76dc766bdcfcd339f28beada2ba6a8b368abc5",
-  "216181b3f602e826efa60272d6dd4b28c883cee5d6cc468f1637d1d8bf858e06",
-  "bf0e56da9f3b3529e59d2aa2c9d4b8c7e3c117be1b666c31288bcc8f90818ce3",
+  "9c17ada700127b3453e859b1f8705a56a1b9048e0d8ce6509b40028c57a6f307",
+  "1994d8525b277d071c6464b310b35d0c2f99747cca3f82e28517fcd4b1f87fc1",
+  "8a67e7fecf13ac738b66d5a1a7c2d45eb640f6b9f7b0cdc3c6a7de4fc9dc264f",
+  "8dcd21188ad1558594e5b14734a0817add65673fef53a33e8204bfcd427eb57c",
+  "becb0d3ad20026c86ea48348f56e1838bb40cc7166666dcf356b00e104da0448",
+  "c6f416fdd1c739dbd7b12d3593ff2aa64eb3576bec989c1d65a92e48958c8659",
+  "bd3e80e4d2ff72b55f799ec1dca10a3a11913cb4b419cf52fd87bc857a12b0a4",
   "58e5e5b27881f30114891f7c266f901e7dda800d3f12309e420c602348816a58",
   "7db7a8a56a969f082a8fb588425d23e2525ee1fec8862d28606df29e2383db4b",
   "29b7a19415dc62980cf33174e21d626b2d25f3dd05b6b11f82290e7d02257b7e",
@@ -119,6 +119,16 @@ function predecessorWebContract(contract) {
     && contract.contractVersion === 1
     && contract.operation === "replies.create") {
     return { ...contract, state: "capture-required", implementation: "bluesky replies.create requires a fresh reviewed authenticated first-party contract before execution" };
+  }
+  if (contract.site === "bluesky"
+    && contract.contractVersion === 1
+    && contract.operation === "feeds.read") {
+    const feed = contract.input?.properties?.feed;
+    const properties = { ...contract.input.properties };
+    if (feed !== undefined) properties.feed = { ...feed, enum: ["home", "notifications", "bookmarks"] };
+    delete properties.query;
+    delete properties.sort;
+    return { ...contract, input: { ...contract.input, properties } };
   }
   if (contract.site !== "facebook-marketplace"
     || contract.operation !== "feeds.read"
@@ -397,7 +407,7 @@ describe("durable provider contract inventory", () => {
           254,
           238,
           213,
-          146,
+          167,
           146,
           146,
           146,

@@ -97,6 +97,28 @@ function predecessorBlueskyWebContractValue(
   });
 }
 
+function predecessorBlueskyFeedsReadContractValue(
+  contract: WebSessionContract,
+): WebSessionContract {
+  // The Bluesky feeds.read v1 manifest widened the input schema for the
+  // search feed. Durable predecessor receipts bound the exact predecessor
+  // schema, so compatibility checks must project the contract back to it.
+  const feed = contract.input.properties["feed"];
+  const properties = { ...contract.input.properties };
+  if (feed !== undefined && feed.type === "string") {
+    properties["feed"] = {
+      ...feed,
+      enum: ["home", "notifications", "bookmarks"],
+    };
+  }
+  delete properties["query"];
+  delete properties["sort"];
+  return Object.freeze({
+    ...contract,
+    input: Object.freeze({ ...contract.input, properties: Object.freeze(properties) }),
+  });
+}
+
 function predecessorCompatibleWebSessionContractValue(
   contract: WebSessionContract,
 ): unknown {
@@ -118,6 +140,11 @@ function predecessorCompatibleWebSessionContractValue(
     && contract.state === "observed"
     && contract.operation === "replies.create"
   ) return predecessorBlueskyWebContractValue(contract);
+  if (
+    contract.site === "bluesky"
+    && contract.contractVersion === 1
+    && contract.operation === "feeds.read"
+  ) return predecessorBlueskyFeedsReadContractValue(contract);
   // The plugin advertises historical v1 and active v2 from one present
   // operation schema. Both exact predecessor rows carried the Oh cursor text.
   // Future versions must never inherit this compatibility projection.

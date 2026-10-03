@@ -257,8 +257,9 @@ const identities = Object.freeze({
   "bluesky-web": {
     schemaVersion: 1,
     pluginVersion: "1.4.0",
-    implementationSha256: "37096d27db4eebbfce70c3b1665f6cd00e3ce1efc27c8e3107cb19a28c9e86fa",
+    implementationSha256: "c00367893fa66a402af444e413382c3d43b6b504826a21593fa46bc211452949",
     legacyCurrentReadImplementationSha256: [
+      "37096d27db4eebbfce70c3b1665f6cd00e3ce1efc27c8e3107cb19a28c9e86fa",
       "478d1e92d3f266dde61c4808104da239a0cc60d5a3c7000d7d2733792641e861",
       "f16f456fd06952bdd28e4bbed6e6faaed9b2c18899487224453e7ef314f585e8",
       "81344b367a11c7dcaeff83386bc0f796c41260cb373b9818527f4cb55bc80d48",
