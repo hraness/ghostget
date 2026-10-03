@@ -31,7 +31,7 @@ function booleanDesiredState(
 
 const operations = webSessionContractOperations(
   Object.values(hackerNewsContracts),
-  "b26014667b42eb62464a56f89f95d1c54b947b20c8b174b4be72b5ed9d1cbfac",
+  "e4dd2df83eb091a936ebf8d4339a25fae7ae123a037872ad2089cace949dff6e",
 ).map((operation) => {
   if (
     operation.name === "comments.create"
@@ -41,7 +41,8 @@ const operations = webSessionContractOperations(
     return Object.freeze({
       ...operation,
       reconciliation: Object.freeze({
-        kind: "provider-accepted-target-presence" as const,
+        kind: "boolean-desired-state" as const,
+        desiredState: (): boolean => true,
       }),
     });
   }
@@ -86,17 +87,12 @@ export const hackerNewsWebPlugin = defineProviderPlugin({
         probe: runtime.probeHackerNewsWebSubject,
         execute: (_manifest, recipe, input, auth, options) =>
           runtime.executeHackerNewsWebOperation(recipe, input, auth, options),
-        reconcile: async (operation, input, auth, context) => {
+        reconcile: async (operation, input, auth, _context) => {
           if (
             operation === "comments.create"
             || operation === "replies.create"
             || operation === "posts.publish"
           ) {
-            if (context?.kind !== "provider-accepted-target-presence") {
-              throw new Error(
-                `Hacker News ${operation} reconciliation requires one exact accepted target`,
-              );
-            }
             const recipe = {
               site: "hacker-news",
               action: operation,
@@ -105,15 +101,15 @@ export const hackerNewsWebPlugin = defineProviderPlugin({
               maxOutputBytes: 4 * 1024 * 1024,
             };
             const readback = operation === "posts.publish"
-              ? await runtime.readHackerNewsWebPublishedPostTarget(
-                  recipe, input, auth, context.target.identifier,
+              ? await runtime.readHackerNewsWebPublishedPostPresence(
+                  recipe, input, auth,
                 )
-              : await runtime.readHackerNewsWebPublishedCommentTarget(
-                  recipe, input, auth, context.target.identifier,
+              : await runtime.readHackerNewsWebPublishedCommentPresence(
+                  recipe, input, auth,
                 );
             return {
               actualState: readback.present,
-              reason: "exact-target-readback",
+              reason: "exact-discovered-readback",
             };
           }
           if (

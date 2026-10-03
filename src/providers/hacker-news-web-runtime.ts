@@ -44,7 +44,7 @@ const MAX_HTML_BYTES = 4 * 1024 * 1024;
 const DEFAULT_FEED_LIMIT = 30;
 const DEFAULT_COMMENT_LIMIT = 100;
 const MAX_TEXT_BYTES = 2_000;
-const READBACK_DELAYS_MS = [500, 1_000, 2_000] as const;
+const READBACK_DELAYS_MS = [500, 1_000, 2_000, 4_000, 8_000] as const;
 
 export type HackerNewsWebRuntimeDependencies = Partial<WebSessionNetworkDependencies> & {
   readonly now?: () => number;
@@ -304,29 +304,6 @@ function sleep(
 ): Promise<void> {
   return (dependencies?.sleep
     ?? ((ms) => new Promise<void>((resolve) => setTimeout(resolve, ms))))(milliseconds);
-}
-
-function acceptedHackerNewsItemId(value: string, key: string): string {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(value) as unknown;
-  } catch {
-    throw new Error("Hacker News provider-accepted target is not canonical JSON");
-  }
-  if (
-    typeof parsed !== "object"
-    || parsed === null
-    || Array.isArray(parsed)
-    || Object.keys(parsed).join(",") !== key
-  ) throw new Error("Hacker News provider-accepted target changed shape");
-  const raw = (parsed as Readonly<Record<string, unknown>>)[key];
-  if (typeof raw !== "string" || !/^[1-9][0-9]{0,19}$/u.test(raw)) {
-    throw new Error("Hacker News provider-accepted target ID is invalid");
-  }
-  if (canonicalJson({ [key]: raw }) !== value) {
-    throw new Error("Hacker News provider-accepted target is not canonical");
-  }
-  return raw;
 }
 
 function dispatchOptions(
@@ -838,21 +815,21 @@ async function executePostPublish(
 }
 
 /**
- * Independently verify one provider-accepted comment target for
- * reconciliation. The stored identifier carries only the exact comment ID;
- * the confirmed input re-binds its parent, actor, and body.
+ * Independently discover the confirmed comment on its exact parent page for
+ * reconciliation. Hacker News never echoes a comment target identifier, so
+ * presence is proven by the one row exactly binding parent, actor, and body;
+ * an ambiguous page fails closed.
  */
-export async function readHackerNewsWebPublishedCommentTarget(
+export async function readHackerNewsWebPublishedCommentPresence(
   recipe: WebSessionRecipe,
   input: OperationInput,
   auth: GhostgetAuth,
-  identifier: string,
   options: {
     readonly signal?: AbortSignal;
     readonly operationDeadline?: WebSessionOperationDeadline;
     readonly dependencies?: HackerNewsWebRuntimeDependencies;
   } = {},
-): Promise<Readonly<{ present: boolean; commentId: string }>> {
+): Promise<Readonly<{ present: boolean }>> {
   const reply = recipe.action === "replies.create";
   if (
     recipe.site !== "hacker-news"
@@ -863,7 +840,6 @@ export async function readHackerNewsWebPublishedCommentTarget(
       "Hacker News comment recovery supports only comments.create and replies.create",
     );
   }
-  const commentId = acceptedHackerNewsItemId(identifier, "commentId");
   const parentId = itemIdInput(input, reply ? "parent_id" : "post_id");
   const body = bodyInput(input, "body", MAX_TEXT_BYTES);
   const client = await createWebSessionClient(HN_ORIGIN, auth, {
@@ -879,29 +855,33 @@ export async function readHackerNewsWebPublishedCommentTarget(
     await readItemPage(client, "state.readback", parentId, recipe.maxOutputBytes),
     parentId,
   );
-  const match = rows.find((comment) => comment.id === commentId);
-  const present = match !== undefined
-    && match.parentId === parentId
-    && match.author === viewer
-    && match.body === body;
-  return Object.freeze({ present, commentId });
+  const matches = rows.filter((comment) =>
+    comment.parentId === parentId
+    && comment.author === viewer
+    && comment.body === body);
+  if (matches.length > 1) {
+    throw new Error("Hacker News reconciliation found ambiguous matching comments");
+  }
+  return Object.freeze({ present: matches.length === 1 });
 }
 
 /**
- * Independently verify one provider-accepted submission target for
- * reconciliation.
+ * Independently discover the confirmed submission on the bound account's
+ * /submitted listing for reconciliation. Hacker News never echoes a
+ * submission target identifier, so presence is proven by the one row exactly
+ * binding actor, provider-canonicalized title, and link or text shape; an
+ * ambiguous listing fails closed.
  */
-export async function readHackerNewsWebPublishedPostTarget(
+export async function readHackerNewsWebPublishedPostPresence(
   recipe: WebSessionRecipe,
   input: OperationInput,
   auth: GhostgetAuth,
-  identifier: string,
   options: {
     readonly signal?: AbortSignal;
     readonly operationDeadline?: WebSessionOperationDeadline;
     readonly dependencies?: HackerNewsWebRuntimeDependencies;
   } = {},
-): Promise<Readonly<{ present: boolean; postId: string }>> {
+): Promise<Readonly<{ present: boolean }>> {
   if (
     recipe.site !== "hacker-news"
     || recipe.contractVersion !== 1
@@ -909,7 +889,6 @@ export async function readHackerNewsWebPublishedPostTarget(
   ) {
     throw new Error("Hacker News submission recovery supports only posts.publish");
   }
-  const postId = acceptedHackerNewsItemId(identifier, "postId");
   const title = stringInput(input, "title", 80);
   const url = optionalBodyInput(input, "url", 4_096) === undefined
     ? undefined
@@ -927,21 +906,22 @@ export async function readHackerNewsWebPublishedPostTarget(
     ...(options.dependencies === undefined ? {} : { dependencies: options.dependencies }),
   });
   const viewer = await boundViewer(client, auth, recipe.maxOutputBytes);
-  let post;
-  try {
-    post = normalizeHackerNewsPostHtml(
-      await readItemPage(client, "state.readback", postId, recipe.maxOutputBytes),
-      postId,
-    ).post;
-  } catch {
-    return Object.freeze({ present: false, postId });
-  }
-  const present = post.author === viewer
-    && post.title === title
-    && (url === undefined
-      ? post.url === `${HN_ORIGIN}/item?id=${post.id}`
-      : post.url === url);
-  return Object.freeze({ present, postId });
+  const post = findHackerNewsSubmittedRow(
+    await readUserListingPage(
+      client,
+      "submitted.list",
+      viewer,
+      recipe.maxOutputBytes,
+    ),
+    {
+      author: viewer,
+      title,
+      url: url ?? null,
+      notBeforeSeconds: 0,
+      nowSeconds: nowSeconds(options.dependencies),
+    },
+  );
+  return Object.freeze({ present: post !== null });
 }
 
 export async function executeHackerNewsWebOperation(

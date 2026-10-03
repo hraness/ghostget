@@ -26,9 +26,54 @@ const currentMarketplaceCursorDescription =
 const predecessorMarketplaceCursorDescription =
   "oh-issued authenticated cursor returned by a complete prior Marketplace page; one chain supports at most 48 provider pages";
 
+const predecessorHackerNewsWriteOperations = new Set<string>([
+  "comments.create",
+  "content.save",
+  "posts.publish",
+  "reactions.set",
+  "replies.create",
+]);
+
+function predecessorHackerNewsContractValue(
+  contract: WebSessionContract,
+): WebSessionContract {
+  // Hacker News write contracts graduated from capture-required reservations
+  // to observed mutations. Durable predecessor receipts carried the reserved
+  // state and the generic capture-required implementation text, so stored
+  // rows and compatibility checks must project the contract back to that
+  // exact predecessor value.
+  // The predecessor submission schema constrained the link URL to adapter
+  // origins. Graduation widened it to the external submission payload, so
+  // the projected predecessor input restores that exact field constraint.
+  const url = contract.input.properties["url"];
+  const input = contract.operation === "posts.publish"
+    && url !== undefined && url.type === "string"
+    ? {
+      ...contract.input,
+      properties: {
+        ...contract.input.properties,
+        url: { ...url, format: "url" as const },
+      },
+    }
+    : contract.input;
+  return Object.freeze({
+    ...contract,
+    state: "capture-required",
+    implementation:
+      `hacker-news ${contract.operation} requires a fresh reviewed authenticated first-party contract before execution`,
+    input,
+  });
+}
+
 function predecessorCompatibleWebSessionContractValue(
   contract: WebSessionContract,
 ): unknown {
+  if (
+    contract.site === "hacker-news"
+    && contract.contractVersion === 1
+    && contract.state === "observed"
+    && predecessorHackerNewsWriteOperations.has(contract.operation)
+  ) return predecessorHackerNewsContractValue(contract);
   // The plugin advertises historical v1 and active v2 from one present
   // operation schema. Both exact predecessor rows carried the Oh cursor text.
   // Future versions must never inherit this compatibility projection.

@@ -112,7 +112,7 @@ describe("Hacker News internal-web operation registry", () => {
     }
   });
 
-  test("covers the full surface and keeps every remote action capture-required", () => {
+  test("covers the full surface and keeps only content.edit capture-required", () => {
     expect(Object.keys(HACKER_NEWS_WEB_OPERATIONS).sort()).toEqual(
       [...HACKER_NEWS_WEB_OPERATION_NAMES].sort(),
     );
@@ -121,12 +121,22 @@ describe("Hacker News internal-web operation registry", () => {
         .filter(([, contract]) => contract.state === "observed")
         .map(([name]) => name)
         .sort(),
-    ).toEqual(["comments.read", "feeds.read", "posts.read"]);
-    for (const contract of Object.values(HACKER_NEWS_WEB_OPERATIONS)) {
-      if (contract.effect === "write") expect(contract.state).toBe("capture-required");
+    ).toEqual([
+      "comments.create",
+      "comments.read",
+      "content.save",
+      "feeds.read",
+      "posts.publish",
+      "posts.read",
+      "reactions.set",
+      "replies.create",
+    ]);
+    for (const [name, contract] of Object.entries(HACKER_NEWS_WEB_OPERATIONS)) {
+      if (contract.effect === "write") {
+        expect(contract.state).toBe(name === "content.edit" ? "capture-required" : "observed");
+      }
     }
-    expect(HACKER_NEWS_WEB_OPERATIONS["content.save"].reason).toContain("both real state fixtures");
-    expect(HACKER_NEWS_WEB_OPERATIONS["reactions.set"].reason).toContain("human actions");
+    expect(HACKER_NEWS_WEB_OPERATIONS["content.edit"].reason).toContain("unobserved");
   });
 });
 
@@ -280,25 +290,40 @@ describe("Hacker News bounded HTML projection", () => {
 });
 
 describe("Hacker News request-bound proof parsing", () => {
-  test("parses exact favorite and un-favorite actions without treating synthetic fixtures as promotion evidence", () => {
+  test("parses exact favorite and un-favorite actions", () => {
     for (const state of [
-      { path: "fave", nextSavedState: true },
-      { path: "unfave", nextSavedState: false },
+      { un: null, nextSavedState: true },
+      { un: "t", nextSavedState: false },
     ] as const) {
-      const html = submission(
-        POST_ID,
-        "Favorite fixture",
-        `<a href="${state.path}?id=${POST_ID}&amp;auth=${AUTH}&amp;goto=item%3Fid%3D${POST_ID}">${state.path}</a>`,
-      );
-      expect(parseHackerNewsFavoriteAction(html, POST_ID)).toEqual({
-        path: `/${state.path}`,
-        targetId: POST_ID,
-        auth: AUTH,
-        goto: `item?id=${POST_ID}`,
-        nextSavedState: state.nextSavedState,
-      });
+      // The reviewed item page omits goto; the listing-proven form carries it.
+      // Un-favorite is the same /fave endpoint carrying the provider's un=t
+      // marker.
+      const un = state.un === null ? "" : `&amp;un=${state.un}`;
+      for (const [href, goto] of [
+        [
+          `fave?id=${POST_ID}&amp;auth=${AUTH}${un}`,
+          null,
+        ],
+        [
+          `fave?id=${POST_ID}&amp;auth=${AUTH}${un}&amp;goto=item%3Fid%3D${POST_ID}`,
+          `item?id=${POST_ID}`,
+        ],
+      ] as const) {
+        const html = submission(
+          POST_ID,
+          "Favorite fixture",
+          `<a href="${href}">${state.un === null ? "favorite" : "un-favorite"}</a>`,
+        );
+        expect(parseHackerNewsFavoriteAction(html, POST_ID)).toEqual({
+          path: "/fave",
+          targetId: POST_ID,
+          auth: AUTH,
+          goto,
+          un: state.un,
+          nextSavedState: state.nextSavedState,
+        });
+      }
     }
-    expect(HACKER_NEWS_WEB_OPERATIONS["content.save"].state).toBe("capture-required");
   });
 
   test("rejects ambiguous, mismatched, or malformed favorite proofs", () => {
@@ -470,6 +495,17 @@ describe("Hacker News write-path proof and readback parsing", () => {
       goto: `item?id=${POST_ID}`,
       nextUpvotedState: false,
     });
+    // The reviewed post-upvote page keeps the hidden up arrow beside the live
+    // unvote link; the unvote action is the offered one.
+    const unAnchor = `<a href="vote?id=${POST_ID}&amp;how=un&amp;auth=${AUTH}&amp;goto=item%3Fid%3D${POST_ID}">un</a>`;
+    expect(parseHackerNewsVoteAction(voteHtml("up", unAnchor), POST_ID)).toEqual({
+      path: "/vote",
+      targetId: POST_ID,
+      how: "un",
+      auth: AUTH,
+      goto: `item?id=${POST_ID}`,
+      nextUpvotedState: false,
+    });
   });
 
   test("never substitutes a downvote link for an upvote action", () => {
@@ -489,7 +525,7 @@ describe("Hacker News write-path proof and readback parsing", () => {
     )).toThrow("ambiguous");
     expect(() => parseHackerNewsVoteAction(
       voteHtml(
-        "up",
+        "un",
         `<a href="vote?id=${POST_ID}&amp;how=un&amp;auth=${AUTH}&amp;goto=news">un</a>`,
       ),
       POST_ID,

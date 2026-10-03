@@ -1,7 +1,7 @@
 {
   "schemaVersion": 4,
   "id": "hacker-news-web",
-  "version": "1.2.0",
+  "version": "1.1.0",
   "displayName": "Hacker News (Authenticated Web API)",
   "surfaceId": "hacker-news",
   "origins": [
@@ -106,7 +106,7 @@
       }
     },
     "content.save": {
-      "description": "Observed contract: favorite or un-favorite one exact Hacker News item through its request-bound action with independent viewer favorites-list presence readback.",
+      "description": "Capture-required contract reservation: favorite or un-favorite one exact Hacker News item only after both real request-bound action states and independent favorites-list readback are reviewed.",
       "risk": "R2",
       "sideEffect": "Favorites or un-favorites the exact confirmed Hacker News item for the authenticated account.",
       "idempotency": "local-at-most-once",
@@ -138,7 +138,7 @@
       }
     },
     "reactions.set": {
-      "description": "Observed contract: upvote or unvote one exact Hacker News item through its request-bound action with independent offered-action state readback.",
+      "description": "Capture-required contract reservation: upvote or unvote one exact Hacker News item only after both request-bound states and independent target readback are reviewed.",
       "risk": "R2",
       "sideEffect": "Sets or clears the authenticated account's human-confirmed upvote on the exact Hacker News item.",
       "idempotency": "local-at-most-once",
@@ -170,7 +170,7 @@
       }
     },
     "comments.create": {
-      "description": "Observed contract: publish one top-level Hacker News comment through a fresh request-bound form from the exact target page with author, parent, body, and dispatch-window readback.",
+      "description": "Capture-required contract reservation: publish one top-level Hacker News comment using only a fresh request-bound form from the exact target page.",
       "risk": "R3",
       "sideEffect": "Publishes one externally visible comment on the exact confirmed Hacker News submission.",
       "idempotency": "local-at-most-once",
@@ -204,7 +204,7 @@
       }
     },
     "replies.create": {
-      "description": "Observed contract: publish one Hacker News reply through a fresh request-bound form bound to the exact parent with author, parent, body, and dispatch-window readback.",
+      "description": "Capture-required contract reservation: publish one Hacker News reply using only a fresh request-bound form bound to the exact parent.",
       "risk": "R3",
       "sideEffect": "Publishes one externally visible reply to the exact confirmed Hacker News parent.",
       "idempotency": "local-at-most-once",
@@ -238,7 +238,7 @@
       }
     },
     "posts.publish": {
-      "description": "Observed contract: submit one Hacker News story or text post through a fresh request-bound fnid/fnop form with exact accepted-item binding and submitted-listing readback.",
+      "description": "Capture-required contract reservation: submit one Hacker News story or text post only through a fresh request-bound fnid/fnop form and exact returned-item binding.",
       "risk": "R3",
       "sideEffect": "Publishes one externally visible Hacker News submission.",
       "idempotency": "local-at-most-once",
@@ -255,7 +255,8 @@
             "type": "string",
             "description": "Exact link submission URL",
             "minLength": 1,
-            "maxLength": 4096
+            "maxLength": 4096,
+            "format": "url"
           },
           "body": {
             "type": "string",

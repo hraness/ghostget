@@ -608,7 +608,7 @@ describe("provider plugin definition and registry", () => {
         id: "hacker-news-web",
         surface: "hacker-news",
         version: "1.2.0",
-        current: "72621e1e1caeacf2f8351c415c927edef7e19eee2b81bc46f4ce9e55649cf08b",
+        current: "2e6b8afa9989708df39f7c0b95f65493c26af005657b52e73c521bcd26b98d8f",
         prior: "da3cdd6465b92ce933004fb9e3f2bf3dd48811e766079647d2cdaec43e507e1d",
         operation: "feeds.read",
         contractVersion: 1,

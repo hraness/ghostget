@@ -93,7 +93,23 @@ function stableJson(value) {
   return "{" + Object.keys(record).sort().map((key) =>
     JSON.stringify(key) + ":" + stableJson(record[key])).join(",") + "}";
 }
+const predecessorHackerNewsWriteOperations = new Set([
+  "comments.create",
+  "content.save",
+  "posts.publish",
+  "reactions.set",
+  "replies.create",
+]);
 function predecessorWebContract(contract) {
+  if (contract.site === "hacker-news"
+    && contract.contractVersion === 1
+    && predecessorHackerNewsWriteOperations.has(contract.operation)) {
+    const url = contract.input?.properties?.url;
+    const input = contract.operation === "posts.publish" && url !== undefined
+      ? { ...contract.input, properties: { ...contract.input.properties, url: { ...url, format: "url" } } }
+      : contract.input;
+    return { ...contract, state: "capture-required", implementation: "hacker-news " + contract.operation + " requires a fresh reviewed authenticated first-party contract before execution", input };
+  }
   if (contract.site !== "facebook-marketplace"
     || contract.operation !== "feeds.read"
     || (contract.contractVersion !== 1 && contract.contractVersion !== 2)) return contract;

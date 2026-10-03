@@ -37,9 +37,13 @@ export type HackerNewsWebOperationContract = {
   readonly reason: string;
 };
 
-const observed = (reason: string): HackerNewsWebOperationContract => Object.freeze({
-  effect: "read",
-  risk: "R1",
+const observed = (
+  effect: "read" | "write",
+  risk: HackerNewsWebRisk,
+  reason: string,
+): HackerNewsWebOperationContract => Object.freeze({
+  effect,
+  risk,
   state: "observed",
   reason,
 });
@@ -55,28 +59,33 @@ const captureRequired = (
 });
 
 export const HACKER_NEWS_WEB_OPERATIONS = Object.freeze({
-  "feeds.read": observed("signed-in /news HTML with exact athing/subtext projection"),
-  "posts.read": observed("exact /item?id target with submission-row binding"),
-  "comments.read": observed("exact /item?id target with bounded ordered comment projection"),
-  "content.save": captureRequired(
+  "feeds.read": observed("read", "R1", "signed-in /news HTML with exact athing/subtext projection"),
+  "posts.read": observed("read", "R1", "exact /item?id target with submission-row binding"),
+  "comments.read": observed("read", "R1", "exact /item?id target with bounded ordered comment projection"),
+  "content.save": observed(
+    "write",
     "R2",
-    "favorite and un-favorite links are request-bound; both real state fixtures and independent favorites-list readback are still required",
+    "exact request-bound favorite/un-favorite action with independent viewer favorites-list presence readback",
   ),
-  "reactions.set": captureRequired(
+  "reactions.set": observed(
+    "write",
     "R2",
-    "upvote and unvote are request-bound human actions; exact undo fixture and readback are still required",
+    "exact request-bound upvote/unvote action with independent offered-action state readback",
   ),
-  "comments.create": captureRequired(
+  "comments.create": observed(
+    "write",
     "R3",
-    "comment hmac form and externally visible response need an authorized fixture",
+    "exact parent/hmac-bound comment form with author, parent, body, and dispatch-window readback",
   ),
-  "replies.create": captureRequired(
+  "replies.create": observed(
+    "write",
     "R3",
-    "reply hmac form and exact parent/actor response binding need an authorized fixture",
+    "exact parent/hmac-bound reply form with author, parent, body, and dispatch-window readback",
   ),
-  "posts.publish": captureRequired(
+  "posts.publish": observed(
+    "write",
     "R3",
-    "submission fnid/fnop form and returned item binding need an authorized fixture",
+    "exact fnid/fnop-bound submission form with accepted-identity redirect and submitted-listing readback",
   ),
   "content.edit": captureRequired(
     "R3",
@@ -150,10 +159,11 @@ function exactNames(
   values: ReadonlyMap<string, string>,
   required: readonly string[],
   label: string,
+  optional: readonly string[] = [],
 ): void {
-  const requiredSet = new Set(required);
+  const allowed = new Set([...required, ...optional]);
   const missing = required.filter((name) => !values.has(name));
-  const extra = [...values.keys()].filter((name) => !requiredSet.has(name));
+  const extra = [...values.keys()].filter((name) => !allowed.has(name));
   if (missing.length > 0) throw new Error(`${label} omitted ${missing.join(", ")}`);
   if (extra.length > 0) throw new Error(`${label} contained unsupported ${extra.join(", ")}`);
 }
@@ -640,10 +650,15 @@ function safeGoto(value: unknown, label: string): string {
 }
 
 export type HackerNewsFavoriteAction = {
-  readonly path: "/fave" | "/unfave";
+  readonly path: "/fave";
   readonly targetId: string;
   readonly auth: string;
-  readonly goto: string;
+  readonly goto: string | null;
+  /**
+   * The provider renders un-favorite as /fave carrying `un=t`; the marker is
+   * echoed verbatim. Absent means favorite.
+   */
+  readonly un: "t" | null;
   readonly nextSavedState: boolean;
 };
 
@@ -651,8 +666,10 @@ const unconsumedFavoriteActions = new WeakSet<HackerNewsFavoriteAction>();
 
 /**
  * Parse the one request-bound favorite action visible for an exact item.
- * Synthetic parser tests do not promote content.save; promotion still needs
- * inert evidence for both real provider states plus independent readback.
+ * The provider renders un-favorite as /fave carrying `un=t` rather than a
+ * second endpoint. Synthetic parser tests are not promotion evidence;
+ * content.save graduated only after the authorized live fixture exercised
+ * both real provider states plus independent favorites-list readback.
  */
 export function parseHackerNewsFavoriteAction(
   value: string,
@@ -667,16 +684,24 @@ export function parseHackerNewsFavoriteAction(
     } catch {
       continue;
     }
-    if (url.origin !== HN_ORIGIN || (url.pathname !== "/fave" && url.pathname !== "/unfave")) continue;
+    if (url.origin !== HN_ORIGIN || url.pathname !== "/fave") continue;
     const query = exactParameters(url.searchParams, "Hacker News favorite query");
-    exactNames(query, ["auth", "goto", "id"], "Hacker News favorite query");
+    exactNames(query, ["auth", "id"], "Hacker News favorite query", ["goto", "un"]);
     if (query.get("id") !== target) throw new Error("Hacker News favorite action did not bind its target");
+    const goto = query.has("goto")
+      ? safeGoto(query.get("goto"), "Hacker News favorite goto")
+      : null;
+    const un = query.get("un") ?? null;
+    if (un !== null && un !== "t") {
+      throw new Error("Hacker News favorite query carried an unreviewed un marker");
+    }
     candidates.push(Object.freeze({
-      path: url.pathname,
+      path: "/fave" as const,
       targetId: target,
       auth: boundedString(query.get("auth"), "Hacker News request-bound favorite auth", 256),
-      goto: safeGoto(query.get("goto"), "Hacker News favorite goto"),
-      nextSavedState: url.pathname === "/fave",
+      goto,
+      un,
+      nextSavedState: un === null,
     }));
   }
   if (candidates.length !== 1) {
@@ -822,18 +847,23 @@ export async function dispatchHackerNewsFavoriteAction(
   }
   const target = itemId(action.targetId, "Hacker News favorite target");
   const auth = boundedString(action.auth, "Hacker News request-bound favorite auth", 256);
-  const goto = safeGoto(action.goto, "Hacker News favorite goto");
+  const goto = action.goto === null
+    ? null
+    : safeGoto(action.goto, "Hacker News favorite goto");
   const url = new URL(action.path, HN_ORIGIN);
   url.searchParams.set("id", target);
   url.searchParams.set("auth", auth);
-  url.searchParams.set("goto", goto);
+  if (action.un !== null) url.searchParams.set("un", action.un);
+  if (goto !== null) url.searchParams.set("goto", goto);
   unconsumedFavoriteActions.delete(action);
   return dispatchHackerNewsBoundRequest(
     client,
     {
       method: "GET",
       url,
-      referer: actionReferer(goto, ["/item", "/news", "/favorites"]),
+      referer: goto === null
+        ? new URL(`item?id=${target}`, HN_ORIGIN)
+        : actionReferer(goto, ["/item", "/news", "/favorites"]),
     },
     beforeRequest,
     options,
@@ -924,10 +954,11 @@ export type HackerNewsVoteAction = {
 const unconsumedVoteActions = new WeakSet<HackerNewsVoteAction>();
 
 /**
- * Parse the request-bound upvote action visible for an exact item. An offered
- * `how=un` link means the item already carries the account's upvote; `how=up`
- * means it does not. A `how=down` link is a separate unreviewed action and
- * never substitutes for either.
+ * Parse the request-bound upvote action visible for an exact item. After the
+ * account upvotes, the page keeps the hidden `how=up` arrow beside the live
+ * `how=un` link, so the `un` action is the offered one. `how=up` alone means
+ * the item does not carry the account's upvote. A `how=down` link is a
+ * separate unreviewed action and never substitutes for either.
  */
 export function parseHackerNewsVoteAction(
   value: string,
@@ -959,7 +990,7 @@ export function parseHackerNewsVoteAction(
     });
     (how === "up" ? ups : uns).push(action);
   }
-  if (uns.length > 1 || ups.length > 1 || (uns.length === 1 && ups.length === 1)) {
+  if (uns.length > 1 || ups.length > 1) {
     throw new Error("Hacker News page contained ambiguous request-bound vote actions");
   }
   const action = uns[0] ?? ups[0];
@@ -1240,6 +1271,23 @@ export function findHackerNewsCommentRow(
 }
 
 /**
+ * Canonicalize one Hacker News title for provider-side comparison. The
+ * provider rewrites some submitted punctuation (for example an ASCII hyphen
+ * surrounded by spaces is stored as an en dash), so exact confirmed titles
+ * must be compared after this deterministic fold, never fuzzily.
+ */
+export function canonicalHackerNewsTitle(value: string): string {
+  return value
+    .replace(/[‐-―−﹘﹣－]/gu, "-")
+    .replace(/[‘’‚‛]/gu, "'")
+    .replace(/[“”„‟]/gu, "\"")
+    .replace(/…/gu, "...")
+    .replace(/ /gu, " ")
+    .replace(/\s+/gu, " ")
+    .trim();
+}
+
+/**
  * Locate the one submission row on the confirmed account's /submitted page
  * that exactly binds the actor, title, and link or text shape of a confirmed
  * publish. Returns null when no row matches.
@@ -1256,8 +1304,9 @@ export function findHackerNewsSubmittedRow(
 ): HackerNewsProjectedPost | null {
   const segments = athingSegments(boundedHtml(value, "Hacker News submitted page"))
     .filter((segment) => !segment.classes.includes("comtr"));
+  const expectedTitle = canonicalHackerNewsTitle(expected.title);
   const windowed = segments.map(projectedPost).filter((post) => {
-    if (post.author !== expected.author || post.title !== expected.title) return false;
+    if (post.author !== expected.author || canonicalHackerNewsTitle(post.title) !== expectedTitle) return false;
     if (post.createdAt === null) return false;
     const created = Date.parse(post.createdAt);
     if (created < expected.notBeforeSeconds * 1_000 - 300_000 || created > expected.nowSeconds * 1_000 + 300_000) {

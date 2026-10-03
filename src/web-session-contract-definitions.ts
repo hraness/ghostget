@@ -390,9 +390,14 @@ const GITHUB_WEB_OPERATIONS = operationPolicies("github", [
   "profiles.read",
 ]);
 const HACKER_NEWS_WEB_OPERATIONS = operationPolicies("hacker-news", [
+  "comments.create",
   "comments.read",
+  "content.save",
   "feeds.read",
+  "posts.publish",
   "posts.read",
+  "reactions.set",
+  "replies.create",
 ]);
 const REDDIT_WEB_OPERATIONS = operationPolicies("reddit", [
   "comments.read",
