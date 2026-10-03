@@ -360,8 +360,9 @@ const identities = Object.freeze({
   "linkedin-web": {
     schemaVersion: 1,
     pluginVersion: "1.6.0",
-    implementationSha256: "95000a4d81f2fdbd222fa793b229704ba77ab9a23d02b26db5fa561bd5d6e491",
+    implementationSha256: "395d697962940e02d02726737d63a6c4a99cbbd0a257d42d181d8fd2f8db6837",
     legacyCurrentReadImplementationSha256: [
+      "95000a4d81f2fdbd222fa793b229704ba77ab9a23d02b26db5fa561bd5d6e491",
       "11b52ca3dd9cbafe4829eed9f27d59bdc1c312db943ea29b93cbab6417ac7025",
       "e4614ab9c7733d7526b8157410e462f1bb48fdaa1c2319a6a4179c18b9e6839d",
       "97194dc5a8ec3afc4f4a20152efe51dbdc2fa8a8dde0cd9484b54718c4767f45",
@@ -589,7 +590,7 @@ const identities = Object.freeze({
 } as const satisfies Readonly<Record<string, ReviewedBuiltInContractIdentityV1>>);
 
 const SHA256_PATTERN = /^[a-f0-9]{64}$/u;
-const MAXIMUM_LATER_CURRENT_IDENTITIES = 12;
+const MAXIMUM_LATER_CURRENT_IDENTITIES = 13;
 const MAXIMUM_ROUTE_SCOPED_IDENTITIES = 4_096;
 const MAXIMUM_LEGACY_DISTRIBUTIONS = 64;
 const reviewedBuiltInContractTransports = new Set([

@@ -18,6 +18,7 @@ import {
   createBrowserConfig,
   createExceptionReporter,
   doNotTrackEnabled,
+  redactText,
   resolveRoute,
   sanitizeCapture,
   sanitizeError,
@@ -325,6 +326,17 @@ describe("ghostget.com analytics contract", () => {
     }
     expect(doNotTrackEnabled({ doNotTrack: "0" }, { doNotTrack: null })).toBe(false);
     expect(doNotTrackEnabled(undefined, undefined)).toBe(false);
+  });
+
+  test("percent-encoded values that only match the raw email shape are still redacted", () => {
+    const capture = sanitizeCapture({
+      event: "$pageview",
+      properties: { "": "%0a@a.aa", $current_url: home.href, token },
+    }, home);
+    expect(capture?.properties[""]).toBe("[email]");
+    expect(JSON.stringify(capture?.properties)).not.toMatch(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/u);
+    expect(redactText("%0a@a.aa")).toBe("[email]");
+    expect(redactText("keep me %0a@a.aa done")).toBe("keep me [email] done");
   });
 
   test("sanitized output never carries an email or a phc token outside the token property", () => {

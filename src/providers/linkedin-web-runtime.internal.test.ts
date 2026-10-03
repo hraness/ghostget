@@ -26,6 +26,7 @@ import {
   executeLinkedInWebOperation,
   probeLinkedInWebIdentity,
   probeLinkedInWebSubject,
+  readLinkedInWebAcceptedCommentTargetPresence,
   readLinkedInWebAcceptedPostTargetPresence,
   readLinkedInWebArticleDraftDesiredState,
   type LinkedInWebRuntimeDependencies,
@@ -46,6 +47,7 @@ import {
   type LinkedInFeedBrowserTransport,
 } from "./linkedin-web-feed-browser";
 import { LINKEDIN_PROFILE_ACTIVITY_QUERY_PREFIX } from "./linkedin-web-feed";
+import type { LinkedInCommentBrowserTransport } from "./linkedin-web-comment-browser";
 
 const MEMBER_ID = "123456789";
 const MEMBER_URN = `urn:li:fsd_profile:${MEMBER_ID}`;
@@ -4511,5 +4513,473 @@ describe("LinkedIn contacts.read runtime", () => {
       },
     });
     expect(browserCalls).toEqual(["identity", "profile", "close"]);
+  });
+});
+
+const COMMENT_POST_URN = "urn:li:activity:7511809736883855360";
+const COMMENT_PARENT_DOM_URN = "urn:li:comment:(activity:7511809736883855360,888)";
+const COMMENT_FSD_URN = `urn:li:fsd_comment:(9001,${COMMENT_POST_URN})`;
+const COMMENT_BODY = "bounded review comment";
+
+function commentCreateRecipe(): WebSessionRecipe {
+  return {
+    site: "linkedin",
+    action: "comments.create",
+    contractVersion: 1,
+    timeoutMs: 1_000,
+    maxOutputBytes: 2 * 1024 * 1024,
+  };
+}
+
+function replyCreateRecipe(): WebSessionRecipe {
+  return {
+    site: "linkedin",
+    action: "replies.create",
+    contractVersion: 1,
+    timeoutMs: 1_000,
+    maxOutputBytes: 2 * 1024 * 1024,
+  };
+}
+
+function commentsReadRecipe(): WebSessionRecipe {
+  return {
+    site: "linkedin",
+    action: "comments.read",
+    contractVersion: 1,
+    timeoutMs: 1_000,
+    maxOutputBytes: 2 * 1024 * 1024,
+  };
+}
+
+function commentProjection(
+  urns: readonly string[],
+  text: string | null,
+): Readonly<Record<string, unknown>> {
+  return {
+    comments: [{
+      actorUrn: ARTICLE_PROFILE_URN,
+      text,
+      urn: urns[0],
+      urns,
+    }],
+  };
+}
+
+describe("LinkedIn native comment runtime", () => {
+  test("admits one comment, retains its accepted target, and verifies exact readback", async () => {
+    const events: string[] = [];
+    const transport: LinkedInCommentBrowserTransport = {
+      currentIdentityResponse: () => {
+        events.push("identity");
+        return Promise.resolve(currentIdentityResponse());
+      },
+      createComment: (subject, profileUrn, dispatch) => {
+        events.push("create");
+        expect(subject).toBe(MEMBER_URN);
+        expect(profileUrn).toBe(ARTICLE_PROFILE_URN);
+        expect(dispatch).toEqual({
+          body: {
+            commentary: {
+              $type: "com.linkedin.voyager.dash.common.text.TextViewModel",
+              attributesV2: [],
+              text: COMMENT_BODY,
+            },
+            threadUrn: COMMENT_POST_URN,
+          },
+          kind: "comment",
+          postUrn: COMMENT_POST_URN,
+        });
+        return Promise.resolve({
+          commentUrn: COMMENT_FSD_URN,
+          entityConfirmed: true,
+          status: 201,
+        });
+      },
+      readComments: (_subject, _profileUrn, read) => {
+        events.push("readback");
+        expect(read).toMatchObject({
+          count: 20,
+          numReplies: 20,
+          postUrn: COMMENT_POST_URN,
+          start: 0,
+        });
+        return Promise.resolve(commentProjection(
+          [COMMENT_FSD_URN],
+          COMMENT_BODY,
+        ));
+      },
+      close: () => {
+        events.push("close");
+        return Promise.resolve();
+      },
+    };
+    const result = await executeLinkedInWebOperation(
+      commentCreateRecipe(),
+      { body: COMMENT_BODY, post_urn: COMMENT_POST_URN },
+      linkedinAuth,
+      {
+        dependencies: {
+          createCommentBrowserTransport: () => Promise.resolve(transport),
+        },
+        beforeDispatch: (event) => {
+          events.push(`before:${event.progress.started}`);
+          return Promise.resolve();
+        },
+        afterProviderAcceptedMutationTarget: (event) => {
+          expect(event).toEqual({
+            id: "comments.create",
+            index: 1,
+            target: {
+              schemaVersion: 1,
+              identifier: canonicalJson({ commentUrn: COMMENT_FSD_URN }),
+            },
+          });
+          events.push("accepted");
+          return Promise.resolve();
+        },
+        afterDispatchVerified: (event) => {
+          events.push(`after:${event.progress.verified}`);
+          return Promise.resolve();
+        },
+      },
+    );
+    expect(result).toMatchObject({
+      status: "succeeded",
+      output: {
+        provider: "linkedin",
+        operation: "comments.create",
+        comment: { commentUrn: COMMENT_FSD_URN, postUrn: COMMENT_POST_URN },
+      },
+      dispatchStarted: true,
+      dispatch: { planned: 1, started: 1, verified: 1 },
+    });
+    expect(events).toEqual([
+      "identity",
+      "before:0",
+      "create",
+      "accepted",
+      "readback",
+      "after:1",
+      "close",
+    ]);
+  });
+
+  test("keeps an unverified acceptance indeterminate and never retries", async () => {
+    const events: string[] = [];
+    const transport: LinkedInCommentBrowserTransport = {
+      currentIdentityResponse: () => Promise.resolve(currentIdentityResponse()),
+      createComment: () => {
+        events.push("create");
+        return Promise.resolve({
+          commentUrn: COMMENT_FSD_URN,
+          entityConfirmed: false,
+          status: 500,
+        });
+      },
+      readComments: () => Promise.reject(new Error("must not readback an unaccepted shape")),
+      close: () => {
+        events.push("close");
+        return Promise.resolve();
+      },
+    };
+    const result = await executeLinkedInWebOperation(
+      commentCreateRecipe(),
+      { body: COMMENT_BODY, post_urn: COMMENT_POST_URN },
+      linkedinAuth,
+      {
+        dependencies: {
+          createCommentBrowserTransport: () => Promise.resolve(transport),
+        },
+        afterProviderAcceptedMutationTarget: () => {
+          events.push("accepted");
+          return Promise.resolve();
+        },
+      },
+    );
+    expect(result).toMatchObject({
+      status: "indeterminate",
+      dispatchStarted: true,
+      dispatch: { planned: 1, started: 1, verified: 0 },
+    });
+    expect(result.error).toContain("may have accepted the comment");
+    expect(result.error).toContain("reconcile before retrying");
+    expect(events).toEqual(["create", "accepted", "close"]);
+  });
+
+  test("stays indeterminate when readback cannot find the accepted comment", async () => {
+    let reads = 0;
+    const transport: LinkedInCommentBrowserTransport = {
+      currentIdentityResponse: () => Promise.resolve(currentIdentityResponse()),
+      createComment: () => Promise.resolve({
+        commentUrn: COMMENT_FSD_URN,
+        entityConfirmed: true,
+        status: 201,
+      }),
+      readComments: () => {
+        reads += 1;
+        return Promise.resolve(commentProjection(
+          [`urn:li:fsd_comment:(9999,${COMMENT_POST_URN})`],
+          "unrelated",
+        ));
+      },
+      close: () => Promise.resolve(),
+    };
+    const result = await executeLinkedInWebOperation(
+      commentCreateRecipe(),
+      { body: COMMENT_BODY, post_urn: COMMENT_POST_URN },
+      linkedinAuth,
+      {
+        dependencies: {
+          createCommentBrowserTransport: () => Promise.resolve(transport),
+        },
+      },
+    );
+    expect(result).toMatchObject({
+      status: "indeterminate",
+      dispatchStarted: true,
+      dispatch: { planned: 1, started: 1, verified: 0 },
+    });
+    expect(result.error).toContain("independent comment readback");
+    expect(reads).toBeGreaterThan(0);
+  });
+
+  test("fails before dispatch when the bound member drifts", async () => {
+    const transport: LinkedInCommentBrowserTransport = {
+      currentIdentityResponse: () => Promise.resolve({
+        data: { plainId: "999999999", "*miniProfile": MINI_PROFILE_URN },
+        included: [{ entityUrn: MINI_PROFILE_URN, publicIdentifier: "other" }],
+      }),
+      createComment: () => Promise.reject(new Error("must not dispatch after member drift")),
+      readComments: () => Promise.reject(new Error("must not read after member drift")),
+      close: () => Promise.resolve(),
+    };
+    const result = await executeLinkedInWebOperation(
+      commentCreateRecipe(),
+      { body: COMMENT_BODY, post_urn: COMMENT_POST_URN },
+      linkedinAuth,
+      {
+        dependencies: {
+          createCommentBrowserTransport: () => Promise.resolve(transport),
+        },
+      },
+    );
+    expect(result).toMatchObject({
+      status: "failed",
+      dispatchStarted: false,
+      dispatch: { planned: 1, started: 0, verified: 0 },
+    });
+    expect(result.error).toContain("failed before comment submission");
+    expect(result.error).not.toContain("inbox");
+  });
+
+  test("admits one reply bound to its exact parent comment and verifies parent presence", async () => {
+    const replyFsd = `urn:li:fsd_comment:(9002,${COMMENT_POST_URN})`;
+    const seen: string[] = [];
+    const transport: LinkedInCommentBrowserTransport = {
+      currentIdentityResponse: () => Promise.resolve(currentIdentityResponse()),
+      createComment: (_subject, _profileUrn, dispatch) => {
+        expect(dispatch.kind).toBe("reply");
+        expect(dispatch.body).toMatchObject({
+          commentary: { attributesV2: [], text: COMMENT_BODY },
+          threadUrn: COMMENT_PARENT_DOM_URN,
+        });
+        return Promise.resolve({
+          commentUrn: replyFsd,
+          entityConfirmed: true,
+          status: 201,
+        });
+      },
+      readComments: () => {
+        seen.push("readback");
+        return Promise.resolve(commentProjection(
+          [replyFsd, COMMENT_PARENT_DOM_URN],
+          COMMENT_BODY,
+        ));
+      },
+      close: () => Promise.resolve(),
+    };
+    const result = await executeLinkedInWebOperation(
+      replyCreateRecipe(),
+      {
+        body: COMMENT_BODY,
+        comment_urn: COMMENT_PARENT_DOM_URN,
+        post_urn: COMMENT_POST_URN,
+      },
+      linkedinAuth,
+      {
+        dependencies: {
+          createCommentBrowserTransport: () => Promise.resolve(transport),
+        },
+        afterProviderAcceptedMutationTarget: (event) => {
+          expect(event.target.identifier)
+            .toBe(canonicalJson({ commentUrn: replyFsd }));
+          return Promise.resolve();
+        },
+      },
+    );
+    expect(result).toMatchObject({
+      status: "succeeded",
+      output: {
+        operation: "replies.create",
+        comment: {
+          commentUrn: replyFsd,
+          parentUrn: COMMENT_PARENT_DOM_URN,
+          postUrn: COMMENT_POST_URN,
+        },
+      },
+      dispatch: { planned: 1, started: 1, verified: 1 },
+    });
+    expect(seen).toEqual(["readback"]);
+  });
+
+  test("rejects a reply whose parent comment binds a different root activity", async () => {
+    await expect(executeLinkedInWebOperation(
+      replyCreateRecipe(),
+      {
+        body: COMMENT_BODY,
+        comment_urn: "urn:li:comment:(activity:1,888)",
+        post_urn: COMMENT_POST_URN,
+      },
+      linkedinAuth,
+      {
+        dependencies: {
+          createCommentBrowserTransport: () =>
+            Promise.reject(new Error("transport must not open")),
+        },
+      },
+    )).rejects.toThrow("post_urn must bind the parent comment's root activity");
+  });
+
+  test("reads one bounded comments page with exact cursor binding", async () => {
+    const reads: Readonly<Record<string, unknown>>[] = [];
+    const comments = Array.from({ length: 20 }, (_, index) => ({
+      actorUrn: ARTICLE_PROFILE_URN,
+      text: `comment ${index}`,
+      urn: `urn:li:fsd_comment:(${9100 + index},${COMMENT_POST_URN})`,
+      urns: [`urn:li:fsd_comment:(${9100 + index},${COMMENT_POST_URN})`],
+    }));
+    const transport: LinkedInCommentBrowserTransport = {
+      currentIdentityResponse: () => Promise.resolve(currentIdentityResponse()),
+      createComment: () => Promise.reject(new Error("reads must not create")),
+      readComments: (_subject, _profileUrn, read) => {
+        reads.push(read);
+        const start = read.start as number;
+        if (start === 0) return Promise.resolve({ comments });
+        if (start === 20) {
+          return Promise.resolve({
+            comments: Array.from({ length: 3 }, (_, index) => ({
+              actorUrn: ARTICLE_PROFILE_URN,
+              text: `tail ${index}`,
+              urn: `urn:li:fsd_comment:(${9200 + index},${COMMENT_POST_URN})`,
+              urns: [`urn:li:fsd_comment:(${9200 + index},${COMMENT_POST_URN})`],
+            })),
+          });
+        }
+        return Promise.resolve({ comments: [] });
+      },
+      close: () => Promise.resolve(),
+    };
+    const result = await executeLinkedInWebOperation(
+      commentsReadRecipe(),
+      { post_urn: COMMENT_POST_URN, limit: 23 },
+      linkedinAuth,
+      {
+        dependencies: {
+          createCommentBrowserTransport: () => Promise.resolve(transport),
+        },
+      },
+    );
+    expect(result).toMatchObject({
+      status: "succeeded",
+      dispatchStarted: false,
+      dispatch: { planned: 0, started: 0, verified: 0 },
+      output: {
+        complete: true,
+        nextCursor: null,
+        post: { urn: COMMENT_POST_URN },
+      },
+    });
+    const output = result.output as { comments: readonly unknown[] };
+    expect(output.comments).toHaveLength(23);
+    expect(reads.map((read) => read.start)).toEqual([0, 20]);
+    expect(reads[0]).toMatchObject({ count: 20, numReplies: 1, postUrn: COMMENT_POST_URN });
+  });
+
+  test("surfaces comments-specific read failures without inbox wording", async () => {
+    const transport: LinkedInCommentBrowserTransport = {
+      currentIdentityResponse: () => Promise.resolve(currentIdentityResponse()),
+      createComment: () => Promise.reject(new Error("reads must not create")),
+      readComments: () => Promise.reject(
+        new Error("LinkedIn comments read content type changed"),
+      ),
+      close: () => Promise.resolve(),
+    };
+    const result = await executeLinkedInWebOperation(
+      commentsReadRecipe(),
+      { post_urn: COMMENT_POST_URN, limit: 5 },
+      linkedinAuth,
+      {
+        dependencies: {
+          createCommentBrowserTransport: () => Promise.resolve(transport),
+        },
+      },
+    );
+    expect(result).toMatchObject({
+      status: "failed",
+      dispatchStarted: false,
+      dispatch: { planned: 0, started: 0, verified: 0 },
+    });
+    expect(result.error).toContain("comments query contract drifted");
+    expect(result.error).not.toContain("inbox");
+    expect(result.error).not.toContain("conversation");
+  });
+
+  test("rejects a cursor bound to another post before opening the transport", async () => {
+    await expect(executeLinkedInWebOperation(
+      commentsReadRecipe(),
+      { post_urn: COMMENT_POST_URN, cursor: "1:20" },
+      linkedinAuth,
+      {
+        dependencies: {
+          createCommentBrowserTransport: () =>
+            Promise.reject(new Error("transport must not open")),
+        },
+      },
+    )).rejects.toThrow("does not bind this LinkedIn post");
+  });
+
+  test("reconciles a retained accepted comment target through independent readback", async () => {
+    const transport: LinkedInCommentBrowserTransport = {
+      currentIdentityResponse: () => Promise.resolve(currentIdentityResponse()),
+      createComment: () => Promise.reject(new Error("reconcile must not create")),
+      readComments: () => Promise.resolve(commentProjection(
+        [COMMENT_FSD_URN],
+        COMMENT_BODY,
+      )),
+      close: () => Promise.resolve(),
+    };
+    const presence = await readLinkedInWebAcceptedCommentTargetPresence(
+      commentCreateRecipe(),
+      { body: COMMENT_BODY, post_urn: COMMENT_POST_URN },
+      linkedinAuth,
+      canonicalJson({ commentUrn: COMMENT_FSD_URN }),
+      {
+        dependencies: {
+          createCommentBrowserTransport: () => Promise.resolve(transport),
+        },
+      },
+    );
+    expect(presence).toEqual({ present: true });
+    await expect(readLinkedInWebAcceptedCommentTargetPresence(
+      commentCreateRecipe(),
+      { body: COMMENT_BODY, post_urn: COMMENT_POST_URN },
+      linkedinAuth,
+      canonicalJson({ commentUrn: `urn:li:fsd_comment:(9999,${COMMENT_POST_URN})` }),
+      {
+        dependencies: {
+          createCommentBrowserTransport: () => Promise.resolve(transport),
+        },
+      },
+    )).rejects.toThrow("did not find the confirmed comment");
   });
 });

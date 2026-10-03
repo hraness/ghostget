@@ -2417,15 +2417,26 @@
 // Keep all existing projections and allowances:
 // 12,183,657 + 12,387 + 4,096 = 12,200,140 packed;
 // 24,145,741 + 353 + 65 = 24,146,159 payload.
+// The reviewed web-write graduations over 0.18.71 add the retained
+// hacker-news 1.1.0, bluesky 1.7.0, bluesky 1.8.0, and x 1.15.0 adapter
+// snapshots plus the LinkedIn contained comment transport
+// (src/providers/linkedin-web-comment-browser.ts): five additional packed
+// source files over the 626-entry inventory. Two byte-identical npm 11.16.0
+// packs --ignore-scripts on darwin arm64 measured 631 entries, 12,214,329
+// packed bytes and 24,339,696 payload bytes; archive SHA-256
+// e581b9344c85da142e2845ca0847778b07ac8ab970c9d05d675eeae9b625bea9.
+// Keep all existing projections and allowances:
+// 12,214,329 + 12,387 + 4,096 = 12,230,812 packed;
+// 24,339,696 + 353 + 65 = 24,340,114 payload.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "GhostGet 0.18.71 roster-bound group automation over the verified 0.18.65 package",
+  scope: "reviewed LinkedIn comment transport plus retained adapter snapshots over the verified 0.18.71 package",
   command: "npm pack --ignore-scripts",
-  npmVersion: "11.19.0",
+  npmVersion: "11.16.0",
   platform: "darwin-arm64",
-  archiveSha256: "869505039ff55197d8dbab2c49f923e4effaeb71ea124ee2e59852a84127ab4e",
-  packedBytes: 12_183_657,
-  unpackedBytes: 24_145_741,
-  entryCount: 626,
+  archiveSha256: "e581b9344c85da142e2845ca0847778b07ac8ab970c9d05d675eeae9b625bea9",
+  packedBytes: 12_214_329,
+  unpackedBytes: 24_339_696,
+  entryCount: 631,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,

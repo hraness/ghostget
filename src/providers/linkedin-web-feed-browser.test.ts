@@ -85,6 +85,16 @@ function networkRecord(
   return { success: true, result: { requests } };
 }
 
+function navigatedRecord(): Readonly<Record<string, unknown>> {
+  return {
+    success: true,
+    result: {
+      origin: "https://www.linkedin.com/robots.txt",
+      result: { navigated: true },
+    },
+  };
+}
+
 function currentUrlRecord(url: string): Readonly<Record<string, unknown>> {
   return { success: true, result: { url } };
 }
@@ -134,6 +144,9 @@ describe("LinkedIn profile-activity browser transport", () => {
       runBatch: (batch) => {
         commands.push(batch);
         const command = batch[0];
+        if (command?.[0] === "eval" && command[1]?.includes("location.href=input")) {
+          return Promise.resolve([navigatedRecord()]);
+        }
         if (command?.[0] === "eval" && command[1]?.includes("voyagerFeedDashProfileUpdates")) {
           const start = pageReads * 10;
           pageReads += 1;
@@ -187,9 +200,19 @@ describe("LinkedIn profile-activity browser transport", () => {
       expect(source).toContain(`\"documentUrl\":\"${target.activityUrl}\"`);
       expect(source).toContain("redirect:\"manual\"");
     }
-    expect(commands.some((batch) => batch[0]?.[0] === "open")).toBeTrue();
+    expect(
+      commands.some((batch) =>
+        batch[0]?.[0] === "eval" && batch[0]?.[1]?.includes("location.href=input.activityUrl")
+      ),
+    ).toBeTrue();
     expect(commands.some((batch) => batch[0]?.[0] === "network")).toBeTrue();
     expect(commands.some((batch) => batch[0]?.[0] === "get")).toBeTrue();
+    for (const batch of commands) {
+      for (const command of batch) {
+        if (command[0] !== "eval") continue;
+        expect(() => new Function(command[1] ?? "")).not.toThrow();
+      }
+    }
   });
 
   test("refuses page reads until navigation establishes the internal binding", async () => {
@@ -225,6 +248,9 @@ describe("LinkedIn profile-activity browser transport", () => {
     const session: BrowserSession = {
       runBatch: (batch) => {
         const command = batch[0];
+        if (command?.[0] === "eval" && command[1]?.includes("location.href=input")) {
+          return Promise.resolve([navigatedRecord()]);
+        }
         if (command?.[0] === "eval") return Promise.resolve([bodyRecord(ME_BODY)]);
         if (command?.[0] === "network") return Promise.resolve([networkRecord([stale])]);
         if (command?.[0] === "get") return Promise.resolve([currentUrlRecord(target.activityUrl)]);
@@ -255,6 +281,9 @@ describe("LinkedIn profile-activity browser transport", () => {
       const session: BrowserSession = {
         runBatch: (batch) => {
           const command = batch[0];
+          if (command?.[0] === "eval" && command[1]?.includes("location.href=input")) {
+            return Promise.resolve([navigatedRecord()]);
+          }
           if (command?.[0] === "eval") return Promise.resolve([bodyRecord(ME_BODY)]);
           if (command?.[0] === "network") {
             networkReads += 1;
@@ -312,6 +341,9 @@ describe("LinkedIn profile-activity browser transport", () => {
     const session: BrowserSession = {
       runBatch: (batch) => {
         const command = batch[0];
+        if (command?.[0] === "eval" && command[1]?.includes("location.href=input")) {
+          return Promise.resolve([navigatedRecord()]);
+        }
         if (command?.[0] === "eval" && command[1]?.includes("voyagerFeedDashProfileUpdates")) {
           return Promise.reject(new Error(
             "LinkedIn profile-activity browser reached its signed-out authwall",

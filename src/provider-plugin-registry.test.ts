@@ -527,8 +527,8 @@ describe("provider plugin definition and registry", () => {
         id: "linkedin-web",
         surface: "linkedin",
         version: "1.6.0",
-        current: "95000a4d81f2fdbd222fa793b229704ba77ab9a23d02b26db5fa561bd5d6e491",
-        prior: "11b52ca3dd9cbafe4829eed9f27d59bdc1c312db943ea29b93cbab6417ac7025",
+        current: "395d697962940e02d02726737d63a6c4a99cbbd0a257d42d181d8fd2f8db6837",
+        prior: "95000a4d81f2fdbd222fa793b229704ba77ab9a23d02b26db5fa561bd5d6e491",
         operation: "profiles.read",
         contractVersion: 1,
       },
@@ -4183,60 +4183,51 @@ describe("provider plugin definition and registry", () => {
         [
           "manifest.origins must exactly match provider plugin surface linkedin: https://static.licdn.com, https://www.linkedin.com",
           "manifest.browserDomains must exactly match provider plugin surface linkedin: static.licdn.com, www.linkedin.com",
+          "manifest.operations.comments.read.input must exactly match authenticated web contract linkedin/comments.read@1",
           "authenticated web contract linkedin/posts.publish@1 is not installed",
+          "manifest.operations.comments.create.input must exactly match authenticated web contract linkedin/comments.create@1",
+          "manifest.operations.replies.create.input must exactly match authenticated web contract linkedin/replies.create@1",
         ],
       ] as const),
-      ...["1.2.0", "1.3.0"].map((version) => [
+      ...["1.2.0", "1.3.0", "1.6.0"].map((version) => [
         join(root, "linkedin", `wrench-web-adapter.v${version}.json`),
         [
           "manifest.origins must exactly match provider plugin surface linkedin: https://static.licdn.com, https://www.linkedin.com",
           "manifest.browserDomains must exactly match provider plugin surface linkedin: static.licdn.com, www.linkedin.com",
           "manifest.operations.profiles.read.input must exactly match authenticated web contract linkedin/profiles.read@1",
           "manifest.operations.organizations.read.input must exactly match authenticated web contract linkedin/organizations.read@1",
+          "manifest.operations.comments.read.input must exactly match authenticated web contract linkedin/comments.read@1",
           "authenticated web contract linkedin/posts.publish@1 is not installed",
+          "manifest.operations.comments.create.input must exactly match authenticated web contract linkedin/comments.create@1",
+          "manifest.operations.replies.create.input must exactly match authenticated web contract linkedin/replies.create@1",
         ],
       ] as const),
-      [
-        join(root, "linkedin", "wrench-web-adapter.v1.4.0.json"),
+      ...["1.4.0", "1.5.0"].map((version) => [
+        join(root, "linkedin", `wrench-web-adapter.v${version}.json`),
         [
           "manifest.origins must exactly match provider plugin surface linkedin: https://static.licdn.com, https://www.linkedin.com",
           "manifest.browserDomains must exactly match provider plugin surface linkedin: static.licdn.com, www.linkedin.com",
           "manifest.operations.profiles.read.input must exactly match authenticated web contract linkedin/profiles.read@1",
           "manifest.operations.organizations.read.input must exactly match authenticated web contract linkedin/organizations.read@1",
+          "manifest.operations.comments.read.input must exactly match authenticated web contract linkedin/comments.read@1",
           "authenticated web contract linkedin/posts.publish@1 is not installed",
+          "manifest.operations.comments.create.input must exactly match authenticated web contract linkedin/comments.create@1",
+          "manifest.operations.replies.create.input must exactly match authenticated web contract linkedin/replies.create@1",
           "authenticated web contract linkedin/articles.draft.save@1 is not installed",
         ],
-      ],
-      [
-        join(root, "linkedin", "wrench-web-adapter.v1.5.0.json"),
-        [
-          "manifest.origins must exactly match provider plugin surface linkedin: https://static.licdn.com, https://www.linkedin.com",
-          "manifest.browserDomains must exactly match provider plugin surface linkedin: static.licdn.com, www.linkedin.com",
-          "manifest.operations.profiles.read.input must exactly match authenticated web contract linkedin/profiles.read@1",
-          "manifest.operations.organizations.read.input must exactly match authenticated web contract linkedin/organizations.read@1",
-          "authenticated web contract linkedin/posts.publish@1 is not installed",
-          "authenticated web contract linkedin/articles.draft.save@1 is not installed",
-        ],
-      ],
-      [
-        join(root, "linkedin", "wrench-web-adapter.v1.6.0.json"),
-        [
-          "manifest.origins must exactly match provider plugin surface linkedin: https://static.licdn.com, https://www.linkedin.com",
-          "manifest.browserDomains must exactly match provider plugin surface linkedin: static.licdn.com, www.linkedin.com",
-          "manifest.operations.profiles.read.input must exactly match authenticated web contract linkedin/profiles.read@1",
-          "manifest.operations.organizations.read.input must exactly match authenticated web contract linkedin/organizations.read@1",
-          "authenticated web contract linkedin/posts.publish@1 is not installed",
-        ],
-      ],
+      ] as const),
       [
         join(root, "linkedin", "wrench-web-adapter.v1.7.0.json"),
         [
           "manifest.origins must exactly match provider plugin surface linkedin: https://static.licdn.com, https://www.linkedin.com",
           "manifest.browserDomains must exactly match provider plugin surface linkedin: static.licdn.com, www.linkedin.com",
           "authenticated web contract linkedin/articles.draft.save@3 is not installed",
+          "manifest.operations.comments.create.input must exactly match authenticated web contract linkedin/comments.create@1",
+          "manifest.operations.comments.read.input must exactly match authenticated web contract linkedin/comments.read@1",
           "manifest.operations.organizations.read.input must exactly match authenticated web contract linkedin/organizations.read@1",
           "authenticated web contract linkedin/posts.publish@1 is not installed",
           "manifest.operations.profiles.read.input must exactly match authenticated web contract linkedin/profiles.read@1",
+          "manifest.operations.replies.create.input must exactly match authenticated web contract linkedin/replies.create@1",
         ],
       ],
       ...["1.8.0", "1.14.0", "1.15.0"].map((version) => [
@@ -4244,6 +4235,9 @@ describe("provider plugin definition and registry", () => {
         [
           "manifest.operations.profiles.read.input must exactly match authenticated web contract linkedin/profiles.read@1",
           "manifest.operations.organizations.read.input must exactly match authenticated web contract linkedin/organizations.read@1",
+          "manifest.operations.comments.read.input must exactly match authenticated web contract linkedin/comments.read@1",
+          "manifest.operations.comments.create.input must exactly match authenticated web contract linkedin/comments.create@1",
+          "manifest.operations.replies.create.input must exactly match authenticated web contract linkedin/replies.create@1",
         ],
       ] as const),
       ...["1.9.0", "1.10.0"].map((version) => [
@@ -4251,6 +4245,9 @@ describe("provider plugin definition and registry", () => {
         [
           "manifest.operations.profiles.read.input must exactly match authenticated web contract linkedin/profiles.read@1",
           "manifest.operations.organizations.read.input must exactly match authenticated web contract linkedin/organizations.read@1",
+          "manifest.operations.comments.read.input must exactly match authenticated web contract linkedin/comments.read@1",
+          "manifest.operations.comments.create.input must exactly match authenticated web contract linkedin/comments.create@1",
+          "manifest.operations.replies.create.input must exactly match authenticated web contract linkedin/replies.create@1",
           "authenticated web contract linkedin/articles.draft.save@3 is not installed",
         ],
       ] as const),
@@ -4259,6 +4256,9 @@ describe("provider plugin definition and registry", () => {
         [
           "manifest.operations.profiles.read.input must exactly match authenticated web contract linkedin/profiles.read@1",
           "manifest.operations.organizations.read.input must exactly match authenticated web contract linkedin/organizations.read@1",
+          "manifest.operations.comments.read.input must exactly match authenticated web contract linkedin/comments.read@1",
+          "manifest.operations.comments.create.input must exactly match authenticated web contract linkedin/comments.create@1",
+          "manifest.operations.replies.create.input must exactly match authenticated web contract linkedin/replies.create@1",
           "authenticated web contract linkedin/articles.draft.save@4 is not installed",
         ],
       ],
@@ -4267,6 +4267,9 @@ describe("provider plugin definition and registry", () => {
         [
           "manifest.operations.profiles.read.input must exactly match authenticated web contract linkedin/profiles.read@1",
           "manifest.operations.organizations.read.input must exactly match authenticated web contract linkedin/organizations.read@1",
+          "manifest.operations.comments.read.input must exactly match authenticated web contract linkedin/comments.read@1",
+          "manifest.operations.comments.create.input must exactly match authenticated web contract linkedin/comments.create@1",
+          "manifest.operations.replies.create.input must exactly match authenticated web contract linkedin/replies.create@1",
           "authenticated web contract linkedin/articles.draft.save@5 is not installed",
         ],
       ],
@@ -4275,6 +4278,9 @@ describe("provider plugin definition and registry", () => {
         [
           "manifest.operations.profiles.read.input must exactly match authenticated web contract linkedin/profiles.read@1",
           "manifest.operations.organizations.read.input must exactly match authenticated web contract linkedin/organizations.read@1",
+          "manifest.operations.comments.read.input must exactly match authenticated web contract linkedin/comments.read@1",
+          "manifest.operations.comments.create.input must exactly match authenticated web contract linkedin/comments.create@1",
+          "manifest.operations.replies.create.input must exactly match authenticated web contract linkedin/replies.create@1",
           "authenticated web contract linkedin/articles.draft.save@6 is not installed",
         ],
       ],

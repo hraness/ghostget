@@ -1,7 +1,7 @@
 {
   "schemaVersion": 4,
   "id": "linkedin-web",
-  "version": "1.36.3",
+  "version": "1.36.4",
   "displayName": "LinkedIn (Authenticated Web API)",
   "surfaceId": "linkedin",
   "origins": [
@@ -388,7 +388,7 @@
       }
     },
     "comments.read": {
-      "description": "Capture-required contract reservation: list one bounded page of comments for an exact LinkedIn post after the consumer-web collection request is captured and reviewed.",
+      "description": "List one bounded page of comments for one exact LinkedIn activity-URN post through the member-bound voyagerSocialDashComments collection (RELEVANCE order, paged start cursor), projecting comment URNs, text, and actor URNs",
       "risk": "R1",
       "sideEffect": "none",
       "idempotency": "none",
@@ -397,7 +397,7 @@
         "properties": {
           "post_urn": {
             "type": "string",
-            "description": "Exact LinkedIn share or UGC-post URN",
+            "description": "Exact LinkedIn activity URN (urn:li:activity:<id>)",
             "minLength": 1,
             "maxLength": 500
           },
@@ -643,7 +643,7 @@
       }
     },
     "comments.create": {
-      "description": "Capture-required contract reservation: create one confirmed top-level LinkedIn comment after exact actor, post, and returned-comment bindings are captured and reviewed.",
+      "description": "Create one exact confirmed top-level LinkedIn comment on the confirmed activity-URN post through the member-bound NormComments create (201 plus x-restli-id and normalized entity corroboration), durably retain the accepted comment URN, then independently read it back through the reviewed comments collection",
       "risk": "R3",
       "sideEffect": "Publishes one externally visible comment on the exact confirmed LinkedIn post.",
       "idempotency": "local-at-most-once",
@@ -652,7 +652,7 @@
         "properties": {
           "post_urn": {
             "type": "string",
-            "description": "Exact LinkedIn share or UGC-post URN",
+            "description": "Exact LinkedIn activity URN (urn:li:activity:<id>)",
             "minLength": 1,
             "maxLength": 500
           },
@@ -677,7 +677,7 @@
       }
     },
     "replies.create": {
-      "description": "Capture-required contract reservation: create one confirmed LinkedIn comment reply after exact actor, root, parent, and returned-reply bindings are captured and reviewed.",
+      "description": "Create one exact confirmed LinkedIn reply under the confirmed parent comment on the confirmed activity-URN post through the member-bound NormComments create-a-comment-reply dispatch (201 plus x-restli-id), durably retain the accepted reply URN, then independently read it back through the reviewed comments collection",
       "risk": "R3",
       "sideEffect": "Publishes one externally visible reply to the exact confirmed LinkedIn comment.",
       "idempotency": "local-at-most-once",
@@ -686,13 +686,13 @@
         "properties": {
           "post_urn": {
             "type": "string",
-            "description": "Exact root LinkedIn share or UGC-post URN",
+            "description": "Exact root LinkedIn activity URN (urn:li:activity:<id>) binding the parent comment",
             "minLength": 1,
             "maxLength": 500
           },
           "comment_urn": {
             "type": "string",
-            "description": "Exact parent comment URN",
+            "description": "Exact parent comment URN (urn:li:comment:(activity:<post-id>,<comment-id>) or urn:li:fsd_comment:(<comment-id>,<post-urn>))",
             "minLength": 1,
             "maxLength": 1000
           },

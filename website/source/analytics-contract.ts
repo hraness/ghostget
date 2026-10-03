@@ -292,9 +292,18 @@ function isPathnameKey(key: string): boolean {
   return /^\$?(?:(?:initial|session_entry|prev_pageview)_)?pathname$/u.test(key.toLowerCase());
 }
 
+// The shared redactor scans a percent-decoded inspection shadow, so an encoded
+// value whose decoded form is not an email can still carry a raw email-shaped
+// substring. Redact those surviving spans as well so sanitized output never
+// exposes an email-shaped token.
+const RAW_EMAIL_LIKE =
+  /[\p{L}\p{N}\p{M}._%+-]+@[\p{L}\p{N}\p{M}.-]+\.[\p{L}\p{M}]{2,}/gu;
+
 export function redactText(value: string): string {
   // Inspect complete values before the site limit can split an encoded secret.
-  return redactSharedAnalyticsText(value).slice(0, MAX_STRING_LENGTH);
+  return redactSharedAnalyticsText(value)
+    .replace(RAW_EMAIL_LIKE, "[email]")
+    .slice(0, MAX_STRING_LENGTH);
 }
 
 function sanitizeString(key: string, value: string, route: AnalyticsRoute): string {

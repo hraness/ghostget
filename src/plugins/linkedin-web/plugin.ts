@@ -24,6 +24,10 @@ import {
   webSessionContractDefinitions,
 } from "../../web-session-contract-definitions";
 import { linkedInProfileActivityInputIssues } from "../../providers/linkedin-web-feed";
+import {
+  linkedInCommentPostUrn,
+  linkedInParentCommentTarget,
+} from "../../providers/linkedin-web";
 
 const linkedinContracts = webSessionContractDefinitions.linkedin;
 if (linkedinContracts === undefined) {
@@ -149,6 +153,33 @@ function linkedinPostIssues(
   return Object.freeze([]);
 }
 
+function linkedinCommentPostIssues(
+  input: Readonly<Record<string, unknown>>,
+): readonly string[] {
+  try {
+    linkedInCommentPostUrn(input.post_urn);
+  } catch (error) {
+    return Object.freeze([error instanceof Error ? error.message : "input.post_urn is invalid"]);
+  }
+  return Object.freeze([]);
+}
+
+function linkedinReplyIssues(
+  input: Readonly<Record<string, unknown>>,
+): readonly string[] {
+  const issues = [...linkedinCommentPostIssues(input)];
+  if (issues.length !== 0) return Object.freeze(issues);
+  try {
+    const parent = linkedInParentCommentTarget(input.comment_urn);
+    if (`urn:li:activity:${parent.activityId}` !== input.post_urn) {
+      issues.push("input.comment_urn must bind a comment on input.post_urn");
+    }
+  } catch (error) {
+    issues.push(error instanceof Error ? error.message : "input.comment_urn is invalid");
+  }
+  return Object.freeze(issues);
+}
+
 function linkedinArticleDraftV2Dispatches(
   input: Readonly<Record<string, unknown>>,
 ): readonly { readonly id: string; readonly description: string }[] {
@@ -189,7 +220,7 @@ function linkedinArticleDraftV2Dispatches(
 
 const currentOperations = webSessionContractOperations(
   Object.values(linkedinContracts),
-    "e7b252e0332557f3e8cc764800ada4972ca093d9974e2b876a904588523f441c",
+    "3b119f69f42ada290e3918a711a5b6e4e46e10952399ee68e2c0b3f1a03f2f5c",
   {
     "posts.publish": [2],
   },
@@ -208,6 +239,14 @@ const currentOperations = webSessionContractOperations(
       id: "posts.publish",
       description: "Publish one externally visible LinkedIn post with the exact confirmed audience and content.",
     })]),
+    "comments.create": () => Object.freeze([Object.freeze({
+      id: "comments.create",
+      description: "Publish one externally visible comment on the exact confirmed LinkedIn post.",
+    })]),
+    "replies.create": () => Object.freeze([Object.freeze({
+      id: "replies.create",
+      description: "Publish one externally visible reply to the exact confirmed LinkedIn comment.",
+    })]),
     "articles.draft.save": linkedinArticleDraftV2Dispatches,
   },
 ).map((operation) => {
@@ -218,6 +257,30 @@ const currentOperations = webSessionContractOperations(
       reconciliation: Object.freeze({
         kind: "provider-accepted-target-presence" as const,
       }),
+    });
+  }
+  if (operation.name === "comments.create") {
+    return Object.freeze({
+      ...operation,
+      validateInput: linkedinCommentPostIssues,
+      reconciliation: Object.freeze({
+        kind: "provider-accepted-target-presence" as const,
+      }),
+    });
+  }
+  if (operation.name === "replies.create") {
+    return Object.freeze({
+      ...operation,
+      validateInput: linkedinReplyIssues,
+      reconciliation: Object.freeze({
+        kind: "provider-accepted-target-presence" as const,
+      }),
+    });
+  }
+  if (operation.name === "comments.read") {
+    return Object.freeze({
+      ...operation,
+      validateInput: linkedinCommentPostIssues,
     });
   }
   if (operation.name === "feeds.read") {
@@ -341,6 +404,7 @@ export const linkedinWebPlugin = defineProviderPlugin({
     ["providers/linkedin-web.ts", "../../providers/linkedin-web.ts"],
     ["providers/linkedin-web-bootstrap.ts", "../../providers/linkedin-web-bootstrap.ts"],
     ["providers/linkedin-web-article-browser.ts", "../../providers/linkedin-web-article-browser.ts"],
+    ["providers/linkedin-web-comment-browser.ts", "../../providers/linkedin-web-comment-browser.ts"],
     ["providers/linkedin-web-post-browser.ts", "../../providers/linkedin-web-post-browser.ts"],
     ["providers/linkedin-web-profile-browser.ts", "../../providers/linkedin-web-profile-browser.ts"],
     ["providers/linkedin-web-contact.ts", "../../providers/linkedin-web-contact.ts"],
@@ -382,6 +446,22 @@ export const linkedinWebPlugin = defineProviderPlugin({
               site: "linkedin",
               action: operation,
               contractVersion: 3,
+              timeoutMs: 60_000,
+              maxOutputBytes: 2 * 1024 * 1024,
+            }, input, auth, context.target.identifier);
+            return {
+              actualState: readback.present,
+              reason: "exact-target-readback",
+            };
+          }
+          if (operation === "comments.create" || operation === "replies.create") {
+            if (context?.kind !== "provider-accepted-target-presence") {
+              throw new Error(`LinkedIn ${operation} reconciliation requires one exact accepted target`);
+            }
+            const readback = await runtime.readLinkedInWebAcceptedCommentTargetPresence({
+              site: "linkedin",
+              action: operation,
+              contractVersion: 1,
               timeoutMs: 60_000,
               maxOutputBytes: 2 * 1024 * 1024,
             }, input, auth, context.target.identifier);
