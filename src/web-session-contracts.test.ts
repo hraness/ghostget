@@ -62,10 +62,10 @@ describe("authenticated web-session contract identity", () => {
     // Writers use the exact predecessor runtime identities produced with
     // NODE_ENV unset. Runtime source closure is verified independently.
     expect(webSessionContractHash(xLike)).toBe(
-      "f0c3c5cfba7f66fa145511b85ae903f6c747cffc06953ad66cc016b345c90db9",
+      "026362b9af92caf0111c1c70c9f09a070ec102329c88de0566fd1b5d1dfd2d51",
     );
     expect(webSessionContractHash(linkedinFeed)).toBe(
-      "ac7a2f9e6c50b84cf51152b57d7d277b80c1a8fb2a87cd74ac5c4742098ea13c",
+      "4455f0bdd63b6368662572646f1d88c93413618d568f92e66e0e94567ea80ebc",
     );
     expect(webSessionContractHash(facebookFeed)).toBe(
       "e21b1bd88344b3c4980e1d0a87094f69bfa56d5f78ad24c13985c545f838c818",
@@ -94,6 +94,7 @@ describe("authenticated web-session contract identity", () => {
 
   test("accepts exact bounded predecessor hashes only as read aliases", () => {
     const xLike = contract({ site: "x", action: "likes.set", contractVersion: 2 });
+    const linkedinFeed = contract({ site: "linkedin", action: "feeds.read", contractVersion: 1 });
     const facebookFeed = contract({ site: "facebook", action: "feeds.read", contractVersion: 2 });
     const facebookGroupFeed = contract({
       site: "facebook-group",
@@ -117,6 +118,14 @@ describe("authenticated web-session contract identity", () => {
     });
     expect(isCompatibleWebSessionContractHash(
       xLike,
+      "49dabf253b5a3c19b59a623645e541a859874e643a94a082096ec3b82d88394e",
+    )).toBeTrue();
+    expect(isCompatibleWebSessionContractHash(
+      xLike,
+      "4a74bc82a3c2e6631d6a62ae4568feb0feda5a08fc1db984ce715d906da0a8cd",
+    )).toBeTrue();
+    expect(isCompatibleWebSessionContractHash(
+      xLike,
       "f0c3c5cfba7f66fa145511b85ae903f6c747cffc06953ad66cc016b345c90db9",
     )).toBeTrue();
     expect(isCompatibleWebSessionContractHash(
@@ -126,6 +135,10 @@ describe("authenticated web-session contract identity", () => {
     expect(isCompatibleWebSessionContractHash(
       xLike,
       "18ad1c307b5aeb1caaa6e057048ba53e0bf7dfca8f35dd7ee9613942c3d23afa",
+    )).toBeTrue();
+    expect(isCompatibleWebSessionContractHash(
+      linkedinFeed,
+      "ac7a2f9e6c50b84cf51152b57d7d277b80c1a8fb2a87cd74ac5c4742098ea13c",
     )).toBeTrue();
     expect(isCompatibleWebSessionContractHash(
       facebookFeed,

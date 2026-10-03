@@ -368,6 +368,7 @@ const BLUESKY_WEB_OPERATIONS = operationPolicies("bluesky", [
   "posts.publish",
   "posts.read",
   "profiles.read",
+  "replies.create",
 ], {
   "media.publish": 2,
   "profiles.read": 2,
@@ -375,11 +376,14 @@ const BLUESKY_WEB_OPERATIONS = operationPolicies("bluesky", [
 });
 const LINKEDIN_WEB_OPERATIONS = operationPolicies("linkedin", [
   "articles.draft.save",
+  "comments.create",
+  "comments.read",
   "contacts.read",
   "feeds.read",
   "organizations.read",
   "posts.publish",
   "profiles.read",
+  "replies.create",
 ], {
   "articles.draft.save": 7,
   "feeds.read": 2,
@@ -390,9 +394,14 @@ const GITHUB_WEB_OPERATIONS = operationPolicies("github", [
   "profiles.read",
 ]);
 const HACKER_NEWS_WEB_OPERATIONS = operationPolicies("hacker-news", [
+  "comments.create",
   "comments.read",
+  "content.save",
   "feeds.read",
+  "posts.publish",
   "posts.read",
+  "reactions.set",
+  "replies.create",
 ]);
 const REDDIT_WEB_OPERATIONS = operationPolicies("reddit", [
   "comments.read",
@@ -609,7 +618,14 @@ const linkedin = {
     LINKEDIN_WEB_OPERATIONS["articles.draft.save"].contractVersion,
   ),
   "posts.read": contract("linkedin", "posts.read", "R1", "capture-required", "exact consumer-web post read requires a reviewed capture"),
-  "comments.read": contract("linkedin", "comments.read", "R1", "capture-required", "exact comment collection requires a reviewed capture"),
+  "comments.read": contract(
+    "linkedin",
+    "comments.read",
+    LINKEDIN_WEB_OPERATIONS["comments.read"].risk,
+    LINKEDIN_WEB_OPERATIONS["comments.read"].state,
+    "reviewed contained-Chrome comments collection: registered voyagerSocialDashComments query bound to the exact post's social-detail URN with page-instance, track, and load-comments pem headers; bounded paged projection of comment entity URNs, text, and actor URNs",
+    LINKEDIN_WEB_OPERATIONS["comments.read"].contractVersion,
+  ),
   "messaging.send": contract("linkedin", "messaging.send", "R3", "capture-required", "createMessage mutation requires a reviewed capture and response binding"),
   "media.publish": contract("linkedin", "media.publish", "R3", "capture-required", "member video upload registration, contiguous signed transfer, processing/finalization, audience and actor binding, created-share response, and independent exact-share readback require an authorized fixture"),
   "posts.publish": contract(
@@ -622,8 +638,22 @@ const linkedin = {
   ),
   "posts.repost": contract("linkedin", "posts.repost", "R3", "capture-required", "repost requires an exact reviewed mutation"),
   "posts.quote": contract("linkedin", "posts.quote", "R3", "capture-required", "quote repost requires an exact reviewed mutation"),
-  "comments.create": contract("linkedin", "comments.create", "R3", "capture-required", "createComment requires exact actor/root/parent response binding"),
-  "replies.create": contract("linkedin", "replies.create", "R3", "capture-required", "reply creation requires exact actor/root/parent response binding"),
+  "comments.create": contract(
+    "linkedin",
+    "comments.create",
+    LINKEDIN_WEB_OPERATIONS["comments.create"].risk,
+    LINKEDIN_WEB_OPERATIONS["comments.create"].state,
+    "reviewed member-bound NormComments create with exact commentary text, empty attributesV2, and threadUrn bound to the confirmed post activity URN; durable accepted-comment targeting via x-restli-id and normalized entity corroboration, and independent comments-collection readback",
+    LINKEDIN_WEB_OPERATIONS["comments.create"].contractVersion,
+  ),
+  "replies.create": contract(
+    "linkedin",
+    "replies.create",
+    LINKEDIN_WEB_OPERATIONS["replies.create"].risk,
+    LINKEDIN_WEB_OPERATIONS["replies.create"].state,
+    "reviewed member-bound NormComments reply create with exact commentary text, empty attributesV2, create-a-comment-reply pem metadata, and threadUrn bound to the confirmed parent comment URN under the confirmed root post; durable accepted-reply targeting via x-restli-id and independent comments-collection readback",
+    LINKEDIN_WEB_OPERATIONS["replies.create"].contractVersion,
+  ),
   "reactions.set": contract("linkedin", "reactions.set", "R2", "capture-required", "desired-state reaction requires reviewed create/delete contracts"),
   "relationships.connect": contract("linkedin", "relationships.connect", "R3", "capture-required", "connection invitation requires exact viewer, target, optional note, response, and duplicate-state bindings"),
   "articles.publish": contract("linkedin", "articles.publish", "R3", "capture-required", "native Article publication remains a distinct unobserved operation"),
@@ -671,7 +701,7 @@ const x = {
   "messaging.send": contract("x", "messaging.send", "R3", "capture-required", "DM send requires exact current mutation and target binding"),
   "posts.publish": contract("x", "posts.publish", "R3", "observed", "current optional single-PNG or MP4 upload with pixels-only provenance scrub, CreateTweet tweet_text up to the reviewed 25000-unit long-post bound, strict CreateTweet response including note_tweet, durable accepted-target evidence, and fail-closed TweetResultByRestId readback for Made with AI labels", 5),
   "threads.publish": contract("x", "threads.publish", "R3", "capture-required", "ordered CreateTweet root/self-reply dispatch needs an authorized live fixture and reviewed transaction-header behavior"),
-  "replies.create": contract("x", "replies.create", "R3", "capture-required", "CreateTweet reply needs an authorized live fixture and reviewed transaction-header behavior"),
+  "replies.create": contract("x", "replies.create", "R3", "observed", "current CreateTweet reply mutation bound to the exact parent post ID with strict response in_reply_to_status_id_str binding, durable accepted-target evidence, and fail-closed independent post readback"),
   "posts.repost": contract("x", "posts.repost", "R3", "capture-required", "repost desired-state mutation needs an authorized live fixture and reviewed transaction-header behavior"),
   "posts.quote": contract("x", "posts.quote", "R3", "capture-required", "CreateTweet quote needs an authorized live fixture and reviewed transaction-header behavior; quote text uses the same reviewed 25000-unit CreateTweet bound as posts.publish", 2),
   "likes.set": contract("x", "likes.set", "R2", "observed", "current FavoriteTweet/UnfavoriteTweet desired-state mutations with ephemeral transaction header and independent TweetResultByRestId readback", 2),

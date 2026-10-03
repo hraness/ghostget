@@ -1,17 +1,23 @@
 import { describe, expect, test } from "bun:test";
 
+import { assertProperty, fc } from "../test-support";
 import hackerNewsWebManifest from "../assets/adapters/hacker-news/wrench-web-adapter.json";
 import {
   HACKER_NEWS_WEB_OPERATION_NAMES,
   HACKER_NEWS_WEB_OPERATIONS,
   authorizeHackerNewsReadRequest,
+  findHackerNewsCommentRow,
+  findHackerNewsSubmittedRow,
   normalizeHackerNewsCommentsHtml,
   normalizeHackerNewsFeedHtml,
   normalizeHackerNewsPostHtml,
   parseHackerNewsCommentForm,
   parseHackerNewsFavoriteAction,
+  parseHackerNewsFavoritesPresence,
   parseHackerNewsSubmissionForm,
   parseHackerNewsViewerHtml,
+  parseHackerNewsVoteAction,
+  scanHackerNewsCommentRows,
 } from "./hacker-news-web";
 
 const POST_ID = "49020868";
@@ -106,7 +112,7 @@ describe("Hacker News internal-web operation registry", () => {
     }
   });
 
-  test("covers the full surface and keeps every remote action capture-required", () => {
+  test("covers the full surface and keeps only content.edit capture-required", () => {
     expect(Object.keys(HACKER_NEWS_WEB_OPERATIONS).sort()).toEqual(
       [...HACKER_NEWS_WEB_OPERATION_NAMES].sort(),
     );
@@ -115,12 +121,22 @@ describe("Hacker News internal-web operation registry", () => {
         .filter(([, contract]) => contract.state === "observed")
         .map(([name]) => name)
         .sort(),
-    ).toEqual(["comments.read", "feeds.read", "posts.read"]);
-    for (const contract of Object.values(HACKER_NEWS_WEB_OPERATIONS)) {
-      if (contract.effect === "write") expect(contract.state).toBe("capture-required");
+    ).toEqual([
+      "comments.create",
+      "comments.read",
+      "content.save",
+      "feeds.read",
+      "posts.publish",
+      "posts.read",
+      "reactions.set",
+      "replies.create",
+    ]);
+    for (const [name, contract] of Object.entries(HACKER_NEWS_WEB_OPERATIONS)) {
+      if (contract.effect === "write") {
+        expect(contract.state).toBe(name === "content.edit" ? "capture-required" : "observed");
+      }
     }
-    expect(HACKER_NEWS_WEB_OPERATIONS["content.save"].reason).toContain("both real state fixtures");
-    expect(HACKER_NEWS_WEB_OPERATIONS["reactions.set"].reason).toContain("human actions");
+    expect(HACKER_NEWS_WEB_OPERATIONS["content.edit"].reason).toContain("unobserved");
   });
 });
 
@@ -274,25 +290,40 @@ describe("Hacker News bounded HTML projection", () => {
 });
 
 describe("Hacker News request-bound proof parsing", () => {
-  test("parses exact favorite and un-favorite actions without treating synthetic fixtures as promotion evidence", () => {
+  test("parses exact favorite and un-favorite actions", () => {
     for (const state of [
-      { path: "fave", nextSavedState: true },
-      { path: "unfave", nextSavedState: false },
+      { un: null, nextSavedState: true },
+      { un: "t", nextSavedState: false },
     ] as const) {
-      const html = submission(
-        POST_ID,
-        "Favorite fixture",
-        `<a href="${state.path}?id=${POST_ID}&amp;auth=${AUTH}&amp;goto=item%3Fid%3D${POST_ID}">${state.path}</a>`,
-      );
-      expect(parseHackerNewsFavoriteAction(html, POST_ID)).toEqual({
-        path: `/${state.path}`,
-        targetId: POST_ID,
-        auth: AUTH,
-        goto: `item?id=${POST_ID}`,
-        nextSavedState: state.nextSavedState,
-      });
+      // The reviewed item page omits goto; the listing-proven form carries it.
+      // Un-favorite is the same /fave endpoint carrying the provider's un=t
+      // marker.
+      const un = state.un === null ? "" : `&amp;un=${state.un}`;
+      for (const [href, goto] of [
+        [
+          `fave?id=${POST_ID}&amp;auth=${AUTH}${un}`,
+          null,
+        ],
+        [
+          `fave?id=${POST_ID}&amp;auth=${AUTH}${un}&amp;goto=item%3Fid%3D${POST_ID}`,
+          `item?id=${POST_ID}`,
+        ],
+      ] as const) {
+        const html = submission(
+          POST_ID,
+          "Favorite fixture",
+          `<a href="${href}">${state.un === null ? "favorite" : "un-favorite"}</a>`,
+        );
+        expect(parseHackerNewsFavoriteAction(html, POST_ID)).toEqual({
+          path: "/fave",
+          targetId: POST_ID,
+          auth: AUTH,
+          goto,
+          un: state.un,
+          nextSavedState: state.nextSavedState,
+        });
+      }
     }
-    expect(HACKER_NEWS_WEB_OPERATIONS["content.save"].state).toBe("capture-required");
   });
 
   test("rejects ambiguous, mismatched, or malformed favorite proofs", () => {
@@ -341,5 +372,375 @@ describe("Hacker News request-bound proof parsing", () => {
     expect(() => parseHackerNewsSubmissionForm(
       submitForm.replace("</form>", `<input type="hidden" name="fnid" value="duplicate"></form>`),
     )).toThrow("repeated");
+  });
+});
+
+describe("Hacker News write-path read authorization", () => {
+  test("authorizes one exact reply form bound to its parent", () => {
+    expect(authorizeHackerNewsReadRequest({
+      operation: "reply.form",
+      url: `https://news.ycombinator.com/reply?id=${COMMENT_ID}&goto=item%3Fid%3D${COMMENT_ID}`,
+      method: "GET",
+      targetId: COMMENT_ID,
+    })).toEqual({
+      operation: "reply.form",
+      method: "GET",
+      path: "/reply",
+      queryNames: ["goto", "id"],
+    });
+  });
+
+  test("authorizes the bare submit form and viewer-bound listing pages", () => {
+    expect(authorizeHackerNewsReadRequest({
+      operation: "submit.form",
+      url: "https://news.ycombinator.com/submit",
+      method: "GET",
+    })).toEqual({
+      operation: "submit.form",
+      method: "GET",
+      path: "/submit",
+      queryNames: [],
+    });
+    for (const [operation, path] of [
+      ["favorites.list", "/favorites"],
+      ["submitted.list", "/submitted"],
+    ] as const) {
+      expect(authorizeHackerNewsReadRequest({
+        operation,
+        url: `https://news.ycombinator.com${path}?id=wrench_user`,
+        method: "GET",
+        subject: "wrench_user",
+      })).toEqual({
+        operation,
+        method: "GET",
+        path,
+        queryNames: ["id"],
+      });
+    }
+  });
+
+  test("rejects write-path reads that lose their exact binding", () => {
+    const candidates: readonly Parameters<typeof authorizeHackerNewsReadRequest>[0][] = [
+      {
+        operation: "reply.form",
+        url: `https://news.ycombinator.com/reply?id=${COMMENT_ID}&goto=news`,
+        method: "GET",
+        targetId: COMMENT_ID,
+      },
+      {
+        operation: "reply.form",
+        url: `https://news.ycombinator.com/reply?id=${SECOND_POST_ID}&goto=item%3Fid%3D${COMMENT_ID}`,
+        method: "GET",
+        targetId: COMMENT_ID,
+      },
+      {
+        operation: "reply.form",
+        url: `https://news.ycombinator.com/reply?id=${COMMENT_ID}`,
+        method: "GET",
+        targetId: COMMENT_ID,
+      },
+      {
+        operation: "submit.form",
+        url: "https://news.ycombinator.com/submit?x=1",
+        method: "GET",
+      },
+      {
+        operation: "favorites.list",
+        url: "https://news.ycombinator.com/favorites?id=another_user",
+        method: "GET",
+        subject: "wrench_user",
+      },
+      {
+        operation: "submitted.list",
+        url: "https://news.ycombinator.com/submitted",
+        method: "GET",
+        subject: "wrench_user",
+      },
+      {
+        operation: "state.readback",
+        url: `https://news.ycombinator.com/item?id=${SECOND_POST_ID}`,
+        method: "GET",
+        targetId: POST_ID,
+      },
+    ];
+    for (const candidate of candidates) {
+      expect(() => authorizeHackerNewsReadRequest(candidate)).toThrow();
+    }
+  });
+});
+
+describe("Hacker News write-path proof and readback parsing", () => {
+  function voteHtml(how: "up" | "un" | "down", extraAnchor = ""): string {
+    return submission(
+      POST_ID,
+      "Vote fixture",
+      `<a href="vote?id=${POST_ID}&amp;how=${how}&amp;auth=${AUTH}&amp;goto=item%3Fid%3D${POST_ID}">${how}</a>${extraAnchor}`,
+    );
+  }
+
+  test("parses exact upvote and un-upvote actions", () => {
+    expect(parseHackerNewsVoteAction(voteHtml("up"), POST_ID)).toEqual({
+      path: "/vote",
+      targetId: POST_ID,
+      how: "up",
+      auth: AUTH,
+      goto: `item?id=${POST_ID}`,
+      nextUpvotedState: true,
+    });
+    expect(parseHackerNewsVoteAction(voteHtml("un"), POST_ID)).toEqual({
+      path: "/vote",
+      targetId: POST_ID,
+      how: "un",
+      auth: AUTH,
+      goto: `item?id=${POST_ID}`,
+      nextUpvotedState: false,
+    });
+    // The reviewed post-upvote page keeps the hidden up arrow beside the live
+    // unvote link; the unvote action is the offered one.
+    const unAnchor = `<a href="vote?id=${POST_ID}&amp;how=un&amp;auth=${AUTH}&amp;goto=item%3Fid%3D${POST_ID}">un</a>`;
+    expect(parseHackerNewsVoteAction(voteHtml("up", unAnchor), POST_ID)).toEqual({
+      path: "/vote",
+      targetId: POST_ID,
+      how: "un",
+      auth: AUTH,
+      goto: `item?id=${POST_ID}`,
+      nextUpvotedState: false,
+    });
+  });
+
+  test("never substitutes a downvote link for an upvote action", () => {
+    const withDown = voteHtml(
+      "up",
+      `<a href="vote?id=${POST_ID}&amp;how=down&amp;auth=${AUTH}&amp;goto=item%3Fid%3D${POST_ID}">down</a>`,
+    );
+    expect(parseHackerNewsVoteAction(withDown, POST_ID).how).toBe("up");
+    expect(() => parseHackerNewsVoteAction(voteHtml("down"), POST_ID)).toThrow("exactly one");
+  });
+
+  test("rejects ambiguous, mismatched, or malformed vote proofs", () => {
+    const up = `<a href="vote?id=${POST_ID}&amp;how=up&amp;auth=${AUTH}&amp;goto=news">up</a>`;
+    expect(() => parseHackerNewsVoteAction(
+      submission(POST_ID, "Ambiguous", up + up),
+      POST_ID,
+    )).toThrow("ambiguous");
+    expect(() => parseHackerNewsVoteAction(
+      voteHtml(
+        "un",
+        `<a href="vote?id=${POST_ID}&amp;how=un&amp;auth=${AUTH}&amp;goto=news">un</a>`,
+      ),
+      POST_ID,
+    )).toThrow("ambiguous");
+    expect(() => parseHackerNewsVoteAction(
+      submission(
+        POST_ID,
+        "Mismatch",
+        `<a href="vote?id=${SECOND_POST_ID}&amp;how=up&amp;auth=${AUTH}&amp;goto=news">up</a>`,
+      ),
+      POST_ID,
+    )).toThrow("bind");
+    expect(() => parseHackerNewsVoteAction(
+      submission(
+        POST_ID,
+        "Extra",
+        `<a href="vote?id=${POST_ID}&amp;how=up&amp;auth=${AUTH}&amp;goto=news&amp;extra=1">up</a>`,
+      ),
+      POST_ID,
+    )).toThrow("unsupported");
+  });
+
+  test("detects exact item presence on a favorites page", () => {
+    const present = [submission(POST_ID), submission(SECOND_POST_ID)].join("");
+    expect(parseHackerNewsFavoritesPresence(present, POST_ID)).toBe(true);
+    expect(parseHackerNewsFavoritesPresence(present, "49029999")).toBe(false);
+    expect(() => parseHackerNewsFavoritesPresence(
+      [submission(POST_ID), submission(POST_ID)].join(""),
+      POST_ID,
+    )).toThrow("repeated");
+  });
+
+  test("scans comment rows on both post-rooted and comment-rooted item pages", () => {
+    const postRows = scanHackerNewsCommentRows(itemPage(), POST_ID);
+    expect(postRows.map((row) => [row.id, row.parentId, row.depth])).toEqual([
+      [COMMENT_ID, POST_ID, 0],
+      [REPLY_ID, COMMENT_ID, 1],
+    ]);
+
+    const commentRooted = [
+      viewer(),
+      comment(COMMENT_ID, 0, "First &lt;comment&gt;", null),
+      comment(REPLY_ID, 1, "Nested<br>reply", COMMENT_ID),
+    ].join("");
+    const replyRows = scanHackerNewsCommentRows(commentRooted, COMMENT_ID);
+    expect(replyRows.map((row) => [row.id, row.parentId, row.depth])).toEqual([
+      [COMMENT_ID, null, 0],
+      [REPLY_ID, COMMENT_ID, 1],
+    ]);
+  });
+
+  test("rejects unreviewed comment-page roots and skipped ancestry", () => {
+    const secondRoot = [
+      comment(COMMENT_ID, 0, "Root", null),
+      comment(REPLY_ID, 0, "Second root", null),
+    ].join("");
+    expect(() => scanHackerNewsCommentRows(secondRoot, COMMENT_ID)).toThrow("second root");
+    expect(() => scanHackerNewsCommentRows(
+      comment(COMMENT_ID, 1, "No root", null),
+      COMMENT_ID,
+    )).toThrow("root");
+    const skipped = [
+      submission(POST_ID),
+      comment(COMMENT_ID, 1, "Skipped parent", null),
+    ].join("");
+    expect(() => scanHackerNewsCommentRows(skipped, POST_ID)).toThrow("parent depth");
+  });
+
+  test("finds exactly one comment matching parent, actor, body, and dispatch window", () => {
+    const rows = scanHackerNewsCommentRows(itemPage(), POST_ID);
+    const window = {
+      parentId: POST_ID,
+      author: `user_${COMMENT_ID}`,
+      body: "First <comment>",
+      notBeforeSeconds: Math.floor(Date.parse("2026-07-23T11:00:00Z") / 1_000),
+      nowSeconds: Math.floor(Date.parse("2026-07-23T13:00:00Z") / 1_000),
+    };
+    expect(findHackerNewsCommentRow(rows, window)?.id).toBe(COMMENT_ID);
+    expect(findHackerNewsCommentRow(rows, {
+      ...window,
+      body: "Never posted",
+    })).toBe(null);
+    expect(findHackerNewsCommentRow(rows, {
+      ...window,
+      notBeforeSeconds: Math.floor(Date.parse("2026-07-23T13:00:00Z") / 1_000),
+    })).toBe(null);
+    const doubled = [
+      submission(POST_ID),
+      comment(COMMENT_ID, 0, "Same", null),
+      comment(REPLY_ID, 0, "Same", null).replaceAll(`user_${REPLY_ID}`, `user_${COMMENT_ID}`),
+    ].join("");
+    expect(() => findHackerNewsCommentRow(
+      scanHackerNewsCommentRows(doubled, POST_ID),
+      { ...window, body: "Same", author: `user_${COMMENT_ID}` },
+    )).toThrow("ambiguous");
+  });
+
+  test("finds exactly one submitted row matching actor, title, link, and window", () => {
+    const listing = [
+      viewer(),
+      submission(POST_ID, "Shipped feature"),
+      submission(SECOND_POST_ID, "Other story"),
+    ].join("");
+    const window = {
+      author: `author_${POST_ID}`,
+      title: "Shipped feature",
+      url: `https://example.com/${POST_ID}`,
+      notBeforeSeconds: Math.floor(Date.parse("2026-07-23T11:00:00Z") / 1_000),
+      nowSeconds: Math.floor(Date.parse("2026-07-23T13:00:00Z") / 1_000),
+    };
+    expect(findHackerNewsSubmittedRow(listing, window)?.id).toBe(POST_ID);
+    expect(findHackerNewsSubmittedRow(listing, {
+      ...window,
+      url: "https://wrong.example.com/",
+    })).toBe(null);
+    expect(findHackerNewsSubmittedRow(listing, {
+      ...window,
+      author: "another_user",
+    })).toBe(null);
+    const textPost = submission(POST_ID, "Ask HN: fixture")
+      .replace(`https://example.com/${POST_ID}`, `item?id=${POST_ID}`);
+    expect(findHackerNewsSubmittedRow(textPost, {
+      ...window,
+      title: "Ask HN: fixture",
+      url: null,
+    })?.id).toBe(POST_ID);
+  });
+});
+
+describe("Hacker News write-path strict-input laws", () => {
+  const safeParamChar = fc.constantFrom(
+    ..."abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-".split(""),
+  );
+  const safeParam = fc.string({ unit: safeParamChar, minLength: 1, maxLength: 24 });
+  const validItemId = fc
+    .bigInt({ min: 1n, max: 99_999_999_999_999_999_999n })
+    .map((value) => value.toString(10));
+
+  test("rejects every vote direction outside the two reviewed actions", () => {
+    assertProperty(fc.property(
+      safeParam.filter((how) => how !== "up" && how !== "un"),
+      (how) => {
+        const html = submission(
+          POST_ID,
+          "Vote law",
+          `<a href="vote?id=${POST_ID}&amp;how=${how}&amp;auth=${AUTH}&amp;goto=news">${how}</a>`,
+        );
+        expect(() => parseHackerNewsVoteAction(html, POST_ID)).toThrow();
+      },
+    ));
+  });
+
+  test("rejects every malformed item identifier before any page is read", () => {
+    const decimal = /^[1-9][0-9]{0,19}$/u;
+    assertProperty(fc.property(
+      fc.string({ maxLength: 40 }).filter((id) => !decimal.test(id)),
+      (id) => {
+        expect(() => parseHackerNewsVoteAction("", id)).toThrow();
+        expect(() => parseHackerNewsFavoriteAction("", id)).toThrow();
+        expect(() => authorizeHackerNewsReadRequest({
+          operation: "state.readback",
+          url: `https://news.ycombinator.com/item?id=${encodeURIComponent(id)}`,
+          method: "GET",
+          targetId: POST_ID,
+        })).toThrow();
+      },
+    ));
+  });
+
+  test("binds listing reads to the one confirmed viewer and nothing else", () => {
+    assertProperty(fc.property(
+      fc.string({ maxLength: 80 }).filter((name) => name !== "wrench_user"),
+      (name) => {
+        for (const [operation, path] of [
+          ["favorites.list", "/favorites"],
+          ["submitted.list", "/submitted"],
+        ] as const) {
+          expect(() => authorizeHackerNewsReadRequest({
+            operation,
+            url: `https://news.ycombinator.com${path}?id=wrench_user`,
+            method: "GET",
+            subject: name,
+          })).toThrow();
+        }
+      },
+    ));
+  });
+
+  test("never accepts a submission form carrying unreviewed hidden fields", () => {
+    assertProperty(fc.property(
+      safeParam.filter((name) => name !== "fnid" && name !== "fnop"),
+      (name) => {
+        const form = [
+          "<form method=\"post\" action=\"r\">",
+          `<input type="hidden" name="fnid" value="${FNID}">`,
+          `<input type="hidden" name="fnop" value="${FNOP}">`,
+          `<input type="hidden" name="${name}" value="extra">`,
+          "<input name=\"title\"><input name=\"url\"><textarea name=\"text\"></textarea>",
+          "</form>",
+        ].join("");
+        expect(() => parseHackerNewsSubmissionForm(form)).toThrow();
+      },
+    ));
+  });
+
+  test("binds the parsed favorite action to whichever exact item the page offers", () => {
+    assertProperty(fc.property(validItemId, (id) => {
+      const html = submission(
+        id,
+        "Favorite law",
+        `<a href="fave?id=${id}&amp;auth=${AUTH}&amp;goto=news">favorite</a>`,
+      );
+      const action = parseHackerNewsFavoriteAction(html, id);
+      expect(action.targetId).toBe(id);
+      expect(action.nextSavedState).toBe(true);
+    }));
   });
 });

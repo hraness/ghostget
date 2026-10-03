@@ -5,7 +5,7 @@ import { projectXWebContactPage } from "./x-web";
 import { resolveCurrentXWebChunkUrl } from "./x-web-runtime";
 
 const BOOKMARKS_FAMILY = "shared~bundle.BookmarkFolders~bundle.Bookmarks";
-const REVIEWED_SOURCE_CHUNK = `${BOOKMARKS_FAMILY}.12cb1875a99ef5b3a.js`;
+const REVIEWED_SOURCE_CHUNK = `${BOOKMARKS_FAMILY}.292efce92afba9d3a.js`;
 const HEX = "0123456789abcdef";
 
 const hexOfWidth = (width: number) =>

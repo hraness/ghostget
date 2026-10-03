@@ -10,12 +10,22 @@ import {
 } from "../operation-deadline";
 import { createWebSessionClient } from "../web-session-client";
 import {
+  dispatchHackerNewsCommentForm,
   dispatchHackerNewsFavoriteAction,
+  dispatchHackerNewsSubmissionForm,
+  dispatchHackerNewsVoteAction,
+  parseHackerNewsCommentForm,
   parseHackerNewsFavoriteAction,
+  parseHackerNewsSubmissionForm,
+  parseHackerNewsVoteAction,
 } from "./hacker-news-web";
 import {
   executeHackerNewsWebOperation,
+  prepareHackerNewsWebDesiredState,
   probeHackerNewsWebSubject,
+  readHackerNewsWebDesiredState,
+  readHackerNewsWebPublishedCommentPresence,
+  readHackerNewsWebPublishedPostPresence,
   type HackerNewsWebRuntimeDependencies,
 } from "./hacker-news-web-runtime";
 
@@ -333,13 +343,8 @@ describe("Hacker News authenticated first-party runtime", () => {
     expect(calls.map((request) => request.url.pathname)).toEqual(["/news"]);
   });
 
-  test("keeps every write reservation network-inert", () => {
+  test("keeps every unobserved write reservation network-inert", () => {
     for (const action of [
-      "content.save",
-      "reactions.set",
-      "comments.create",
-      "replies.create",
-      "posts.publish",
       "content.edit",
     ] as const) {
       let acquisitions = 0;
@@ -361,10 +366,11 @@ describe("Hacker News authenticated first-party runtime", () => {
 });
 
 describe("Hacker News request-bound manual redirect transport", () => {
-  function favoriteHtml(path: "fave" | "unfave"): string {
+  function favoriteHtml(unfavorite: boolean): string {
+    const un = unfavorite ? "&amp;un=t" : "";
     return submission(
       POST_ID,
-      `<a href="${path}?id=${POST_ID}&amp;auth=${AUTH}&amp;goto=item%3Fid%3D${POST_ID}">${path}</a>`,
+      `<a href="fave?id=${POST_ID}${un}&amp;auth=${AUTH}&amp;goto=item%3Fid%3D${POST_ID}">${unfavorite ? "un-favorite" : "favorite"}</a>`,
     );
   }
 
@@ -395,7 +401,7 @@ describe("Hacker News request-bound manual redirect transport", () => {
     let dispatches = 0;
     const result = await dispatchHackerNewsFavoriteAction(
       client,
-      parseHackerNewsFavoriteAction(favoriteHtml("fave"), POST_ID),
+      parseHackerNewsFavoriteAction(favoriteHtml(false), POST_ID),
       true,
       () => {
         dispatches += 1;
@@ -406,6 +412,41 @@ describe("Hacker News request-bound manual redirect transport", () => {
     expect(result).toEqual({ status: 302, location: `/item?id=${POST_ID}` });
     expect(dispatches).toBe(1);
     expect(JSON.stringify(result)).not.toContain(AUTH);
+    expect(calls).toHaveLength(1);
+  });
+
+  test("replays the reviewed goto-free item-page favorite link verbatim", async () => {
+    const calls: CapturedRequest[] = [];
+    const network = dependencies(calls, (request) => {
+      expect(request.redirect).toBe("manual");
+      expect(request.method).toBe("GET");
+      expect(request.url.pathname).toBe("/fave");
+      expect([...request.url.searchParams.keys()]).toEqual(["id", "auth"]);
+      expect(request.headers.get("referer")).toBe(
+        `https://news.ycombinator.com/item?id=${POST_ID}`,
+      );
+      return new Response(null, {
+        status: 302,
+        headers: { location: `/item?id=${POST_ID}` },
+      });
+    });
+    const client = await createWebSessionClient(
+      "https://news.ycombinator.com",
+      hackerNewsAuth,
+      { timeoutMs: 1_000, dependencies: network },
+    );
+    const html = submission(
+      POST_ID,
+      `<a href="fave?id=${POST_ID}&amp;auth=${AUTH}">fave</a>`,
+    );
+    const result = await dispatchHackerNewsFavoriteAction(
+      client,
+      parseHackerNewsFavoriteAction(html, POST_ID),
+      true,
+      () => Promise.resolve(),
+      { timeoutMs: 1_000, fetch: network.fetch },
+    );
+    expect(result).toEqual({ status: 302, location: `/item?id=${POST_ID}` });
     expect(calls).toHaveLength(1);
   });
 
@@ -424,7 +465,7 @@ describe("Hacker News request-bound manual redirect transport", () => {
     let mismatchDispatches = 0;
     expect(dispatchHackerNewsFavoriteAction(
       noOpClient,
-      parseHackerNewsFavoriteAction(favoriteHtml("fave"), POST_ID),
+      parseHackerNewsFavoriteAction(favoriteHtml(false), POST_ID),
       false,
       () => {
         mismatchDispatches += 1;
@@ -451,7 +492,7 @@ describe("Hacker News request-bound manual redirect transport", () => {
     let redirectDispatches = 0;
     expect(dispatchHackerNewsFavoriteAction(
       redirectClient,
-      parseHackerNewsFavoriteAction(favoriteHtml("fave"), POST_ID),
+      parseHackerNewsFavoriteAction(favoriteHtml(false), POST_ID),
       true,
       () => {
         redirectDispatches += 1;
@@ -485,13 +526,14 @@ describe("Hacker News request-bound manual redirect transport", () => {
         targetId: POST_ID,
         auth: AUTH,
         goto: `item?id=${POST_ID}`,
+        un: null,
         nextSavedState: true,
       },
       true,
       () => Promise.resolve(),
       { timeoutMs: 1_000, fetch: network.fetch },
     )).rejects.toThrow("immediate parsed provider page");
-    const parsed = parseHackerNewsFavoriteAction(favoriteHtml("fave"), POST_ID);
+    const parsed = parseHackerNewsFavoriteAction(favoriteHtml(false), POST_ID);
     await dispatchHackerNewsFavoriteAction(
       client,
       parsed,
@@ -525,10 +567,565 @@ describe("Hacker News request-bound manual redirect transport", () => {
     );
     expect(dispatchHackerNewsFavoriteAction(
       client,
-      parseHackerNewsFavoriteAction(favoriteHtml("fave"), POST_ID),
+      parseHackerNewsFavoriteAction(favoriteHtml(false), POST_ID),
       true,
       () => Promise.resolve(),
       { timeoutMs: 1_000, fetch: proofNetwork.fetch },
     )).rejects.toThrow("request-bound proof");
+  });
+});
+
+describe("Hacker News request-bound vote and form dispatch", () => {
+  const HMAC = "synthetic-request-bound-hmac";
+  const FNID = "synthetic-request-bound-fnid";
+
+  function voteHtml(how: "up" | "un"): string {
+    return submission(
+      POST_ID,
+      `<a href="vote?id=${POST_ID}&amp;how=${how}&amp;auth=${AUTH}&amp;goto=item%3Fid%3D${POST_ID}">${how}</a>`,
+    );
+  }
+
+  function commentForm(parentId = POST_ID, goto = `item?id=${POST_ID}`): string {
+    return [
+      "<form method=\"post\" action=\"comment\">",
+      `<input type="hidden" name="parent" value="${parentId}">`,
+      `<input type="hidden" name="goto" value="${goto}">`,
+      `<input type="hidden" name="hmac" value="${HMAC}">`,
+      "<textarea name=\"text\"></textarea>",
+      "</form>",
+    ].join("");
+  }
+
+  function submitForm(): string {
+    return [
+      "<form method=\"post\" action=\"r\">",
+      `<input type="hidden" name="fnid" value="${FNID}">`,
+      "<input type=\"hidden\" name=\"fnop\" value=\"submit-page\">",
+      "<input name=\"title\"><input name=\"url\"><textarea name=\"text\"></textarea>",
+      "</form>",
+    ].join("");
+  }
+
+  async function boundClient(
+    calls: CapturedRequest[],
+    handler: (request: CapturedRequest) => Response | Promise<Response>,
+  ) {
+    const network = dependencies(calls, handler);
+    const client = await createWebSessionClient(
+      "https://news.ycombinator.com",
+      hackerNewsAuth,
+      { timeoutMs: 1_000, dependencies: network },
+    );
+    return { client, fetch: network.fetch };
+  }
+
+  test("sends one ephemeral vote token with redirect manual", async () => {
+    const calls: CapturedRequest[] = [];
+    const { client, fetch } = await boundClient(calls, (request) => {
+      expect(request.redirect).toBe("manual");
+      expect(request.method).toBe("GET");
+      expect(request.url.pathname).toBe("/vote");
+      expect([...request.url.searchParams.keys()]).toEqual(["id", "how", "auth", "goto"]);
+      expect(request.url.searchParams.get("id")).toBe(POST_ID);
+      expect(request.url.searchParams.get("how")).toBe("up");
+      expect(request.url.searchParams.get("auth")).toBe(AUTH);
+      return new Response(null, {
+        status: 302,
+        headers: { location: `/item?id=${POST_ID}` },
+      });
+    });
+    let dispatches = 0;
+    const result = await dispatchHackerNewsVoteAction(
+      client,
+      parseHackerNewsVoteAction(voteHtml("up"), POST_ID),
+      true,
+      () => {
+        dispatches += 1;
+        return Promise.resolve();
+      },
+      { timeoutMs: 1_000, fetch },
+    );
+    expect(result).toEqual({ status: 302, location: `/item?id=${POST_ID}` });
+    expect(dispatches).toBe(1);
+    expect(JSON.stringify(result)).not.toContain(AUTH);
+    expect(calls).toHaveLength(1);
+  });
+
+  test("rejects forged, consumed, and state-mismatched vote actions", async () => {
+    const calls: CapturedRequest[] = [];
+    const { client, fetch } = await boundClient(calls, () =>
+      new Response(null, {
+        status: 302,
+        headers: { location: `/item?id=${POST_ID}` },
+      }));
+    expect(dispatchHackerNewsVoteAction(
+      client,
+      {
+        path: "/vote",
+        targetId: POST_ID,
+        how: "up",
+        auth: AUTH,
+        goto: `item?id=${POST_ID}`,
+        nextUpvotedState: true,
+      },
+      true,
+      () => Promise.resolve(),
+      { timeoutMs: 1_000, fetch },
+    )).rejects.toThrow("immediate parsed provider page");
+
+    let mismatchDispatches = 0;
+    expect(dispatchHackerNewsVoteAction(
+      client,
+      parseHackerNewsVoteAction(voteHtml("up"), POST_ID),
+      false,
+      () => {
+        mismatchDispatches += 1;
+        return Promise.resolve();
+      },
+      { timeoutMs: 1_000, fetch },
+    )).rejects.toThrow("does not match");
+    expect(mismatchDispatches).toBe(0);
+
+    const consumed = parseHackerNewsVoteAction(voteHtml("un"), POST_ID);
+    await dispatchHackerNewsVoteAction(
+      client,
+      consumed,
+      false,
+      () => Promise.resolve(),
+      { timeoutMs: 1_000, fetch },
+    );
+    expect(dispatchHackerNewsVoteAction(
+      client,
+      consumed,
+      false,
+      () => Promise.resolve(),
+      { timeoutMs: 1_000, fetch },
+    )).rejects.toThrow("immediate parsed provider page");
+    expect(calls).toHaveLength(1);
+  });
+
+  test("posts one bound comment form with the exact reviewed fields", async () => {
+    const calls: CapturedRequest[] = [];
+    const { client, fetch } = await boundClient(calls, (request) => {
+      expect(request.redirect).toBe("manual");
+      expect(request.method).toBe("POST");
+      expect(request.url.href).toBe("https://news.ycombinator.com/comment");
+      expect(request.headers.get("content-type")).toBe("application/x-www-form-urlencoded");
+      expect(request.headers.get("referer")).toBe(`https://news.ycombinator.com/item?id=${POST_ID}`);
+      const body = new URLSearchParams(request.body ?? "");
+      expect([...body.keys()]).toEqual(["parent", "goto", "hmac", "text"]);
+      expect(body.get("parent")).toBe(POST_ID);
+      expect(body.get("goto")).toBe(`item?id=${POST_ID}`);
+      expect(body.get("hmac")).toBe(HMAC);
+      expect(body.get("text")).toBe("Runtime comment");
+      return new Response(null, {
+        status: 302,
+        headers: { location: `/item?id=${POST_ID}` },
+      });
+    });
+    const result = await dispatchHackerNewsCommentForm(
+      client,
+      parseHackerNewsCommentForm(commentForm(), POST_ID),
+      { text: "Runtime comment", referer: `https://news.ycombinator.com/item?id=${POST_ID}` },
+      () => Promise.resolve(),
+      { timeoutMs: 1_000, fetch },
+    );
+    expect(result).toEqual({ status: 302, location: `/item?id=${POST_ID}` });
+    expect(JSON.stringify(result)).not.toContain(HMAC);
+    expect(calls).toHaveLength(1);
+  });
+
+  test("rejects forged comment proofs and goto drift before any request", async () => {
+    const calls: CapturedRequest[] = [];
+    const { client, fetch } = await boundClient(calls, () => {
+      throw new Error("network must not run");
+    });
+    let dispatches = 0;
+    const beforeRequest = () => {
+      dispatches += 1;
+      return Promise.resolve();
+    };
+    expect(dispatchHackerNewsCommentForm(
+      client,
+      { parentId: POST_ID, goto: `item?id=${POST_ID}`, hmac: HMAC },
+      { text: "body", referer: `https://news.ycombinator.com/item?id=${POST_ID}` },
+      beforeRequest,
+      { timeoutMs: 1_000, fetch },
+    )).rejects.toThrow("immediate parsed provider page");
+    expect(dispatchHackerNewsCommentForm(
+      client,
+      parseHackerNewsCommentForm(commentForm(POST_ID, "news"), POST_ID),
+      { text: "body", referer: `https://news.ycombinator.com/item?id=${POST_ID}` },
+      beforeRequest,
+      { timeoutMs: 1_000, fetch },
+    )).rejects.toThrow("goto did not bind");
+    expect(dispatches).toBe(0);
+    expect(calls).toHaveLength(0);
+  });
+
+  test("posts one bound submission form with the exact reviewed fields", async () => {
+    const calls: CapturedRequest[] = [];
+    const { client, fetch } = await boundClient(calls, (request) => {
+      expect(request.redirect).toBe("manual");
+      expect(request.method).toBe("POST");
+      expect(request.url.href).toBe("https://news.ycombinator.com/r");
+      expect(request.headers.get("referer")).toBe("https://news.ycombinator.com/submit");
+      const body = new URLSearchParams(request.body ?? "");
+      expect([...body.keys()]).toEqual(["fnid", "fnop", "title", "url", "text"]);
+      expect(body.get("fnid")).toBe(FNID);
+      expect(body.get("title")).toBe("Runtime story");
+      expect(body.get("url")).toBe("https://example.com/story");
+      expect(body.get("text")).toBe("");
+      return new Response(null, {
+        status: 302,
+        headers: { location: "/newest" },
+      });
+    });
+    const result = await dispatchHackerNewsSubmissionForm(
+      client,
+      parseHackerNewsSubmissionForm(submitForm()),
+      { title: "Runtime story", url: "https://example.com/story", text: null },
+      () => Promise.resolve(),
+      { timeoutMs: 1_000, fetch },
+    );
+    expect(result).toEqual({ status: 302, location: "/newest" });
+    expect(JSON.stringify(result)).not.toContain(FNID);
+    expect(calls).toHaveLength(1);
+  });
+
+  test("rejects forged submission proofs and empty content before any request", async () => {
+    const calls: CapturedRequest[] = [];
+    const { client, fetch } = await boundClient(calls, () => {
+      throw new Error("network must not run");
+    });
+    let dispatches = 0;
+    const beforeRequest = () => {
+      dispatches += 1;
+      return Promise.resolve();
+    };
+    expect(dispatchHackerNewsSubmissionForm(
+      client,
+      { fnid: FNID, fnop: "submit-page" },
+      { title: "Runtime story", url: "https://example.com/story", text: null },
+      beforeRequest,
+      { timeoutMs: 1_000, fetch },
+    )).rejects.toThrow("immediate parsed provider page");
+    expect(dispatchHackerNewsSubmissionForm(
+      client,
+      parseHackerNewsSubmissionForm(submitForm()),
+      { title: "Runtime story", url: null, text: null },
+      beforeRequest,
+      { timeoutMs: 1_000, fetch },
+    )).rejects.toThrow("exactly");
+    expect(dispatches).toBe(0);
+    expect(calls).toHaveLength(0);
+  });
+});
+
+describe("Hacker News desired-state preparation and readback", () => {
+  function itemPageWithAction(extra: string): string {
+    return `<html><body>${submission(POST_ID, extra)}</body></html>`;
+  }
+
+  const faveAnchor = `<a href="fave?id=${POST_ID}&amp;auth=${AUTH}&amp;goto=item%3Fid%3D${POST_ID}">favorite</a>`;
+  const unfaveAnchor = `<a href="fave?id=${POST_ID}&amp;un=t&amp;auth=${AUTH}&amp;goto=item%3Fid%3D${POST_ID}">un-favorite</a>`;
+  const upAnchor = `<a href="vote?id=${POST_ID}&amp;how=up&amp;auth=${AUTH}&amp;goto=item%3Fid%3D${POST_ID}">up</a>`;
+  const unAnchor = `<a href="vote?id=${POST_ID}&amp;how=un&amp;auth=${AUTH}&amp;goto=item%3Fid%3D${POST_ID}">un</a>`;
+
+  test("prepares exact offered-state for save and upvote", async () => {
+    const calls: CapturedRequest[] = [];
+    const network = dependencies(calls, (request) => {
+      if (request.url.pathname === "/news") return htmlResponse(newsHtml());
+      if (request.url.pathname === "/item") {
+        expect(request.url.searchParams.get("id")).toBe(POST_ID);
+        return htmlResponse(itemPageWithAction(faveAnchor));
+      }
+      throw new Error(`unexpected request ${request.url.href}`);
+    });
+    const save = await prepareHackerNewsWebDesiredState(
+      recipe("content.save"),
+      { item_id: POST_ID, saved: true },
+      hackerNewsAuth,
+      { dependencies: network },
+    );
+    expect(save).toEqual({
+      operation: "content.save",
+      itemId: POST_ID,
+      desiredState: true,
+      actualState: false,
+      alreadyDesired: false,
+    });
+
+    const upvote = await prepareHackerNewsWebDesiredState(
+      recipe("reactions.set"),
+      { item_id: POST_ID, upvoted: false },
+      hackerNewsAuth,
+      {
+        dependencies: dependencies(calls, (request) => {
+          if (request.url.pathname === "/news") return htmlResponse(newsHtml());
+          if (request.url.pathname === "/item") return htmlResponse(itemPageWithAction(unAnchor));
+          throw new Error(`unexpected request ${request.url.href}`);
+        }),
+      },
+    );
+    expect(upvote).toEqual({
+      operation: "reactions.set",
+      itemId: POST_ID,
+      desiredState: false,
+      actualState: true,
+      alreadyDesired: false,
+    });
+
+    const already = await prepareHackerNewsWebDesiredState(
+      recipe("content.save"),
+      { item_id: POST_ID, saved: true },
+      hackerNewsAuth,
+      {
+        dependencies: dependencies(calls, (request) => {
+          if (request.url.pathname === "/news") return htmlResponse(newsHtml());
+          if (request.url.pathname === "/item") return htmlResponse(itemPageWithAction(unfaveAnchor));
+          throw new Error(`unexpected request ${request.url.href}`);
+        }),
+      },
+    );
+    expect(already.alreadyDesired).toBe(true);
+
+    const alreadyUnvoted = await prepareHackerNewsWebDesiredState(
+      recipe("reactions.set"),
+      { item_id: POST_ID, upvoted: false },
+      hackerNewsAuth,
+      {
+        dependencies: dependencies(calls, (request) => {
+          if (request.url.pathname === "/news") return htmlResponse(newsHtml());
+          if (request.url.pathname === "/item") return htmlResponse(itemPageWithAction(upAnchor));
+          throw new Error(`unexpected request ${request.url.href}`);
+        }),
+      },
+    );
+    expect(alreadyUnvoted).toMatchObject({ desiredState: false, actualState: false, alreadyDesired: true });
+  });
+
+  test("rejects preparation when the viewer no longer matches the subject", () => {
+    const calls: CapturedRequest[] = [];
+    expect(prepareHackerNewsWebDesiredState(
+      recipe("content.save"),
+      { item_id: POST_ID, saved: true },
+      hackerNewsAuth,
+      {
+        dependencies: dependencies(calls, () => htmlResponse(newsHtml("another_user"))),
+      },
+    )).rejects.toThrow("no longer matches");
+    expect(calls.map((request) => request.url.pathname)).toEqual(["/news"]);
+  });
+
+  test("reads exact saved state from the bound viewer's favorites", async () => {
+    const calls: CapturedRequest[] = [];
+    const present = await readHackerNewsWebDesiredState(
+      recipe("content.save"),
+      { item_id: POST_ID, saved: true },
+      hackerNewsAuth,
+      {
+        dependencies: dependencies(calls, (request) => {
+          if (request.url.pathname === "/news") return htmlResponse(newsHtml());
+          if (request.url.pathname === "/favorites") {
+            expect(request.url.searchParams.get("id")).toBe(USERNAME);
+            expect([...request.url.searchParams.keys()]).toEqual(["id"]);
+            return htmlResponse(`<html><body>${submission(POST_ID)}</body></html>`);
+          }
+          throw new Error(`unexpected request ${request.url.href}`);
+        }),
+      },
+    );
+    expect(present).toEqual({ kind: "saved", enabled: true, itemId: POST_ID });
+
+    const absent = await readHackerNewsWebDesiredState(
+      recipe("content.save"),
+      { item_id: POST_ID, saved: true },
+      hackerNewsAuth,
+      {
+        dependencies: dependencies(calls, (request) => {
+          if (request.url.pathname === "/news") return htmlResponse(newsHtml());
+          if (request.url.pathname === "/favorites") {
+            return htmlResponse(`<html><body>${submission("49029999")}</body></html>`);
+          }
+          throw new Error(`unexpected request ${request.url.href}`);
+        }),
+      },
+    );
+    expect(absent.enabled).toBe(false);
+  });
+
+  test("reads exact upvote state from the offered action", async () => {
+    const calls: CapturedRequest[] = [];
+    const upvoted = await readHackerNewsWebDesiredState(
+      recipe("reactions.set"),
+      { item_id: POST_ID, upvoted: true },
+      hackerNewsAuth,
+      {
+        dependencies: dependencies(calls, (request) => {
+          if (request.url.pathname === "/news") return htmlResponse(newsHtml());
+          if (request.url.pathname === "/item") return htmlResponse(itemPageWithAction(unAnchor));
+          throw new Error(`unexpected request ${request.url.href}`);
+        }),
+      },
+    );
+    expect(upvoted).toEqual({ kind: "upvoted", enabled: true, itemId: POST_ID });
+  });
+});
+
+describe("Hacker News accepted-target reconciliation reads", () => {
+  function commentRow(id: string, depth: number, author: string, body: string): string {
+    return [
+      `<tr class="athing comtr" id="${id}">`,
+      "<td><table><tr>",
+      `<td class="ind" indent="${depth}"></td>`,
+      "<td>",
+      `<a href="user?id=${author}" class="hnuser">${author}</a> `,
+      `<span class="age" title="2026-07-23T12:01:00 1784808060"><a href="item?id=${id}">59 minutes ago</a></span>`,
+      `<div class="commtext c00">${body}</div>`,
+      "</td></tr></table></td></tr>",
+    ].join("");
+  }
+
+  test("discovers an exact authored comment under its post", async () => {
+    const calls: CapturedRequest[] = [];
+    const present = await readHackerNewsWebPublishedCommentPresence(
+      recipe("comments.create"),
+      { post_id: POST_ID, body: "Runtime comment" },
+      hackerNewsAuth,
+      {
+        dependencies: dependencies(calls, (request) => {
+          if (request.url.pathname === "/news") return htmlResponse(newsHtml());
+          if (request.url.pathname === "/item") {
+            expect(request.url.searchParams.get("id")).toBe(POST_ID);
+            return htmlResponse(
+              `<html><body>${submission()}${commentRow(COMMENT_ID, 0, USERNAME, "Runtime comment")}</body></html>`,
+            );
+          }
+          throw new Error(`unexpected request ${request.url.href}`);
+        }),
+      },
+    );
+    expect(present).toEqual({ present: true });
+  });
+
+  test("fails closed on unbound and ambiguous discovered comments", async () => {
+    const calls: CapturedRequest[] = [];
+    const unbound = dependencies(calls, (request) => {
+      if (request.url.pathname === "/news") return htmlResponse(newsHtml());
+      if (request.url.pathname === "/item") {
+        return htmlResponse(
+          `<html><body>${submission()}${commentRow(COMMENT_ID, 0, "other_user", "Runtime comment")}</body></html>`,
+        );
+      }
+      throw new Error(`unexpected request ${request.url.href}`);
+    });
+    const absent = await readHackerNewsWebPublishedCommentPresence(
+      recipe("comments.create"),
+      { post_id: POST_ID, body: "Runtime comment" },
+      hackerNewsAuth,
+      { dependencies: unbound },
+    );
+    expect(absent).toEqual({ present: false });
+
+    const ambiguous = dependencies(calls, (request) => {
+      if (request.url.pathname === "/news") return htmlResponse(newsHtml());
+      if (request.url.pathname === "/item") {
+        return htmlResponse(
+          `<html><body>${submission()}${commentRow(COMMENT_ID, 0, USERNAME, "Runtime comment")}${commentRow("49021002", 0, USERNAME, "Runtime comment")}</body></html>`,
+        );
+      }
+      throw new Error(`unexpected request ${request.url.href}`);
+    });
+    await expect(readHackerNewsWebPublishedCommentPresence(
+      recipe("comments.create"),
+      { post_id: POST_ID, body: "Runtime comment" },
+      hackerNewsAuth,
+      { dependencies: ambiguous },
+    )).rejects.toThrow("ambiguous");
+  });
+
+  test("discovers an exact authored reply under its parent comment", async () => {
+    const calls: CapturedRequest[] = [];
+    const present = await readHackerNewsWebPublishedCommentPresence(
+      recipe("replies.create"),
+      { parent_id: COMMENT_ID, body: "Nested reply" },
+      hackerNewsAuth,
+      {
+        dependencies: dependencies(calls, (request) => {
+          if (request.url.pathname === "/news") return htmlResponse(newsHtml());
+          if (request.url.pathname === "/item") {
+            expect(request.url.searchParams.get("id")).toBe(COMMENT_ID);
+            return htmlResponse(
+              `<html><body>${commentRow(COMMENT_ID, 0, "someone", "Parent")}${commentRow("49021001", 1, USERNAME, "Nested reply")}</body></html>`,
+            );
+          }
+          throw new Error(`unexpected request ${request.url.href}`);
+        }),
+      },
+    );
+    expect(present).toEqual({ present: true });
+  });
+
+  test("discovers an exact authored submission on the submitted listing", async () => {
+    const calls: CapturedRequest[] = [];
+    const submittedPage = (author: string, title = "Runtime story") => `
+      <html><body><table>${[
+        `<tr class="athing submission" id="${POST_ID}">`,
+        `<td><span class="titleline"><a href="https://example.com/${POST_ID}">${title}</a></span></td>`,
+        "</tr>",
+        `<tr><td class="subtext"><span class="score">7 points</span> by <a href="user?id=${author}" class="hnuser">${author}</a> `,
+        `<span class="age" title="2026-07-23T12:00:00 1784808000"><a href="item?id=${POST_ID}">one hour ago</a></span>`,
+        "</td></tr>",
+      ].join("")}</table></body></html>`;
+    const present = await readHackerNewsWebPublishedPostPresence(
+      recipe("posts.publish"),
+      { title: "Runtime story", url: `https://example.com/${POST_ID}` },
+      hackerNewsAuth,
+      {
+        dependencies: dependencies(calls, (request) => {
+          if (request.url.pathname === "/news") return htmlResponse(newsHtml());
+          if (request.url.pathname === "/submitted") {
+            expect(request.url.searchParams.get("id")).toBe(USERNAME);
+            return htmlResponse(submittedPage(USERNAME));
+          }
+          throw new Error(`unexpected request ${request.url.href}`);
+        }),
+      },
+    );
+    expect(present).toEqual({ present: true });
+
+    const normalized = await readHackerNewsWebPublishedPostPresence(
+      recipe("posts.publish"),
+      { title: "Runtime - story", url: `https://example.com/${POST_ID}` },
+      hackerNewsAuth,
+      {
+        dependencies: dependencies(calls, (request) => {
+          if (request.url.pathname === "/news") return htmlResponse(newsHtml());
+          if (request.url.pathname === "/submitted") {
+            return htmlResponse(submittedPage(USERNAME, "Runtime – story"));
+          }
+          throw new Error(`unexpected request ${request.url.href}`);
+        }),
+      },
+    );
+    expect(normalized).toEqual({ present: true });
+
+    const wrongActor = await readHackerNewsWebPublishedPostPresence(
+      recipe("posts.publish"),
+      { title: "Runtime story", url: `https://example.com/${POST_ID}` },
+      hackerNewsAuth,
+      {
+        dependencies: dependencies(calls, (request) => {
+          if (request.url.pathname === "/news") return htmlResponse(newsHtml());
+          if (request.url.pathname === "/submitted") {
+            return htmlResponse(submittedPage("other_user"));
+          }
+          throw new Error(`unexpected request ${request.url.href}`);
+        }),
+      },
+    );
+    expect(wrongActor).toEqual({ present: false });
   });
 });

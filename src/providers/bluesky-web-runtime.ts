@@ -83,6 +83,7 @@ import {
   projectBlueskyPostsResponse,
   projectBlueskyProfile,
   projectBlueskyProfileStats,
+  projectBlueskySearchPosts,
   projectBlueskyThread,
   type BlueskyBlobRef,
   type BlueskyProjectedPost,
@@ -1345,9 +1346,12 @@ export async function readBlueskyWebPublishedMutationTarget(
     || !(
       (recipe.action === "posts.publish" && recipe.contractVersion === 3)
       || (recipe.action === "media.publish" && recipe.contractVersion === 2)
+      || (recipe.action === "replies.create" && recipe.contractVersion === 1)
     )
   ) {
-    throw new Error("Bluesky publish recovery supports only posts.publish@3 or media.publish@2");
+    throw new Error(
+      "Bluesky publish recovery supports only posts.publish@3, media.publish@2, or replies.create@1",
+    );
   }
   const target = parseBlueskyPublishedMutationTarget(identifier);
   const body = assertBlueskyText(input.body, "input.body", 280, 3_000);
@@ -1371,10 +1375,28 @@ export async function readBlueskyWebPublishedMutationTarget(
   ) {
     throw new Error("Bluesky provider-accepted post target did not bind the confirmed attachment shape");
   }
+  const client = await bootstrapClient(
+    auth,
+    recipe.timeoutMs,
+    recipe.maxOutputBytes,
+    options.dependencies,
+  );
+  requireBoundSubject(auth, client.session);
+  let reply:
+    | { readonly root: BlueskyStrongRef; readonly parent: BlueskyStrongRef }
+    | null = null;
+  if (recipe.action === "replies.create") {
+    const parent = await getPost(client, postUriInput(input));
+    reply = Object.freeze({
+      root: parent.reply?.root ?? Object.freeze({ uri: parent.uri, cid: parent.cid }),
+      parent: Object.freeze({ uri: parent.uri, cid: parent.cid }),
+    });
+  }
   const recordValue = Object.freeze({
     $type: "app.bsky.feed.post",
     text: body,
     createdAt: target.createdAt,
+    ...(reply === null ? {} : { reply }),
     ...(target.media === null
       ? {}
       : target.media.mediaType === "video/mp4"
@@ -1409,13 +1431,6 @@ export async function readBlueskyWebPublishedMutationTarget(
           },
         }),
   });
-  const client = await bootstrapClient(
-    auth,
-    recipe.timeoutMs,
-    recipe.maxOutputBytes,
-    options.dependencies,
-  );
-  requireBoundSubject(auth, client.session);
   const strongRef = Object.freeze({ uri: target.uri, cid: target.cid });
   await getAuthoritativeRecord(client, strongRef, recordValue);
   const projected = await getPost(client, target.uri);
@@ -1425,7 +1440,7 @@ export async function readBlueskyWebPublishedMutationTarget(
   assertPublishedPost(projected, {
     actorDid: client.session.did,
     text: body,
-    reply: null,
+    reply,
     quote: null,
     attachment: target.media === null
       ? null
@@ -1587,8 +1602,26 @@ async function executeFeedRead(
       }),
       limit,
     );
+  } else if (feed === "search") {
+    const query = inputString(input, "query", 512);
+    const sort = optionalInputString(input, "sort", 16);
+    if (sort !== undefined && sort !== "top" && sort !== "latest") {
+      throw new Error("input.sort must name top or latest");
+    }
+    output = projectBlueskySearchPosts(
+      await xrpc(client, "app.bsky.feed.searchPosts", {
+        query: {
+          q: [query],
+          ...(sort === undefined ? {} : { sort: [sort] }),
+          limit: [String(limit)],
+          ...(cursor === undefined ? {} : { cursor: [cursor] }),
+        },
+        proxy: BLUESKY_APPVIEW_PROXY,
+      }),
+      limit,
+    );
   } else {
-    throw new Error("input.feed must name home, notifications, or bookmarks");
+    throw new Error("input.feed must name home, notifications, bookmarks, or search");
   }
   return {
     status: "succeeded",
@@ -1597,7 +1630,9 @@ async function executeFeedRead(
       ? `${BLUESKY_APP_ORIGIN}/`
       : feed === "notifications"
         ? `${BLUESKY_APP_ORIGIN}/notifications`
-        : `${BLUESKY_APP_ORIGIN}/saved`,
+        : feed === "search"
+          ? `${BLUESKY_APP_ORIGIN}/search?q=${encodeURIComponent(inputString(input, "query", 512))}`
+          : `${BLUESKY_APP_ORIGIN}/saved`,
     dispatchStarted: false,
     dispatch: { planned: 0, started: 0, verified: 0 },
   };

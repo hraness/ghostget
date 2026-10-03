@@ -21,6 +21,13 @@ export const LINKEDIN_POST_CREATE_MUTATION_ID =
 export const LINKEDIN_POST_READBACK_QUERY_ID =
   "voyagerFeedDashUpdates.00f9ed72d35c2a949114759b829f9886";
 export const LINKEDIN_GRAPHQL_PATH = "/voyager/api/graphql";
+export const LINKEDIN_COMMENT_CREATE_PATH =
+  "/voyager/api/voyagerSocialDashNormComments";
+export const LINKEDIN_COMMENT_DECORATION_ID =
+  "com.linkedin.voyager.dash.deco.social.NormComment-44";
+export const LINKEDIN_COMMENTS_QUERY_PREFIX = "voyagerSocialDashComments";
+export const LINKEDIN_COMMENTS_OBSERVED_QUERY_ID =
+  "voyagerSocialDashComments.cfb1d5746385f6978e708dee5a7fd745";
 
 export const LINKEDIN_WEB_OPERATION_NAMES = Object.freeze([
   "feeds.read",
@@ -292,23 +299,71 @@ export const LINKEDIN_WEB_OPERATIONS = {
   "comments.read": {
     effect: "read",
     risk: "R1",
-    state: "capture-required",
-    evidence: "first-party-bundle",
-    requests: [],
+    state: "observed",
+    evidence: "live-response",
+    requests: [{
+      kind: "registered-query",
+      method: "GET",
+      path: LINKEDIN_GRAPHQL_PATH,
+      queryPrefix: LINKEDIN_COMMENTS_QUERY_PREFIX,
+      allowedQueryParameters: ["includeWebMetadata", "queryId", "variables"],
+      requiredQueryParameters: ["includeWebMetadata", "queryId", "variables"],
+      fixedQueryParameters: [["includeWebMetadata", "true"]],
+    }],
   },
   "comments.create": {
     effect: "write",
     risk: "R3",
-    state: "capture-required",
-    evidence: "first-party-bundle",
-    requests: [],
+    state: "observed",
+    evidence: "live-response",
+    requests: [
+      {
+        kind: "restli-write",
+        method: "POST",
+        path: LINKEDIN_COMMENT_CREATE_PATH,
+        queryId: null,
+        fixedQueryParameters: [["decorationId", LINKEDIN_COMMENT_DECORATION_ID]],
+        bodyContract:
+          "exact commentary text, empty attributesV2, TextViewModel $type, and threadUrn bound to the exact confirmed post activity URN",
+        targetHostnameFamilies: ["linkedin.com"],
+      },
+      {
+        kind: "registered-query",
+        method: "GET",
+        path: LINKEDIN_GRAPHQL_PATH,
+        queryPrefix: LINKEDIN_COMMENTS_QUERY_PREFIX,
+        allowedQueryParameters: ["includeWebMetadata", "queryId", "variables"],
+        requiredQueryParameters: ["includeWebMetadata", "queryId", "variables"],
+        fixedQueryParameters: [["includeWebMetadata", "true"]],
+      },
+    ],
   },
   "replies.create": {
     effect: "write",
     risk: "R3",
-    state: "capture-required",
-    evidence: "first-party-bundle",
-    requests: [],
+    state: "observed",
+    evidence: "live-response",
+    requests: [
+      {
+        kind: "restli-write",
+        method: "POST",
+        path: LINKEDIN_COMMENT_CREATE_PATH,
+        queryId: null,
+        fixedQueryParameters: [["decorationId", LINKEDIN_COMMENT_DECORATION_ID]],
+        bodyContract:
+          "exact commentary text, empty attributesV2, TextViewModel $type, and threadUrn bound to the exact confirmed parent comment URN",
+        targetHostnameFamilies: ["linkedin.com"],
+      },
+      {
+        kind: "registered-query",
+        method: "GET",
+        path: LINKEDIN_GRAPHQL_PATH,
+        queryPrefix: LINKEDIN_COMMENTS_QUERY_PREFIX,
+        allowedQueryParameters: ["includeWebMetadata", "queryId", "variables"],
+        requiredQueryParameters: ["includeWebMetadata", "queryId", "variables"],
+        fixedQueryParameters: [["includeWebMetadata", "true"]],
+      },
+    ],
   },
   "reactions.set": {
     effect: "write",
@@ -2946,6 +3001,241 @@ export function normalizeLinkedInPostProjection(
   return Object.freeze({ entityUrn, mediaUrn, url: url.href });
 }
 
+const LINKEDIN_ACTIVITY_URN_PATTERN = /^urn:li:activity:[0-9]{1,32}$/u;
+const LINKEDIN_PARENT_COMMENT_URN_PATTERN =
+  /^urn:li:comment:\(activity:([0-9]{1,32}),([0-9]{1,32})\)$/u;
+const LINKEDIN_FSD_COMMENT_URN_PATTERN =
+  /^urn:li:fsd_comment:\(([0-9]{1,32}),(urn:li:activity:[0-9]{1,32})\)$/u;
+
+/** Exact confirmed post binding for one comment or reply. */
+export function linkedInCommentPostUrn(value: unknown): string {
+  const urn = boundedText(value, "LinkedIn comment post URN", 512);
+  if (!LINKEDIN_ACTIVITY_URN_PATTERN.test(urn)) {
+    throw new Error("LinkedIn comment post URN must be one urn:li:activity URN");
+  }
+  return urn;
+}
+
+export function linkedInCommentText(value: unknown): string {
+  if (
+    typeof value !== "string"
+    || value.length < 1
+    || value.length > 500
+    || /\0/u.test(value)
+  ) throw new Error("LinkedIn comment body must be 1-500 characters without NUL");
+  return value;
+}
+
+export type LinkedInParentCommentTarget = Readonly<{
+  readonly urn: string;
+  readonly activityId: string;
+  readonly commentId: string;
+}>;
+
+/** Exact confirmed parent-comment binding in the provider's urn:li:comment form. */
+export function linkedInParentCommentTarget(value: unknown): LinkedInParentCommentTarget {
+  const urn = boundedText(value, "LinkedIn parent comment URN", 1_000);
+  const fsd = LINKEDIN_FSD_COMMENT_URN_PATTERN.exec(urn);
+  if (fsd !== null && fsd[1] !== undefined && fsd[2] !== undefined) {
+    const activityId = fsd[2].slice("urn:li:activity:".length);
+    return Object.freeze({
+      activityId,
+      commentId: fsd[1],
+      urn: `urn:li:comment:(activity:${activityId},${fsd[1]})`,
+    });
+  }
+  const match = LINKEDIN_PARENT_COMMENT_URN_PATTERN.exec(urn);
+  if (match === null || match[1] === undefined || match[2] === undefined) {
+    throw new Error(
+      "LinkedIn parent comment URN must be one urn:li:comment or urn:li:fsd_comment URN",
+    );
+  }
+  return Object.freeze({ activityId: match[1], commentId: match[2], urn });
+}
+
+/** Provider-returned created-comment identity from the x-restli-id header. */
+export function linkedInCreatedCommentUrn(value: unknown): string {
+  const urn = boundedText(value, "LinkedIn created comment URN", 512);
+  if (!LINKEDIN_FSD_COMMENT_URN_PATTERN.test(urn)) {
+    throw new Error("LinkedIn comment create returned an invalid comment URN");
+  }
+  return urn;
+}
+
+/** Root post URN embedded in one provider-returned created-comment identity. */
+export function linkedInCreatedCommentThreadUrn(commentUrnValue: unknown): string {
+  const urn = linkedInCreatedCommentUrn(commentUrnValue);
+  const match = LINKEDIN_FSD_COMMENT_URN_PATTERN.exec(urn);
+  if (match?.[2] === undefined) {
+    throw new Error("LinkedIn created comment URN omitted its thread binding");
+  }
+  return match[2];
+}
+
+/** Exact reviewed NormComments create body for one comment or reply. */
+export function buildLinkedInCommentCreateBody(
+  input: Readonly<{ body: unknown; threadUrn: string }>,
+): Readonly<Record<string, unknown>> {
+  return Object.freeze({
+    commentary: Object.freeze({
+      $type: "com.linkedin.voyager.dash.common.text.TextViewModel",
+      attributesV2: Object.freeze([]),
+      text: linkedInCommentText(input.body),
+    }),
+    threadUrn: input.threadUrn,
+  });
+}
+
+/** socialDetailUrn observed binding the post's comment collection to one activity URN. */
+export function linkedInCommentSocialDetailUrn(postUrnValue: unknown): string {
+  const postUrn = linkedInCommentPostUrn(postUrnValue);
+  return `urn:li:fsd_socialDetail:(${postUrn},${postUrn},urn:li:highlightedReply:-)`;
+}
+
+export type LinkedInCommentsReadPage = Readonly<{
+  readonly count: number;
+  readonly numReplies: number;
+  readonly start: number;
+}>;
+
+/** One exact page request against the reviewed comments collection contract. */
+export function linkedInCommentsReadPath(
+  postUrnValue: unknown,
+  queryIdValue: unknown,
+  page: LinkedInCommentsReadPage,
+): string {
+  const queryId = resolveLinkedInRegisteredQueryId(
+    LINKEDIN_COMMENTS_QUERY_PREFIX,
+    [queryIdValue],
+  );
+  if (
+    !Number.isSafeInteger(page.count)
+    || (page.count !== 2 && page.count !== 20)
+    || !Number.isSafeInteger(page.numReplies)
+    || (page.numReplies !== 1 && page.numReplies !== 20)
+    || !Number.isSafeInteger(page.start)
+    || page.start < 0
+    || page.start > 400
+    || page.start % page.count !== 0
+  ) throw new Error("LinkedIn comments page is outside the reviewed request contract");
+  const inner = linkedInCommentSocialDetailUrn(postUrnValue);
+  const strictInner = encodeURIComponent(inner).replace(
+    /[!'()*]/gu,
+    (character) =>
+      `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
+  const variables =
+    `(count:${page.count},numReplies:${page.numReplies},socialDetailUrn:${strictInner},` +
+    `sortOrder:RELEVANCE,start:${page.start})`;
+  return `${LINKEDIN_GRAPHQL_PATH}?includeWebMetadata=true&variables=${variables}&queryId=${encodeURIComponent(queryId)}`;
+}
+
+export type LinkedInCommentProjection = Readonly<{
+  readonly actorUrn: string | null;
+  readonly text: string | null;
+  readonly urn: string;
+  readonly urns: readonly string[];
+}>;
+
+export type LinkedInCommentsProjection = Readonly<{
+  readonly comments: readonly LinkedInCommentProjection[];
+  readonly expectedMatched: boolean | null;
+}>;
+
+const LINKEDIN_COMMENT_ENTITY_URN_PATTERN =
+  /^urn:li:(?:fsd_)?comment:\([^()]{1,460}\)$/u;
+const LINKEDIN_COMMENT_ACTOR_URN_PATTERN =
+  /^urn:li:(?:fsd_profile|fs_miniProfile|member):[A-Za-z0-9_(),.:%=-]{1,448}$/u;
+
+/** Normalize one accepted fsd_comment URN to its sibling urn:li:comment form. */
+export function linkedInCommentDomUrn(commentUrnValue: unknown): string | null {
+  const match = LINKEDIN_FSD_COMMENT_URN_PATTERN.exec(
+    typeof commentUrnValue === "string" ? commentUrnValue : "",
+  );
+  if (match === null || match[1] === undefined || match[2] === undefined) return null;
+  const activityId = match[2].slice("urn:li:activity:".length);
+  return `urn:li:comment:(activity:${activityId},${match[1]})`;
+}
+
+/** Validate the bounded in-page comment projection for list and create readback. */
+export function normalizeLinkedInCommentsProjection(
+  value: unknown,
+  expected: Readonly<{ commentUrn: string; parentUrn: string | null; text: string }> | null,
+): LinkedInCommentsProjection {
+  if (!isRecord(value) || !Array.isArray(value.comments) || value.comments.length > 400) {
+    throw new Error("LinkedIn comments browser projection changed shape");
+  }
+  const comments: LinkedInCommentProjection[] = [];
+  const seen = new Set<string>();
+  for (const item of value.comments) {
+    if (!isRecord(item)) throw new Error("LinkedIn comments browser projection changed shape");
+    exactObjectKeys(
+      item,
+      ["actorUrn", "text", "urn", "urns"],
+      "LinkedIn comments browser projection",
+    );
+    const urn = boundedText(item.urn, "LinkedIn comment projection URN", 512);
+    if (!LINKEDIN_COMMENT_ENTITY_URN_PATTERN.test(urn)) {
+      throw new Error("LinkedIn comment projection URN is invalid");
+    }
+    if (seen.has(urn)) continue;
+    seen.add(urn);
+    if (!Array.isArray(item.urns) || item.urns.length > 64) {
+      throw new Error("LinkedIn comment projection URN set changed shape");
+    }
+    const urns = new Set<string>();
+    for (const candidate of item.urns) {
+      const bound = boundedText(candidate, "LinkedIn comment projection URN", 512);
+      if (!/^urn:li:[A-Za-z_]+:\(?[A-Za-z0-9_(),.:%=-]{1,440}\)?$/u.test(bound)) {
+        throw new Error("LinkedIn comment projection URN set is invalid");
+      }
+      urns.add(bound);
+    }
+    if (!urns.has(urn)) throw new Error("LinkedIn comment projection omitted its entity URN");
+    const text = item.text === null
+      ? null
+      : boundedText(item.text, "LinkedIn comment projection text", 32_768);
+    const actorUrn = item.actorUrn === null || item.actorUrn === undefined
+      ? null
+      : (() => {
+          const candidate = boundedText(item.actorUrn, "LinkedIn comment projection actor", 512);
+          if (!LINKEDIN_COMMENT_ACTOR_URN_PATTERN.test(candidate)) {
+            throw new Error("LinkedIn comment projection actor URN is invalid");
+          }
+          return candidate;
+        })();
+    comments.push(Object.freeze({ actorUrn, text, urn, urns: Object.freeze([...urns]) }));
+  }
+  let expectedMatched: boolean | null = null;
+  if (expected !== null) {
+    const expectedUrn = linkedInCreatedCommentUrn(expected.commentUrn);
+    const expectedDomUrn = linkedInCommentDomUrn(expectedUrn);
+    linkedInCommentText(expected.text);
+    const parentDom = expected.parentUrn === null
+      ? null
+      : linkedInParentCommentTarget(expected.parentUrn).urn;
+    const parentFsd = expected.parentUrn === null
+      ? null
+      : (LINKEDIN_FSD_COMMENT_URN_PATTERN.test(expected.parentUrn)
+        ? expected.parentUrn
+        : (() => {
+            const target = LINKEDIN_PARENT_COMMENT_URN_PATTERN.exec(expected.parentUrn);
+            return target === null
+              ? null
+              : `urn:li:fsd_comment:(${target[2]},urn:li:activity:${target[1]})`;
+          })());
+    expectedMatched = comments.some((comment) =>
+      (comment.urns.includes(expectedUrn)
+        || (expectedDomUrn !== null && comment.urns.includes(expectedDomUrn)))
+      && comment.text === expected.text
+      && (parentDom === null
+        || comment.urns.includes(parentDom)
+        || (parentFsd !== null && comment.urns.includes(parentFsd)))
+    );
+  }
+  return Object.freeze({ comments: Object.freeze(comments), expectedMatched });
+}
+
 export function assertLinkedInMessengerConversationsRequest(
   requestValue: {
     readonly url: string | URL;
@@ -3338,6 +3628,53 @@ export function assertLinkedInWebR1RequestAllowed(
       typeof variables !== "string"
       || !/\bprofileUrn:urn:li:fsd_profile:[A-Za-z0-9_-]{1,256}\b/u.test(variables)
     ) throw new Error("LinkedIn profile-activity request omitted its profile URN");
+    return;
+  }
+  if (operationValue === "comments.read") {
+    if (!isRecord(requestValue)) {
+      throw new Error("LinkedIn comments request must be an object");
+    }
+    const method = boundedText(requestValue.method, "LinkedIn comments request method", 16)
+      .toUpperCase();
+    if (method !== "GET") throw new Error("LinkedIn comments reads require GET");
+    const rawUrl = requestValue.url;
+    if (!(rawUrl instanceof URL) && typeof rawUrl !== "string") {
+      throw new Error("LinkedIn comments request URL is invalid");
+    }
+    const url = rawUrl instanceof URL ? new URL(rawUrl.href) : new URL(rawUrl);
+    if (
+      url.origin !== "https://www.linkedin.com"
+      || url.pathname !== LINKEDIN_GRAPHQL_PATH
+      || url.username !== ""
+      || url.password !== ""
+      || url.hash !== ""
+    ) throw new Error("LinkedIn comments request escaped its exact reviewed route");
+    const queryNames = [...url.searchParams.keys()];
+    if (
+      queryNames.length !== 3
+      || !queryNames.includes("includeWebMetadata")
+      || !queryNames.includes("queryId")
+      || !queryNames.includes("variables")
+      || url.searchParams.get("includeWebMetadata") !== "true"
+      || url.searchParams.getAll("includeWebMetadata").length !== 1
+      || url.searchParams.getAll("queryId").length !== 1
+      || url.searchParams.getAll("variables").length !== 1
+    ) throw new Error("LinkedIn comments request query shape is invalid");
+    resolveLinkedInRegisteredQueryId(
+      LINKEDIN_COMMENTS_QUERY_PREFIX,
+      [url.searchParams.get("queryId")],
+    );
+    const variables = url.searchParams.get("variables");
+    if (
+      typeof variables !== "string"
+      || !/^\(count:(2|10|20|50),numReplies:(0|1|2|5|10|20),socialDetailUrn:urn:li:fsd_socialDetail:\(urn:li:activity:[0-9]{1,32},urn:li:activity:[0-9]{1,32},urn:li:highlightedReply:-\),sortOrder:RELEVANCE,start:(0|[1-9][0-9]{0,3})\)$/u
+        .test(variables)
+    ) throw new Error("LinkedIn comments request variables escaped the reviewed contract");
+    const detail = /socialDetailUrn:urn:li:fsd_socialDetail:\(urn:li:activity:([0-9]{1,32}),urn:li:activity:([0-9]{1,32}),/u
+      .exec(variables);
+    if (detail === null || detail[1] !== detail[2]) {
+      throw new Error("LinkedIn comments request social-detail binding changed");
+    }
     return;
   }
   throw new Error("LinkedIn R1 operation has no captured request contract");

@@ -144,7 +144,7 @@ describe("ghostget contracts catalog", () => {
       expect(catalog.adapters.map((adapter) => adapter.id)).toEqual(["bluesky-web", "github-web"]);
       const bluesky = catalog.adapters[0];
       if (bluesky === undefined || "invalid" in bluesky) throw new Error("bluesky-web missing");
-      expect(bluesky).toMatchObject({ version: "1.7.0", surfaceId: "bluesky", origins: ["https://bsky.app"] });
+      expect(bluesky).toMatchObject({ version: "1.9.0", surfaceId: "bluesky", origins: ["https://bsky.app"] });
       const profiles = bluesky.operations.find((operation) => operation.id === "profiles.read");
       expect(profiles).toMatchObject({
         transport: "web-session-api",
@@ -171,7 +171,7 @@ describe("ghostget contracts catalog", () => {
       const text = state.catalog({ adapterIds: ["bluesky-web"], json: false });
       expect(text.exitCode).toBe(0);
       expect(text.stdout).toContain(`Ghostget contract catalog ${GHOSTGET_VERSION} (1 adapters)`);
-      expect(text.stdout).toContain("  bluesky-web 1.7.0: 19 operations;");
+      expect(text.stdout).toContain("  bluesky-web 1.9.0: 19 operations;");
       expect(text.stdout).toContain("1 public");
     } finally {
       state.dispose();

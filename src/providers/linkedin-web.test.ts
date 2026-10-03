@@ -7,6 +7,7 @@ import {
 } from "../article-draft-document";
 
 import {
+  LINKEDIN_COMMENTS_OBSERVED_QUERY_ID,
   LINKEDIN_MESSENGER_CONVERSATIONS_OBSERVED_QUERY_ID,
   LINKEDIN_WEB_FOLDER_CATEGORIES,
   LINKEDIN_WEB_OPERATIONS,
@@ -22,8 +23,16 @@ import {
   buildLinkedInArticleContentV2,
   buildLinkedInArticleCreateBody,
   buildLinkedInArticleTitlePatch,
+  buildLinkedInCommentCreateBody,
   buildLinkedInPostCreateVariables,
   encodeRestliV2Value,
+  linkedInCommentDomUrn,
+  linkedInCommentPostUrn,
+  linkedInCommentSocialDetailUrn,
+  linkedInCommentText,
+  linkedInCommentsReadPath,
+  linkedInCreatedCommentThreadUrn,
+  linkedInCreatedCommentUrn,
   linkedInCsrfTokenFromJSessionId,
   linkedInArticleImageRegistrationDriftCategory,
   linkedInArticleDraftEditUrl,
@@ -32,9 +41,11 @@ import {
   linkedInMailboxUrnFromMiniProfile,
   linkedInMessengerConversationsUrl,
   linkedInOrganizationTarget,
+  linkedInParentCommentTarget,
   linkedInPersonalProfileTarget,
   linkedInPostReadbackUrl,
   linkedInWebFolderCategory,
+  normalizeLinkedInCommentsProjection,
   normalizeLinkedInGraphqlEnvelope,
   normalizeLinkedInArticleDraft,
   normalizeLinkedInArticleDraftV2,
@@ -96,11 +107,14 @@ describe("LinkedIn internal-web operation registry", () => {
   test("graduates only private native Article saving, exact post publishing, and profile-activity reads", () => {
     const observed = new Set([
       "articles.draft.save",
+      "comments.create",
+      "comments.read",
       "contacts.read",
       "feeds.read",
       "organizations.read",
       "posts.publish",
       "profiles.read",
+      "replies.create",
     ]);
     for (const operation of LINKEDIN_WEB_OPERATION_NAMES) {
       const contract = LINKEDIN_WEB_OPERATIONS[operation];
@@ -108,10 +122,13 @@ describe("LinkedIn internal-web operation registry", () => {
       expect(contract.requests).toHaveLength(
         operation === "posts.publish" ? 5
           : operation === "contacts.read" ? 3
-            : operation === "profiles.read"
-              || operation === "organizations.read"
-              || operation === "feeds.read" ? 1
-              : 0,
+            : operation === "comments.create"
+              || operation === "replies.create" ? 2
+              : operation === "profiles.read"
+                || operation === "organizations.read"
+                || operation === "feeds.read"
+                || operation === "comments.read" ? 1
+                : 0,
       );
     }
     expect(LINKEDIN_WEB_OPERATIONS["reactions.set"].risk).toBe("R2");
@@ -434,6 +451,263 @@ describe("LinkedIn native post contract", () => {
       { ...projection, textMatched: false },
       { body, profileUrn, mediaUrn },
     )).toThrow("did not bind the confirmed post");
+  });
+});
+
+describe("LinkedIn native comment contract", () => {
+  const postUrn = "urn:li:activity:7511809736883855360";
+  const commentUrn = `urn:li:fsd_comment:(9001,${postUrn})`;
+  const parentDomUrn = "urn:li:comment:(activity:7511809736883855360,888)";
+
+  test("binds only exact activity URNs as comment post targets", () => {
+    expect(linkedInCommentPostUrn(postUrn)).toBe(postUrn);
+    for (const value of [
+      "urn:li:ugcPost:7511809736883855360",
+      "urn:li:share:7511809736883855360",
+      "urn:li:activity:",
+      "urn:li:activity:12x",
+      "https://www.linkedin.com/feed/update/urn:li:activity:7511809736883855360",
+      "",
+      null,
+      42,
+    ]) {
+      assertRejected(
+        () => linkedInCommentPostUrn(value),
+        "LinkedIn comment post URN",
+      );
+    }
+  });
+
+  test("bounds comment bodies without NUL or emptiness", () => {
+    expect(linkedInCommentText("bounded")).toBe("bounded");
+    expect(linkedInCommentText("x".repeat(500))).toHaveLength(500);
+    for (const value of ["", "x".repeat(501), "nul\0l", null, 7]) {
+      assertRejected(
+        () => linkedInCommentText(value),
+        "LinkedIn comment body must be 1-500 characters without NUL",
+      );
+    }
+  });
+
+  test("normalizes both parent-comment forms to the DOM URN", () => {
+    expect(linkedInParentCommentTarget(parentDomUrn)).toEqual({
+      activityId: "7511809736883855360",
+      commentId: "888",
+      urn: parentDomUrn,
+    });
+    expect(linkedInParentCommentTarget(`urn:li:fsd_comment:(888,${postUrn})`)).toEqual({
+      activityId: "7511809736883855360",
+      commentId: "888",
+      urn: parentDomUrn,
+    });
+    for (const value of [
+      "urn:li:comment:(activity:abc,888)",
+      "urn:li:comment:(888,urn:li:activity:1)",
+      "urn:li:fsd_comment:888",
+      "",
+      null,
+    ]) {
+      assertRejected(
+        () => linkedInParentCommentTarget(value),
+        "LinkedIn parent comment URN",
+      );
+    }
+  });
+
+  test("extracts the activity thread binding from accepted comment URNs", () => {
+    expect(linkedInCreatedCommentUrn(commentUrn)).toBe(commentUrn);
+    expect(linkedInCreatedCommentThreadUrn(commentUrn)).toBe(postUrn);
+    for (const value of [
+      "urn:li:comment:(activity:1,888)",
+      "urn:li:fsd_comment:(888,urn:li:ugcPost:1)",
+      "urn:li:fsd_comment:888",
+    ]) {
+      assertRejected(
+        () => linkedInCreatedCommentUrn(value),
+        "LinkedIn comment create returned an invalid comment URN",
+      );
+    }
+    assertRejected(
+      () => linkedInCreatedCommentUrn(""),
+      "LinkedIn created comment URN",
+    );
+  });
+
+  test("converts accepted fsd URNs to their sibling DOM form only", () => {
+    expect(linkedInCommentDomUrn(commentUrn))
+      .toBe("urn:li:comment:(activity:7511809736883855360,9001)");
+    expect(linkedInCommentDomUrn(parentDomUrn)).toBeNull();
+    expect(linkedInCommentDomUrn("urn:li:fsd_comment:9001")).toBeNull();
+  });
+
+  test("builds the exact NormComments body with empty attributes", () => {
+    expect(buildLinkedInCommentCreateBody({
+      body: "bounded comment",
+      threadUrn: postUrn,
+    })).toEqual({
+      commentary: {
+        $type: "com.linkedin.voyager.dash.common.text.TextViewModel",
+        attributesV2: [],
+        text: "bounded comment",
+      },
+      threadUrn: postUrn,
+    });
+    expect(Object.isFrozen(buildLinkedInCommentCreateBody({
+      body: "x",
+      threadUrn: "t",
+    }))).toBeTrue();
+  });
+
+  test("binds the social-detail collection to the exact post twice", () => {
+    expect(linkedInCommentSocialDetailUrn(postUrn)).toBe(
+      `urn:li:fsd_socialDetail:(${postUrn},${postUrn},urn:li:highlightedReply:-)`,
+    );
+    assertRejected(
+      () => linkedInCommentSocialDetailUrn("urn:li:ugcPost:1"),
+      "LinkedIn comment post URN must be one urn:li:activity URN",
+    );
+  });
+
+  test("emits the strict-encoded reviewed comments page URL", () => {
+    const path = linkedInCommentsReadPath(postUrn, LINKEDIN_COMMENTS_OBSERVED_QUERY_ID, {
+      count: 20,
+      numReplies: 1,
+      start: 0,
+    });
+    expect(path).toBe(
+      "/voyager/api/graphql?includeWebMetadata=true"
+        + "&variables=(count:20,numReplies:1,socialDetailUrn:"
+        + "urn%3Ali%3Afsd_socialDetail%3A%28"
+        + "urn%3Ali%3Aactivity%3A7511809736883855360%2C"
+        + "urn%3Ali%3Aactivity%3A7511809736883855360%2C"
+        + "urn%3Ali%3AhighlightedReply%3A-%29"
+        + ",sortOrder:RELEVANCE,start:0)"
+        + `&queryId=${LINKEDIN_COMMENTS_OBSERVED_QUERY_ID}`,
+    );
+    expect(path).not.toContain("%3A(");
+    for (const page of [
+      { count: 3, numReplies: 1, start: 0 },
+      { count: 20, numReplies: 2, start: 0 },
+      { count: 20, numReplies: 1, start: 21 },
+      { count: 20, numReplies: 1, start: -20 },
+      { count: 20, numReplies: 1, start: 420 },
+      { count: 2, numReplies: 1, start: 3 },
+    ]) {
+      assertRejected(
+        () => linkedInCommentsReadPath(postUrn, LINKEDIN_COMMENTS_OBSERVED_QUERY_ID, page),
+        "LinkedIn comments page is outside the reviewed request contract",
+      );
+    }
+    expect(() => linkedInCommentsReadPath(postUrn, LINKEDIN_COMMENTS_OBSERVED_QUERY_ID, {
+      count: 2,
+      numReplies: 1,
+      start: 2,
+    })).not.toThrow();
+    assertRejected(
+      () => linkedInCommentsReadPath(postUrn, "other.00112233445566778899aabbccddeeff", {
+        count: 20,
+        numReplies: 1,
+        start: 0,
+      }),
+      "LinkedIn registered query",
+    );
+  });
+
+  test("admits only the reviewed comments collection route at R1", () => {
+    const path = linkedInCommentsReadPath(postUrn, LINKEDIN_COMMENTS_OBSERVED_QUERY_ID, {
+      count: 20,
+      numReplies: 1,
+      start: 0,
+    });
+    const url = `https://www.linkedin.com${path}`;
+    expect(() => assertLinkedInWebR1RequestAllowed("comments.read", {
+      method: "GET",
+      url,
+    })).not.toThrow();
+    for (const request of [
+      { method: "POST", url },
+      { method: "GET", url: `${url}&extra=1` },
+      { method: "GET", url: "https://www.linkedin.com/voyager/api/graphql" },
+      {
+        method: "GET",
+        url: `https://www.linkedin.com/voyager/api/graphql?includeWebMetadata=true`
+          + `&variables=(count:20,numReplies:1,socialDetailUrn:urn%3Ali%3Afsd_socialDetail`
+          + `%3A%28urn%3Ali%3Aactivity%3A7511809736883855360%2Curn%3Ali%3Aactivity%3A1`
+          + `%2Curn%3Ali%3AhighlightedReply%3A-%29,sortOrder:RELEVANCE,start:0)`
+          + `&queryId=${LINKEDIN_COMMENTS_OBSERVED_QUERY_ID}`,
+      },
+      { method: "GET", url: "https://example.com/voyager/api/graphql" },
+      "not-a-request",
+      { method: "GET" },
+    ]) {
+      assertRejected(
+        () => assertLinkedInWebR1RequestAllowed("comments.read", request),
+        "LinkedIn comments",
+      );
+    }
+  });
+
+  test("normalizes bounded comment projections and dedupes repeated entities", () => {
+    const comment = {
+      actorUrn: "urn:li:fsd_profile:ACoAAExactCurrentProfile",
+      text: "bounded comment",
+      urn: commentUrn,
+      urns: [commentUrn, "urn:li:comment:(activity:7511809736883855360,9001)"],
+    };
+    const projection = normalizeLinkedInCommentsProjection({
+      comments: [comment, comment, {
+        actorUrn: null,
+        text: null,
+        urn: `urn:li:fsd_comment:(9002,${postUrn})`,
+        urns: [`urn:li:fsd_comment:(9002,${postUrn})`],
+      }],
+    }, null);
+    expect(projection.comments).toHaveLength(2);
+    expect(projection.expectedMatched).toBeNull();
+    for (const value of [
+      { comments: Array.from({ length: 401 }, () => comment) },
+      { comments: [{ ...comment, extra: 1 }] },
+      { comments: [{ ...comment, urn: "urn:li:comment:(activity:1,x y)" }] },
+      { comments: [{ ...comment, urns: [commentUrn, "not-a-urn"] }] },
+      { comments: [{ ...comment, urns: ["urn:li:comment:(activity:1,1)"] }] },
+      { comments: [{ ...comment, actorUrn: "urn:li:comment:(activity:1,1)" }] },
+      { comments: [{ ...comment, urns: Array.from({ length: 65 }, () => "urn:li:activity:1") }] },
+      { comments: "not-an-array" },
+      null,
+    ]) {
+      assertRejected(
+        () => normalizeLinkedInCommentsProjection(value, null),
+        "LinkedIn comment",
+      );
+    }
+  });
+
+  test("matches the accepted target through either URN form with exact text and parent", () => {
+    const base = {
+      actorUrn: "urn:li:fsd_profile:ACoAAExactCurrentProfile",
+      text: "bounded reply",
+      urn: commentUrn,
+      urns: [commentUrn, parentDomUrn],
+    };
+    const expected = { commentUrn, parentUrn: parentDomUrn, text: "bounded reply" };
+    expect(normalizeLinkedInCommentsProjection({ comments: [base] }, expected)
+      .expectedMatched).toBeTrue();
+    const domOnly = {
+      ...base,
+      urn: "urn:li:comment:(activity:7511809736883855360,9001)",
+      urns: ["urn:li:comment:(activity:7511809736883855360,9001)", parentDomUrn],
+    };
+    expect(normalizeLinkedInCommentsProjection({ comments: [domOnly] }, expected)
+      .expectedMatched).toBeTrue();
+    expect(normalizeLinkedInCommentsProjection({
+      comments: [{ ...base, text: "different" }],
+    }, expected).expectedMatched).toBeFalse();
+    expect(normalizeLinkedInCommentsProjection({
+      comments: [{ ...base, urns: [commentUrn] }],
+    }, expected).expectedMatched).toBeFalse();
+    expect(normalizeLinkedInCommentsProjection({
+      comments: [{ ...base, urns: [commentUrn, "urn:li:comment:(activity:1,2)"] }],
+    }, expected).expectedMatched).toBeFalse();
   });
 });
 
@@ -768,6 +1042,7 @@ describe("LinkedIn R1 internal-request gate", () => {
         || operation === "organizations.read"
         || operation === "feeds.read"
         || operation === "contacts.read"
+        || operation === "comments.read"
       ) continue;
       expect(contract.requests).toHaveLength(0);
       expect(contract.state).toBe("capture-required");

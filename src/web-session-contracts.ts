@@ -26,9 +26,125 @@ const currentMarketplaceCursorDescription =
 const predecessorMarketplaceCursorDescription =
   "oh-issued authenticated cursor returned by a complete prior Marketplace page; one chain supports at most 48 provider pages";
 
+const predecessorHackerNewsWriteOperations = new Set<string>([
+  "comments.create",
+  "content.save",
+  "posts.publish",
+  "reactions.set",
+  "replies.create",
+]);
+
+function predecessorHackerNewsContractValue(
+  contract: WebSessionContract,
+): WebSessionContract {
+  // Hacker News write contracts graduated from capture-required reservations
+  // to observed mutations. Durable predecessor receipts carried the reserved
+  // state and the generic capture-required implementation text, so stored
+  // rows and compatibility checks must project the contract back to that
+  // exact predecessor value.
+  // The predecessor submission schema constrained the link URL to adapter
+  // origins. Graduation widened it to the external submission payload, so
+  // the projected predecessor input restores that exact field constraint.
+  const url = contract.input.properties["url"];
+  const input = contract.operation === "posts.publish"
+    && url !== undefined && url.type === "string"
+    ? {
+      ...contract.input,
+      properties: {
+        ...contract.input.properties,
+        url: { ...url, format: "url" as const },
+      },
+    }
+    : contract.input;
+  return Object.freeze({
+    ...contract,
+    state: "capture-required",
+    implementation:
+      `hacker-news ${contract.operation} requires a fresh reviewed authenticated first-party contract before execution`,
+    input,
+  });
+}
+
+function predecessorXWebContractValue(
+  contract: WebSessionContract,
+): WebSessionContract {
+  // The X replies.create contract graduated from a capture-required
+  // reservation to an observed mutation. Durable predecessor receipts carried
+  // the reserved state and reservation implementation text, so stored rows
+  // and compatibility checks must project the contract back to that exact
+  // predecessor value.
+  return Object.freeze({
+    ...contract,
+    state: "capture-required",
+    implementation:
+      "CreateTweet reply needs an authorized live fixture and reviewed transaction-header behavior",
+  });
+}
+
+function predecessorBlueskyWebContractValue(
+  contract: WebSessionContract,
+): WebSessionContract {
+  // The Bluesky replies.create contract graduated from a capture-required
+  // reservation to an observed mutation. Durable predecessor receipts carried
+  // the reserved state and reservation implementation text, so stored rows
+  // and compatibility checks must project the contract back to that exact
+  // predecessor value.
+  return Object.freeze({
+    ...contract,
+    state: "capture-required",
+    implementation:
+      "bluesky replies.create requires a fresh reviewed authenticated first-party contract before execution",
+  });
+}
+
+function predecessorBlueskyFeedsReadContractValue(
+  contract: WebSessionContract,
+): WebSessionContract {
+  // The Bluesky feeds.read v1 manifest widened the input schema for the
+  // search feed. Durable predecessor receipts bound the exact predecessor
+  // schema, so compatibility checks must project the contract back to it.
+  const feed = contract.input.properties["feed"];
+  const properties = { ...contract.input.properties };
+  if (feed !== undefined && feed.type === "string") {
+    properties["feed"] = {
+      ...feed,
+      enum: ["home", "notifications", "bookmarks"],
+    };
+  }
+  delete properties["query"];
+  delete properties["sort"];
+  return Object.freeze({
+    ...contract,
+    input: Object.freeze({ ...contract.input, properties: Object.freeze(properties) }),
+  });
+}
+
 function predecessorCompatibleWebSessionContractValue(
   contract: WebSessionContract,
 ): unknown {
+  if (
+    contract.site === "hacker-news"
+    && contract.contractVersion === 1
+    && contract.state === "observed"
+    && predecessorHackerNewsWriteOperations.has(contract.operation)
+  ) return predecessorHackerNewsContractValue(contract);
+  if (
+    contract.site === "x"
+    && contract.contractVersion === 1
+    && contract.state === "observed"
+    && contract.operation === "replies.create"
+  ) return predecessorXWebContractValue(contract);
+  if (
+    contract.site === "bluesky"
+    && contract.contractVersion === 1
+    && contract.state === "observed"
+    && contract.operation === "replies.create"
+  ) return predecessorBlueskyWebContractValue(contract);
+  if (
+    contract.site === "bluesky"
+    && contract.contractVersion === 1
+    && contract.operation === "feeds.read"
+  ) return predecessorBlueskyFeedsReadContractValue(contract);
   // The plugin advertises historical v1 and active v2 from one present
   // operation schema. Both exact predecessor rows carried the Oh cursor text.
   // Future versions must never inherit this compatibility projection.

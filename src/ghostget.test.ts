@@ -81,10 +81,25 @@ type TestState = {
   readonly environment: Readonly<Record<string, string | undefined>>;
 };
 
+const AUDIENCE_MARKERS = [
+  "AI_AGENT",
+  "CLAUDECODE",
+  "CODEX_SANDBOX",
+  "CODEX_SANDBOX_NETWORK_DISABLED",
+  "CURSOR_AGENT",
+  "GEMINI_CLI",
+  "HRANESS_AUDIENCE",
+] as const;
+
+function inheritedEnvironment(): Readonly<Record<string, string | undefined>> {
+  return Object.fromEntries(Object.entries(process.env).filter(([name]) =>
+    !(AUDIENCE_MARKERS as readonly string[]).includes(name)));
+}
+
 function state(): TestState {
   const directory = mkdtempSync(join(tmpdir(), "wrench-cli-test-"));
   chmodSync(directory, 0o700);
-  return { directory, environment: { ...process.env, GHOSTGET_STATE_HOME: directory } };
+  return { directory, environment: { ...inheritedEnvironment(), GHOSTGET_STATE_HOME: directory } };
 }
 
 function manifest(risk: "R1" | "R2" | "R4" = "R2"): GhostgetManifest {
@@ -2163,17 +2178,18 @@ describe("doctor authenticated API readiness", () => {
         adapters: ["linkedin-web"],
         observedOperations: [
           "articles.draft.save",
+          "comments.create",
+          "comments.read",
           "contacts.read",
           "feeds.read",
           "organizations.read",
           "posts.publish",
           "profiles.read",
+          "replies.create",
         ],
         captureRequiredOperations: [
           "articles.publish",
           "articles.read",
-          "comments.create",
-          "comments.read",
           "contacts.list",
           "media.publish",
           "messaging.list",
@@ -2185,7 +2201,6 @@ describe("doctor authenticated API readiness", () => {
           "reactions.set",
           "relationships.connect",
           "relationships.recommendations.read",
-          "replies.create",
         ],
         accountBoundAuth: ["linkedin-bound"],
         ready: true,
@@ -2204,6 +2219,7 @@ describe("doctor authenticated API readiness", () => {
           "posts.publish",
           "posts.read",
           "profiles.read",
+          "replies.create",
         ],
         accountBoundAuth: [],
         ready: false,
@@ -2239,11 +2255,14 @@ describe("doctor authenticated API readiness", () => {
         accountBoundAuth: ["linkedin-bound"],
         observedOperations: [
           "articles.draft.save",
+          "comments.create",
+          "comments.read",
           "contacts.read",
           "feeds.read",
           "organizations.read",
           "posts.publish",
           "profiles.read",
+          "replies.create",
         ],
         ready: true,
       });
@@ -4664,7 +4683,7 @@ describe("CLI previews and exit semantics", () => {
     const output = capture();
     expect(await main(
       ["unknown-command"],
-      { ...process.env, NO_COLOR: "1", LANG: "en_US.UTF-8", TERM: "xterm-256color" },
+      { ...inheritedEnvironment(), NO_COLOR: "1", LANG: "en_US.UTF-8", TERM: "xterm-256color" },
       output.output,
     )).toBe(2);
     expect(output.stderr()).toBe('✗ Unknown command "unknown-command".\n→ ghostget --help\n');
@@ -4672,7 +4691,7 @@ describe("CLI previews and exit semantics", () => {
     const missing = capture();
     expect(await main(
       ["read"],
-      { ...process.env, NO_COLOR: "1", LANG: "en_US.UTF-8", TERM: "xterm-256color" },
+      { ...inheritedEnvironment(), NO_COLOR: "1", LANG: "en_US.UTF-8", TERM: "xterm-256color" },
       missing.output,
     )).toBe(2);
     expect(missing.stderr()).toBe("✗ A page URL is missing.\n→ ghostget read --help\n");

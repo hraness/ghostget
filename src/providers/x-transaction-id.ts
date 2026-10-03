@@ -70,10 +70,17 @@ export function parseXTransactionRuntimeIds(mainBundleText: string): XTransactio
     throw new Error("X transaction bootstrap wrapper omitted its reviewed request header");
   }
   const references: { readonly chunk: string; readonly module: string }[] = [];
-  const referencePattern = /([A-Za-z_$][A-Za-z0-9_$]*)\.e\(([1-9][0-9]{0,9})\)\.then\(\1\.bind\(\1,([1-9][0-9]{0,9})\)\)/gu;
-  for (const match of window.matchAll(referencePattern)) {
-    if (match[2] !== undefined && match[3] !== undefined) {
-      references.push({ chunk: match[2], module: match[3] });
+  // Both observed lazy-binding shapes: `X.e(c).then(X.bind(X,m))` (2026-09
+  // drop) and `X.e(c).then(()=>X(m)).then(n=>e(n.default()))` (2026-10 drop).
+  const referencePatterns = [
+    /([A-Za-z_$][A-Za-z0-9_$]*)\.e\(([1-9][0-9]{0,9})\)\.then\(\1\.bind\(\1,([1-9][0-9]{0,9})\)\)/gu,
+    /([A-Za-z_$][A-Za-z0-9_$]*)\.e\(([1-9][0-9]{0,9})\)\.then\(\(\)=>\1\(([1-9][0-9]{0,9})\)\)\.then\(([A-Za-z_$][A-Za-z0-9_$]*)=>[A-Za-z_$][A-Za-z0-9_$]*\(\4\.default\(\)\)\)/gu,
+  ];
+  for (const referencePattern of referencePatterns) {
+    for (const match of window.matchAll(referencePattern)) {
+      if (match[2] !== undefined && match[3] !== undefined) {
+        references.push({ chunk: match[2], module: match[3] });
+      }
     }
   }
   if (references.length !== 1) {
@@ -293,7 +300,9 @@ export async function generateXClientTransactionId(input: {
     xTransactionBrowserManifest,
     containedBrowserAuth(input.auth),
     {
-      headed: false,
+      // X rejects headless navigation on the app origin, so the contained
+      // bootstrap runs headed like the other contained Chrome transports.
+      headed: true,
       timeoutMs: remainingTimeoutMs(input.timeoutMs, input.operationDeadline),
       maxOutputBytes: Math.min(input.maxOutputBytes, MAX_EVALUATION_OUTPUT_BYTES),
       allowCodeOwnedEvaluation: true,

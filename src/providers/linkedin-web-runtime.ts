@@ -75,14 +75,19 @@ import {
   buildLinkedInArticleContentPatchV2,
   buildLinkedInArticleCreateBody,
   buildLinkedInArticleTitlePatch,
+  buildLinkedInCommentCreateBody,
   buildLinkedInPostCreateVariables,
   linkedInArticleDraftEditUrl,
   linkedInArticleDraftEnvelopeFromHtml,
   linkedInArticleDraftEntityUrl,
   linkedInArticleDraftId,
+  linkedInCommentPostUrn,
+  linkedInCommentText,
+  linkedInCreatedCommentUrn,
   linkedInCsrfTokenFromJSessionId,
   linkedInMailboxUrnFromMiniProfile,
   linkedInMessengerConversationsUrl,
+  linkedInParentCommentTarget,
   linkedInPostAltText,
   linkedInPostEntityUrn,
   linkedInPostMediaUrn,
@@ -91,6 +96,7 @@ import {
   linkedInOrganizationTarget,
   linkedInPersonalProfilePublicIdentifier,
   linkedInPersonalProfileTarget,
+  normalizeLinkedInCommentsProjection,
   normalizeLinkedInPostProjection,
   normalizeLinkedInArticleDraft,
   normalizeLinkedInArticleDraftMetadata,
@@ -98,6 +104,7 @@ import {
   normalizeLinkedInArticleDraftV2,
   normalizeLinkedInArticleDraftV2Metadata,
   normalizeLinkedInMessagingList,
+  LINKEDIN_COMMENTS_OBSERVED_QUERY_ID,
 } from "./linkedin-web";
 import { resolveLinkedInMessengerConversationsQueryId } from "./linkedin-web-bootstrap";
 import { hasExactKeys } from "../contracts-shape.js";
@@ -105,6 +112,12 @@ import {
   createLinkedInArticleBrowserTransport,
   type LinkedInArticleBrowserTransport,
 } from "./linkedin-web-article-browser";
+import {
+  createLinkedInCommentBrowserTransport,
+  LinkedInCommentCreateResponseError,
+  type LinkedInCommentBrowserTransport,
+  type LinkedInCommentDispatchKind,
+} from "./linkedin-web-comment-browser";
 import {
   createLinkedInPostBrowserTransport,
   LinkedInPostCreateResponseError,
@@ -143,6 +156,7 @@ type JsonRecord = Record<string, unknown>;
 
 export type LinkedInWebRuntimeDependencies = Partial<WebSessionNetworkDependencies> & {
   readonly createArticleBrowserTransport?: typeof createLinkedInArticleBrowserTransport;
+  readonly createCommentBrowserTransport?: typeof createLinkedInCommentBrowserTransport;
   readonly createPostBrowserTransport?: typeof createLinkedInPostBrowserTransport;
   readonly createProfileBrowserTransport?: typeof createLinkedInProfileBrowserTransport;
   readonly createFeedBrowserTransport?: typeof createLinkedInFeedBrowserTransport;
@@ -985,6 +999,39 @@ function linkedInReadFailure(error: unknown): string {
   return "LinkedIn inbox read failed before any remote write; no conversation was opened or acknowledged";
 }
 
+function linkedInCommentsReadFailure(error: unknown): string {
+  const message = error instanceof Error ? error.message : "";
+  if (
+    message.includes("cookie")
+    || message.includes("session")
+    || message.includes("current member")
+    || message.includes("primary member subject")
+    || /status\/content type (?:302|401|403)\//u.test(message)
+  ) {
+    return "LinkedIn signed-in session or account binding failed preflight; refresh the selected browser realm and bind it again";
+  }
+  if (
+    message.includes("registered revision")
+    || message.includes("query failed")
+    || message.includes("query revision")
+    || message.includes("comments page is outside the reviewed request contract")
+    || message.includes("comments read content type changed")
+    || message.includes("comments read status changed")
+    || message.includes("comments read result")
+  ) {
+    return "LinkedIn comments query contract drifted; capture and review the current first-party contract before retrying";
+  }
+  if (
+    message.includes("comments trigger")
+    || message.includes("comments navigation")
+    || message.includes("comments observation")
+    || message.includes("comments context")
+  ) {
+    return "LinkedIn comments page context drifted; capture and review the current first-party contract before retrying";
+  }
+  return "LinkedIn comments read failed before any remote write; no comment was read or posted";
+}
+
 function assertLinkedInWebExecutionAvailable(): void {
   throw new Error(
     "LinkedIn authenticated web operations are capture-required; recapture and review the current first-party contract before execution",
@@ -1698,6 +1745,352 @@ async function executeLinkedInPostPublish(
   }
 }
 
+async function createLinkedInCommentTransport(
+  auth: GhostgetAuth,
+  timeoutMs: number,
+  options: LinkedInWebExecutionOptions,
+): Promise<LinkedInCommentBrowserTransport> {
+  const createTransport = options.dependencies?.createCommentBrowserTransport
+    ?? createLinkedInCommentBrowserTransport;
+  return createTransport(auth, {
+    timeoutMs,
+    ...(options.operationDeadline === undefined
+      ? {}
+      : { operationDeadline: options.operationDeadline }),
+    ...(options.publishCleanupResource === undefined
+      ? {}
+      : { publishCleanupResource: options.publishCleanupResource }),
+  });
+}
+
+const LINKEDIN_COMMENTS_READBACK_MAX_PAGES = 10;
+
+/**
+ * Page the reviewed comments collection until the accepted comment binds its
+ * exact text (and parent, for replies). A missing match stays a read failure so
+ * the dispatch outcome remains indeterminate rather than silently unverified.
+ */
+async function readLinkedInCommentTarget(
+  transport: LinkedInCommentBrowserTransport,
+  expectedSubject: string,
+  expectedProfileUrn: string,
+  postUrn: string,
+  expected: Readonly<{ commentUrn: string; parentUrn: string | null; text: string }>,
+): Promise<void> {
+  for (let page = 0; page < LINKEDIN_COMMENTS_READBACK_MAX_PAGES; page += 1) {
+    const projection = normalizeLinkedInCommentsProjection(
+      await transport.readComments(expectedSubject, expectedProfileUrn, {
+        count: 20,
+        maxComments: 100,
+        numReplies: 20,
+        postUrn,
+        queryId: LINKEDIN_COMMENTS_OBSERVED_QUERY_ID,
+        start: page * 20,
+      }),
+      expected,
+    );
+    if (projection.expectedMatched === true) return;
+    if (projection.comments.length === 0) break;
+  }
+  throw new Error("LinkedIn independent comment readback did not find the confirmed comment");
+}
+
+type LinkedInAcceptedCommentTarget = Readonly<{
+  readonly commentUrn: string;
+}>;
+
+function parseLinkedInAcceptedCommentTarget(
+  identifier: unknown,
+): LinkedInAcceptedCommentTarget {
+  if (
+    typeof identifier !== "string"
+    || identifier.length < 1
+    || identifier.length > 2_048
+    || /[\0\r\n]/u.test(identifier)
+  ) throw new Error("LinkedIn accepted comment target must be bounded canonical JSON");
+  let value: unknown;
+  try {
+    value = JSON.parse(identifier) as unknown;
+  } catch {
+    throw new Error("LinkedIn accepted comment target must be bounded canonical JSON");
+  }
+  if (!isRecord(value)) {
+    throw new Error("LinkedIn accepted comment target changed shape");
+  }
+  exactKeys(value, ["commentUrn"], "LinkedIn accepted comment target");
+  if (!isCanonicalJsonText(identifier, value)) {
+    throw new Error("LinkedIn accepted comment target must use canonical JSON");
+  }
+  return Object.freeze({ commentUrn: linkedInCreatedCommentUrn(value.commentUrn) });
+}
+
+export async function readLinkedInWebAcceptedCommentTargetPresence(
+  recipe: WebSessionRecipe,
+  input: OperationInput,
+  auth: GhostgetAuth,
+  acceptedIdentifier: string,
+  options: {
+    readonly dependencies?: LinkedInWebRuntimeDependencies;
+    readonly operationDeadline?: WebSessionOperationDeadline;
+    readonly publishCleanupResource?: WebSessionCleanupResourcePublisher;
+  } = {},
+): Promise<Readonly<{ present: true }>> {
+  const isReply = recipe.action === "replies.create";
+  if (
+    recipe.site !== "linkedin"
+    || (recipe.action !== "comments.create" && !isReply)
+    || recipe.contractVersion !== 1
+  ) throw new Error("LinkedIn accepted comment readback supports only comments.create or replies.create at contract 1");
+  const body = linkedInCommentText(input.body);
+  const postUrn = linkedInCommentPostUrn(input.post_urn);
+  const parent = isReply ? linkedInParentCommentTarget(input.comment_urn) : null;
+  if (parent !== null && `urn:li:activity:${parent.activityId}` !== postUrn) {
+    throw new Error("LinkedIn accepted reply target did not bind the confirmed post input");
+  }
+  const target = parseLinkedInAcceptedCommentTarget(acceptedIdentifier);
+  const transport = await createLinkedInCommentTransport(auth, recipe.timeoutMs, {
+    ...(options.dependencies === undefined ? {} : { dependencies: options.dependencies }),
+    ...(options.operationDeadline === undefined
+      ? {}
+      : { operationDeadline: options.operationDeadline }),
+    ...(options.publishCleanupResource === undefined
+      ? {}
+      : { publishCleanupResource: options.publishCleanupResource }),
+  });
+  try {
+    const identity = identityFromMeResponse(await transport.currentIdentityResponse());
+    const profileUrn = requireBoundLinkedInIdentity(identity, auth);
+    const expectedSubject = webSessionAuthSubject(auth);
+    if (expectedSubject === null || expectedSubject !== identity.subject) {
+      throw new Error("LinkedIn current member no longer matches the bound auth subject");
+    }
+    await readLinkedInCommentTarget(transport, expectedSubject, profileUrn, postUrn, {
+      commentUrn: target.commentUrn,
+      parentUrn: parent?.urn ?? null,
+      text: body,
+    });
+    return Object.freeze({ present: true });
+  } finally {
+    await transport.close();
+  }
+}
+
+async function executeLinkedInCommentCreate(
+  recipe: WebSessionRecipe,
+  input: OperationInput,
+  auth: GhostgetAuth,
+  options: LinkedInWebExecutionOptions,
+  kind: LinkedInCommentDispatchKind,
+): Promise<WebSessionExecution> {
+  const action = kind === "reply" ? "replies.create" : "comments.create";
+  if (
+    recipe.site !== "linkedin"
+    || recipe.action !== action
+    || recipe.contractVersion !== 1
+  ) throw new Error(`LinkedIn comment creation supports only ${action}@1`);
+  const body = linkedInCommentText(input.body);
+  const postUrn = linkedInCommentPostUrn(input.post_urn);
+  const parent = kind === "reply" ? linkedInParentCommentTarget(input.comment_urn) : null;
+  if (parent !== null && `urn:li:activity:${parent.activityId}` !== postUrn) {
+    throw new Error("LinkedIn reply post_urn must bind the parent comment's root activity");
+  }
+  const threadUrn = parent === null ? postUrn : parent.urn;
+  const createBody = buildLinkedInCommentCreateBody({ body, threadUrn });
+  const postUrl = `${LINKEDIN_ORIGIN}/feed/update/${postUrn}`;
+  let started = 0;
+  let verified = 0;
+  let transport: LinkedInCommentBrowserTransport | null = null;
+  let failureStage = "opening the contained comment transport";
+  try {
+    transport = await createLinkedInCommentTransport(auth, recipe.timeoutMs, options);
+    failureStage = "current-member binding";
+    const identity = identityFromMeResponse(await transport.currentIdentityResponse());
+    const profileUrn = requireBoundLinkedInIdentity(identity, auth);
+    const expectedSubject = webSessionAuthSubject(auth);
+    if (expectedSubject === null || expectedSubject !== identity.subject) {
+      throw new Error("LinkedIn current member no longer matches the bound auth subject");
+    }
+    failureStage = "comment dispatch admission";
+    await options.beforeDispatch?.(
+      articleDispatchEvent(action, 1, 1, started, verified),
+    );
+    started = 1;
+    failureStage = "comment create response";
+    const created = await transport.createComment(expectedSubject, profileUrn, {
+      body: createBody,
+      kind,
+      postUrn,
+    });
+    if (created.commentUrn !== null) {
+      failureStage = "accepted target retention";
+      await options.afterProviderAcceptedMutationTarget?.({
+        id: action,
+        index: 1,
+        target: {
+          schemaVersion: 1,
+          identifier: canonicalJson({ commentUrn: created.commentUrn }),
+        },
+      });
+    }
+    if (
+      created.status !== 201
+      || created.commentUrn === null
+      || !created.entityConfirmed
+    ) {
+      throw new Error(
+        "LinkedIn comment create response did not bind the reviewed acceptance shape",
+      );
+    }
+    const commentUrn = created.commentUrn;
+    failureStage = "independent comment readback";
+    await readLinkedInCommentTarget(
+      transport,
+      expectedSubject,
+      profileUrn,
+      postUrn,
+      { commentUrn, parentUrn: parent?.urn ?? null, text: body },
+    );
+    verified = 1;
+    failureStage = "dispatch verification";
+    await options.afterDispatchVerified?.(
+      articleDispatchEvent(action, 1, 1, started, verified),
+    );
+    return {
+      status: "succeeded",
+      output: Object.freeze({
+        provider: "linkedin",
+        operation: action,
+        comment: Object.freeze({
+          commentUrn,
+          ...(parent === null ? {} : { parentUrn: parent.urn }),
+          postUrn,
+        }),
+      }),
+      finalUrl: postUrl,
+      dispatchStarted: true,
+      dispatch: { planned: 1, started, verified },
+    };
+  } catch (error) {
+    const publicFailureStage = error instanceof LinkedInCommentCreateResponseError
+      ? error.stage
+      : failureStage;
+    return {
+      status: started > verified ? "indeterminate" : "failed",
+      output: null,
+      finalUrl: postUrl,
+      dispatchStarted: started > 0,
+      dispatch: { planned: 1, started, verified },
+      error: started > verified
+        ? `LinkedIn may have accepted the ${kind} but exact member, text, thread, and comment readback was not verified; failure stage: ${publicFailureStage}; reconcile before retrying`
+        : `LinkedIn ${kind} creation failed before comment submission; failure stage: ${publicFailureStage}; retry with a fresh confirmed plan`,
+    };
+  } finally {
+    await transport?.close();
+  }
+}
+
+const LINKEDIN_COMMENTS_CURSOR_PATTERN = /^([0-9]{1,32}):(0|[1-9][0-9]{0,3})$/u;
+
+async function executeLinkedInCommentsRead(
+  recipe: WebSessionRecipe,
+  input: OperationInput,
+  auth: GhostgetAuth,
+  options: LinkedInWebExecutionOptions,
+): Promise<WebSessionExecution> {
+  if (
+    recipe.site !== "linkedin"
+    || recipe.action !== "comments.read"
+    || recipe.contractVersion !== 1
+  ) throw new Error("LinkedIn comments reading supports only comments.read@1");
+  const postUrn = linkedInCommentPostUrn(input.post_urn);
+  const limit = integerInput(input, "limit", 20, 1, 100);
+  const postId = postUrn.slice("urn:li:activity:".length);
+  let start = 0;
+  if (input.cursor !== undefined) {
+    if (typeof input.cursor !== "string" || input.cursor.length > 128) {
+      throw new Error("input.cursor must be one bounded LinkedIn comments cursor");
+    }
+    const match = LINKEDIN_COMMENTS_CURSOR_PATTERN.exec(input.cursor);
+    if (match === null || match[1] !== postId || match[2] === undefined) {
+      throw new Error("input.cursor does not bind this LinkedIn post's comment page");
+    }
+    start = Number(match[2]);
+    if (start % 20 !== 0 || start > 400) {
+      throw new Error("input.cursor escaped the reviewed comments page bound");
+    }
+  }
+  const finalUrl = `${LINKEDIN_ORIGIN}/feed/update/${postUrn}`;
+  let transport: LinkedInCommentBrowserTransport | null = null;
+  try {
+    transport = await createLinkedInCommentTransport(auth, recipe.timeoutMs, options);
+    const identity = identityFromMeResponse(await transport.currentIdentityResponse());
+    const profileUrn = requireBoundLinkedInIdentity(identity, auth);
+    const expectedSubject = webSessionAuthSubject(auth);
+    if (expectedSubject === null || expectedSubject !== identity.subject) {
+      throw new Error("LinkedIn current member no longer matches the bound auth subject");
+    }
+    const comments: ReturnType<typeof normalizeLinkedInCommentsProjection>["comments"][number][] = [];
+    const seen = new Set<string>();
+    let exhausted = true;
+    let pagesRead = 0;
+    for (let page = 0; page < LINKEDIN_COMMENTS_READBACK_MAX_PAGES; page += 1) {
+      const projection = normalizeLinkedInCommentsProjection(
+        await transport.readComments(expectedSubject, profileUrn, {
+          count: 20,
+          maxComments: 100,
+          numReplies: 1,
+          postUrn,
+          queryId: LINKEDIN_COMMENTS_OBSERVED_QUERY_ID,
+          start: start + page * 20,
+        }),
+        null,
+      );
+      pagesRead = page + 1;
+      for (const comment of projection.comments) {
+        if (seen.has(comment.urn)) continue;
+        seen.add(comment.urn);
+        comments.push(comment);
+      }
+      if (projection.comments.length < 20) {
+        exhausted = true;
+        break;
+      }
+      exhausted = false;
+      if (comments.length >= limit) break;
+    }
+    const nextCursor = exhausted || comments.length < limit
+      ? null
+      : `${postId}:${start + pagesRead * 20}`;
+    return {
+      status: "succeeded",
+      output: Object.freeze({
+        comments: Object.freeze(comments.slice(0, limit).map((comment) => Object.freeze({
+          actorUrn: comment.actorUrn,
+          text: comment.text,
+          urn: comment.urn,
+        }))),
+        complete: nextCursor === null,
+        nextCursor,
+        post: Object.freeze({ urn: postUrn }),
+      }),
+      finalUrl,
+      dispatchStarted: false,
+      dispatch: { planned: 0, started: 0, verified: 0 },
+    };
+  } catch (error) {
+    return {
+      status: "failed",
+      output: null,
+      finalUrl,
+      dispatchStarted: false,
+      dispatch: { planned: 0, started: 0, verified: 0 },
+      error: linkedInCommentsReadFailure(error),
+    };
+  } finally {
+    await transport?.close();
+  }
+}
+
 async function executeLinkedInArticleDraftSave(
   recipe: WebSessionRecipe,
   input: OperationInput,
@@ -2317,6 +2710,71 @@ export async function executeLinkedInWebOperation(
     return startWebSessionCleanupTrackedOperation(
       options.registerCleanupBarrier,
       (publishCleanupResource) => executeLinkedInArticleDraftSave(
+        recipe,
+        input,
+        auth,
+        {
+          ...options,
+          ...(publishCleanupResource === undefined
+            ? {}
+            : { publishCleanupResource }),
+        },
+      ),
+      browserCleanupBarrier,
+    );
+  }
+  if (
+    recipe.site === "linkedin"
+    && recipe.contractVersion === 1
+    && recipe.action === "comments.create"
+  ) {
+    return startWebSessionCleanupTrackedOperation(
+      options.registerCleanupBarrier,
+      (publishCleanupResource) => executeLinkedInCommentCreate(
+        recipe,
+        input,
+        auth,
+        {
+          ...options,
+          ...(publishCleanupResource === undefined
+            ? {}
+            : { publishCleanupResource }),
+        },
+        "comment",
+      ),
+      browserCleanupBarrier,
+    );
+  }
+  if (
+    recipe.site === "linkedin"
+    && recipe.contractVersion === 1
+    && recipe.action === "replies.create"
+  ) {
+    return startWebSessionCleanupTrackedOperation(
+      options.registerCleanupBarrier,
+      (publishCleanupResource) => executeLinkedInCommentCreate(
+        recipe,
+        input,
+        auth,
+        {
+          ...options,
+          ...(publishCleanupResource === undefined
+            ? {}
+            : { publishCleanupResource }),
+        },
+        "reply",
+      ),
+      browserCleanupBarrier,
+    );
+  }
+  if (
+    recipe.site === "linkedin"
+    && recipe.contractVersion === 1
+    && recipe.action === "comments.read"
+  ) {
+    return startWebSessionCleanupTrackedOperation(
+      options.registerCleanupBarrier,
+      (publishCleanupResource) => executeLinkedInCommentsRead(
         recipe,
         input,
         auth,

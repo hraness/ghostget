@@ -4,27 +4,28 @@ import { pathToFileURL } from "node:url";
 import { describe, expect, test } from "bun:test";
 
 const predecessorDefaultInventorySha256 =
-  "3aef102dfcf019a2c258a782527f6a652df0127224cd7714339878c8e730eb26";
+  "0c79db605f2d6f06edce70c8bedf131ac31e7b29f64ca427d1884819738eaa30";
 const predecessorLegacyInventorySha256 = [
-  "4abf50326edbc8c8294a2056a08fc7ab2fd038d2d798708b77e29df98c2a86d0",
-  "112cb715f1466ed5eb29cf97116151ae8b6a56aeb8aa9c08ed26ebadd47b86be",
-  "0ceb2752973c0c855487dca60bb1e768b59f003b57b98cc0547996b9a766a9d7",
-  "738e521f9d410c8101dcc294ec466bef19f9cad6e13c5628ae7dafbab7f6cb6b",
-  "303ca3ae1b44693bbbdbdcf48665c388eaaa8b677f982a2ebdc0ae9ccb82a8b4",
-  "0b7b037e045497f96920c8e751711f767b6358589c39ba0ea9d9db880ddef2ca",
-  "ce149cd1d2d695a693b2dac2c16c3b7f18b5ab1adb108a3dee07ae8031414255",
-  "0496b19acf9cb7d84c8cf335a54081a670e9d20ca7a07fabfb3f2bde69993857",
-  "a8afb05b1e43932893020c4421dad911945e29dd7f7c6deb3b8e4412e5b19038",
-  "adce058620ce1d6b4fe6596da3ca9e58e1e73dc83b699d883eda1e6795cb0f89",
-  "7c3c14073f83c6a18daff16381430e2cce010209c4efe8c966b4a4a197c48b34",
-  "2303c37a7595b44cbb997056d7b7d31e3ef706db9573166427768e738066ad12",
-  "bfafe93552d576c1a52da29ab5a56dfe7cf828b1e7b44bfd546937966c186f95",
-  "bf0e56da9f3b3529e59d2aa2c9d4b8c7e3c117be1b666c31288bcc8f90818ce3",
-  "58e5e5b27881f30114891f7c266f901e7dda800d3f12309e420c602348816a58",
-  "7db7a8a56a969f082a8fb588425d23e2525ee1fec8862d28606df29e2383db4b",
-  "29b7a19415dc62980cf33174e21d626b2d25f3dd05b6b11f82290e7d02257b7e",
-  "c5d57f9c78838ddd503259b99e39b49da93707e2b33136fc22194f05d3c8d736",
-  "2ec64924059bd3d89ae6914c0a7a841d6fce312a5cd9020c3f1e99aa713f2731",
+  "a758e0c4d087c87d5015b440433c80ec2485af46e108a8d441188a50bd92cdff",
+  "51a59549cb5b3018fccd5bb28561a5914d36b5ef5fa037861156545cb2bff1b5",
+  "5b8868fca447f3bc0ad3c86ed94dfc7d86ad2e6f7fc4247b2f8ad8c95b7decc4",
+  "24fa0567b0b6cebdb2282bab144c2aa059ba3021e16efa0a4576aebeae7780a0",
+  "d94370a1e87c39cd82ec43c1b553e487709ca04913a5cfabc34189137673f819",
+  "9a15cb294e6ad8c7bdc5926d4908b4dac1eac23ecb14f6a8b437524c4dfadad7",
+  "40e338ffbe78663d02dab6e64c30d0d84f80e2c25b33f12a613605184bae0c48",
+  "781f707aef2c0d6f4c5182a40b3ec5d9e4c5cfa1313049b7478c764a6ae13b53",
+  "79dc52c1b393c729c89dfe6a0af7320a1f434486ead2ddb477404bb8d3b0a0ab",
+  "434f58866c1c574c8a4e71542def1a25cd9b4871a6c349504dca61fc35a479c5",
+  "46e05dea06809e4f26c3811a40d41715d28fe4173fd3f11a03ec841c520a6de3",
+  "3ce371eedb2dd0b91f8990d35bd6f3a2b6e96dbd93f425fb72bb39c2452e564f",
+  "b66b3f80060b414571588a9e5051fbb32eed8cbc2f962c5efc9154796e2ca27e",
+  "41d40ee9cc4b4e33dc7c5c32c226a30cf6fa7ca0424daebde11ec03833e710a2",
+  "7e6070054580082e68bca580cfb8a9913c45af8fa587eb297fbb4df343fdce5b",
+  "4bd51ae6da113dfc83bdd1828850cc2fec32aad35c968d7cbe606337590c2048",
+  "292278473208384c0fe01f01415ffe4219a626b6d85d32ef2a3662a0bf88c140",
+  "86386ad119fc4d7c3893d1ffada9785c16b070e671f2f420ec8c05e6ff74f6ae",
+  "e88b46d24688f5bc85164ce1eff9640aa125d8812591e5574ab7f2e58d5d38a6",
+  "5c9d5abda4c74b4776d50fa4da5c90a3236f549886d1d43f1b59d32b6ba6eaec",
 ];
 
 const moduleUrl = (name: string) => pathToFileURL(
@@ -44,6 +45,16 @@ const registry = createProviderPluginRegistry(generatedProviderPlugins);
 const rows = [];
 const currentOnlyRows = [];
 const legacyRows = [];
+const predecessorHackerNewsWriter = "66b9744caeb514cd9c4a749db4baaca84346098b162cdf4bcba653b7e9d9408a";
+const predecessorHackerNewsReaders = [
+  "e4c9e459c0185428d759994a160200b5d883119caca828b6ae7469124ef82f14",
+  "c54f71de41c0df51a36f8a1c80b092b4534ffbd16aedacfba599d68e8f6b4130",
+  "ff716adff5a4f962a765020474325037d0d4795c61f086c13e5d2adc61484ec8",
+  "da3cdd6465b92ce933004fb9e3f2bf3dd48811e766079647d2cdaec43e507e1d",
+  "e4c9e459c0185428d759994a160200b5d883119caca828b6ae7469124ef82f14",
+  "c54f71de41c0df51a36f8a1c80b092b4534ffbd16aedacfba599d68e8f6b4130",
+  "ff716adff5a4f962a765020474325037d0d4795c61f086c13e5d2adc61484ec8",
+];
 const predecessorRedditWriter = "646a29b320373f50ccdf9ae8b8b60d5147428f0f899a226480c2c5b009294d8a";
 const predecessorRedditReaders = [
   "64a4c1e78ce8565a50613f63ff605f0f57f488617ef31386b5ddce5e3db885c9",
@@ -83,7 +94,43 @@ function stableJson(value) {
   return "{" + Object.keys(record).sort().map((key) =>
     JSON.stringify(key) + ":" + stableJson(record[key])).join(",") + "}";
 }
+const predecessorHackerNewsWriteOperations = new Set([
+  "comments.create",
+  "content.save",
+  "posts.publish",
+  "reactions.set",
+  "replies.create",
+]);
 function predecessorWebContract(contract) {
+  if (contract.site === "hacker-news"
+    && contract.contractVersion === 1
+    && predecessorHackerNewsWriteOperations.has(contract.operation)) {
+    const url = contract.input?.properties?.url;
+    const input = contract.operation === "posts.publish" && url !== undefined
+      ? { ...contract.input, properties: { ...contract.input.properties, url: { ...url, format: "url" } } }
+      : contract.input;
+    return { ...contract, state: "capture-required", implementation: "hacker-news " + contract.operation + " requires a fresh reviewed authenticated first-party contract before execution", input };
+  }
+  if (contract.site === "x"
+    && contract.contractVersion === 1
+    && contract.operation === "replies.create") {
+    return { ...contract, state: "capture-required", implementation: "CreateTweet reply needs an authorized live fixture and reviewed transaction-header behavior" };
+  }
+  if (contract.site === "bluesky"
+    && contract.contractVersion === 1
+    && contract.operation === "replies.create") {
+    return { ...contract, state: "capture-required", implementation: "bluesky replies.create requires a fresh reviewed authenticated first-party contract before execution" };
+  }
+  if (contract.site === "bluesky"
+    && contract.contractVersion === 1
+    && contract.operation === "feeds.read") {
+    const feed = contract.input?.properties?.feed;
+    const properties = { ...contract.input.properties };
+    if (feed !== undefined) properties.feed = { ...feed, enum: ["home", "notifications", "bookmarks"] };
+    delete properties.query;
+    delete properties.sort;
+    return { ...contract, input: { ...contract.input, properties } };
+  }
   if (contract.site !== "facebook-marketplace"
     || contract.operation !== "feeds.read"
     || (contract.contractVersion !== 1 && contract.contractVersion !== 2)) return contract;
@@ -148,11 +195,14 @@ for (const plugin of registry.list()) {
           );
           const isPredecessorReddit = binding.surfaceId === "reddit" && !operation.name.startsWith("flair.");
           const isPredecessorSubstack = binding.surfaceId === "substack" && !operation.name.startsWith("subscribers.");
+          const isPredecessorHackerNews = binding.surfaceId === "hacker-news";
           const legacyImplementations = isPredecessorReddit
             ? predecessorRedditReaders.map((hash) => Buffer.from(hash, "hex"))
             : isPredecessorSubstack
               ? predecessorSubstackReaders.map((hash) => Buffer.from(hash, "hex"))
-              : registeredLegacyImplementations;
+              : isPredecessorHackerNews
+                ? predecessorHackerNewsReaders.map((hash) => Buffer.from(hash, "hex"))
+                : registeredLegacyImplementations;
           if (binding.transport === "provider-api") {
           const contract = providerContracts.getProviderContract({
             provider: binding.surfaceId,
@@ -208,7 +258,9 @@ for (const plugin of registry.list()) {
             ? legacyHash(contract, Buffer.from(predecessorRedditWriter, "hex"), true)
             : isPredecessorSubstack
               ? legacyHash(contract, Buffer.from(predecessorSubstackWriter, "hex"), true)
-              : webContracts.webSessionContractHash(contract, registry);
+              : isPredecessorHackerNews
+                ? legacyHash(contract, Buffer.from(predecessorHackerNewsWriter, "hex"), true)
+                : webContracts.webSessionContractHash(contract, registry);
           acceptedLegacy &&= webContracts.isCompatibleWebSessionContractHash(contract, currentHash, registry);
           const includePredecessorInventory = appendCurrentRow([binding.transport, binding.surfaceId, operation.name, contractVersion,
             currentHash]);
@@ -322,7 +374,7 @@ describe("durable provider contract inventory", () => {
         rows: 324,
         sha256: predecessorDefaultInventorySha256,
         currentOnlyRows: 87,
-        currentOnlySha256: "b29cb94d703206f16b9457ed5ad4a45408cd562a48ea290c59289abc70ba2e07",
+        currentOnlySha256: "ac5f6b39808fefca6ae075bee201f87cc37e83be4df245f68d3754f866381131",
         automationRows: [
           ["linked-device", "whatsapp", "messaging.automation.read", 1],
           ["linked-device", "whatsapp", "messaging.automation.send.attachment", 1],
@@ -353,13 +405,14 @@ describe("durable provider contract inventory", () => {
           292,
           292,
           254,
-          228,
-          212,
-          166,
+          254,
+          238,
+          213,
+          167,
           146,
           146,
           146,
-          146,
+          25,
           25,
           25,
         ],

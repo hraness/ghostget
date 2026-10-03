@@ -37,9 +37,13 @@ export type HackerNewsWebOperationContract = {
   readonly reason: string;
 };
 
-const observed = (reason: string): HackerNewsWebOperationContract => Object.freeze({
-  effect: "read",
-  risk: "R1",
+const observed = (
+  effect: "read" | "write",
+  risk: HackerNewsWebRisk,
+  reason: string,
+): HackerNewsWebOperationContract => Object.freeze({
+  effect,
+  risk,
   state: "observed",
   reason,
 });
@@ -55,28 +59,33 @@ const captureRequired = (
 });
 
 export const HACKER_NEWS_WEB_OPERATIONS = Object.freeze({
-  "feeds.read": observed("signed-in /news HTML with exact athing/subtext projection"),
-  "posts.read": observed("exact /item?id target with submission-row binding"),
-  "comments.read": observed("exact /item?id target with bounded ordered comment projection"),
-  "content.save": captureRequired(
+  "feeds.read": observed("read", "R1", "signed-in /news HTML with exact athing/subtext projection"),
+  "posts.read": observed("read", "R1", "exact /item?id target with submission-row binding"),
+  "comments.read": observed("read", "R1", "exact /item?id target with bounded ordered comment projection"),
+  "content.save": observed(
+    "write",
     "R2",
-    "favorite and un-favorite links are request-bound; both real state fixtures and independent favorites-list readback are still required",
+    "exact request-bound favorite/un-favorite action with independent viewer favorites-list presence readback",
   ),
-  "reactions.set": captureRequired(
+  "reactions.set": observed(
+    "write",
     "R2",
-    "upvote and unvote are request-bound human actions; exact undo fixture and readback are still required",
+    "exact request-bound upvote/unvote action with independent offered-action state readback",
   ),
-  "comments.create": captureRequired(
+  "comments.create": observed(
+    "write",
     "R3",
-    "comment hmac form and externally visible response need an authorized fixture",
+    "exact parent/hmac-bound comment form with author, parent, body, and dispatch-window readback",
   ),
-  "replies.create": captureRequired(
+  "replies.create": observed(
+    "write",
     "R3",
-    "reply hmac form and exact parent/actor response binding need an authorized fixture",
+    "exact parent/hmac-bound reply form with author, parent, body, and dispatch-window readback",
   ),
-  "posts.publish": captureRequired(
+  "posts.publish": observed(
+    "write",
     "R3",
-    "submission fnid/fnop form and returned item binding need an authorized fixture",
+    "exact fnid/fnop-bound submission form with accepted-identity redirect and submitted-listing readback",
   ),
   "content.edit": captureRequired(
     "R3",
@@ -150,15 +159,33 @@ function exactNames(
   values: ReadonlyMap<string, string>,
   required: readonly string[],
   label: string,
+  optional: readonly string[] = [],
 ): void {
-  const requiredSet = new Set(required);
+  const allowed = new Set([...required, ...optional]);
   const missing = required.filter((name) => !values.has(name));
-  const extra = [...values.keys()].filter((name) => !requiredSet.has(name));
+  const extra = [...values.keys()].filter((name) => !allowed.has(name));
   if (missing.length > 0) throw new Error(`${label} omitted ${missing.join(", ")}`);
   if (extra.length > 0) throw new Error(`${label} contained unsupported ${extra.join(", ")}`);
 }
 
-export type HackerNewsReadOperation = "viewer.current" | "feeds.read" | "posts.read" | "comments.read";
+export type HackerNewsReadOperation =
+  | "viewer.current"
+  | "feeds.read"
+  | "posts.read"
+  | "comments.read"
+  | "state.readback"
+  | "reply.form"
+  | "submit.form"
+  | "favorites.list"
+  | "submitted.list";
+
+function boundedUsername(value: unknown, label: string): string {
+  const username = boundedString(value, label, 64);
+  if (!/^[A-Za-z0-9_-]{1,64}$/u.test(username)) {
+    throw new Error(`${label} is not a valid Hacker News username`);
+  }
+  return username;
+}
 
 export function authorizeHackerNewsReadRequest(input: {
   readonly operation: HackerNewsReadOperation;
@@ -166,6 +193,7 @@ export function authorizeHackerNewsReadRequest(input: {
   readonly method: string;
   readonly body?: unknown;
   readonly targetId?: string;
+  readonly subject?: string;
 }): Readonly<{
   operation: HackerNewsReadOperation;
   method: "GET";
@@ -180,6 +208,33 @@ export function authorizeHackerNewsReadRequest(input: {
   if (input.operation === "viewer.current" || input.operation === "feeds.read") {
     if (url.pathname !== "/news" || query.size !== 0) {
       throw new Error("Hacker News news request changed its reviewed exchange");
+    }
+  } else if (input.operation === "reply.form") {
+    if (url.pathname !== "/reply") throw new Error("Hacker News reply form path is not reviewed");
+    exactNames(query, ["goto", "id"], "Hacker News reply form query");
+    const expected = itemId(input.targetId, "Hacker News reply parent");
+    if (query.get("id") !== expected) {
+      throw new Error("Hacker News reply form query did not bind the requested parent");
+    }
+    if (safeGoto(query.get("goto"), "Hacker News reply form goto") !== `item?id=${expected}`) {
+      throw new Error("Hacker News reply form goto did not bind the requested parent");
+    }
+  } else if (input.operation === "submit.form") {
+    if (url.pathname !== "/submit" || query.size !== 0) {
+      throw new Error("Hacker News submit form request changed its reviewed exchange");
+    }
+  } else if (
+    input.operation === "favorites.list"
+    || input.operation === "submitted.list"
+  ) {
+    const expectedPath = input.operation === "favorites.list" ? "/favorites" : "/submitted";
+    if (url.pathname !== expectedPath) {
+      throw new Error(`Hacker News ${input.operation} path is not reviewed`);
+    }
+    exactNames(query, ["id"], `Hacker News ${input.operation} query`);
+    const viewer = boundedUsername(input.subject, `Hacker News ${input.operation} viewer`);
+    if (query.get("id") !== viewer) {
+      throw new Error(`Hacker News ${input.operation} query did not bind the confirmed viewer`);
     }
   } else {
     if (url.pathname !== "/item") throw new Error("Hacker News item request path is not reviewed");
@@ -595,10 +650,15 @@ function safeGoto(value: unknown, label: string): string {
 }
 
 export type HackerNewsFavoriteAction = {
-  readonly path: "/fave" | "/unfave";
+  readonly path: "/fave";
   readonly targetId: string;
   readonly auth: string;
-  readonly goto: string;
+  readonly goto: string | null;
+  /**
+   * The provider renders un-favorite as /fave carrying `un=t`; the marker is
+   * echoed verbatim. Absent means favorite.
+   */
+  readonly un: "t" | null;
   readonly nextSavedState: boolean;
 };
 
@@ -606,8 +666,10 @@ const unconsumedFavoriteActions = new WeakSet<HackerNewsFavoriteAction>();
 
 /**
  * Parse the one request-bound favorite action visible for an exact item.
- * Synthetic parser tests do not promote content.save; promotion still needs
- * inert evidence for both real provider states plus independent readback.
+ * The provider renders un-favorite as /fave carrying `un=t` rather than a
+ * second endpoint. Synthetic parser tests are not promotion evidence;
+ * content.save graduated only after the authorized live fixture exercised
+ * both real provider states plus independent favorites-list readback.
  */
 export function parseHackerNewsFavoriteAction(
   value: string,
@@ -622,16 +684,24 @@ export function parseHackerNewsFavoriteAction(
     } catch {
       continue;
     }
-    if (url.origin !== HN_ORIGIN || (url.pathname !== "/fave" && url.pathname !== "/unfave")) continue;
+    if (url.origin !== HN_ORIGIN || url.pathname !== "/fave") continue;
     const query = exactParameters(url.searchParams, "Hacker News favorite query");
-    exactNames(query, ["auth", "goto", "id"], "Hacker News favorite query");
+    exactNames(query, ["auth", "id"], "Hacker News favorite query", ["goto", "un"]);
     if (query.get("id") !== target) throw new Error("Hacker News favorite action did not bind its target");
+    const goto = query.has("goto")
+      ? safeGoto(query.get("goto"), "Hacker News favorite goto")
+      : null;
+    const un = query.get("un") ?? null;
+    if (un !== null && un !== "t") {
+      throw new Error("Hacker News favorite query carried an unreviewed un marker");
+    }
     candidates.push(Object.freeze({
-      path: url.pathname,
+      path: "/fave" as const,
       targetId: target,
       auth: boundedString(query.get("auth"), "Hacker News request-bound favorite auth", 256),
-      goto: safeGoto(query.get("goto"), "Hacker News favorite goto"),
-      nextSavedState: url.pathname === "/fave",
+      goto,
+      un,
+      nextSavedState: un === null,
     }));
   }
   if (candidates.length !== 1) {
@@ -655,7 +725,12 @@ function safeRedirectLocation(value: string | null): string {
       throw new Error("Hacker News action redirect attempted to expose request-bound proof");
     }
   }
-  if (url.pathname !== "/news" && url.pathname !== "/item" && url.pathname !== "/favorites") {
+  if (
+    url.pathname !== "/news"
+    && url.pathname !== "/item"
+    && url.pathname !== "/favorites"
+    && url.pathname !== "/newest"
+  ) {
     throw new Error("Hacker News action redirect path is not reviewed");
   }
   if (url.pathname === "/item") {
@@ -668,6 +743,86 @@ function safeRedirectLocation(value: string | null): string {
     throw new Error("Hacker News action redirect contained an unreviewed query");
   }
   return `${url.pathname}${url.search}`;
+}
+
+function actionReferer(value: string, allowedPaths: readonly string[]): URL {
+  let url: URL;
+  try {
+    url = exactUrl(new URL(value, HN_ORIGIN), "Hacker News action referer");
+  } catch {
+    throw new Error("Hacker News action referer escaped the reviewed origin");
+  }
+  if (!allowedPaths.includes(url.pathname)) {
+    throw new Error("Hacker News action referer path is not reviewed");
+  }
+  return url;
+}
+
+/**
+ * Send one already-bound request with redirect manual. The caller owns the
+ * request-bound query or form values; they are sent exactly once and are
+ * absent from the returned result.
+ */
+async function dispatchHackerNewsBoundRequest(
+  client: WebSessionClient,
+  request: Readonly<{
+    method: "GET" | "POST";
+    url: URL;
+    body?: string;
+    referer: URL;
+  }>,
+  beforeRequest: () => Promise<void>,
+  options: {
+    readonly timeoutMs?: number;
+    readonly fetch?: WebSessionFetch;
+  } = {},
+): Promise<Readonly<{ status: 302; location: string }>> {
+  await beforeRequest();
+  const timeoutMs = options.timeoutMs ?? 60_000;
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1_000 || timeoutMs > 10 * 60_000) {
+    throw new Error("Hacker News manual redirect timeout is invalid");
+  }
+  const fetch = options.fetch ?? ((input: string | URL | Request, init: RequestInit = {}) => {
+    const inputUrl = input instanceof Request ? new URL(input.url) : new URL(input);
+    // pinnedHttpsFetch is a raw Node HTTPS transport: `redirect: "error"`
+    // means no automatic follow, while still returning the 302 for the
+    // provider-specific same-origin Location validation below.
+    return pinnedHttpsFetch(inputUrl, { ...init, redirect: "error" }, timeoutMs);
+  });
+  const headers = new Headers({
+    accept: "text/html",
+    cookie: renderCookieHeader(client.cookies),
+    referer: request.referer.href,
+  });
+  if (request.method === "POST") {
+    headers.set("content-type", "application/x-www-form-urlencoded");
+  }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  let response: Response | undefined;
+  try {
+    try {
+      response = await fetch(request.url, {
+        method: request.method,
+        headers,
+        ...(request.body === undefined ? {} : { body: request.body }),
+        redirect: "manual",
+        signal: controller.signal,
+      });
+    } catch (error) {
+      throw new Error("Hacker News action failed before a reviewed redirect was received", { cause: error });
+    }
+    if (response.status !== 302) {
+      response.body?.cancel().catch(() => undefined);
+      throw new Error(`Hacker News action returned unreviewed status ${response.status}`);
+    }
+    const location = safeRedirectLocation(response.headers.get("location"));
+    await response.body?.cancel().catch(() => undefined);
+    return Object.freeze({ status: 302, location });
+  } finally {
+    clearTimeout(timeout);
+    if (controller.signal.aborted) await response?.body?.cancel().catch(() => undefined);
+  }
 }
 
 /**
@@ -692,54 +847,27 @@ export async function dispatchHackerNewsFavoriteAction(
   }
   const target = itemId(action.targetId, "Hacker News favorite target");
   const auth = boundedString(action.auth, "Hacker News request-bound favorite auth", 256);
-  const goto = safeGoto(action.goto, "Hacker News favorite goto");
+  const goto = action.goto === null
+    ? null
+    : safeGoto(action.goto, "Hacker News favorite goto");
   const url = new URL(action.path, HN_ORIGIN);
   url.searchParams.set("id", target);
   url.searchParams.set("auth", auth);
-  url.searchParams.set("goto", goto);
+  if (action.un !== null) url.searchParams.set("un", action.un);
+  if (goto !== null) url.searchParams.set("goto", goto);
   unconsumedFavoriteActions.delete(action);
-  await beforeRequest();
-  const timeoutMs = options.timeoutMs ?? 60_000;
-  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1_000 || timeoutMs > 10 * 60_000) {
-    throw new Error("Hacker News manual redirect timeout is invalid");
-  }
-  const fetch = options.fetch ?? ((input: string | URL | Request, init: RequestInit = {}) => {
-    const inputUrl = input instanceof Request ? new URL(input.url) : new URL(input);
-    // pinnedHttpsFetch is a raw Node HTTPS transport: `redirect: "error"`
-    // means no automatic follow, while still returning the 302 for the
-    // provider-specific same-origin Location validation below.
-    return pinnedHttpsFetch(inputUrl, { ...init, redirect: "error" }, timeoutMs);
-  });
-  const headers = new Headers({
-    accept: "text/html",
-    cookie: renderCookieHeader(client.cookies),
-    referer: new URL(goto, `${HN_ORIGIN}/`).href,
-  });
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  let response: Response | undefined;
-  try {
-    try {
-      response = await fetch(url, {
-        method: "GET",
-        headers,
-        redirect: "manual",
-        signal: controller.signal,
-      });
-    } catch (error) {
-      throw new Error("Hacker News action failed before a reviewed redirect was received", { cause: error });
-    }
-    if (response.status !== 302) {
-      response.body?.cancel().catch(() => undefined);
-      throw new Error(`Hacker News action returned unreviewed status ${response.status}`);
-    }
-    const location = safeRedirectLocation(response.headers.get("location"));
-    await response.body?.cancel().catch(() => undefined);
-    return Object.freeze({ status: 302, location });
-  } finally {
-    clearTimeout(timeout);
-    if (controller.signal.aborted) await response?.body?.cancel().catch(() => undefined);
-  }
+  return dispatchHackerNewsBoundRequest(
+    client,
+    {
+      method: "GET",
+      url,
+      referer: goto === null
+        ? new URL(`item?id=${target}`, HN_ORIGIN)
+        : actionReferer(goto, ["/item", "/news", "/favorites"]),
+    },
+    beforeRequest,
+    options,
+  );
 }
 
 function hiddenInputs(formHtml: string, label: string): ReadonlyMap<string, string> {
@@ -787,11 +915,13 @@ export function parseHackerNewsCommentForm(
   const hidden = hiddenInputs(exactForm(value, "/comment", "Hacker News comment page"), "Hacker News comment form");
   exactNames(hidden, ["goto", "hmac", "parent"], "Hacker News comment form");
   if (hidden.get("parent") !== parent) throw new Error("Hacker News comment form did not bind its parent");
-  return Object.freeze({
+  const proof = Object.freeze({
     parentId: parent,
     goto: safeGoto(hidden.get("goto"), "Hacker News comment goto"),
     hmac: boundedString(hidden.get("hmac"), "Hacker News request-bound comment hmac", 512),
   });
+  unconsumedCommentForms.add(proof);
+  return proof;
 }
 
 export type HackerNewsSubmissionFormProof = {
@@ -799,11 +929,395 @@ export type HackerNewsSubmissionFormProof = {
   readonly fnop: string;
 };
 
+const unconsumedSubmissionForms = new WeakSet<HackerNewsSubmissionFormProof>();
+
 export function parseHackerNewsSubmissionForm(value: string): HackerNewsSubmissionFormProof {
   const hidden = hiddenInputs(exactForm(value, "/r", "Hacker News submit page"), "Hacker News submit form");
   exactNames(hidden, ["fnid", "fnop"], "Hacker News submit form");
-  return Object.freeze({
+  const proof = Object.freeze({
     fnid: boundedString(hidden.get("fnid"), "Hacker News request-bound fnid", 512),
     fnop: boundedString(hidden.get("fnop"), "Hacker News request-bound fnop", 128),
   });
+  unconsumedSubmissionForms.add(proof);
+  return proof;
+}
+
+export type HackerNewsVoteAction = {
+  readonly path: "/vote";
+  readonly targetId: string;
+  readonly how: "up" | "un";
+  readonly auth: string;
+  readonly goto: string;
+  readonly nextUpvotedState: boolean;
+};
+
+const unconsumedVoteActions = new WeakSet<HackerNewsVoteAction>();
+
+/**
+ * Parse the request-bound upvote action visible for an exact item. After the
+ * account upvotes, the page keeps the hidden `how=up` arrow beside the live
+ * `how=un` link, so the `un` action is the offered one. `how=up` alone means
+ * the item does not carry the account's upvote. A `how=down` link is a
+ * separate unreviewed action and never substitutes for either.
+ */
+export function parseHackerNewsVoteAction(
+  value: string,
+  expectedTargetId: string,
+): HackerNewsVoteAction {
+  const target = itemId(expectedTargetId, "Hacker News vote target");
+  const ups: HackerNewsVoteAction[] = [];
+  const uns: HackerNewsVoteAction[] = [];
+  for (const anchor of anchors(targetSegment(value, target).html)) {
+    let url: URL;
+    try {
+      url = new URL(anchor.href, HN_ORIGIN);
+    } catch {
+      continue;
+    }
+    if (url.origin !== HN_ORIGIN || url.pathname !== "/vote") continue;
+    const query = exactParameters(url.searchParams, "Hacker News vote query");
+    exactNames(query, ["auth", "goto", "how", "id"], "Hacker News vote query");
+    if (query.get("id") !== target) throw new Error("Hacker News vote action did not bind its target");
+    const how = query.get("how");
+    if (how !== "up" && how !== "un") continue;
+    const action = Object.freeze({
+      path: "/vote" as const,
+      targetId: target,
+      how,
+      auth: boundedString(query.get("auth"), "Hacker News request-bound vote auth", 256),
+      goto: safeGoto(query.get("goto"), "Hacker News vote goto"),
+      nextUpvotedState: how === "up",
+    });
+    (how === "up" ? ups : uns).push(action);
+  }
+  if (uns.length > 1 || ups.length > 1) {
+    throw new Error("Hacker News page contained ambiguous request-bound vote actions");
+  }
+  const action = uns[0] ?? ups[0];
+  if (action === undefined) {
+    throw new Error("Hacker News page must contain exactly one request-bound upvote action");
+  }
+  unconsumedVoteActions.add(action);
+  return action;
+}
+
+/**
+ * Execute only a vote action parsed from the immediately preceding provider
+ * page. The request-bound `auth` value is sent once and is absent from the
+ * result.
+ */
+export async function dispatchHackerNewsVoteAction(
+  client: WebSessionClient,
+  action: HackerNewsVoteAction,
+  desiredUpvotedState: boolean,
+  beforeRequest: () => Promise<void>,
+  options: {
+    readonly timeoutMs?: number;
+    readonly fetch?: WebSessionFetch;
+  } = {},
+): Promise<Readonly<{ status: 302; location: string }>> {
+  if (!unconsumedVoteActions.has(action)) {
+    throw new Error("Hacker News vote action must come from an immediate parsed provider page");
+  }
+  if (action.nextUpvotedState !== desiredUpvotedState) {
+    throw new Error("Hacker News request-bound vote action does not match the desired state");
+  }
+  const target = itemId(action.targetId, "Hacker News vote target");
+  const auth = boundedString(action.auth, "Hacker News request-bound vote auth", 256);
+  const goto = safeGoto(action.goto, "Hacker News vote goto");
+  const url = new URL("/vote", HN_ORIGIN);
+  url.searchParams.set("id", target);
+  url.searchParams.set("how", action.how);
+  url.searchParams.set("auth", auth);
+  url.searchParams.set("goto", goto);
+  unconsumedVoteActions.delete(action);
+  return dispatchHackerNewsBoundRequest(
+    client,
+    {
+      method: "GET",
+      url,
+      referer: actionReferer(goto, ["/item", "/news", "/favorites"]),
+    },
+    beforeRequest,
+    options,
+  );
+}
+
+const unconsumedCommentForms = new WeakSet<HackerNewsCommentFormProof>();
+
+/**
+ * Execute only a comment form parsed from the immediately preceding provider
+ * page. The request-bound `hmac` value is sent once and is absent from the
+ * result.
+ */
+export async function dispatchHackerNewsCommentForm(
+  client: WebSessionClient,
+  proof: HackerNewsCommentFormProof,
+  input: Readonly<{
+    text: string;
+    referer: string;
+  }>,
+  beforeRequest: () => Promise<void>,
+  options: {
+    readonly timeoutMs?: number;
+    readonly fetch?: WebSessionFetch;
+  } = {},
+): Promise<Readonly<{ status: 302; location: string }>> {
+  if (!unconsumedCommentForms.has(proof)) {
+    throw new Error("Hacker News comment form must come from an immediate parsed provider page");
+  }
+  const parent = itemId(proof.parentId, "Hacker News comment parent");
+  const goto = safeGoto(proof.goto, "Hacker News comment goto");
+  if (goto !== `item?id=${parent}`) {
+    throw new Error("Hacker News comment form goto did not bind its parent");
+  }
+  const hmac = boundedString(proof.hmac, "Hacker News request-bound comment hmac", 512);
+  const text = boundedString(input.text, "Hacker News comment text", 2_000);
+  const referer = actionReferer(input.referer, ["/item", "/reply"]);
+  const body = new URLSearchParams();
+  body.set("parent", parent);
+  body.set("goto", goto);
+  body.set("hmac", hmac);
+  body.set("text", text);
+  unconsumedCommentForms.delete(proof);
+  return dispatchHackerNewsBoundRequest(
+    client,
+    {
+      method: "POST",
+      url: new URL("/comment", HN_ORIGIN),
+      body: body.toString(),
+      referer,
+    },
+    beforeRequest,
+    options,
+  );
+}
+
+function singleLine(value: string, label: string): string {
+  if (/[\n]/u.test(value)) throw new Error(`${label} must be a single line`);
+  return value;
+}
+
+/**
+ * Execute only a submission form parsed from the immediately preceding
+ * provider page. The request-bound `fnid`/`fnop` values are sent once and are
+ * absent from the result.
+ */
+export async function dispatchHackerNewsSubmissionForm(
+  client: WebSessionClient,
+  proof: HackerNewsSubmissionFormProof,
+  input: Readonly<{
+    title: string;
+    url: string | null;
+    text: string | null;
+  }>,
+  beforeRequest: () => Promise<void>,
+  options: {
+    readonly timeoutMs?: number;
+    readonly fetch?: WebSessionFetch;
+  } = {},
+): Promise<Readonly<{ status: 302; location: string }>> {
+  if (!unconsumedSubmissionForms.has(proof)) {
+    throw new Error("Hacker News submit form must come from an immediate parsed provider page");
+  }
+  const title = singleLine(boundedString(input.title, "Hacker News submission title", 80), "Hacker News submission title");
+  const url = input.url === null ? "" : projectedHref(input.url, "Hacker News submission URL");
+  const text = input.text === null ? "" : boundedString(input.text, "Hacker News submission text", 2_000);
+  if (url === "" && text === "") {
+    throw new Error("Hacker News submission requires exactly a URL or a text body");
+  }
+  const fnid = boundedString(proof.fnid, "Hacker News request-bound fnid", 512);
+  const fnop = boundedString(proof.fnop, "Hacker News request-bound fnop", 128);
+  const body = new URLSearchParams();
+  body.set("fnid", fnid);
+  body.set("fnop", fnop);
+  body.set("title", title);
+  body.set("url", url);
+  body.set("text", text);
+  unconsumedSubmissionForms.delete(proof);
+  return dispatchHackerNewsBoundRequest(
+    client,
+    {
+      method: "POST",
+      url: new URL("/r", HN_ORIGIN),
+      body: body.toString(),
+      referer: new URL("/submit", HN_ORIGIN),
+    },
+    beforeRequest,
+    options,
+  );
+}
+
+/**
+ * Whether one exact item row appears on the confirmed account's /favorites
+ * page. The request layer binds the page to the bound viewer.
+ */
+export function parseHackerNewsFavoritesPresence(
+  value: string,
+  expectedTargetId: string,
+): boolean {
+  const target = itemId(expectedTargetId, "Hacker News favorites target");
+  const matches = athingSegments(boundedHtml(value, "Hacker News favorites page"))
+    .filter((segment) => segment.id === target);
+  if (matches.length > 1) {
+    throw new Error("Hacker News favorites page repeated the exact target row");
+  }
+  return matches.length === 1;
+}
+
+export type HackerNewsScannedComment = {
+  readonly id: string;
+  /** Resolved from indentation order; null only for a comment-page root. */
+  readonly parentId: string | null;
+  readonly author: string | null;
+  readonly body: string;
+  readonly createdAt: string | null;
+  readonly depth: number;
+};
+
+/**
+ * Project every comment row on one /item page whose root is either the
+ * submission (`/item?id=<post>`) or a comment (`/item?id=<comment>`). Unlike
+ * the bounded output projection this scan never truncates, so a freshly
+ * posted row cannot be hidden behind a long thread.
+ */
+export function scanHackerNewsCommentRows(
+  value: string,
+  expectedRootId: string,
+): readonly HackerNewsScannedComment[] {
+  const root = itemId(expectedRootId, "Hacker News item page root");
+  const segments = athingSegments(boundedHtml(value, "Hacker News item page"));
+  if (segments.length > 1_000) throw new Error("Hacker News comment page exceeded its reviewed row bound");
+  const submissions = segments.filter((segment) => !segment.classes.includes("comtr"));
+  if (submissions.length > 1) {
+    throw new Error("Hacker News item page contained an unreviewed submission count");
+  }
+  const rootIsSubmission = submissions.length === 1;
+  if (rootIsSubmission && submissions[0]!.id !== root) {
+    throw new Error("Hacker News item page did not bind the requested root");
+  }
+  const ancestry: string[] = [];
+  const comments: HackerNewsScannedComment[] = [];
+  for (const segment of segments) {
+    if (!segment.classes.includes("comtr")) continue;
+    const depth = commentDepth(segment);
+    let parentId: string | null;
+    if (segment.id === root && !rootIsSubmission) {
+      if (depth !== 0 || comments.length !== 0) {
+        throw new Error("Hacker News comment page root changed its reviewed position");
+      }
+      parentId = null;
+    } else if (depth === 0) {
+      if (!rootIsSubmission) {
+        throw new Error("Hacker News comment page contained an unreviewed second root");
+      }
+      parentId = root;
+    } else {
+      const parent = ancestry[depth - 1];
+      if (parent === undefined) {
+        throw new Error("Hacker News comment indentation skipped its parent depth");
+      }
+      parentId = parent;
+    }
+    const explicitParent = /<a\b[^>]*href\s*=\s*(?:"#([0-9]+)"|'#([0-9]+)')[^>]*>\s*parent\s*<\/a>/iu.exec(segment.html);
+    const explicitParentId = explicitParent?.[1] ?? explicitParent?.[2] ?? null;
+    if (explicitParentId !== null && explicitParentId !== parentId) {
+      throw new Error("Hacker News comment parent link disagreed with indentation order");
+    }
+    ancestry[depth] = segment.id;
+    ancestry.length = depth + 1;
+    const author = classAnchor(segment.html, "hnuser");
+    comments.push(Object.freeze({
+      id: segment.id,
+      parentId,
+      author: author === null ? null : boundedString(author.text, "Hacker News comment author", 64),
+      body: commentBody(segment),
+      createdAt: createdAt(segment.html),
+      depth,
+    }));
+  }
+  if (!rootIsSubmission && !comments.some((comment) => comment.id === root && comment.parentId === null)) {
+    throw new Error("Hacker News comment page did not contain the requested root comment");
+  }
+  return Object.freeze(comments);
+}
+
+/**
+ * Locate the one comment row that exactly binds an expected parent, actor,
+ * body, and dispatch window. Returns null when no row matches; throws when
+ * multiple rows inside the window cannot be distinguished.
+ */
+export function findHackerNewsCommentRow(
+  comments: readonly HackerNewsScannedComment[],
+  expected: Readonly<{
+    parentId: string;
+    author: string;
+    body: string;
+    notBeforeSeconds: number;
+    nowSeconds: number;
+  }>,
+): HackerNewsScannedComment | null {
+  const windowed = comments.filter((comment) =>
+    comment.parentId === expected.parentId
+    && comment.author === expected.author
+    && comment.body === expected.body
+    && comment.createdAt !== null
+    && Date.parse(comment.createdAt) >= expected.notBeforeSeconds * 1_000 - 300_000
+    && Date.parse(comment.createdAt) <= expected.nowSeconds * 1_000 + 300_000);
+  if (windowed.length > 1) {
+    throw new Error("Hacker News readback contained ambiguous matching comment rows");
+  }
+  return windowed[0] ?? null;
+}
+
+/**
+ * Canonicalize one Hacker News title for provider-side comparison. The
+ * provider rewrites some submitted punctuation (for example an ASCII hyphen
+ * surrounded by spaces is stored as an en dash), so exact confirmed titles
+ * must be compared after this deterministic fold, never fuzzily.
+ */
+export function canonicalHackerNewsTitle(value: string): string {
+  return value
+    .replace(/[‐-―−﹘﹣－]/gu, "-")
+    .replace(/[‘’‚‛]/gu, "'")
+    .replace(/[“”„‟]/gu, "\"")
+    .replace(/…/gu, "...")
+    .replace(/ /gu, " ")
+    .replace(/\s+/gu, " ")
+    .trim();
+}
+
+/**
+ * Locate the one submission row on the confirmed account's /submitted page
+ * that exactly binds the actor, title, and link or text shape of a confirmed
+ * publish. Returns null when no row matches.
+ */
+export function findHackerNewsSubmittedRow(
+  value: string,
+  expected: Readonly<{
+    author: string;
+    title: string;
+    url: string | null;
+    notBeforeSeconds: number;
+    nowSeconds: number;
+  }>,
+): HackerNewsProjectedPost | null {
+  const segments = athingSegments(boundedHtml(value, "Hacker News submitted page"))
+    .filter((segment) => !segment.classes.includes("comtr"));
+  const expectedTitle = canonicalHackerNewsTitle(expected.title);
+  const windowed = segments.map(projectedPost).filter((post) => {
+    if (post.author !== expected.author || canonicalHackerNewsTitle(post.title) !== expectedTitle) return false;
+    if (post.createdAt === null) return false;
+    const created = Date.parse(post.createdAt);
+    if (created < expected.notBeforeSeconds * 1_000 - 300_000 || created > expected.nowSeconds * 1_000 + 300_000) {
+      return false;
+    }
+    return expected.url === null
+      ? post.url === `${HN_ORIGIN}/item?id=${post.id}`
+      : post.url === expected.url;
+  });
+  if (windowed.length > 1) {
+    throw new Error("Hacker News submitted page contained ambiguous matching submissions");
+  }
+  return windowed[0] ?? null;
 }

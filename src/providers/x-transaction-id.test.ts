@@ -17,7 +17,7 @@ const MUTATION_PATH = "/i/api/graphql/WXTdKnLddrQOunD6MhWi3g/CreateTweet";
 const TRANSACTION_ID = "synthetic_transaction_id_0123456789";
 const MAIN_BUNDLE = [
   "previousModule()},991160(e,t,r){\"use strict\";let cached;r.d(t,{Ay:()=>l,_E:()=>s,kc:()=>a});",
-  "cached=cached||new Promise(done=>{r.e(59924).then(r.bind(r,208932)).then(module=>done(module.default()))});",
+  "cached=cached||new Promise(done=>{r.e(59924).then(()=>r(208932)).then(module=>done(module.default()))});",
   "feature.isTrue(\"rweb_client_transaction_id_enabled\")&&",
   "(request.headers[\"x-client-transaction-id\"]=await a(request.host,request.path,request.method))}",
 ].join("");
@@ -181,12 +181,28 @@ describe("X client transaction runtime discovery", () => {
     });
   });
 
+  test("parses the historical `.bind` lazy binding shape", () => {
+    expect(parseXTransactionRuntimeIds(MAIN_BUNDLE.replace(
+      "r.e(59924).then(()=>r(208932)).then(module=>done(module.default()))",
+      "r.e(59924).then(r.bind(r,208932)).then(module=>done(module.default()))",
+    ))).toEqual({
+      wrapperModuleId: 991_160,
+      exportName: "kc",
+      chunkId: 59_924,
+      moduleId: 208_932,
+    });
+  });
+
   test("fails closed on wrapper, binding, or module-ID drift", () => {
     expect(() => parseXTransactionRuntimeIds("const unrelated=true")).toThrow("one unique current wrapper");
     expect(() => parseXTransactionRuntimeIds(`${MAIN_BUNDLE}${MAIN_BUNDLE}`)).toThrow("one unique current wrapper");
     expect(() => parseXTransactionRuntimeIds(MAIN_BUNDLE.replace("r.e(59924)", "r.e(0)"))).toThrow(
       "one unique lazy runtime binding",
     );
+    expect(() => parseXTransactionRuntimeIds(MAIN_BUNDLE.replace(
+      "feature.isTrue",
+      "r.e(12345).then(()=>r(67890)).then(module=>done(module.default()));feature.isTrue",
+    ))).toThrow("one unique lazy runtime binding");
     expect(() => parseXTransactionRuntimeIds(MAIN_BUNDLE.replace(
       "feature.isTrue",
       "r.e(12345).then(r.bind(r,67890));feature.isTrue",
@@ -209,7 +225,7 @@ describe("X client transaction browser bootstrap", () => {
     });
     expect(fake.creation.auth).toEqual(cookieAuth);
     expect(fake.creation.options).toMatchObject({
-      headed: false,
+      headed: true,
       timeoutMs: 1_000,
       allowCodeOwnedEvaluation: true,
       maxOutputBytes: 64 * 1024,

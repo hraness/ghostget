@@ -158,7 +158,7 @@ export class LinkedInPostCreateResponseError extends Error {
   }
 }
 
-type LinkedInPostPageBindings = {
+export type LinkedInPostPageBindings = {
   readonly pageInstance: string;
   readonly track: string;
 };
@@ -190,7 +190,7 @@ function boundedHeader(value: unknown, label: string, maximum: number): string {
   return value;
 }
 
-function linkedInPostPageBindings(value: unknown): LinkedInPostPageBindings {
+export function linkedInPostPageBindings(value: unknown): LinkedInPostPageBindings {
   if (!isRecord(value) || !Array.isArray(value.requests) || value.requests.length > 10_000) {
     throw new Error("LinkedIn post network observation changed shape");
   }
@@ -245,7 +245,7 @@ function linkedInPostPageBindings(value: unknown): LinkedInPostPageBindings {
   return selected;
 }
 
-function browserEvaluationResult(
+export function browserEvaluationResult(
   record: Readonly<Record<string, unknown>>,
 ): Readonly<Record<string, unknown>> {
   const data = browserResultData(record as Record<string, unknown>);
@@ -264,7 +264,7 @@ function browserEvaluationResult(
   return data.result;
 }
 
-function commonEvaluationPrelude(input: Readonly<Record<string, unknown>>): string {
+export function commonEvaluationPrelude(input: Readonly<Record<string, unknown>>): string {
   return `const input=${canonicalJsonScriptLiteral(input)};if(location.origin!=="${LINKEDIN_ORIGIN}")throw new Error("unexpected LinkedIn origin");const raw=document.cookie.split("; ").find((part)=>part.startsWith("JSESSIONID="));if(typeof raw!=="string")throw new Error("missing LinkedIn browser CSRF cookie");const csrf=decodeURIComponent(raw.slice("JSESSIONID=".length)).replace(/^\"|\"$/g,"");if(!/^ajax:[A-Za-z0-9_-]{1,512}$/.test(csrf))throw new Error("invalid LinkedIn browser CSRF cookie");const baseHeaders={accept:"application/vnd.linkedin.normalized+json+2.1","csrf-token":csrf,"x-li-lang":"en_US","x-requested-with":"XMLHttpRequest","x-restli-protocol-version":"2.0.0"};const jsonTypes=new Set(["application/graphql","application/json","application/vnd.linkedin.normalized+json+2.1"]);const jsonResponse=async(response,label)=>{const contentType=(response.headers.get("content-type")||"").split(";",1)[0].trim().toLowerCase();if(!jsonTypes.has(contentType))throw new Error(label+" content type changed");if(response.status<200||response.status>=300)throw new Error(label+" status changed");return response.json()};const requestJson=async(path,init,label)=>jsonResponse(await fetch(path,{credentials:"include",redirect:"error",referrer:"${LINKEDIN_FEED_URL}",...init}),label);const identity=async()=>requestJson("/voyager/api/me",{headers:baseHeaders,method:"GET"},"LinkedIn current member");const assertIdentity=(body)=>{if(!body||typeof body!=="object"||Array.isArray(body)||!body.data||typeof body.data!=="object"||Array.isArray(body.data))throw new Error("LinkedIn current member changed shape");const plain=typeof body.data.plainId==="string"?body.data.plainId:Number.isSafeInteger(body.data.plainId)?String(body.data.plainId):"";if("urn:li:fsd_profile:"+plain!==input.expectedSubject)throw new Error("LinkedIn current member changed before dispatch");if(input.expectedProfileUrn!==undefined){const mini=body.data["*miniProfile"]??body.data.miniProfile;const suffix=typeof mini==="string"?/^urn:li:fs_miniProfile:([A-Za-z0-9_-]{1,256})$/.exec(mini)?.[1]:undefined;if("urn:li:fsd_profile:"+suffix!==input.expectedProfileUrn)throw new Error("LinkedIn current profile changed before dispatch")}};`;
 }
 

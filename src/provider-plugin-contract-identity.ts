@@ -257,8 +257,10 @@ const identities = Object.freeze({
   "bluesky-web": {
     schemaVersion: 1,
     pluginVersion: "1.4.0",
-    implementationSha256: "478d1e92d3f266dde61c4808104da239a0cc60d5a3c7000d7d2733792641e861",
+    implementationSha256: "c00367893fa66a402af444e413382c3d43b6b504826a21593fa46bc211452949",
     legacyCurrentReadImplementationSha256: [
+      "37096d27db4eebbfce70c3b1665f6cd00e3ce1efc27c8e3107cb19a28c9e86fa",
+      "478d1e92d3f266dde61c4808104da239a0cc60d5a3c7000d7d2733792641e861",
       "f16f456fd06952bdd28e4bbed6e6faaed9b2c18899487224453e7ef314f585e8",
       "81344b367a11c7dcaeff83386bc0f796c41260cb373b9818527f4cb55bc80d48",
       "e824f922748673edb9515055d208cfc4333c832b04cec528aa71f7be736e5846",
@@ -310,9 +312,14 @@ const identities = Object.freeze({
   },
   "hacker-news-web": {
     schemaVersion: 1,
-    pluginVersion: "1.1.0",
-    implementationSha256: "66b9744caeb514cd9c4a749db4baaca84346098b162cdf4bcba653b7e9d9408a",
-    legacyCurrentReadImplementationSha256: [],
+    pluginVersion: "1.2.0",
+    implementationSha256: "2e6b8afa9989708df39f7c0b95f65493c26af005657b52e73c521bcd26b98d8f",
+    legacyCurrentReadImplementationSha256: [
+      "412934fd5570dbcf389e77c731173ede31e2d27b01b4d820afec160ae298a1f7",
+      "a589034e3fd7b3f7b07fc666f304ed8c8196a6f6577580dac2e94c25c3d9ce0e",
+      "72621e1e1caeacf2f8351c415c927edef7e19eee2b81bc46f4ce9e55649cf08b",
+      "66b9744caeb514cd9c4a749db4baaca84346098b162cdf4bcba653b7e9d9408a",
+    ],
     legacyReadImplementationSha256: {
       test: "e4c9e459c0185428d759994a160200b5d883119caca828b6ae7469124ef82f14",
       production: "c54f71de41c0df51a36f8a1c80b092b4534ffbd16aedacfba599d68e8f6b4130",
@@ -353,8 +360,9 @@ const identities = Object.freeze({
   "linkedin-web": {
     schemaVersion: 1,
     pluginVersion: "1.6.0",
-    implementationSha256: "95000a4d81f2fdbd222fa793b229704ba77ab9a23d02b26db5fa561bd5d6e491",
+    implementationSha256: "395d697962940e02d02726737d63a6c4a99cbbd0a257d42d181d8fd2f8db6837",
     legacyCurrentReadImplementationSha256: [
+      "95000a4d81f2fdbd222fa793b229704ba77ab9a23d02b26db5fa561bd5d6e491",
       "11b52ca3dd9cbafe4829eed9f27d59bdc1c312db943ea29b93cbab6417ac7025",
       "e4614ab9c7733d7526b8157410e462f1bb48fdaa1c2319a6a4179c18b9e6839d",
       "97194dc5a8ec3afc4f4a20152efe51dbdc2fa8a8dde0cd9484b54718c4767f45",
@@ -536,8 +544,11 @@ const identities = Object.freeze({
   "x-web": {
     schemaVersion: 1,
     pluginVersion: "1.4.0",
-    implementationSha256: "8cdc6996e77125b4435586126442aae33fedf7ea27f788bddd01f39efe4f8a09",
+    implementationSha256: "7b791fe596a286034bf89257434572c267031cae16d3bef422188c32f7c5a539",
     legacyCurrentReadImplementationSha256: [
+      "8ebee7a6e32e2e55f185379615ecb55ec4b494cc91e45ffa05b1534bd4941c78",
+      "d3cbabe754717ad18f06cb3b434eb87cbfcb6105c97e88c81653606d5916f4ea",
+      "8cdc6996e77125b4435586126442aae33fedf7ea27f788bddd01f39efe4f8a09",
       "e464e4e97ed3cbf430c2008251e45e0024508c64357325882718cba31e6bf9ea",
       "03d906c92bfb5c30eb2d66e161ec67f7a081efa75e2a210a62b117df70b2af00",
       "54589eaf65c7de95442dcff6a81327d0a32ec38f58560769e7b807519db10eeb",
@@ -579,7 +590,7 @@ const identities = Object.freeze({
 } as const satisfies Readonly<Record<string, ReviewedBuiltInContractIdentityV1>>);
 
 const SHA256_PATTERN = /^[a-f0-9]{64}$/u;
-const MAXIMUM_LATER_CURRENT_IDENTITIES = 12;
+const MAXIMUM_LATER_CURRENT_IDENTITIES = 13;
 const MAXIMUM_ROUTE_SCOPED_IDENTITIES = 4_096;
 const MAXIMUM_LEGACY_DISTRIBUTIONS = 64;
 const reviewedBuiltInContractTransports = new Set([

@@ -22,7 +22,7 @@ const desiredStateKeys = Object.freeze({
 
 const operations = webSessionContractOperations(
   Object.values(blueskyContracts),
-  "3a33d0a329d701207e83cd926a87abe9914e04d38c59cae0c8d8fcd24462c628",
+  "77700b89b3df050d8246a3c9a771072c45aa36d690b7b0efd31f86c095c5ef97",
   {
     "profiles.read": [1],
     "posts.publish": [2],
@@ -44,7 +44,11 @@ const operations = webSessionContractOperations(
       access: "public" as const,
     });
   }
-  if (operation.name === "posts.publish" || operation.name === "media.publish") {
+  if (
+    operation.name === "posts.publish"
+    || operation.name === "media.publish"
+    || operation.name === "replies.create"
+  ) {
     return Object.freeze({
       ...operation,
       reconciliation: Object.freeze({
@@ -126,14 +130,22 @@ export const blueskyWebPlugin = defineProviderPlugin({
         execute: (_manifest, recipe, input, auth, options) =>
           runtime.executeBlueskyWebOperation(recipe, input, auth, options),
         reconcile: async (operation, input, auth, context) => {
-          if (operation === "posts.publish" || operation === "media.publish") {
+          if (
+            operation === "posts.publish"
+            || operation === "media.publish"
+            || operation === "replies.create"
+          ) {
             if (context?.kind !== "provider-accepted-target-presence") {
               throw new Error(`Bluesky ${operation} reconciliation requires one exact accepted target`);
             }
             const readback = await runtime.readBlueskyWebPublishedMutationTarget({
               site: "bluesky",
               action: operation,
-              contractVersion: operation === "posts.publish" ? 3 : 2,
+              contractVersion: operation === "posts.publish"
+                ? 3
+                : operation === "media.publish"
+                  ? 2
+                  : 1,
               timeoutMs: 60_000,
               maxOutputBytes: 8 * 1024 * 1024,
             }, input, auth, context.target.identifier);
