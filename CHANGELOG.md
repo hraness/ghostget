@@ -7,6 +7,25 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.73
+
+Give agents reviewed, authenticated engagement on four more community surfaces.
+
+- Hacker News comments, replies, story and text submissions, favorites, and
+  upvotes graduate to observed with consume-once mutation plans and
+  independent readback.
+- X and Bluesky replies plus authenticated Bluesky post search graduate to
+  observed; X web contracts are re-observed.
+- LinkedIn comment creation, replies, and comment-list reads graduate to
+  observed with exact post and parent-comment targeting and accepted-target
+  retention.
+- LinkedIn profile-activity feeds are repaired for current single-page-app
+  navigation and the eval-source escape regression removed.
+- Analytics redaction now also removes email-shaped substrings from raw
+  percent-encoded form values.
+- Test environments no longer inherit agent-audience markers from the
+  surrounding shell.
+
 ## 0.18.72
 
 Make article sources and reading links easier to recognize.
