@@ -110,6 +110,29 @@ session, and root reproof. Unknown liveness, malformed lifecycle output,
 identity drift, root replacement, an available or indeterminate CDP endpoint,
 and durable-claim drift remain cleanup-required.
 
+## Optional public text browser
+
+Chromium remains the default browser. `--browser-engine auto` also uses Chromium.
+To try Lightpanda 1.0.0 for a fresh public page, provision its executable at an
+absolute `GHOSTGET_LIGHTPANDA_PATH` (or `LIGHTPANDA_PATH`) and select it explicitly:
+
+```sh
+GHOSTGET_LIGHTPANDA_PATH=/absolute/path/to/lightpanda \
+  ghostget read https://example.com --mode browser --scope page --media none \
+  --browser-engine lightpanda
+```
+
+Lightpanda supports public DOM and JavaScript text capture only. It cannot use
+connected accounts, cookies, profiles, attached tabs, private networks, media,
+screenshots, iframe or worker resources, or scrolling/expanded captures.
+Use `--scope page` for a single page,
+and Chromium for those other tasks and for CSS or layout evidence.
+GhostGet checks the executable's version, sends page requests through its existing
+network proxy, and keeps a local browser slot until server and driver cleanup
+settle. A configured executable does not enable automatic Lightpanda selection;
+GhostGet-specific performance and compatibility comparisons are still required
+before changing that default.
+
 ## Author a portable provider
 
 Read [provider plugins](references/provider-plugins.md), [the adapter contract](references/adapter-contract.md), and [safety and state](references/safety-and-state.md). Then create an inert package:

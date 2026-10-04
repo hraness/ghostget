@@ -65,6 +65,7 @@ import {
   profilePath,
 } from "./browser";
 import { runCaptureWithBrowserAdmission } from "./browser-admission";
+import { selectBrowserEngine, type BrowserEngineSelection } from "./lightpanda-browser";
 import {
   createBrowserSnapshotDirectory,
   purgeOrphanedBrowserSnapshots,
@@ -913,6 +914,7 @@ type PreparedCapture = {
 type ResolvedCapture = {
   readonly arguments: readonly string[];
   readonly auth?: GhostgetAuth;
+  readonly browserEngine: BrowserEngineSelection;
 };
 
 function resolveCaptureArgumentsWithAuth(
@@ -921,8 +923,22 @@ function resolveCaptureArgumentsWithAuth(
 ): ResolvedCapture {
   const forwarded: string[] = [];
   let authId: string | undefined;
+  let browserEngine: BrowserEngineSelection | undefined;
   for (let index = 0; index < arguments_.length; index += 1) {
     const argument = arguments_[index];
+    if (argument === "--browser-engine") {
+      const value = arguments_[index + 1];
+      if (value === undefined || value.startsWith("--")) {
+        throw new Error("--browser-engine requires one of auto, chrome, or lightpanda");
+      }
+      if (value !== "auto" && value !== "chrome" && value !== "lightpanda") {
+        throw new Error("--browser-engine must be one of auto, chrome, or lightpanda");
+      }
+      if (browserEngine !== undefined) throw new Error("capture accepts at most one --browser-engine selection");
+      browserEngine = value;
+      index += 1;
+      continue;
+    }
     if (argument !== "--auth") {
       forwarded.push(argument ?? "");
       continue;
@@ -933,7 +949,8 @@ function resolveCaptureArgumentsWithAuth(
     authId = value;
     index += 1;
   }
-  if (authId === undefined) return { arguments: forwarded };
+  const selectedBrowserEngine = browserEngine ?? "auto";
+  if (authId === undefined) return { arguments: forwarded, browserEngine: selectedBrowserEngine };
   const explicitAuthFlags = new Set(["--browser-profile", "--cookie-source", "--cookie-profile", "--cookies-file"]);
   if (forwarded.some((argument) => explicitAuthFlags.has(argument))) {
     throw new Error("--auth cannot be combined with raw browser-profile or cookie-source options");
@@ -941,7 +958,7 @@ function resolveCaptureArgumentsWithAuth(
   const auth = loadAuth(authId, environment);
   if (auth.kind === "oauth-token-file") {
     if (auth.provider === "gmail") {
-      return { arguments: forwarded, auth };
+      return { arguments: forwarded, auth, browserEngine: selectedBrowserEngine };
     }
     throw new Error(
       `auth locator ${auth.id} is for official ${auth.provider} API capabilities and cannot be used for browser capture; use cookie/profile auth for clip or read`,
@@ -960,12 +977,14 @@ function resolveCaptureArgumentsWithAuth(
         ...(auth.profile === undefined ? [] : ["--cookie-profile", auth.profile]),
       ],
       auth,
+      browserEngine: selectedBrowserEngine,
     };
   }
   if (auth.kind === "cookies-file") {
     return {
       arguments: [...forwarded, "--cookies-file", auth.path],
       auth,
+      browserEngine: selectedBrowserEngine,
     };
   }
   return {
@@ -976,6 +995,7 @@ function resolveCaptureArgumentsWithAuth(
       ...(auth.cookieProfile === undefined ? [] : ["--cookie-profile", auth.cookieProfile]),
     ],
     auth,
+    browserEngine: selectedBrowserEngine,
   };
 }
 
@@ -1040,6 +1060,11 @@ async function runCaptureCommand(
   if (!parsed.ok) {
     return dependencies.clipMain(unresolvedArguments, environment, output);
   }
+  if (resolved.browserEngine === "lightpanda"
+    && (parsed.value.command === "capture" || parsed.value.command === "inspect")) {
+    if (resolved.auth !== undefined) throw new Error("Lightpanda capture does not support authenticated accounts");
+    selectBrowserEngine(parsed.value, resolved.browserEngine, environment);
+  }
   if (
     resolved.auth?.kind === "oauth-token-file"
     && resolved.auth.provider === "gmail"
@@ -1079,7 +1104,10 @@ async function runCaptureCommand(
         runCapture: (captureArguments) => dependencies.runCapture(
           captureArguments,
           environment,
-          signal === undefined ? {} : { signal },
+          {
+            browserEngine: resolved.browserEngine,
+            ...(signal === undefined ? {} : { signal }),
+          },
         ),
       },
       prepared.runtimeOptions,

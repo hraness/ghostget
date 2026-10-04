@@ -2475,16 +2475,16 @@
 // 60297eb24c9df4f79ac5ac4bd0f1ff0d633c624cf063c78f9381d3c3aba8d74f. Retain the
 // reviewed allowances: 24,462,212 + 353 + 65 = 24,462,630.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Substack 0.18.76 release pins and GitHub native-routing guidance over the reviewed comments/replies runtime",
+  scope: "0.18.77 opt-in Lightpanda capture over the reviewed 0.18.76 release",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   nodeVersion: "24.20.0",
-  zlibVersion: "1.3.2.1-motley-42c2f19",
+  zlibVersion: "1.2.12",
   platform: "darwin-arm64",
-  archiveSha256: "60297eb24c9df4f79ac5ac4bd0f1ff0d633c624cf063c78f9381d3c3aba8d74f",
-  packedBytes: 12_235_399,
-  unpackedBytes: 24_462_212,
-  entryCount: 637,
+  archiveSha256: "6744da1942388d7931de5cff78b3912ee1fd261626fbe47c3126aef23831e42d",
+  packedBytes: 12_229_191,
+  unpackedBytes: 24_484_362,
+  entryCount: 638,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,

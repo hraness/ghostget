@@ -93,6 +93,8 @@ Read a page and print it as Markdown. Nothing is saved.
 Options
   --auth <id>                    Read with a connected account
   --mode auto|http|browser|file  How to fetch the page (default: auto)
+  --browser-engine auto|chrome|lightpanda
+                                 Public text browser; auto uses Chrome
   --browser-profile <name|path>  Use a signed-in Chrome profile
   --cookie-source <browser>      chrome|arc|brave|chromium|edge|firefox|safari
   --cookie-profile <name|path>   Which profile of that browser
@@ -115,6 +117,8 @@ Options
   --media none|images|all        Save images or all supported media
   --evidence none|source|screenshot|all
                                  Keep the page source or a screenshot
+  --browser-engine auto|chrome|lightpanda
+                                 Public text browser; auto uses Chrome
   --stdout                       Print Markdown instead of saving
   --force                        Replace an existing note
   --json                         Print machine-readable output
