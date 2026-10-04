@@ -1,7 +1,7 @@
 {
   "schemaVersion": 4,
   "id": "substack-web",
-  "version": "1.11.0",
+  "version": "1.10.0",
   "displayName": "Substack (Authenticated Web API)",
   "surfaceId": "substack",
   "origins": [
@@ -501,7 +501,7 @@
       }
     },
     "comments.create": {
-      "description": "Observed contract: publish one confirmed top-level comment on the exact bound Substack article through the publication-scoped first-party comment exchange after exact article, publication, and actor bindings, durably retain the accepted comment ID, and verify the created comment through an independent reader readback at bounded attempts.",
+      "description": "Capture-required contract reservation: publish one confirmed top-level article comment after exact publication permissions and returned actor/post binding are reviewed.",
       "risk": "R3",
       "sideEffect": "Publishes one externally visible comment on the exact confirmed Substack article.",
       "idempotency": "local-at-most-once",
@@ -542,7 +542,7 @@
       }
     },
     "replies.create": {
-      "description": "Observed contract: publish one confirmed reply beneath an exact bound Substack Note or article comment through the reviewed first-party reply exchange after exact parent, post, publication, actor, and ancestor-path bindings, durably retain the accepted reply ID, and verify the created reply through an independent reader readback at bounded attempts; chat parents remain capture-required.",
+      "description": "Capture-required contract reservation: publish one confirmed reply through an exact Note, article-comment, or chat reply contract.",
       "risk": "R3",
       "sideEffect": "Publishes one externally visible reply beneath the exact confirmed Substack parent.",
       "idempotency": "local-at-most-once",
