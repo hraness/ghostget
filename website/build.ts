@@ -220,7 +220,7 @@ export const PUBLIC_PAGES = [
   {
     canonicalPath: "/webmcp/",
     description:
-      "WebMCP lets a website publish tools through navigator.modelContext. GhostGet reads them from the public WebMCP Registry and calls only tools declared read-only.",
+      "WebMCP lets a website publish tools through document.modelContext. GhostGet reads them from the public WebMCP Registry and calls only tools declared read-only.",
     outputFile: "webmcp/index.html",
     sourceFile: "webmcp.html",
     title: "WebMCP for agents: call website-published tools through GhostGet",
