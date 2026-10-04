@@ -826,6 +826,26 @@ describe("ghostget CLI grammar", () => {
       },
     });
     expect(parseGhostgetArguments([
+      "auth",
+      "add",
+      "bluesky-seeded",
+      "--browser-profile",
+      "/private/profiles/bluesky/Default",
+      "--storage-state",
+      "/private/secrets/bluesky.storage-state.json",
+      "--trust-profile-egress",
+    ])).toEqual({
+      ok: true,
+      value: {
+        command: "auth-add",
+        id: "bluesky-seeded",
+        browserProfile: "/private/profiles/bluesky/Default",
+        storageState: "/private/secrets/bluesky.storage-state.json",
+        trustProfileEgress: true,
+        force: false,
+      },
+    });
+    expect(parseGhostgetArguments([
       "auth", "add", "arc-main", "--cookie-source", "arc", "--cookie-profile", "Default", "--force",
     ])).toEqual({
       ok: true,
@@ -1669,6 +1689,17 @@ describe("ghostget CLI grammar", () => {
         "--browser-executable", "/Applications/Chromium.app/Contents/MacOS/Chromium",
       ],
       message: "requires --browser-profile",
+    },
+    {
+      arguments: ["auth", "add", "bluesky", "--storage-state", "/private/state.json", "--cookie-source", "chrome"],
+      message: "requires --browser-profile",
+    },
+    {
+      arguments: [
+        "auth", "add", "x-api", "--oauth-provider", "x", "--token-file", "/private/token",
+        "--scopes", "tweet.read", "--storage-state", "/private/state.json",
+      ],
+      message: "cannot be combined",
     },
     { arguments: ["auth", "add", "linkedin", "--cookie-profile", "Work", "--cookies-file", "cookies.json"], message: "requires --cookie-source" },
     {

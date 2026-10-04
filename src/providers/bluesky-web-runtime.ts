@@ -290,6 +290,87 @@ function browserEvaluationSource(): string {
   return `(()=>{if(location.origin!=="${BLUESKY_APP_ORIGIN}")throw new Error("unexpected Bluesky origin");const raw=localStorage.getItem("BSKY_STORAGE");if(typeof raw!=="string"||raw.length<2||raw.length>1048576)throw new Error("Bluesky storage unavailable");const root=JSON.parse(raw);const session=root&&typeof root==="object"&&root.session;const current=session&&typeof session==="object"&&session.currentAccount;const accounts=session&&typeof session==="object"&&session.accounts;if(!current||typeof current.did!=="string"||!Array.isArray(accounts)||accounts.length>100)throw new Error("Bluesky current account unavailable");const matches=accounts.filter(account=>account&&typeof account==="object"&&account.did===current.did);if(matches.length!==1)throw new Error("Bluesky current account ambiguous");const account=matches[0];return{did:account.did,handle:account.handle,accessJwt:account.accessJwt,refreshJwt:account.refreshJwt,service:account.service,pdsUrl:typeof account.pdsUrl==="string"?account.pdsUrl:null}})()`;
 }
 
+const MAX_STORAGE_STATE_BYTES = 4 * 1024 * 1024;
+
+/**
+ * Project the active Bluesky session out of a saved storage-state file the
+ * same way the in-page bootstrap eval projects it out of localStorage.
+ * Storage in an agent-browser profile context is off the record, so a profile
+ * clone can never surface localStorage; the file is the reviewed seed source.
+ */
+function projectStorageStateSession(root: unknown): unknown {
+  if (!isRecord(root) || !Array.isArray(root.origins)) {
+    throw new Error("Bluesky storage state file is malformed");
+  }
+  let raw: unknown;
+  for (const entry of root.origins) {
+    if (!isRecord(entry) || entry.origin !== BLUESKY_APP_ORIGIN) continue;
+    if (!Array.isArray(entry.localStorage)) continue;
+    for (const item of entry.localStorage) {
+      if (isRecord(item) && item.name === "BSKY_STORAGE") raw = item.value;
+    }
+  }
+  if (typeof raw !== "string" || raw.length < 2 || raw.length > 1_048_576) {
+    throw new Error("Bluesky storage state has no reviewed session");
+  }
+  const parsed: unknown = JSON.parse(raw);
+  const session = isRecord(parsed) && isRecord(parsed.session) ? parsed.session : null;
+  const current = session !== null && isRecord(session.currentAccount) ? session.currentAccount : null;
+  const accounts = session !== null && Array.isArray(session.accounts) ? session.accounts : null;
+  if (!current || typeof current.did !== "string" || accounts === null || accounts.length > 100) {
+    throw new Error("Bluesky storage state current account unavailable");
+  }
+  const matches = accounts.filter(
+    (account) => isRecord(account) && account.did === current.did,
+  );
+  if (matches.length !== 1) throw new Error("Bluesky storage state current account ambiguous");
+  const account = matches[0] as Record<string, unknown>;
+  return Object.freeze({
+    did: account.did,
+    handle: account.handle,
+    accessJwt: account.accessJwt,
+    refreshJwt: account.refreshJwt,
+    service: account.service,
+    pdsUrl: typeof account.pdsUrl === "string" ? account.pdsUrl : null,
+  });
+}
+
+async function readBlueskyStorageState(
+  path: string,
+  operationDeadline?: WebSessionOperationDeadline,
+): Promise<unknown> {
+  let handle;
+  try {
+    handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  } catch {
+    throw new Error("Bluesky storage state file is unavailable");
+  }
+  try {
+    const stat = () => handle.stat();
+    const before = operationDeadline === undefined
+      ? await stat()
+      : await operationDeadline.run(stat, WEB_SESSION_OPERATION_LABEL);
+    if (!before.isFile() || before.size < 2 || before.size > MAX_STORAGE_STATE_BYTES) {
+      throw new Error("Bluesky storage state file is out of bounds");
+    }
+    const bytes = operationDeadline === undefined
+      ? await handle.readFile()
+      : await operationDeadline.run(() => handle.readFile(), WEB_SESSION_OPERATION_LABEL);
+    const after = operationDeadline === undefined
+      ? await stat()
+      : await operationDeadline.run(stat, WEB_SESSION_OPERATION_LABEL);
+    if (
+      after.dev !== before.dev
+      || after.ino !== before.ino
+      || after.size !== before.size
+      || bytes.byteLength !== before.size
+    ) throw new Error("Bluesky storage state file changed while it was read");
+    return projectStorageStateSession(JSON.parse(bytes.toString("utf8")));
+  } finally {
+    await handle.close();
+  }
+}
+
 function bootstrapEvaluationResult(value: unknown): unknown {
   if (!isRecord(value)) throw new Error("Bluesky browser bootstrap returned a malformed envelope");
   let observedOrigin: string | null = null;
@@ -501,6 +582,9 @@ async function selectedSession(
   const loadBrowserSession = (): Promise<unknown> => {
     if (dependencies?.bootstrapAccount !== undefined) {
       return dependencies.bootstrapAccount(auth);
+    }
+    if (auth.storageState !== undefined) {
+      return readBlueskyStorageState(auth.storageState, operationDeadline);
     }
     return startWebSessionCleanupTrackedOperation(
       registerCleanupBarrier,

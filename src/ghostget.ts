@@ -2914,6 +2914,9 @@ async function runCommand(
           ...(arguments_.browserExecutable === undefined
             ? {}
             : { browserExecutable: arguments_.browserExecutable }),
+          ...(arguments_.storageState === undefined
+            ? {}
+            : { storageState: arguments_.storageState }),
           trustUnfilteredEgress: arguments_.trustProfileEgress,
           ...(arguments_.cookieSource === undefined ? {} : { cookieSource: arguments_.cookieSource }),
           ...(arguments_.cookieProfile === undefined ? {} : { cookieProfile: arguments_.cookieProfile }),

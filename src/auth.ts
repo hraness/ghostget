@@ -82,6 +82,7 @@ export type GhostgetAuth =
       readonly kind: "browser-profile";
       readonly profile: string;
       readonly browserExecutable?: string;
+      readonly storageState?: string;
       readonly trustUnfilteredEgress: true;
       readonly cookieSource?: CookieSource;
       readonly cookieProfile?: string;
@@ -123,6 +124,7 @@ export type AuthInput =
   | {
       readonly browserProfile: string;
       readonly browserExecutable?: string;
+      readonly storageState?: string;
       readonly trustUnfilteredEgress: boolean;
       readonly cookieSource?: CookieSource;
       readonly cookieProfile?: string;
@@ -311,6 +313,12 @@ export function createAuth(id: string, input: AuthInput): GhostgetAuth {
     ) {
       throw new Error("browser executable is invalid or unsafe");
     }
+    if (
+      input.storageState !== undefined
+      && (!isSafeAuthPath(input.storageState) || input.storageState.trim() !== input.storageState)
+    ) {
+      throw new Error("browser storage state is invalid or unsafe");
+    }
     if (input.cookieSource !== undefined && !cookieSources.includes(input.cookieSource)) {
       throw new Error("browser-profile auth has an invalid cookie source");
     }
@@ -325,6 +333,9 @@ export function createAuth(id: string, input: AuthInput): GhostgetAuth {
       ...(input.browserExecutable === undefined
         ? {}
         : { browserExecutable: resolve(input.browserExecutable) }),
+      ...(input.storageState === undefined
+        ? {}
+        : { storageState: resolve(input.storageState) }),
       trustUnfilteredEgress: true,
       ...(input.cookieSource === undefined ? {} : { cookieSource: input.cookieSource }),
       ...(input.cookieProfile === undefined ? {} : { cookieProfile: input.cookieProfile }),
@@ -627,6 +638,7 @@ export function parseAuth(value: unknown): GhostgetAuth {
   if (record.kind === "browser-profile") {
     const expected = ["schemaVersion", "id", "kind", "profile", "trustUnfilteredEgress"];
     if (record.browserExecutable !== undefined) expected.push("browserExecutable");
+    if (record.storageState !== undefined) expected.push("storageState");
     if (record.cookieSource !== undefined) expected.push("cookieSource");
     if (record.cookieProfile !== undefined) expected.push("cookieProfile");
     if (record.subject !== undefined) expected.push("subject");
@@ -645,6 +657,14 @@ export function parseAuth(value: unknown): GhostgetAuth {
         || record.browserExecutable.trim() !== record.browserExecutable
       )
     ) throw new Error("auth record has an invalid browser executable");
+    if (
+      record.storageState !== undefined
+      && (
+        !isSafeAuthPath(record.storageState)
+        || !isAbsolute(record.storageState)
+        || record.storageState.trim() !== record.storageState
+      )
+    ) throw new Error("auth record has an invalid browser storage state path");
     if (
       record.cookieSource !== undefined
       && (typeof record.cookieSource !== "string" || !cookieSources.includes(record.cookieSource as CookieSource))
@@ -665,6 +685,9 @@ export function parseAuth(value: unknown): GhostgetAuth {
       ...(typeof record.browserExecutable !== "string"
         ? {}
         : { browserExecutable: record.browserExecutable }),
+      ...(typeof record.storageState !== "string"
+        ? {}
+        : { storageState: record.storageState }),
       trustUnfilteredEgress: true,
       ...(typeof record.cookieSource !== "string" ? {} : { cookieSource: record.cookieSource as CookieSource }),
       ...(typeof record.cookieProfile !== "string" ? {} : { cookieProfile: record.cookieProfile }),

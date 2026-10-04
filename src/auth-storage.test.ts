@@ -359,6 +359,32 @@ describe("auth locators", () => {
     })).toThrow("invalid browser executable");
   });
 
+  test("creates and parses a browser profile with a storage-state seed", () => {
+    const seeded = createAuth("bsky-seeded", {
+      browserProfile: "/private/profiles/bluesky/Default",
+      storageState: "/private/secrets/bluesky.storage-state.json",
+      trustUnfilteredEgress: true,
+    });
+    expect(seeded).toEqual({
+      schemaVersion: 1,
+      id: "bsky-seeded",
+      kind: "browser-profile",
+      profile: "/private/profiles/bluesky/Default",
+      storageState: "/private/secrets/bluesky.storage-state.json",
+      trustUnfilteredEgress: true,
+    });
+    expect(parseAuth(seeded)).toEqual(seeded);
+    expect(() => createAuth("bsky-seeded", {
+      browserProfile: "Work",
+      storageState: "/private/secrets/bad‎.json",
+      trustUnfilteredEgress: true,
+    })).toThrow("invalid or unsafe");
+    expect(() => parseAuth({
+      ...seeded,
+      storageState: "relative/storage-state.json",
+    })).toThrow("invalid browser storage state path");
+  });
+
   test("binds every cookie-capable locator to an optional non-secret subject while accepting legacy records", () => {
     const bound = [
       createAuth("arc-bound", { source: "arc", profile: "Profile 1", subject: "ACoAA-viewer_1" }),
