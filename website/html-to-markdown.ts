@@ -29,6 +29,7 @@ const SKIP_CLASSES = new Set([
   "hraness-marketing-install__eyebrow",
   "hraness-marketing-interfaces__label",
   "hraness-marketing-maker__label",
+  "hraness-marketing-marquee__control",
   "hraness-marketing-questions__label",
   "hraness-marketing-section__label",
   "hraness-marketing-trust__label",

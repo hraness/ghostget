@@ -7,6 +7,7 @@ import {
   BEEPER_LOCAL_OPERATION_RUNTIME_TRANSPORTS,
 } from "../src/providers/beeper-local";
 import { WHATSAPP_PROTOCOL_PIN } from "../src/providers/whatsapp-web";
+import { providerMark, renderMarketingMarqueeHtml, type ProviderMarkId } from "@hraness/design-kit";
 import type {
   ProviderCapabilityAttestation,
   ProviderCapabilityAttestationRow,
@@ -29,34 +30,36 @@ type ProviderIcon =
 type ProviderPresentationDefinition = Readonly<{
   accent: "blue" | "coral" | "gold" | "green" | "ink" | "violet";
   icon: ProviderIcon;
+  /** The shared provider-registry mark shown in the homepage provider band. */
+  mark: ProviderMarkId;
   name: string;
   surfaceId: string;
 }>;
 
 export const PROVIDER_PRESENTATIONS = Object.freeze([
-  { accent: "blue", icon: "beeper", name: "Beeper", surfaceId: "beeper" },
-  { accent: "blue", icon: "network", name: "Bluesky", surfaceId: "bluesky" },
-  { accent: "gold", icon: "store", name: "ClasificadosOnline", surfaceId: "clasificados" },
-  { accent: "blue", icon: "network", name: "Facebook", surfaceId: "facebook" },
-  { accent: "blue", icon: "community", name: "Facebook Groups", surfaceId: "facebook-group" },
-  { accent: "blue", icon: "store", name: "Facebook Marketplace", surfaceId: "facebook-marketplace" },
-  { accent: "blue", icon: "publish", name: "Facebook Pages", surfaceId: "facebook-page" },
-  { accent: "ink", icon: "code", name: "GitHub", surfaceId: "github" },
-  { accent: "coral", icon: "mail", name: "Gmail", surfaceId: "gmail" },
-  { accent: "gold", icon: "news", name: "Hacker News", surfaceId: "hacker-news" },
-  { accent: "violet", icon: "photo", name: "Instagram", surfaceId: "instagram" },
-  { accent: "blue", icon: "chat", name: "iMessage", surfaceId: "imessage" },
-  { accent: "blue", icon: "network", name: "LinkedIn", surfaceId: "linkedin" },
-  { accent: "blue", icon: "mail", name: "Microsoft Graph", surfaceId: "microsoft-graph" },
-  { accent: "coral", icon: "community", name: "Reddit", surfaceId: "reddit" },
-  { accent: "coral", icon: "publish", name: "Substack", surfaceId: "substack" },
-  { accent: "ink", icon: "community", name: "Threads", surfaceId: "threads" },
-  { accent: "violet", icon: "video", name: "TikTok", surfaceId: "tiktok" },
-  { accent: "violet", icon: "broadcast", name: "Twitch", surfaceId: "twitch" },
-  { accent: "blue", icon: "network", name: "WebMCP Registry", surfaceId: "webmcp" },
-  { accent: "green", icon: "chat", name: "WhatsApp", surfaceId: "whatsapp" },
-  { accent: "ink", icon: "publish", name: "X", surfaceId: "x" },
-  { accent: "coral", icon: "video", name: "YouTube", surfaceId: "youtube" },
+  { accent: "blue", icon: "beeper", mark: "beeper", name: "Beeper", surfaceId: "beeper" },
+  { accent: "blue", icon: "network", mark: "bluesky", name: "Bluesky", surfaceId: "bluesky" },
+  { accent: "gold", icon: "store", mark: "storefront", name: "ClasificadosOnline", surfaceId: "clasificados" },
+  { accent: "blue", icon: "network", mark: "facebook", name: "Facebook", surfaceId: "facebook" },
+  { accent: "blue", icon: "community", mark: "facebook", name: "Facebook Groups", surfaceId: "facebook-group" },
+  { accent: "blue", icon: "store", mark: "facebook", name: "Facebook Marketplace", surfaceId: "facebook-marketplace" },
+  { accent: "blue", icon: "publish", mark: "facebook", name: "Facebook Pages", surfaceId: "facebook-page" },
+  { accent: "ink", icon: "code", mark: "github", name: "GitHub", surfaceId: "github" },
+  { accent: "coral", icon: "mail", mark: "gmail", name: "Gmail", surfaceId: "gmail" },
+  { accent: "gold", icon: "news", mark: "ycombinator", name: "Hacker News", surfaceId: "hacker-news" },
+  { accent: "violet", icon: "photo", mark: "instagram", name: "Instagram", surfaceId: "instagram" },
+  { accent: "blue", icon: "chat", mark: "imessage", name: "iMessage", surfaceId: "imessage" },
+  { accent: "blue", icon: "network", mark: "linkedin", name: "LinkedIn", surfaceId: "linkedin" },
+  { accent: "blue", icon: "mail", mark: "microsoft", name: "Microsoft Graph", surfaceId: "microsoft-graph" },
+  { accent: "coral", icon: "community", mark: "reddit", name: "Reddit", surfaceId: "reddit" },
+  { accent: "coral", icon: "publish", mark: "substack", name: "Substack", surfaceId: "substack" },
+  { accent: "ink", icon: "community", mark: "threads", name: "Threads", surfaceId: "threads" },
+  { accent: "violet", icon: "video", mark: "tiktok", name: "TikTok", surfaceId: "tiktok" },
+  { accent: "violet", icon: "broadcast", mark: "twitch", name: "Twitch", surfaceId: "twitch" },
+  { accent: "blue", icon: "network", mark: "website", name: "WebMCP Registry", surfaceId: "webmcp" },
+  { accent: "green", icon: "chat", mark: "whatsapp", name: "WhatsApp", surfaceId: "whatsapp" },
+  { accent: "ink", icon: "publish", mark: "x", name: "X", surfaceId: "x" },
+  { accent: "coral", icon: "video", mark: "youtube", name: "YouTube", surfaceId: "youtube" },
 ] as const satisfies readonly ProviderPresentationDefinition[]);
 
 export type ProviderDirectoryEntry = Readonly<{
@@ -72,6 +75,7 @@ export type ProviderDirectoryEntry = Readonly<{
   contractVersions: readonly number[];
   href: string;
   icon: ProviderIcon;
+  mark: ProviderMarkId;
   name: string;
   observedCount: number;
   ownerPermissionCount: number;
@@ -251,6 +255,9 @@ export function createProviderDirectory(
     if (definition.name.trim() !== definition.name || definition.name.length < 1) {
       throw new Error(`provider presentation ${definition.surfaceId} has an invalid public name`);
     }
+    if (providerMark(definition.mark)?.id !== definition.mark) {
+      throw new Error(`provider presentation ${definition.surfaceId} names an unregistered mark`);
+    }
     if (definition.surfaceId === "beeper" && index !== 0) {
       throw new Error("Beeper must remain the first provider presentation");
     }
@@ -365,6 +372,7 @@ export function createProviderDirectory(
       href: PROVIDER_GUIDE_PATHS[definition.surfaceId]
         ?? `/docs/reference/provider-capabilities/#provider-${definition.surfaceId}`,
       icon: definition.icon,
+      mark: definition.mark,
       name: definition.name,
       observedCount,
       ownerPermissionCount: rows.filter(row => row.completeness === "observed" && isOwnerMessagingPermission(row)).length,
@@ -510,6 +518,60 @@ export function renderProviderOverviewCards(directory: ProviderDirectory): strin
       : "",
     "</article>",
   ].join("")).join("");
+}
+
+/**
+ * The homepage band leads with the services readers recognize first and keeps
+ * surfaces that share one mark apart. A listed provider missing from this
+ * order follows in directory order, so it still appears and is counted.
+ */
+export const PROVIDER_MARQUEE_ORDER: readonly string[] = Object.freeze([
+  "x",
+  "linkedin",
+  "gmail",
+  "youtube",
+  "github",
+  "beeper",
+  "whatsapp",
+  "imessage",
+  "instagram",
+  "reddit",
+  "bluesky",
+  "threads",
+  "facebook",
+  "tiktok",
+  "substack",
+  "hacker-news",
+  "microsoft-graph",
+  "facebook-page",
+  "twitch",
+  "facebook-group",
+  "webmcp",
+  "facebook-marketplace",
+  "clasificados",
+]);
+
+export const PROVIDER_MARQUEE_ID = "provider-band";
+
+/** Every directory entry exactly once, in the band's display order. */
+export function providerMarqueeEntries(directory: ProviderDirectory): readonly ProviderDirectoryEntry[] {
+  const rank = new Map(PROVIDER_MARQUEE_ORDER.map((surfaceId, index) => [surfaceId, index] as const));
+  return Object.freeze([...directory.entries].sort((left, right) =>
+    (rank.get(left.surfaceId) ?? PROVIDER_MARQUEE_ORDER.length) - (rank.get(right.surfaceId) ?? PROVIDER_MARQUEE_ORDER.length)));
+}
+
+/** The muted band under the homepage hero: every listed service, counted from the same directory. */
+export function renderProviderMarquee(directory: ProviderDirectory): string {
+  const entries = providerMarqueeEntries(directory);
+  if (entries.length !== directory.providerCount) {
+    throw new Error("the provider band must show every listed provider");
+  }
+  return renderMarketingMarqueeHtml({
+    action: { href: "#providers", label: "See every provider" },
+    id: PROVIDER_MARQUEE_ID,
+    items: entries.map((entry) => ({ mark: entry.mark, name: entry.name })),
+    label: "Works with {count} services",
+  });
 }
 
 const operationTitleOverrides: Readonly<Record<string, string>> = Object.freeze({

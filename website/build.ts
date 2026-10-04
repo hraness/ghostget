@@ -91,6 +91,7 @@ import {
   createProviderDirectory,
   createWhatsAppPresentationFacts,
   renderProviderAttestationGroups,
+  renderProviderMarquee,
   renderProviderOverviewCards,
   type BeeperPresentationFacts,
   type ProviderDirectory,
@@ -577,6 +578,7 @@ type RenderOptions = Readonly<{
   postHogKey: string;
   providerAttestationGroups: string;
   providerDirectory: ProviderDirectory;
+  providerMarquee: string;
   providerOverviewCards: string;
   skillInstallAsset: string;
   platformInstallAsset: string;
@@ -1018,6 +1020,11 @@ function renderTemplate(
   } else if (rendered.includes("{{PROVIDER_OVERVIEW_CARDS}}")) {
     throw new Error("Only the homepage and provider capability page may include provider cards.");
   }
+  if (page?.canonicalPath === "/") {
+    rendered = replaceRequired(rendered, "{{PROVIDER_MARQUEE}}", options.providerMarquee);
+  } else if (rendered.includes("{{PROVIDER_MARQUEE}}")) {
+    throw new Error("Only the homepage may include the provider band.");
+  }
   if (page?.canonicalPath === "/docs/reference/provider-capabilities/") {
     rendered = replaceRequired(
       rendered,
@@ -1375,6 +1382,7 @@ export async function buildWebsite(
     designKitPlainSiteCss,
     designKitPlainPublicationCss,
     designKitStatusPageCss,
+    designKitMarqueeCss,
     designKitMockupsCss,
     hranessSiteFooterCss,
     blogShell,
@@ -1411,6 +1419,7 @@ export async function buildWebsite(
     readFile(designKitPlainSiteStylesPath, "utf8").then(compileDesignKitPlainSiteStyles),
     readFile(designKitPlainPublicationStylesPath, "utf8"),
     readFile(fileURLToPath(import.meta.resolve("@hraness/design-kit/status-page.css")), "utf8"),
+    readFile(fileURLToPath(import.meta.resolve("@hraness/design-kit/marketing-marquee.css")), "utf8"),
     readFile(fileURLToPath(import.meta.resolve("@hraness/design-kit/mockups.css")), "utf8"),
     readFile(
       fileURLToPath(import.meta.resolve("@hraness/site-footer/stylex.css")),
@@ -1473,7 +1482,7 @@ export async function buildWebsite(
   const postHog = postHogEnvironment(environment);
   // The UI facade establishes its complete layer order before the static
   // marketing grammar and footer. Product tokens and composition follow them.
-  const compiledCss = `${uiCss}\n\n${designKitFontsCss.trim()}\n\n${designKitTypographyCss.trim()}\n\n${designKitProductMarketingCss.trim()}\n\n${designKitPlainSiteCss.replace('@import "./site-shell.css";', "").trim()}\n\n${designKitPlainPublicationCss.trim()}\n\n${designKitStatusPageCss.trim()}\n\n${designKitMockupsCss.trim()}\n\n${hranessSiteFooterCss.trim()}\n\n${paperThemeCss.trim()}\n\n${paletteSystemCss.trim()}\n\n${paletteBridgeCss.replace('@import "./palette-system.css";', "").trim()}\n\n${renderRelatedStyles(RELATED_PRODUCT_IDS)}\n\n${css.trimEnd()}\n\n${marketingPreset.files.get("product-marketing-preset.css")!.toString("utf8")}\n\n${marketingForcedColorsCss.trim()}\n`;
+  const compiledCss = `${uiCss}\n\n${designKitFontsCss.trim()}\n\n${designKitTypographyCss.trim()}\n\n${designKitProductMarketingCss.trim()}\n\n${designKitPlainSiteCss.replace('@import "./site-shell.css";', "").trim()}\n\n${designKitPlainPublicationCss.trim()}\n\n${designKitStatusPageCss.trim()}\n\n${designKitMarqueeCss.trim()}\n\n${designKitMockupsCss.trim()}\n\n${hranessSiteFooterCss.trim()}\n\n${paperThemeCss.trim()}\n\n${paletteSystemCss.trim()}\n\n${paletteBridgeCss.replace('@import "./palette-system.css";', "").trim()}\n\n${renderRelatedStyles(RELATED_PRODUCT_IDS)}\n\n${css.trimEnd()}\n\n${marketingPreset.files.get("product-marketing-preset.css")!.toString("utf8")}\n\n${marketingForcedColorsCss.trim()}\n`;
   const cssAsset = `/assets/styles-${contentHash(compiledCss)}.css`;
   const analyticsAsset = `/assets/analytics-${contentHash(analytics)}.js`;
   const skillInstallAsset = `/assets/skill-install-${contentHash(skillInstall)}.js`;
@@ -1508,6 +1517,7 @@ export async function buildWebsite(
     postHogKey: postHog.key,
     providerAttestationGroups: renderProviderAttestationGroups(providerDirectory, attestation),
     providerDirectory,
+    providerMarquee: renderProviderMarquee(providerDirectory),
     providerOverviewCards: renderProviderOverviewCards(providerDirectory),
     skillInstallAsset,
     platformInstallAsset,

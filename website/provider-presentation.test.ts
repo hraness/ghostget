@@ -11,11 +11,16 @@ import {
   createBeeperPresentationFacts,
   createProviderDirectory,
   createWhatsAppPresentationFacts,
+  PROVIDER_MARQUEE_ID,
+  PROVIDER_MARQUEE_ORDER,
   PROVIDER_PRESENTATIONS,
   isOwnerMessagingPermission,
+  providerMarqueeEntries,
   renderProviderAttestationGroups,
+  renderProviderMarquee,
   renderProviderOverviewCards,
 } from "./provider-presentation";
+import { providerMark } from "@hraness/design-kit";
 
 const repositoryRoot = resolve(import.meta.dir, "..");
 
@@ -282,6 +287,7 @@ describe("provider presentation", () => {
     const directory = createProviderDirectory(attestation, [{
       accent: "blue",
       icon: "chat",
+      mark: "beeper",
       name: "<script>alert(1)</script>",
       surfaceId: "beeper",
     }]);
@@ -328,8 +334,8 @@ describe("provider presentation", () => {
       ]),
     } satisfies ProviderCapabilityAttestation);
     const directory = createProviderDirectory(attestation, [
-      { accent: "blue", icon: "chat", name: "Beeper", surfaceId: "beeper" },
-      { accent: "ink", icon: "code", name: "Fixture", surfaceId: "fixture" },
+      { accent: "blue", icon: "chat", mark: "beeper", name: "Beeper", surfaceId: "beeper" },
+      { accent: "ink", icon: "code", mark: "website", name: "Fixture", surfaceId: "fixture" },
     ]);
 
     expect(directory.entries.map((entry) => entry.surfaceId)).toEqual(["beeper"]);
@@ -364,8 +370,72 @@ describe("provider presentation", () => {
     expect(() => createProviderDirectory(attestation, [...PROVIDER_PRESENTATIONS, {
       accent: "ink",
       icon: "code",
+      mark: "website",
       name: "Fixture",
       surfaceId: "fixture",
     }])).toThrow("presentation surfaces without an attestation: fixture");
+    expect(() => createProviderDirectory(attestation, PROVIDER_PRESENTATIONS.map((definition) =>
+      definition.surfaceId === "github" ? { ...definition, mark: "not-a-mark" as "github" } : definition)))
+      .toThrow("provider presentation github names an unregistered mark");
+  });
+  test("gives every presented surface a registered mark", () => {
+    for (const definition of PROVIDER_PRESENTATIONS) {
+      expect(providerMark(definition.mark)?.id).toBe(definition.mark);
+    }
+    expect(new Set(PROVIDER_MARQUEE_ORDER).size).toBe(PROVIDER_MARQUEE_ORDER.length);
+    expect([...PROVIDER_MARQUEE_ORDER].sort()).toEqual(PROVIDER_PRESENTATIONS.map((definition) => definition.surfaceId).sort());
+  });
+
+  test("shows every listed provider once in the homepage band and counts the same directory", async () => {
+    const attestation = await loadProviderCapabilityAttestation(repositoryRoot);
+    const directory = createProviderDirectory(attestation);
+    const entries = providerMarqueeEntries(directory);
+    expect([...entries].map((entry) => entry.surfaceId).sort()).toEqual(directory.entries.map((entry) => entry.surfaceId).sort());
+    expect(entries.map((entry) => entry.surfaceId)).toEqual(
+      PROVIDER_MARQUEE_ORDER.filter((surfaceId) => directory.entries.some((entry) => entry.surfaceId === surfaceId)),
+    );
+    // Surfaces that share a mark never sit side by side, including across the loop seam.
+    for (const [index, entry] of entries.entries()) {
+      expect(entry.mark).not.toBe(entries[(index + 1) % entries.length]?.mark);
+    }
+
+    const html = renderProviderMarquee(directory);
+    expect(html.startsWith(`<section aria-labelledby="${PROVIDER_MARQUEE_ID}-label" class="hraness-marketing-marquee"`)).toBeTrue();
+    expect(html).toContain(`Works with <strong class="hraness-marketing-marquee__count">${String(directory.providerCount)}</strong> services`);
+    expect(html).toContain('<a class="hraness-marketing-marquee__action hraness-text-link" href="#providers">See every provider</a>');
+    const accessibleList = /<ul class="hraness-marketing-marquee__list">(.*?)<\/ul>/u.exec(html)?.[1] ?? "";
+    const names = [...accessibleList.matchAll(/<span class="hraness-marketing-marquee__name">(.*?)<\/span>/gu)].map((match) => match[1]);
+    expect(names).toEqual(entries.map((entry) => entry.name));
+    expect(html).not.toContain("hraness-marketing-marquee__monogram");
+    expect(html).not.toContain("Microsoft Graph");
+  });
+
+  test("keeps a provider missing from the band order visible and counted", () => {
+    const attestation = Object.freeze({
+      adapterCount: 2,
+      captureRequiredCount: 0,
+      observedCount: 2,
+      operationCount: 2,
+      rows: Object.freeze(["beeper", "fixture"].map((surfaceId) => Object.freeze({
+        adapterId: `${surfaceId}-adapter`,
+        adapterVersion: "1.0.0",
+        completeness: "observed" as const,
+        contractVersion: 1,
+        displayName: surfaceId,
+        kind: "local-cli" as const,
+        limit: "List contacts.",
+        operation: "contacts.list",
+        pluginId: surfaceId,
+        risk: "R1" as const,
+        surfaceId,
+        transport: "local-cli" as const,
+      }))),
+    } satisfies ProviderCapabilityAttestation);
+    const directory = createProviderDirectory(attestation, [
+      { accent: "blue", icon: "chat", mark: "beeper", name: "Beeper", surfaceId: "beeper" },
+      { accent: "ink", icon: "code", mark: "website", name: "Fixture", surfaceId: "fixture" },
+    ]);
+    expect(providerMarqueeEntries(directory).map((entry) => entry.surfaceId)).toEqual(["beeper", "fixture"]);
+    expect(renderProviderMarquee(directory)).toContain('<strong class="hraness-marketing-marquee__count">2</strong>');
   });
 });

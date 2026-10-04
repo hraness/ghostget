@@ -84,6 +84,7 @@ import {
   createProviderDirectory,
   createWhatsAppPresentationFacts,
   renderProviderAttestationGroups,
+  renderProviderMarquee,
   renderProviderOverviewCards,
 } from "./provider-presentation";
 import { PRODUCTION_RELEASE_MARKER_PATH } from "./production-release-marker.mjs";
@@ -209,13 +210,13 @@ describe("ghostget.com static site", () => {
     expect(packageFiles).not.toContain("vercel.json");
     expect(manifest).toMatchObject({
       devDependencies: {
-        "@hraness/design-kit": "github:hraness/design-kit#v0.36.3",
+        "@hraness/design-kit": "github:hraness/design-kit#v0.39.0",
 
         "@hraness/site-footer": "https://github.com/hraness/site-footer/releases/download/v0.20.7/hraness-site-footer-0.20.7.tgz",
         "@hraness/ui": "github:hraness/ui#v0.5.18",
       },
     });
-    expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.36.3"');
+    expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.39.0"');
     expect(lockfile).toContain('"@hraness/ui": "github:hraness/ui#v0.5.18"');
 
     expect(lockfile).toContain('"@hraness/site-footer": "https://github.com/hraness/site-footer/releases/download/v0.20.7/hraness-site-footer-0.20.7.tgz"');
@@ -882,6 +883,8 @@ describe("ghostget.com static site", () => {
     expect(builtCss).toContain("--hraness-site-footer-social-target");
     expect(builtCss).not.toContain('@import "./dist/stylex.css"');
     expect(builtCss).toContain(".hraness-marketing-hero {");
+    const marqueeCss = await readFile(new URL(import.meta.resolve("@hraness/design-kit/marketing-marquee.css")), "utf8");
+    expect(builtCss.split(marqueeCss.trim())).toHaveLength(2);
     expect(sourceCss).toContain("grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr)");
     expect(sourceCss).toContain("min-block-size: 2.75rem");
     expect(builtCss).toContain("@media (pointer: coarse)");
@@ -1528,6 +1531,16 @@ describe("ghostget.com static site", () => {
     expect(providerCapabilities?.html).toContain(
       `${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.cliBackedOperationCount)} actions run through a pinned version of Beeper's official CLI, and ${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.desktopLoopbackOperationCount)} are fixed reads from Beeper Desktop. Writes need a preview first, and GhostGet never resends a write whose outcome is unknown.`,
     );
+    // The provider band directly under the hero counts the same directory as the cards.
+    const providerBand = renderProviderMarquee(providerDirectory);
+    expect(html).toContain(providerBand);
+    expect(html.indexOf(providerBand)).toBeGreaterThan(html.indexOf('data-hraness-marketing="hero"'));
+    expect(html.indexOf(providerBand)).toBeLessThan(html.indexOf('id="uses"'));
+    expect(providerBand).toContain(`<strong class="hraness-marketing-marquee__count">${String(providerDirectory.providerCount)}</strong>`);
+    for (const page of pages.slice(1)) expect(page.html).not.toContain("hraness-marketing-marquee");
+    const homeMarkdown = await readFile(join(websiteRoot, "dist/index.md"), "utf8");
+    expect(homeMarkdown).toContain(`Works with **${String(providerDirectory.providerCount)}** services`);
+    expect(homeMarkdown).not.toContain("Pause scrolling");
     const providerHeading = html.match(/<h2 id="providers-title">([^<]+)<\/h2>/u)?.[1];
     expect(Number(providerHeading?.match(/\d+/u)?.[0])).toBe(providerDirectory.providerCount);
     expect(html).not.toContain("Each card names the actions");

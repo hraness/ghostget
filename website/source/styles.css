@@ -2636,6 +2636,11 @@ body {
 }
 
 
+/* The provider band continues the hero, so the hero ends closer to it. */
+.ghostget-product-hero:has(+ .hraness-marketing-marquee) {
+  padding-block-end: clamp(1rem, 2.5vw, 1.5rem);
+}
+
 .ghostget-product-hero .hraness-marketing-hero__copy {
   gap: 1.1rem;
 }
