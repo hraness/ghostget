@@ -7,6 +7,14 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.78
+
+Snapshot closed Chromium profiles with proven stale locks.
+
+- Pin Wordcell 0.26.3: require an absent local PID, an unavailable socket, and unchanged locks before and after copying.
+- Leave source profiles and locks untouched; live or uncertain ownership still blocks snapshots.
+- Pin CLI updater 0.1.1 so Bun resolves direct and transitive archives independently.
+
 ## 0.18.77
 
 Try Lightpanda for public single-page text capture without changing the default browser.

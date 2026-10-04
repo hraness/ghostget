@@ -12,7 +12,8 @@ import {
   truncateSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
+import { hostname, tmpdir } from "node:os";
+import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -3649,6 +3650,29 @@ describe("browser process isolation helpers", () => {
       expect(lstatSync(join(privateRoot, "profile-user-data", "Local State")).mode & 0o777).toBe(0o600);
       expect(readFileSync(join(userData, "Local State"))).toEqual(beforeLocalState);
       expect(readFileSync(join(source, "Preferences"))).toEqual(beforePreferences);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("snapshots a closed Chromium profile with verified abandoned singleton links", () => {
+    const directory = mkdtempSync(join(tmpdir(), "ghostget-stale-profile-test-"));
+    try {
+      const source = join(directory, "Default");
+      const privateRoot = join(directory, "private");
+      mkdirSync(source);
+      mkdirSync(privateRoot, { mode: 0o700 });
+      writeFileSync(join(directory, "Local State"), "{}");
+      writeFileSync(join(source, "Preferences"), "{}");
+      const child = spawnSync(process.execPath, ["--eval", "console.log(process.pid)"], { encoding: "utf8" });
+      expect(child.status).toBe(0);
+      symlinkSync(`${hostname()}-${child.stdout.trim()}`, join(directory, "SingletonLock"));
+      symlinkSync(join(directory, "missing", "SingletonSocket"), join(directory, "SingletonSocket"));
+      symlinkSync("123", join(directory, "SingletonCookie"));
+      const cloned = cloneBrowserProfile(source, privateRoot);
+      expect(readFileSync(join(cloned.userDataPath, "Default", "Preferences"), "utf8")).toBe("{}");
+      expect(lstatSync(join(directory, "SingletonLock")).isSymbolicLink()).toBeTrue();
+      expect(existsSync(join(cloned.userDataPath, "SingletonLock"))).toBeFalse();
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }
