@@ -139,6 +139,17 @@ import {
 import {
   createLinkedInFeedBrowserTransport,
 } from "./linkedin-web-feed-browser";
+import {
+  createLinkedInSearchBrowserTransport,
+} from "./linkedin-web-search-browser";
+import {
+  LINKEDIN_SEARCH_MAX_ITEMS,
+  linkedInSearchKeywords,
+  linkedInSearchTarget,
+  parseLinkedInSearchCursor,
+} from "./linkedin-web-search";
+import { LinkedInSearchPlatformLive } from "./linkedin-search-platform";
+import { linkedInSearchReadProgram } from "./linkedin-search-program";
 
 const LINKEDIN_ORIGIN = "https://www.linkedin.com";
 const MAX_SUBJECT_BYTES = 2 * 1024 * 1024;
@@ -160,6 +171,7 @@ export type LinkedInWebRuntimeDependencies = Partial<WebSessionNetworkDependenci
   readonly createPostBrowserTransport?: typeof createLinkedInPostBrowserTransport;
   readonly createProfileBrowserTransport?: typeof createLinkedInProfileBrowserTransport;
   readonly createFeedBrowserTransport?: typeof createLinkedInFeedBrowserTransport;
+  readonly createSearchBrowserTransport?: typeof createLinkedInSearchBrowserTransport;
   readonly resolveMessengerConversationsQueryId?: typeof resolveLinkedInMessengerConversationsQueryId;
   readonly now?: () => number;
   /** Test seam for the auth-hash-bound encrypted LinkedIn rotation cache. */
@@ -2565,6 +2577,37 @@ async function executeLinkedInProfileActivityRead(
   ));
 }
 
+async function executeLinkedInSearchRead(
+  recipe: WebSessionRecipe,
+  input: OperationInput,
+  auth: GhostgetAuth,
+  options: LinkedInWebExecutionOptions,
+): Promise<WebSessionExecution> {
+  const keywords = linkedInSearchKeywords(input.query);
+  const target = linkedInSearchTarget(keywords);
+  const cursor = parseLinkedInSearchCursor(input.cursor, keywords);
+  const limit = integerInput(input, "limit", 10, 1, LINKEDIN_SEARCH_MAX_ITEMS);
+  return runReadEffect(linkedInSearchReadProgram(target, cursor.emitted, limit).pipe(
+    Effect.provide(LinkedInSearchPlatformLive({
+      openBrowser: () => {
+        const createTransport = options.dependencies?.createSearchBrowserTransport
+          ?? createLinkedInSearchBrowserTransport;
+        return createTransport(auth, {
+          timeoutMs: recipe.timeoutMs,
+          maxOutputBytes: recipe.maxOutputBytes,
+          ...(options.operationDeadline === undefined
+            ? {}
+            : { operationDeadline: options.operationDeadline }),
+          ...(options.publishCleanupResource === undefined
+            ? {}
+            : { publishCleanupResource: options.publishCleanupResource }),
+        });
+      },
+      observedAt: () => new Date(options.dependencies?.now?.() ?? Date.now()).toISOString(),
+    })),
+  ));
+}
+
 export async function executeLinkedInWebOperation(
   recipe: WebSessionRecipe,
   input: OperationInput,
@@ -2573,12 +2616,29 @@ export async function executeLinkedInWebOperation(
 ): Promise<WebSessionExecution> {
   if (
     recipe.site === "linkedin"
-    && recipe.contractVersion === 2
+    && (recipe.contractVersion === 2 || recipe.contractVersion === 3)
     && recipe.action === "feeds.read"
   ) {
     if (input.feed === "home") {
       throw new Error(
         "LinkedIn home-feed read remains capture-required; recapture and review the current first-party contract before execution",
+      );
+    }
+    if (recipe.contractVersion === 3 && input.feed === "search") {
+      return startWebSessionCleanupTrackedOperation(
+        options.registerCleanupBarrier,
+        (publishCleanupResource) => executeLinkedInSearchRead(
+          recipe,
+          input,
+          auth,
+          {
+            ...options,
+            ...(publishCleanupResource === undefined
+              ? {}
+              : { publishCleanupResource }),
+          },
+        ),
+        browserCleanupBarrier,
       );
     }
     return startWebSessionCleanupTrackedOperation(

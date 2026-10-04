@@ -10,29 +10,30 @@ if (binding?.transport !== "web-session-api") {
 
 describe("LinkedIn web provider plugin", () => {
   test("versions the profile-stat source closure independently", () => {
-    expect(linkedinWebPlugin.version).toBe("1.6.0");
+    expect(linkedinWebPlugin.version).toBe("1.7.0");
   });
 
-  test("advertises observed profile-activity pagination", () => {
+  test("advertises observed profile-activity and content-search pagination", () => {
     const feed = binding.operations.find((operation) =>
-      operation.name === "feeds.read" && operation.contractVersion === 2);
+      operation.name === "feeds.read" && operation.contractVersion === 3);
     const archivedFeed = binding.operations.find((operation) =>
       operation.name === "feeds.read" && operation.contractVersion === 1);
     expect(feed).toMatchObject({
-      contractVersion: 2,
+      contractVersion: 3,
       risk: "R1",
       state: "observed",
       dispatch: "none",
       input: {
         properties: {
-          feed: { type: "string", enum: ["home", "profile-activity"] },
+          feed: { type: "string", enum: ["home", "profile-activity", "search"] },
           profile_url: { type: "string", minLength: 25, maxLength: 2048 },
           vanity: { type: "string", minLength: 2, maxLength: 100 },
+          query: { type: "string", minLength: 1, maxLength: 200 },
         },
         required: ["feed"],
       },
     });
-    expect(feed?.historicalContractVersions).toBeUndefined();
+    expect(feed?.historicalContractVersions).toEqual([2]);
     expect(archivedFeed).toMatchObject({
       contractVersion: 1,
       state: "capture-required",
@@ -48,6 +49,23 @@ describe("LinkedIn web provider plugin", () => {
       vanity: "j-hawkins",
     })).toEqual([]);
     expect(feed?.validateInput({
+      feed: "search",
+      query: "exact search keywords",
+    })).toEqual([]);
+    expect(feed?.validateInput({
+      feed: "search",
+    })).toContain("input.query is required for the search feed");
+    expect(feed?.validateInput({
+      feed: "search",
+      query: "exact search keywords",
+      vanity: "j-hawkins",
+    })).toContain("input.vanity is not accepted for the search feed");
+    expect(feed?.validateInput({
+      feed: "profile-activity",
+      vanity: "j-hawkins",
+      query: "search-only input",
+    })).toContain("input.query is not accepted for the profile-activity feed");
+    expect(feed?.validateInput({
       feed: "home",
       vanity: "j-hawkins",
     })).toContain("input.vanity is not accepted for the capture-required home feed");
@@ -55,6 +73,10 @@ describe("LinkedIn web provider plugin", () => {
       .toContain("providers/linkedin-web-feed.ts");
     expect(linkedinWebPlugin.implementationSources.map((source) => source.label))
       .toContain("providers/linkedin-web-feed-browser.ts");
+    expect(linkedinWebPlugin.implementationSources.map((source) => source.label))
+      .toContain("providers/linkedin-web-search.ts");
+    expect(linkedinWebPlugin.implementationSources.map((source) => source.label))
+      .toContain("providers/linkedin-web-search-browser.ts");
   });
 
   test("advertises observed 1st-degree Contact-info reads", () => {

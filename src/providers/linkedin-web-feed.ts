@@ -838,9 +838,15 @@ export function linkedInProfileActivityInputIssues(
     if (input.vanity !== undefined) {
       issues.push("input.vanity is not accepted for the capture-required home feed");
     }
+    if (input.query !== undefined) {
+      issues.push("input.query is not accepted for the capture-required home feed");
+    }
     return Object.freeze(issues);
   }
   if (input.feed !== "profile-activity") return Object.freeze(issues);
+  if (input.query !== undefined) {
+    issues.push("input.query is not accepted for the profile-activity feed");
+  }
   try {
     linkedInProfileActivityTarget({
       profile_url: input.profile_url,

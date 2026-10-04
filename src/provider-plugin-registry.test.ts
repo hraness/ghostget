@@ -526,9 +526,9 @@ describe("provider plugin definition and registry", () => {
       {
         id: "linkedin-web",
         surface: "linkedin",
-        version: "1.6.0",
-        current: "395d697962940e02d02726737d63a6c4a99cbbd0a257d42d181d8fd2f8db6837",
-        prior: "95000a4d81f2fdbd222fa793b229704ba77ab9a23d02b26db5fa561bd5d6e491",
+        version: "1.7.0",
+        current: "39432a30926945996ea1d10389f2821a11a16df041c9d4038e46bbc9de416a8b",
+        prior: "395d697962940e02d02726737d63a6c4a99cbbd0a257d42d181d8fd2f8db6837",
         operation: "profiles.read",
         contractVersion: 1,
       },

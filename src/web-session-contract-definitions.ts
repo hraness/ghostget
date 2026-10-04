@@ -386,7 +386,7 @@ const LINKEDIN_WEB_OPERATIONS = operationPolicies("linkedin", [
   "replies.create",
 ], {
   "articles.draft.save": 7,
-  "feeds.read": 2,
+  "feeds.read": 3,
   "posts.publish": 3,
 });
 const GITHUB_WEB_OPERATIONS = operationPolicies("github", [
