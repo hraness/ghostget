@@ -13,6 +13,7 @@ Read closed Chromium profiles even when the browser leaves behind old process lo
 
 - Upgrade Wordcell to its checked stale-lock fix. Require the recorded local process to be absent, its socket unavailable, and the profile locks unchanged before and after copying.
 - Preserve the source profile and its locks. Live or uncertain browser ownership still blocks snapshots.
+- Pin the verified CLI updater 0.1.1 archive so direct and transitive updater dependencies install independently in Bun.
 
 ## 0.18.77
 

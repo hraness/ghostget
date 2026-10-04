@@ -630,7 +630,7 @@ async function verifyPackagedSkill(
     throw new Error("Packed Ghostget must pin the immutable Message Like Me v0.7.0 consumer contract.");
   }
   if (!("@hraness/cli-update" in manifest.dependencies)
-    || manifest.dependencies["@hraness/cli-update"] !== "https://github.com/hraness/cli-update/releases/download/v0.1.0/hraness-cli-update-0.1.0.tgz") {
+    || manifest.dependencies["@hraness/cli-update"] !== "https://github.com/hraness/cli-update/releases/download/v0.1.1/hraness-cli-update-0.1.1.tgz") {
     throw new Error("Packed GhostGet must pin the immutable CLI updater release.");
   }
   const messageLikeMeRoot = join(
