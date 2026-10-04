@@ -10,7 +10,7 @@ Options
   --evidence none|source|screenshot|all
                                  Keep the page source or a screenshot
   --browser-engine auto|chrome|lightpanda
-                                 Public text browser; auto uses Chrome
+                                 Public text browser; auto prefers Lightpanda
   --stdout                       Print Markdown instead of saving
   --force                        Replace an existing note
   --json                         Print machine-readable output

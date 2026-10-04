@@ -7,6 +7,14 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.79
+
+Use a provisioned Lightpanda 1.0.0 for automatic public single-page text capture, with Chromium for rendering and connected accounts.
+
+- Prefer Lightpanda for eligible semantic browser reads; existing HTTP and API reads still avoid launching a browser.
+- Select Chromium for screenshots, media, expanded captures, profiles, cookies, connected accounts, and attached tabs.
+- Permit one Chromium retry only for a collected compatibility failure before target navigation, within the original timeout. Keep security, identity, cleanup, and post-navigation failures terminal.
+
 ## 0.18.78
 
 Snapshot closed Chromium profiles with proven stale locks.

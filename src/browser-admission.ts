@@ -16,7 +16,7 @@ import {
   sha256,
 } from "./canonical-json";
 import {
-  acquireLightpandaBrowser,
+  acquireLightpandaWithFallback,
   selectBrowserEngine,
   type BrowserEngineSelection,
 } from "./lightpanda-browser";
@@ -872,11 +872,15 @@ export async function acquireCaptureBrowserWithAdmission(
     dependencies.browserEngine ?? "auto",
     environment,
   );
+  const engineEnvironment = { ...environment, ...(selectedEngine.executable === undefined
+    ? {} : { GHOSTGET_LIGHTPANDA_PATH: selectedEngine.executable, LIGHTPANDA_PATH: undefined }) };
   const acquireSelectedBrowser = selectedEngine.engine === "lightpanda"
-    ? (browserOptions: CaptureArguments, directory: string) => acquireLightpandaBrowser(
+    ? (browserOptions: CaptureArguments, directory: string) => acquireLightpandaWithFallback(
         browserOptions,
         directory,
-        environment,
+        engineEnvironment,
+        (dependencies.browserEngine ?? "auto") === "auto",
+        acquireBrowser,
       )
     : (browserOptions: CaptureArguments, directory: string) => acquireBrowser(
         browserOptions,
