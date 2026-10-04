@@ -2466,22 +2466,24 @@
 // Keep all existing projections and allowances:
 // 12,226,357 + 12,387 + 4,096 = 12,242,840 packed;
 // 24,392,854 + 353 + 65 = 24,393,272 payload.
-// The Substack comments.create/replies.create graduation adds the
-// wrench-web-adapter.v1.10.0.json snapshot and the comment/reply runtime,
-// parser, preflight, and reconciliation sources plus the live-verified
-// payload and response-field repairs: two clean npm 11.16.0 packs
-// --ignore-scripts on this branch were byte-identical at 637 files/entries,
-// 12,234,884 packed bytes, 24,460,538 unpacked bytes, archive SHA-256
-// 703cb73c288b6b6e1dac7be33d836fc3995905214f14948045678240ff9ebb4a. Retain the
-// reviewed allowances: 24,460,538 + 353 + 65 = 24,460,956.
+// The Substack 0.18.76 release includes the reviewed comment/reply runtime,
+// adapter snapshot, updated release pins, GitHub-native routing guidance,
+// and the Threads adapter-name correction. Two clean npm 11.19.0 packs on
+// Node 24.20.0 (zlib 1.3.2.1-motley-42c2f19) with --ignore-scripts on
+// darwin arm64 were byte-identical at 637 files/entries, 12,235,399 packed
+// bytes and 24,462,212 unpacked bytes; archive SHA-256
+// 60297eb24c9df4f79ac5ac4bd0f1ff0d633c624cf063c78f9381d3c3aba8d74f. Retain the
+// reviewed allowances: 24,462,212 + 353 + 65 = 24,462,630.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Substack comments.create/replies.create adapter snapshot and runtime sources over the 0.18.75 package",
+  scope: "Substack 0.18.76 release pins and GitHub native-routing guidance over the reviewed comments/replies runtime",
   command: "npm pack --ignore-scripts",
-  npmVersion: "11.16.0",
+  npmVersion: "11.19.0",
+  nodeVersion: "24.20.0",
+  zlibVersion: "1.3.2.1-motley-42c2f19",
   platform: "darwin-arm64",
-  archiveSha256: "703cb73c288b6b6e1dac7be33d836fc3995905214f14948045678240ff9ebb4a",
-  packedBytes: 12_234_884,
-  unpackedBytes: 24_460_538,
+  archiveSha256: "60297eb24c9df4f79ac5ac4bd0f1ff0d633c624cf063c78f9381d3c3aba8d74f",
+  packedBytes: 12_235_399,
+  unpackedBytes: 24_462_212,
   entryCount: 637,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
