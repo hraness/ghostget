@@ -618,13 +618,13 @@ const reviewedMetaDynamicInstalledModuleIdentities = Object.freeze([
 ]);
 const reviewedWordcellDynamicInstalledPackage = Object.freeze({
   name: "@hraness/wordcell",
-  version: "0.24.0",
+  version: "0.26.3",
   resolverKeyFile: "dist/index-4knsp9qj.js",
   resolverSha256:
     "7e717af9b45ad412086f23c8089c50b396dbed62f84c6282abe58b9e070c82a8",
-  callSiteKeyFile: "dist/index-xwxy71ew.js",
+  callSiteKeyFile: "dist/index-ncwzmsge.js",
   callSiteSha256:
-    "59aa734b79fbac03ced4bb872389db92db1d7ab19fb7ae8053e29f97d67ac34e",
+    "bf76afe02a2762c196604ac4cb8f3072384caddd268bf6b4eb8533d12ebe5f30",
 });
 const reviewedWordcellDynamicResolutionPolicy =
   "createRequire(parentUrl).resolve(`$" +
