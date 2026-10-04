@@ -2422,20 +2422,20 @@
 // snapshots plus the LinkedIn contained comment transport
 // (src/providers/linkedin-web-comment-browser.ts): five additional packed
 // source files over the 626-entry inventory. Two byte-identical npm 11.16.0
-// packs --ignore-scripts on darwin arm64 measured 631 entries, 12,214,329
-// packed bytes and 24,339,696 payload bytes; archive SHA-256
-// e581b9344c85da142e2845ca0847778b07ac8ab970c9d05d675eeae9b625bea9.
+// packs --ignore-scripts on darwin arm64 measured 631 entries, 12,214,704
+// packed bytes and 24,340,569 payload bytes; archive SHA-256
+// d7eb038ce1e417d66dbfa275a7a55e4cb8ccd93d591f75162a370803a10987b2.
 // Keep all existing projections and allowances:
-// 12,214,329 + 12,387 + 4,096 = 12,230,812 packed;
-// 24,339,696 + 353 + 65 = 24,340,114 payload.
+// 12,214,704 + 12,387 + 4,096 = 12,231,187 packed;
+// 24,340,569 + 353 + 65 = 24,340,987 payload.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "reviewed LinkedIn comment transport plus retained adapter snapshots over the verified 0.18.71 package",
+  scope: "0.18.73 release-bump changelog and version pins over the verified 0.18.72 package",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.16.0",
   platform: "darwin-arm64",
-  archiveSha256: "e581b9344c85da142e2845ca0847778b07ac8ab970c9d05d675eeae9b625bea9",
-  packedBytes: 12_214_329,
-  unpackedBytes: 24_339_696,
+  archiveSha256: "d7eb038ce1e417d66dbfa275a7a55e4cb8ccd93d591f75162a370803a10987b2",
+  packedBytes: 12_214_704,
+  unpackedBytes: 24_340_569,
   entryCount: 631,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
