@@ -1,5 +1,5 @@
-import { existsSync, realpathSync, statSync } from "node:fs";
-import { basename } from "node:path";
+import { existsSync, mkdtempSync, realpathSync, rmSync, statSync } from "node:fs";
+import { basename, join } from "node:path";
 import { createServer } from "node:net";
 import { get } from "node:http";
 
@@ -116,14 +116,59 @@ export function selectBrowserEngine(
   if (selection !== "auto" && selection !== "chrome" && selection !== "lightpanda") {
     throw new Error("browser engine must be auto, chrome, or lightpanda");
   }
-  if (selection !== "lightpanda") return { engine: "chrome" };
-  const reason = unsupportedReason(options);
-  if (reason !== null) throw new Error(`Lightpanda capture is unavailable: ${reason}`);
+  if (selection === "chrome") return { engine: "chrome" };
+  const reason = unsupportedReason(selection === "auto" && options.mode === "auto"
+    ? { ...options, mode: "browser" }
+    : options);
+  if (reason !== null) {
+    if (selection === "auto") return { engine: "chrome" };
+    throw new Error(`Lightpanda capture is unavailable: ${reason}`);
+  }
+  if (selection === "auto" && configuredLightpandaPath(environment) === null) return { engine: "chrome" };
   const executable = resolveLightpandaExecutable(environment);
   if (executable === null) {
     throw new Error("Lightpanda capture requires GHOSTGET_LIGHTPANDA_PATH or LIGHTPANDA_PATH pointing to Lightpanda 1.0.0");
   }
   return { engine: "lightpanda", executable };
+}
+
+export class LightpandaCompatibilityError extends Error {
+  constructor(readonly beforeNavigation = false) {
+    super("Lightpanda does not implement the required browser protocol method");
+    this.name = "LightpandaCompatibilityError";
+  }
+}
+
+function driverFailure(output: string, message: string, beforeNavigation: boolean): Error {
+  try {
+    const value = asRecord(parseJsonValueOutput(output, "browser failure"), "browser failure");
+    if (value.success === false && typeof value.error === "string"
+      && /(?:protocol error[^\r\n]{0,120}method not found|(?:unknown|unsupported) (?:CDP )?method)/iu.test(value.error)) {
+      return new LightpandaCompatibilityError(beforeNavigation);
+    }
+  } catch {}
+  return new Error(message);
+}
+
+export async function acquireLightpandaWithFallback(
+  options: CaptureArguments,
+  temporaryDirectory: string,
+  environment: Environment,
+  automatic: boolean,
+  acquireChrome: typeof acquireKbBrowser = acquireKbBrowser,
+  acquireLightpanda: typeof acquireLightpandaBrowser = acquireLightpandaBrowser,
+): Promise<AcquiredPage> {
+  const started = performance.now();
+  try {
+    return await acquireLightpanda({ ...options, mode: "browser" }, temporaryDirectory, environment);
+  } catch (error) {
+    if (!automatic || !(error instanceof LightpandaCompatibilityError) || !error.beforeNavigation) throw error;
+    const timeoutMs = options.timeoutMs - Math.ceil(performance.now() - started);
+    if (timeoutMs < 1) throw new Error("browser capture deadline expired before Chromium fallback");
+    const acquired = await acquireChrome({ ...options, timeoutMs }, temporaryDirectory, false);
+    return { ...acquired, warnings: [...acquired.warnings,
+      "Browser engine: Chromium; requested engine: auto; fallback: unsupported Lightpanda 1.0.0 protocol method before navigation; task-owned proxy and Lightpanda cleanup completed before retry."] };
+  }
 }
 
 function parseJsonValueOutput(output: string, label: string): unknown {
@@ -232,6 +277,7 @@ export function lightpandaServeArguments(port: number, proxy: string): readonly 
     "--http-proxy", proxy, "--disable-metrics",
     "--block-urls", "ws://*", "--block-urls", "wss://*",
     "--block-urls", "file:*", "--block-urls", "ftp:*", "--block-urls", "gopher:*",
+    "--block-urls", "data:*", "--block-urls", "javascript:*", "--block-urls", "blob:*",
     "--load-resources", "stylesheet",
   ];
 }
@@ -299,17 +345,26 @@ export function createLightpandaDependencies(
 ): BrowserAcquisitionDependencies & { readonly close: () => Promise<void> } {
   let server: Bun.Subprocess<"ignore", "ignore", "ignore"> | undefined;
   let startup: Promise<string> | undefined;
+  let navigationStarted = false;
+  let preflightFailure: LightpandaCompatibilityError | undefined;
+  const onParentExit = (): void => { if (server?.exitCode === null) server.kill("SIGKILL"); };
+  const failure = (output: string, message: string): Error => {
+    const error = driverFailure(output, message, !navigationStarted);
+    if (error instanceof LightpandaCompatibilityError && error.beforeNavigation) preflightFailure = error;
+    return error;
+  };
   const close = async (): Promise<void> => {
     if (server === undefined) return;
     const child = server;
     child.kill("SIGTERM");
-    const forceKill = setTimeout(() => child.kill("SIGKILL"), 1_000);
+    const forceKill = setTimeout(() => { if (child.exitCode === null) child.kill("SIGKILL"); }, 1_000);
+    let exitDeadline: ReturnType<typeof setTimeout> | undefined;
     try {
-      await child.exited;
-    } finally {
-      clearTimeout(forceKill);
+      const exited = await Promise.race([child.exited.then(() => true), new Promise<boolean>(resolve => { exitDeadline = setTimeout(() => resolve(false), 3_000); })]);
+      if (!exited) throw new Error("Lightpanda process cleanup did not complete before its deadline");
       server = undefined;
-    }
+      process.removeListener("exit", onParentExit);
+    } finally { clearTimeout(forceKill); clearTimeout(exitDeadline); }
   };
   const endpoint = (globalArguments: readonly string[], options: CommandOptions): Promise<string> => {
     startup ??= (async () => {
@@ -318,17 +373,17 @@ export function createLightpandaDependencies(
       if (proxy === undefined) throw new Error("Lightpanda proxy is missing");
       const port = await freeLoopbackPort();
       server = Bun.spawn([executable, ...lightpandaServeArguments(port, proxy)], {
-        cwd: options.cwd, env: { ...options.environment, LIGHTPANDA_DISABLE_TELEMETRY: "1" }, stdin: "ignore", stdout: "ignore", stderr: "ignore",
+        cwd: options.cwd, env: { ...Object.fromEntries(Object.entries(options.environment).filter(([key]) => !/^(?:(?:https?|all|no)_proxy$|LIGHTPANDA_)/i.test(key))), LIGHTPANDA_DISABLE_TELEMETRY: "1" }, stdin: "ignore", stdout: "ignore", stderr: "ignore",
       });
+      process.once("exit", onParentExit);
       const cdpUrl = `ws://127.0.0.1:${port}/`;
       const startupDeadline = Math.min(deadline, performance.now() + Math.min(options.timeoutMs, 5_000));
       while (performance.now() < startupDeadline && server.exitCode === null) {
-        try {
-          const identity = await readLightpandaCdpIdentity(port, Math.max(1, Math.min(500, Math.ceil(startupDeadline - performance.now()))));
-          assertLightpandaCdpIdentity(identity, port);
-          if (server.exitCode === null) return cdpUrl;
-        } catch {}
-        await Bun.sleep(25);
+        let identity: unknown;
+        try { identity = await readLightpandaCdpIdentity(port, Math.max(1, Math.min(500, Math.ceil(startupDeadline - performance.now())))); }
+        catch { await Bun.sleep(Math.max(0, Math.min(25, startupDeadline - performance.now()))); continue; }
+        assertLightpandaCdpIdentity(identity, port);
+        if (server.exitCode === null && performance.now() < startupDeadline) return cdpUrl;
       }
       throw new Error("Lightpanda CDP server did not become ready");
     })();
@@ -345,16 +400,20 @@ export function createLightpandaDependencies(
     options: CommandOptions,
   ): Promise<Record<string, unknown>> => {
     if (command[0] === "close" && startup === undefined) return { closed: true };
+    if (command[0] !== "close" && preflightFailure !== undefined) throw preflightFailure;
+    if (command[0] === "open" && command[1] !== "about:blank") navigationStarted = true;
     const result = await run(
       [...agentBrowserCommand(), ...lightpandaGlobalArguments(globalArguments, await endpoint(globalArguments, remainingOptions(options, command[0] === "close"))), ...command, "--json"],
       remainingOptions(options, command[0] === "close"),
     );
     if (result.exitCode !== 0) {
-      throw new Error(`agent-browser ${command[0] ?? "command"} failed with exit code ${result.exitCode}`);
+      const message = `agent-browser ${command[0] ?? "command"} failed with exit code ${result.exitCode}`;
+      throw command[0] === "close" ? new Error(message) : failure(result.stdout, message);
     }
     const parsed = asRecord(parseJsonValueOutput(result.stdout, `agent-browser ${command[0] ?? "command"}`), "agent-browser result");
     if (parsed.success !== true || typeof parsed.data !== "object" || parsed.data === null || Array.isArray(parsed.data)) {
-      throw new Error(`agent-browser ${command[0] ?? "command"} failed`);
+      const message = `agent-browser ${command[0] ?? "command"} failed`;
+      throw command[0] === "close" ? new Error(message) : failure(result.stdout, message);
     }
     return parsed.data as Record<string, unknown>;
   };
@@ -363,21 +422,22 @@ export function createLightpandaDependencies(
     commands: readonly (readonly string[])[],
     options: CommandOptions,
   ): Promise<void> => {
+    if (preflightFailure !== undefined) throw preflightFailure;
+    if (commands.some(command => command[0] === "open" && command[1] !== "about:blank")) navigationStarted = true;
     const result = await run(
       [...agentBrowserCommand(), ...lightpandaGlobalArguments(globalArguments, await endpoint(globalArguments, remainingOptions(options))), "batch", "--bail", "--json"],
       remainingOptions(options),
       JSON.stringify(commands),
     );
-    if (result.exitCode !== 0) {
-      throw new Error(`agent-browser batch failed with exit code ${result.exitCode}`);
-    }
     const parsed = parseJsonValueOutput(result.stdout, "agent-browser batch");
-    if (!Array.isArray(parsed) || parsed.length !== commands.length || parsed.some((entry) => {
-      if (typeof entry !== "object" || entry === null || Array.isArray(entry)) return true;
-      return (entry as Record<string, unknown>).success !== true;
-    })) {
-      throw new Error("agent-browser batch failed");
+    if (Array.isArray(parsed) && parsed.length === commands.length) {
+      const failed = parsed.find((entry: unknown) => typeof entry === "object" && entry !== null && !Array.isArray(entry) && (entry as Record<string, unknown>).success === false);
+      if (failed !== undefined) throw failure(JSON.stringify(failed), "agent-browser batch failed");
     }
+    if (result.exitCode !== 0) throw failure(result.stdout, `agent-browser batch failed with exit code ${result.exitCode}`);
+    if (!Array.isArray(parsed) || parsed.length !== commands.length || parsed.some((entry: unknown) => {
+      return typeof entry !== "object" || entry === null || Array.isArray(entry) || (entry as Record<string, unknown>).success !== true;
+    })) throw new Error("agent-browser batch failed");
   };
   return { run: invoke, runBatch: batch, close };
 }
@@ -410,6 +470,7 @@ export async function acquireLightpandaBrowser(
   options: CaptureArguments,
   temporaryDirectory: string,
   environment: Environment = process.env,
+  acquireBrowser: typeof acquireKbBrowser = acquireKbBrowser,
 ): Promise<AcquiredPage> {
   const selected = selectBrowserEngine(options, "lightpanda", environment);
   if (selected.engine !== "lightpanda" || selected.executable === undefined) {
@@ -419,17 +480,19 @@ export async function acquireLightpandaBrowser(
   await verifyLightpandaVersion(selected.executable, temporaryDirectory, environment, options.timeoutMs);
   const timeoutMs = options.timeoutMs - Math.ceil(performance.now() - started);
   if (timeoutMs < 1) throw new Error("Lightpanda capture deadline expired during version verification");
+  const directory = mkdtempSync(join(temporaryDirectory, "lightpanda-"));
   const dependencies = createLightpandaDependencies(selected.executable, started + options.timeoutMs);
   let acquired: AcquiredPage;
+  let collected = false;
   try {
-    acquired = await acquireKbBrowser(
-      { ...options, timeoutMs },
-      temporaryDirectory,
-      false,
-      dependencies,
-    );
+    acquired = await acquireBrowser({ ...options, timeoutMs }, directory, false, dependencies);
+    collected = true;
+  } catch (error) {
+    collected = error instanceof LightpandaCompatibilityError;
+    throw error;
   } finally {
     await dependencies.close();
+    if (collected) rmSync(directory, { recursive: true, force: true });
   }
   return {
     ...acquired,

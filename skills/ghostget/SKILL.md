@@ -110,11 +110,13 @@ session, and root reproof. Unknown liveness, malformed lifecycle output,
 identity drift, root replacement, an available or indeterminate CDP endpoint,
 and durable-claim drift remain cleanup-required.
 
-## Optional public text browser
+## Public text browser
 
-Chromium remains the default browser. `--browser-engine auto` also uses Chromium.
-To try Lightpanda 1.0.0 for a fresh public page, provision its executable at an
-absolute `GHOSTGET_LIGHTPANDA_PATH` (or `LIGHTPANDA_PATH`) and select it explicitly:
+`--browser-engine auto` prefers Lightpanda 1.0.0 for eligible fresh public
+single-page text capture when its executable is explicitly provisioned at an
+absolute `GHOSTGET_LIGHTPANDA_PATH` (or `LIGHTPANDA_PATH`). Without that
+provisioning, or for unsupported capture requirements, it selects Chromium.
+Use `--browser-engine chrome` to require Chromium, or select Lightpanda explicitly:
 
 ```sh
 GHOSTGET_LIGHTPANDA_PATH=/absolute/path/to/lightpanda \
@@ -129,9 +131,13 @@ Use `--scope page` for a single page,
 and Chromium for those other tasks and for CSS or layout evidence.
 GhostGet checks the executable's version, sends page requests through its existing
 network proxy, and keeps a local browser slot until server and driver cleanup
-settle. A configured executable does not enable automatic Lightpanda selection;
-GhostGet-specific performance and compatibility comparisons are still required
-before changing that default.
+settle. Automatic browser capture may retry once in Chromium for a recognized
+unsupported Lightpanda protocol method before target navigation, after complete
+Lightpanda cleanup and within the original timeout. A navigated page is never
+replayed. Explicit Lightpanda selection, security denials, identity failures,
+and cleanup failures never trigger that retry. Existing
+HTTP and typed provider routes are unchanged; authenticated browser capture
+continues to use Chromium until its exact auth handoff is qualified.
 
 ## Author a portable provider
 
