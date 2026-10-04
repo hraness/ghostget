@@ -7,6 +7,18 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.75
+
+Search LinkedIn content through an authenticated, bounded browser read.
+
+- `linkedin-web` `feeds.read@3` adds a `search` variant: an exact
+  `keywords`-bound content-search page whose rendered result cards are
+  projected into bounded author, text, time, and engagement fields with
+  per-URN deduplication and query-bound resume cursors.
+- Search pagination drives only the page's own pager surface, stops on
+  non-advancing results, and never dispatches a mutation; authwall,
+  checkpoint, and login redirects fail closed.
+
 ## 0.18.74
 
 Connect accounts whose sessions live outside browser cookies.

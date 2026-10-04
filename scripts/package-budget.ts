@@ -2458,14 +2458,22 @@
 // Keep all existing projections and allowances:
 // 12,226,212 + 12,387 + 4,096 = 12,242,695 packed;
 // 24,392,317 + 353 + 65 = 24,392,735 payload.
+// The 0.18.75 release bump carries the same runtime and file inventory with
+// the new version pins and changelog entry. Two byte-identical npm 11.16.0
+// packs --ignore-scripts on darwin arm64 measured 636 entries,
+// 12,226,357 packed bytes and 24,392,854 payload bytes; archive SHA-256
+// e367b37901af34d2656741c9fb200d4b568061f4f17fc3d473debba160c76f29.
+// Keep all existing projections and allowances:
+// 12,226,357 + 12,387 + 4,096 = 12,242,840 packed;
+// 24,392,854 + 353 + 65 = 24,393,272 payload.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "LinkedIn content-search contract over the verified 0.18.74 package",
+  scope: "0.18.75 release-bump changelog and version pins over the verified 0.18.74 package",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.16.0",
   platform: "darwin-arm64",
-  archiveSha256: "1e4760089df466dd0d8e45cd6d1f17676e84f2c577c7bdfec89b81ee124ec1b4",
-  packedBytes: 12_226_212,
-  unpackedBytes: 24_392_317,
+  archiveSha256: "e367b37901af34d2656741c9fb200d4b568061f4f17fc3d473debba160c76f29",
+  packedBytes: 12_226_357,
+  unpackedBytes: 24_392_854,
   entryCount: 636,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
