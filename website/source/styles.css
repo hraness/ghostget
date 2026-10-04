@@ -3864,3 +3864,46 @@ a.hraness-marketing-account__sign-in:is(:hover, :focus-visible) {
 }
 
 .guide-hero .plain-publication__provenance { margin-block: 1.25rem 0; color: var(--muted); font-size: 0.8125rem; line-height: 1.5; }
+
+/* Product landscape: the generated, product-themed world behind the homepage.
+ * A grayscale luminance mask carries the drawing, so its ink is the page's own
+ * text mixed into the paper: a deeper shade of the background hue in light
+ * themes and a lifted one in dark themes, never an accent colour. */
+body:has(.ghostget-product-hero) {
+  isolation: isolate;
+  position: relative;
+}
+
+@supports (mask-mode: luminance) {
+  body:has(.ghostget-product-hero)::before {
+    background: color-mix(in oklch, var(--foreground, var(--ink, CanvasText)) 30%, var(--background, var(--paper, Canvas)));
+    content: "";
+    inset: 0;
+    mask-image: image-set(url("/landscape/landscape-893479efab7e7e02e5c173290db99758f2eb224bde82f575951aa18769d6d121.webp") 1x, url("/landscape/landscape-5a167f432e885bdc7ce35b18b329dd37724b1f697c6953b4d924bf50c81cc3d0.webp") 2x);
+    mask-mode: luminance;
+    mask-position: top center;
+    mask-repeat: no-repeat;
+    mask-size: 100% auto;
+    opacity: .5;
+    pointer-events: none;
+    position: absolute;
+    z-index: -1;
+  }
+}
+
+@media (max-width: 48rem) {
+  body:has(.ghostget-product-hero)::before {
+    mask-image: url("/landscape/landscape-421ef118a46f2ad95f065701cd41dcfb2c0466bcf6e6a7444209ab04e9a9db13.webp");
+    opacity: .36;
+  }
+}
+
+@media (forced-colors: active), print {
+  body:has(.ghostget-product-hero)::before {
+    display: none;
+  }
+}
+
+body:has(.ghostget-product-hero) .hraness-marketing-page {
+  background: transparent;
+}
