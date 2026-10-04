@@ -29,7 +29,7 @@ const expectedClosureRuntimeDependencies = Object.freeze({
   "@hraness/accounts-cli": "github:hraness/accounts-cli#v0.1.3",
   "@hraness/cli-update": "https://github.com/hraness/cli-update/releases/download/v0.1.1/hraness-cli-update-0.1.1.tgz",
   "@hraness/desktop-foundation": "https://github.com/hraness/desktop-foundation/releases/download/v0.9.0/hraness-desktop-foundation-0.9.0.tgz",
-  "@hraness/wordcell": "https://github.com/hraness/wordcell/releases/download/v0.26.2/hraness-wordcell-0.26.2.tgz",
+  "@hraness/wordcell": "https://github.com/hraness/wordcell/releases/download/v0.26.3/hraness-wordcell-0.26.3.tgz",
   "@hraness/local-custody": "https://github.com/hraness/local-custody/releases/download/v0.9.1/hraness-local-custody-0.9.1.tgz",
   "@hraness/message-like-me": "github:hraness/textbutler#83453cc7c17b49bb53fdfd89ccb69b8b44b30af1",
   "@hraness/support-foundation": "github:hraness/support-foundation#8bb514d24b79dc3f305390700ae312cab88e7ad2",
