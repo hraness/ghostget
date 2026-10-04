@@ -9,11 +9,11 @@ Historical entries retain their original delivery coordinates.
 
 ## 0.18.78
 
-Read closed Chromium profiles even when the browser leaves behind old process locks.
+Snapshot closed Chromium profiles with proven stale locks.
 
-- Upgrade Wordcell to its checked stale-lock fix. Require the recorded local process to be absent, its socket unavailable, and the profile locks unchanged before and after copying.
-- Preserve the source profile and its locks. Live or uncertain browser ownership still blocks snapshots.
-- Pin the verified CLI updater 0.1.1 archive so direct and transitive updater dependencies install independently in Bun.
+- Pin Wordcell 0.26.2: require an absent local PID, an unavailable socket, and unchanged locks before and after copying.
+- Leave source profiles and locks untouched; live or uncertain ownership still blocks snapshots.
+- Pin CLI updater 0.1.1 so Bun resolves direct and transitive archives independently.
 
 ## 0.18.77
 
