@@ -2466,22 +2466,24 @@
 // Keep all existing projections and allowances:
 // 12,226,357 + 12,387 + 4,096 = 12,242,840 packed;
 // 24,392,854 + 353 + 65 = 24,393,272 payload.
-// The Substack comments.create/replies.create graduation adds the
-// wrench-web-adapter.v1.10.0.json snapshot and the comment/reply runtime,
-// parser, preflight, and reconciliation sources plus the live-verified
-// payload and response-field repairs: two clean npm 11.16.0 packs
-// --ignore-scripts on this branch were byte-identical at 637 files/entries,
-// 12,234,884 packed bytes, 24,460,538 unpacked bytes, archive SHA-256
-// 703cb73c288b6b6e1dac7be33d836fc3995905214f14948045678240ff9ebb4a. Retain the
-// reviewed allowances: 24,460,538 + 353 + 65 = 24,460,956.
+// The Substack 0.18.76 release includes the reviewed comment/reply runtime,
+// adapter snapshot, updated release pins, GitHub-native routing guidance,
+// and the Threads adapter-name correction. Two clean npm 11.19.0 packs on
+// Node 24.20.0 (zlib 1.3.2.1-motley-42c2f19) with --ignore-scripts on
+// darwin arm64 were byte-identical at 637 files/entries, 12,235,399 packed
+// bytes and 24,462,212 unpacked bytes; archive SHA-256
+// 60297eb24c9df4f79ac5ac4bd0f1ff0d633c624cf063c78f9381d3c3aba8d74f. Retain the
+// reviewed allowances: 24,462,212 + 353 + 65 = 24,462,630.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "0.18.76 Lightpanda capture and integrated Substack sources over the verified 0.18.75 package",
+  scope: "0.18.77 opt-in Lightpanda capture over the reviewed 0.18.76 release",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
+  nodeVersion: "24.20.0",
+  zlibVersion: "1.2.12",
   platform: "darwin-arm64",
-  archiveSha256: "d55027e45448c722f54d7de87d80280f003c981abfeb5dcb167ca5beefc813d3",
-  packedBytes: 12_228_686,
-  unpackedBytes: 24_482_687,
+  archiveSha256: "6744da1942388d7931de5cff78b3912ee1fd261626fbe47c3126aef23831e42d",
+  packedBytes: 12_229_191,
+  unpackedBytes: 24_484_362,
   entryCount: 638,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
