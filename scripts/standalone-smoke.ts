@@ -45,9 +45,9 @@ const expectedClosureRuntimeDependencies = Object.freeze({
 const reviewedWordcellDynamicResolverKeyFile = "dist/index-4knsp9qj.js";
 const reviewedWordcellDynamicResolverSha256 =
   "7e717af9b45ad412086f23c8089c50b396dbed62f84c6282abe58b9e070c82a8";
-const reviewedWordcellDynamicCallSiteKeyFile = "dist/index-xwxy71ew.js";
+const reviewedWordcellDynamicCallSiteKeyFile = "dist/index-ncwzmsge.js";
 const reviewedWordcellDynamicCallSiteSha256 =
-  "59aa734b79fbac03ced4bb872389db92db1d7ab19fb7ae8053e29f97d67ac34e";
+  "bf76afe02a2762c196604ac4cb8f3072384caddd268bf6b4eb8533d12ebe5f30";
 const archivedAdapterNamePattern =
   /^wrench(?:-web)?-adapter\.v([0-9]+\.[0-9]+\.[0-9]+)\.json$/u;
 const MAX_PACKED_ARCHIVED_UPGRADE_FAMILIES = 32;
@@ -454,9 +454,9 @@ async function resolveReviewedWordcellDynamicKeyFile(root: string): Promise<stri
     "clean consumer @hraness/wordcell manifest",
     await Bun.file(join(root, "package.json")).json(),
   );
-  if (manifest.version !== "0.24.0") {
+  if (manifest.version !== "0.26.3") {
     throw new Error(
-      `clean consumer resolved @hraness/wordcell@${String(manifest.version)}, expected 0.24.0`,
+      `clean consumer resolved @hraness/wordcell@${String(manifest.version)}, expected 0.26.3`,
     );
   }
   // Wordcell's bundler splits the reviewed dynamic-resolution surface across
@@ -488,7 +488,7 @@ async function resolveReviewedWordcellDynamicKeyFile(root: string): Promise<stri
     )
   ) {
     throw new Error(
-      `clean consumer @hraness/wordcell@0.24.0 dynamic-resolution modules differ from the reviewed resolver ${reviewedWordcellDynamicResolverKeyFile} and call site ${reviewedWordcellDynamicCallSiteKeyFile}`,
+      `clean consumer @hraness/wordcell@0.26.3 dynamic-resolution modules differ from the reviewed resolver ${reviewedWordcellDynamicResolverKeyFile} and call site ${reviewedWordcellDynamicCallSiteKeyFile}`,
     );
   }
   return resolver.keyFile;
@@ -872,14 +872,14 @@ try {
         name: "@hraness/wordcell",
         root: installedWordcellRoot,
         sha256: reviewedWordcellDynamicResolverSha256,
-        version: "0.24.0",
+        version: "0.26.3",
       }),
       assertInstalledClosurePackage({
         keyFile: reviewedWordcellDynamicCallSiteKeyFile,
         name: "@hraness/wordcell",
         root: installedWordcellRoot,
         sha256: reviewedWordcellDynamicCallSiteSha256,
-        version: "0.24.0",
+        version: "0.26.3",
       }),
       assertInstalledClosurePackage({
         keyFile: "dist/private-paths.js",
