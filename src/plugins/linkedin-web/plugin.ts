@@ -24,6 +24,7 @@ import {
   webSessionContractDefinitions,
 } from "../../web-session-contract-definitions";
 import { linkedInProfileActivityInputIssues } from "../../providers/linkedin-web-feed";
+import { linkedInSearchInputIssues } from "../../providers/linkedin-web-search";
 import {
   linkedInCommentPostUrn,
   linkedInParentCommentTarget,
@@ -220,9 +221,10 @@ function linkedinArticleDraftV2Dispatches(
 
 const currentOperations = webSessionContractOperations(
   Object.values(linkedinContracts),
-    "3b119f69f42ada290e3918a711a5b6e4e46e10952399ee68e2c0b3f1a03f2f5c",
+    "4e05b18690ed8561f50cc7ad6678c5dacfa72784d6afdccc5c234139b6b6db86",
   {
     "posts.publish": [2],
+    "feeds.read": [2],
   },
   {
     "messaging.list": {
@@ -286,7 +288,11 @@ const currentOperations = webSessionContractOperations(
   if (operation.name === "feeds.read") {
     return Object.freeze({
       ...operation,
-      validateInput: linkedInProfileActivityInputIssues,
+      validateInput: (input: Readonly<Record<string, unknown>>) =>
+        Object.freeze([
+          ...linkedInProfileActivityInputIssues(input),
+          ...linkedInSearchInputIssues(input),
+        ]),
     });
   }
   return operation.name === "articles.draft.save"
@@ -392,7 +398,7 @@ const operations = Object.freeze([
 export const linkedinWebPlugin = defineProviderPlugin({
   apiVersion: 1,
   id: "linkedin-web",
-  version: "1.6.0",
+  version: "1.7.0",
   displayName: "LinkedIn Authenticated Web",
   sourceKind: "built-in",
   implementationSources: webImplementationSources(import.meta.url, [
@@ -413,6 +419,8 @@ export const linkedinWebPlugin = defineProviderPlugin({
     ["providers/linkedin-contact-program.ts", "../../providers/linkedin-contact-program.ts"],
     ["providers/linkedin-web-feed.ts", "../../providers/linkedin-web-feed.ts"],
     ["providers/linkedin-web-feed-browser.ts", "../../providers/linkedin-web-feed-browser.ts"],
+    ["providers/linkedin-web-search.ts", "../../providers/linkedin-web-search.ts"],
+    ["providers/linkedin-web-search-browser.ts", "../../providers/linkedin-web-search-browser.ts"],
     ["providers/linkedin-web-runtime.ts", "../../providers/linkedin-web-runtime.ts"],
   ]),
   bindings: [{

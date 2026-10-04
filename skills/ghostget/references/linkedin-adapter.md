@@ -1,16 +1,20 @@
 # LinkedIn authenticated web API adapter
 
 The current `linkedin-web` schema-v4 adapter has six observed operations:
-`profiles.read@1`, `organizations.read@1`, `contacts.read@1`, `feeds.read@2`,
+`profiles.read@1`, `organizations.read@1`, `contacts.read@1`, `feeds.read@3`,
 `articles.draft.save@7`, and `posts.publish@3`. The two profile-stat operations
 bind the current member, then read one exact self profile or requested
 organization Page without DOM automation. `contacts.read@1` reads Contact info
 for one exact 1st-degree connection profile through the same contained Chrome
-session. `feeds.read@2` pages one member's
-recent-activity posts through the same contained Chrome session: it binds the
-signed-in viewer, resolves the live `voyagerFeedDashProfileUpdates` query on
-`/in/{vanity}/recent-activity/all/`, and projects authored text, engagement
-counts when present, original-versus-reshare kind, and an opaque next cursor.
+session. `feeds.read@3` has two live variants through the same contained Chrome
+session. `feed=profile-activity` pages one member's recent-activity posts: it
+binds the signed-in viewer, resolves the live `voyagerFeedDashProfileUpdates`
+query on `/in/{vanity}/recent-activity/all/`, and projects authored text,
+engagement counts when present, original-versus-reshare kind, and an opaque
+next cursor. `feed=search` navigates `/search/results/content/?keywords=…`,
+projects the rendered result cards — activity URN, permalink, author vanity and
+name, text, relative time, reaction and comment counts — and advances the
+page's own pager; its opaque cursor binds the exact keywords and emitted count.
 `feed=home` remains capture-required and is refused before any browser starts.
 The draft operation creates or replaces one private native Article
 draft for the bound current member, supports paragraphs, H1/H2 headings, native blockquotes,
@@ -156,7 +160,7 @@ use only a reviewed message query and must not mark it read.
 
 ## Profile activity posts
 
-`feeds.read@2` is an observed R1 read for one page of a member's
+`feeds.read@3` is an observed R1 read for one page of a member's
 `/in/{vanity}/recent-activity/all/` posts. It does not require official OAuth
 `posts.read` or `w_member_social`. Use a path-backed Chrome profile or a
 cookie-source overlay that is already signed into LinkedIn. The operation
@@ -191,6 +195,38 @@ printf '%s' '{"feed":"profile-activity","vanity":"varunr96","cursor":"<opaque>",
 
 Do not treat this page as a complete profile history, a home feed, or
 permission to like, comment, or message.
+
+## Content search
+
+`feed=search` on the same `feeds.read@3` operation is an observed R1 read for
+one page of LinkedIn's content-search results. Pass `query` (1–200 characters;
+required for this variant) instead of `profile_url`/`vanity`, which are
+rejected. `limit` is 1–25 and defaults to 10. The opaque `cursor` binds the
+exact query and the number of results already emitted; a cursor minted for one
+query is refused on another.
+
+The contained browser navigates the exact
+`/search/results/content/?keywords=<query>` URL and projects the rendered
+`Feed post` result cards: activity URN, canonical `/feed/update/` permalink,
+author vanity, display name, headline, expandable text, relative time, and
+reaction/comment counts when shown. Pulse-article cards and other non-activity
+result types are excluded, not projected. Pagination uses the page's own
+load-more surface in bounded advances — the runtime never replays an
+undocumented search API. Results dedupe by activity URN, a card with no
+activity permalink fails closed, and the page's own `nextPageRequest` flag
+plus fresh-card growth decide whether a next cursor is issued. LinkedIn may
+serve the session a compact results variant with no embedded pager; that page
+honestly completes with its rendered set and no cursor.
+
+```sh
+printf '%s' '{"feed":"search","query":"release engineering notes","limit":10}' \
+  | ghostget invoke linkedin-web feeds.read --input - --auth linkedin-main --json
+printf '%s' '{"feed":"search","query":"release engineering notes","cursor":"<opaque>","limit":10}' \
+  | ghostget invoke linkedin-web feeds.read --input - --auth linkedin-main --json
+```
+
+Search output is a bounded relevance page, not a complete index of LinkedIn,
+and grants no permission to react, comment, or message.
 
 ## Profiles, organization Pages, and connections
 
@@ -622,10 +658,9 @@ Keep query IDs, CSRF material, cookies, variables, feature sets, and private ide
 
 The current registry keeps these unavailable until their exact first-party exchanges are captured and reviewed:
 
-- `feeds.read` `feed=home`, `relationships.recommendations.read`, `messaging.list`, `messaging.read`, `posts.read`, `comments.read`, and `articles.read` (`R1`);
+- `feeds.read` `feed=home`, `relationships.recommendations.read`, `messaging.list`, `messaging.read`, `posts.read`, and `articles.read` (`R1`);
 - `messaging.send` (`R3`);
 - `posts.repost` and `posts.quote` (`R3`);
-- `comments.create` and `replies.create` (`R3`);
 - `relationships.connect` (`R3`);
 - `reactions.set` (`R2`);
 - `articles.publish` (`R3`);

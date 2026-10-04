@@ -2446,15 +2446,27 @@
 // Keep all existing projections and allowances:
 // 12,216,257 + 12,387 + 4,096 = 12,232,740 packed;
 // 24,346,646 + 353 + 65 = 24,347,064 payload.
+// The LinkedIn content-search variant on feeds.read@3 adds the bounded
+// contained-browser search contract, Effect platform, program, failure
+// taxonomy, and card-projection transport plus their package.json file
+// entries: five additional packed source files over the 631-entry
+// inventory plus the architecture-check module registrations and the
+// preserved archived-contract description. Two byte-identical npm 11.16.0
+// packs --ignore-scripts on darwin arm64 measured 636 entries,
+// 12,226,212 packed bytes and 24,392,317 payload bytes; archive SHA-256
+// 1e4760089df466dd0d8e45cd6d1f17676e84f2c577c7bdfec89b81ee124ec1b4.
+// Keep all existing projections and allowances:
+// 12,226,212 + 12,387 + 4,096 = 12,242,695 packed;
+// 24,392,317 + 353 + 65 = 24,392,735 payload.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "0.18.74 release-bump changelog and version pins over the verified 0.18.73 package",
+  scope: "LinkedIn content-search contract over the verified 0.18.74 package",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.16.0",
   platform: "darwin-arm64",
-  archiveSha256: "b3382ced799699f7a75325617f000c3a0727cb00e0a9941d762a36e8feabe440",
-  packedBytes: 12_216_257,
-  unpackedBytes: 24_346_646,
-  entryCount: 631,
+  archiveSha256: "1e4760089df466dd0d8e45cd6d1f17676e84f2c577c7bdfec89b81ee124ec1b4",
+  packedBytes: 12_226_212,
+  unpackedBytes: 24_392_317,
+  entryCount: 636,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,

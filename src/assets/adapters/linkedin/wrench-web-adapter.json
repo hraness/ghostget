@@ -1,7 +1,7 @@
 {
   "schemaVersion": 4,
   "id": "linkedin-web",
-  "version": "1.36.4",
+  "version": "1.37.0",
   "displayName": "LinkedIn (Authenticated Web API)",
   "surfaceId": "linkedin",
   "origins": [
@@ -78,7 +78,7 @@
       }
     },
     "feeds.read": {
-      "description": "Observed contract: read one page of a member's recent-activity posts through a contained Chrome session. Resolves the live voyagerFeedDashProfileUpdates query, projects authored text and engagement counts when present, and returns an opaque next cursor. feed=home remains capture-required.",
+      "description": "Observed contract: read one page of a member's recent-activity posts or one content-search results page through a contained Chrome session. profile-activity resolves the live voyagerFeedDashProfileUpdates query; search navigates the content-search results surface and projects rendered result cards, advancing the page's own pager. feed=home remains capture-required.",
       "risk": "R1",
       "sideEffect": "none",
       "idempotency": "none",
@@ -87,35 +87,42 @@
         "properties": {
           "feed": {
             "type": "string",
-            "description": "Feed surface. profile-activity pages a member recent-activity list. home remains capture-required.",
+            "description": "Feed surface. profile-activity pages a member recent-activity list. search pages the content-search results surface for one bounded query. home remains capture-required.",
             "enum": [
               "home",
-              "profile-activity"
+              "profile-activity",
+              "search"
             ]
           },
           "profile_url": {
             "type": "string",
-            "description": "Exact public LinkedIn profile or recent-activity URL",
+            "description": "Exact public LinkedIn profile or recent-activity URL; required for feed=profile-activity when vanity is absent",
             "minLength": 25,
             "maxLength": 2048
           },
           "vanity": {
             "type": "string",
-            "description": "Public LinkedIn profile vanity, such as j-hawkins",
+            "description": "Public LinkedIn profile vanity, such as j-hawkins; required for feed=profile-activity when profile_url is absent",
             "minLength": 2,
             "maxLength": 100
           },
           "cursor": {
             "type": "string",
-            "description": "Opaque cursor returned by the preceding profile-activity page",
+            "description": "Opaque cursor returned by the preceding page",
             "minLength": 1,
             "maxLength": 4096
           },
           "limit": {
             "type": "number",
-            "description": "Maximum recent-activity posts to project",
+            "description": "Maximum posts to project",
             "minimum": 1,
             "maximum": 100
+          },
+          "query": {
+            "type": "string",
+            "description": "Search keywords; required for feed=search",
+            "minLength": 1,
+            "maxLength": 200
           }
         },
         "required": [
@@ -125,7 +132,7 @@
       "webSession": {
         "site": "linkedin",
         "action": "feeds.read",
-        "contractVersion": 2,
+        "contractVersion": 3,
         "timeoutMs": 60000,
         "maxOutputBytes": 4194304
       }
