@@ -1623,6 +1623,11 @@ export async function buildWebsite(
       recursive: true,
       filter: () => true,
     }),
+    cp(join(publicRoot, "landscape"), join(outputRoot, "landscape"), {
+      dereference: true,
+      recursive: true,
+      filter: () => true,
+    }),
     copyFile(join(publicRoot, "icon.png"), join(outputRoot, "icon.png")),
     copyFile(join(publicRoot, "icon-96.png"), join(outputRoot, "icon-96.png")),
     copyFile(join(publicRoot, "apple-icon.png"), join(outputRoot, "apple-icon.png")),
