@@ -7,6 +7,15 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.74
+
+Connect accounts whose sessions live outside browser cookies.
+
+- Browser-profile auth accepts a reviewed `--storage-state` file, seeded to
+  the session instead of a profile clone; Bluesky sessions stored in
+  `BSKY_STORAGE` localStorage now bind without loading the app or rotating
+  refresh tokens.
+
 ## 0.18.73
 
 Give agents reviewed, authenticated engagement on four more community surfaces.
