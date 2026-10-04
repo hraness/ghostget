@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#fbf1c7" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">
     <title>WebMCP for agents: call website-published tools through GhostGet</title>
-    <meta name="description" content="WebMCP lets a website publish tools through navigator.modelContext. GhostGet reads them from the public WebMCP Registry and calls only tools declared read-only.">
+    <meta name="description" content="WebMCP lets a website publish tools through document.modelContext. GhostGet reads them from the public WebMCP Registry and calls only tools declared read-only.">
     <meta name="robots" content="max-image-preview:large">
     <link rel="canonical" href="https://ghostget.com/webmcp/">
     <link rel="icon" href="/icon.png" type="image/png" sizes="32x32">
@@ -19,7 +19,7 @@
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="GhostGet">
     <meta property="og:title" content="WebMCP for agents: call website-published tools through GhostGet">
-    <meta property="og:description" content="WebMCP lets a website publish tools through navigator.modelContext. GhostGet reads them from the public WebMCP Registry and calls only tools declared read-only.">
+    <meta property="og:description" content="WebMCP lets a website publish tools through document.modelContext. GhostGet reads them from the public WebMCP Registry and calls only tools declared read-only.">
     <meta property="og:url" content="https://ghostget.com/webmcp/">
     <meta property="og:image" content="{{EDITORIAL_IMAGE_URL}}">
     <meta property="og:image:alt" content="{{EDITORIAL_IMAGE_ALT}}">
@@ -27,7 +27,7 @@
     <meta property="og:image:height" content="{{EDITORIAL_IMAGE_HEIGHT}}">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="WebMCP for agents: call website-published tools through GhostGet">
-    <meta name="twitter:description" content="WebMCP lets a website publish tools through navigator.modelContext. GhostGet reads them from the public WebMCP Registry and calls only tools declared read-only.">
+    <meta name="twitter:description" content="WebMCP lets a website publish tools through document.modelContext. GhostGet reads them from the public WebMCP Registry and calls only tools declared read-only.">
     <meta name="twitter:image" content="{{EDITORIAL_IMAGE_URL}}">
     <meta name="twitter:image:alt" content="{{EDITORIAL_IMAGE_ALT}}">
     <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
@@ -60,7 +60,7 @@
 
         <section aria-labelledby="what-is-webmcp">
           <h2 id="what-is-webmcp">What WebMCP is</h2>
-          <p>A WebMCP site runs <code>navigator.modelContext.registerTool(...)</code> in its own page: each tool has a name, a JSON input schema, optional annotations, and a function that executes against the site's own context. The site, not the agent, defines what is callable. A docs site might publish <code>search_docs</code>; a store might publish <code>list_products</code>. The browser tab becomes the API surface, and the page author writes the contract.</p>
+          <p>A WebMCP site runs <code>document.modelContext.registerTool(...)</code> in its own page: each tool has a name, a JSON input schema, optional annotations, and a function that executes against the site's own context. The site, not the agent, defines what is callable. A docs site might publish <code>search_docs</code>; a store might publish <code>list_products</code>. The browser tab becomes the API surface, and the page author writes the contract.</p>
           <p>That inverts the usual agent loop. Instead of parsing DOM or driving clicks, the agent asks the page what it offers and calls it with structured input. The tool definitions travel with the page. Inspect the published input schema before making a call, because the site can change it.</p>
         </section>
 

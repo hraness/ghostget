@@ -189,7 +189,7 @@ GitHub, Gmail, Hacker News, Instagram, iMessage, LinkedIn, Reddit, Substack,
 Threads, TikTok, Twitch, WebMCP Registry, WhatsApp, X, and YouTube. LinkedIn
 and X each have separate official and authenticated-web adapters. The bundled
 `webmcp` adapter also reaches every site listed in the public WebMCP Registry:
-1,800+ domains publishing live `navigator.modelContext` tool schemas. It is a
+1,800+ domains publishing live `document.modelContext` tool schemas. It is a
 public, credential-free route to `wmcp.ai`: it searches listed sites, reads one
 site's current tool schemas, and calls only tools the site declares
 `readOnlyHint` for. The registry runs the tool in a fresh headless page and
