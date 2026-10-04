@@ -2466,15 +2466,23 @@
 // Keep all existing projections and allowances:
 // 12,226,357 + 12,387 + 4,096 = 12,242,840 packed;
 // 24,392,854 + 353 + 65 = 24,393,272 payload.
+// The Substack comments.create/replies.create graduation adds the
+// wrench-web-adapter.v1.10.0.json snapshot and the comment/reply runtime,
+// parser, preflight, and reconciliation sources plus the live-verified
+// payload and response-field repairs: two clean npm 11.16.0 packs
+// --ignore-scripts on this branch were byte-identical at 637 files/entries,
+// 12,234,884 packed bytes, 24,460,538 unpacked bytes, archive SHA-256
+// 703cb73c288b6b6e1dac7be33d836fc3995905214f14948045678240ff9ebb4a. Retain the
+// reviewed allowances: 24,460,538 + 353 + 65 = 24,460,956.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "0.18.76 opt-in Lightpanda capture module and release pins over the verified 0.18.75 package",
+  scope: "0.18.76 Lightpanda capture and integrated Substack sources over the verified 0.18.75 package",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "43c83cea3697b74dc6414be4a5f7d252127e9cbd8c8f537ffa2f28a74a7b9df1",
-  packedBytes: 12_220_903,
-  unpackedBytes: 24_415_004,
-  entryCount: 637,
+  archiveSha256: "1617877fa6c8403043bd7a0eff4788f7f78d2c0af5343f1809653d52f6184043",
+  packedBytes: 12_228_688,
+  unpackedBytes: 24_482_688,
+  entryCount: 638,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,

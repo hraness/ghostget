@@ -68,7 +68,7 @@ function post(overrides: Readonly<Record<string, unknown>> = {}): unknown {
     canonical_url: "https://wrench-owned.substack.com/p/an-article",
     cover_image: "https://substackcdn.com/image/fetch/cover.jpg",
     podcast_url: null,
-    reaction: true,
+    reaction: "❤",
     reaction_count: 4,
     reactions: { "❤": 4 },
     comment_count: 2,
@@ -110,7 +110,7 @@ function comment(
     date: "2026-07-23T12:01:00.000Z",
     edited_at: null,
     ancestor_path: "",
-    reaction: false,
+    reaction: null,
     reaction_count: 2,
     reactions: { "❤": 2 },
     restacks: 0,
@@ -126,7 +126,7 @@ describe("Substack internal-web operation registry", () => {
   test("ships one schema-v4 semantic manifest entry for every provider operation", () => {
     expect(substackWebManifest.schemaVersion).toBe(4);
     expect(substackWebManifest.id).toBe("substack-web");
-    expect(substackWebManifest.version).toBe("1.10.0");
+    expect(substackWebManifest.version).toBe("1.11.0");
     expect(substackWebManifest.surfaceId).toBe("substack");
     expect(substackWebManifest.origins).toEqual(["https://substack.com"]);
     expect(Object.keys(substackWebManifest.operations).sort()).toEqual(
@@ -178,7 +178,7 @@ describe("Substack internal-web operation registry", () => {
     });
   });
 
-  test("graduates only the direct reads, owned-publication subscriber reads, and authorized Note publication proved against the current site", () => {
+  test("graduates only the direct reads, owned-publication subscriber reads, and authorized Note, comment, and reply publication proved against the current site", () => {
     expect(
       Object.entries(SUBSTACK_WEB_OPERATIONS)
         .filter(([, contract]) => contract.state === "observed")
@@ -186,6 +186,7 @@ describe("Substack internal-web operation registry", () => {
         .sort(),
     ).toEqual([
       "articles.read",
+      "comments.create",
       "comments.read",
       "content.delete",
       "feeds.read",
@@ -195,6 +196,7 @@ describe("Substack internal-web operation registry", () => {
       "posts.publish",
       "posts.read",
       "profiles.read",
+      "replies.create",
       "subscribers.export",
       "subscribers.import",
       "subscribers.import.status",

@@ -15,6 +15,32 @@ Try Lightpanda for public single-page text capture without changing the default 
 - Keep Chromium for automatic selection, connected accounts, cookies, profiles, attached tabs, media, screenshots, and expanded captures.
 - Start an owned Lightpanda server through GhostGet's existing network proxy, block page WebSockets, and retain local browser limits and cleanup.
 
+Comment and reply on Substack through the authenticated web contract,
+live-verified end to end against the signed-in session.
+
+- `substack-web` `comments.create@1` publishes one confirmed top-level
+  comment on the exact bound article through the publication-scoped
+  first-party comment exchange after exact article, publication, and actor
+  bindings, omitting `parent_id` entirely because the exchange rejects an
+  explicit `null`. It durably retains the accepted comment ID and verifies
+  the created comment through an independent bounded reader readback.
+- `substack-web` `replies.create@1` publishes one confirmed reply beneath an
+  exact bound Note through the central feed exchange or beneath an exact
+  bound article comment through the publication-scoped exchange. Reply
+  payloads always send `parent_id`, never `parent_comment_id`, and the
+  created reply's ancestor path must bind the confirmed parent. Chat
+  parents remain capture-required.
+- Both operations keep the same review lifecycle as Note publication:
+  explicit confirmation, consume-once dispatch, durable accepted-target
+  retention before readback, independent verification, indeterminate
+  settlement with exact-target reconciliation whenever dispatch may have
+  occurred without verified readback.
+- Live verification also repaired two pre-existing contract drifts:
+  `posts.publish@3` and `comments.read@1` now admit the provider's current
+  response fields, and the shared `reaction` projection accepts the
+  emoji-string-or-boolean union the API actually returns instead of
+  requiring a boolean.
+
 ## 0.18.75
 
 Search LinkedIn content through an authenticated, bounded browser read.

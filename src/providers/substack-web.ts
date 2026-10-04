@@ -140,15 +140,11 @@ export const SUBSTACK_WEB_OPERATIONS = Object.freeze({
     "first-party-bundle",
     "user-follow and publication-subscription changes have different effects; paid, pledge, and email changes remain blocked",
   ),
-  "comments.create": captureRequired(
-    "R3",
-    "first-party-bundle",
-    "article comment publication needs an authorized fixture and exact actor/post response binding",
+  "comments.create": observedWrite(
+    "publication-scoped article comment exchange proving exact article and publication bindings, actor and post response binding, durable accepted-comment targeting, and bounded exact reader readback",
   ),
-  "replies.create": captureRequired(
-    "R3",
-    "first-party-bundle",
-    "Note, article-comment, and chat replies are separate transports and need exact authorized fixtures",
+  "replies.create": observedWrite(
+    "Note and article-comment reply exchanges proving exact parent, post, publication, actor, and ancestor-path bindings, durable accepted-reply targeting, and bounded exact reader readback; chat parents remain capture-required",
   ),
   "messaging.send": captureRequired(
     "R3",
@@ -259,6 +255,16 @@ function optionalFiniteNumber(value: unknown, label: string): number | null {
     throw new Error(`${label} must be finite`);
   }
   return value;
+}
+
+
+function optionalReaction(
+  value: unknown,
+  label: string,
+): boolean | string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value === "boolean") return value;
+  return boundedString(value, label, 32);
 }
 
 function optionalBoolean(value: unknown, label: string): boolean | null {
@@ -1799,7 +1805,7 @@ function projectedPost(value: unknown, label: string, includeBody: boolean): unk
     canonicalUrl: exactHttpsUrl(source.canonical_url, `${label}.canonical_url`),
     coverImage: exactHttpsUrl(source.cover_image, `${label}.cover_image`),
     podcastUrl: exactHttpsUrl(source.podcast_url, `${label}.podcast_url`),
-    reaction: optionalBoolean(source.reaction, `${label}.reaction`),
+    reaction: optionalReaction(source.reaction, `${label}.reaction`),
     reactionCount: optionalFiniteNumber(source.reaction_count, `${label}.reaction_count`),
     reactions: reactions(source.reactions, `${label}.reactions`),
     commentCount: optionalFiniteNumber(source.comment_count, `${label}.comment_count`),
@@ -1855,7 +1861,7 @@ function projectedComment(value: unknown, label: string): unknown {
     date: optionalString(source.date ?? source.created_at, `${label}.date`, 128),
     editedAt: optionalString(source.edited_at, `${label}.edited_at`, 128),
     ancestorPath: optionalString(source.ancestor_path, `${label}.ancestor_path`, 4_096),
-    reaction: optionalBoolean(source.reaction, `${label}.reaction`),
+    reaction: optionalReaction(source.reaction, `${label}.reaction`),
     reactionCount: optionalFiniteNumber(source.reaction_count, `${label}.reaction_count`),
     reactions: reactions(source.reactions, `${label}.reactions`),
     restacks: optionalFiniteNumber(source.restacks, `${label}.restacks`),

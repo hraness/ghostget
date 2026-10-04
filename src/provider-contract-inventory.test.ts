@@ -4,20 +4,20 @@ import { pathToFileURL } from "node:url";
 import { describe, expect, test } from "bun:test";
 
 const predecessorDefaultInventorySha256 =
-  "6ae14a989b37bed4f2260baa71dd9333b4207c0de2e8e64c815089880f135134";
+  "d6539497472d2d7f6c0ddb36f8c8709c6ac888c0d3e29da81d7f282d414f5692";
 const predecessorLegacyInventorySha256 = [
-  "ba350dc39cc2a37cf9fd966472eeb3474ce8e9899089f190c022975bca808f51",
-  "64becac7a33557a2ba533c5954df41a1ab0a6754fba7d18236082f300e7d7b76",
-  "d9572d22bbff72937ed1603100422bdfd9953a80fc84f06075cab77da4ae7412",
-  "e55a6b694adfd57c8f7c00e87c16d0de0ba6f68ef19483aac5b49f5801c7fa9c",
-  "64d2f17e62315f62c0b24f18c8171e0412fd4c255c46a29d26664244b8fbaa43",
-  "b0846829deaee2b6fde22118780dde865284acaceeb8349b7478cdbb647f71e8",
-  "6c6f9e64edbbb531e8692ac1d6f85ff7e9b455fd940f0b88a41fd0d3e8900c23",
-  "a1b5338943ea574d3ef11a981c3be5a9c2e27ca082c37701851c211286fa0904",
-  "78be316924537e5540261c18db4cf62cdf82fe525568a1ef2316f7239c5b7492",
-  "81b2c012561d14db9cb40f96759b9b118086c6ba0c3cd7db48524e14e1c992a2",
-  "b88256e40b98d6073d563ab9fa69261acd6aee9462751de443c71d878730e3b9",
-  "c7eb2309ac569441a4f8b594f6c080065686f10cedbbb1d20fc39442cf8e342e",
+  "147bf2b55528b929c9ae5eac3c05c07d0ac62064d76b5e55ec3a4d2701e4cd5e",
+  "f9a8a10c4f65fa9f5c9f67e331f200c75038dd9f77be2ba855ab97c2a1063df7",
+  "3525acffd2dad94b5148c3b388aa2802bf285ebbdb30b535ace61fdfe4d73787",
+  "7c81dcc4311c85e4711fdcc7823d2c3dfc1e1fd587c980ac14416208790538bf",
+  "997fb00e2a04cc4c074e5daa6cf13885253c2f5ee13019e1f35342ae8f1929f3",
+  "6a0626e2a328bae41d20049a049fc4dd65bf2e651ddef1c8b4c6f22bbd4cc1f2",
+  "92bad323398e551244f5df4016b5ff9827958cb9a6ba91dbca9e20d962aab40a",
+  "d186bf8efc1d1bec541dc1ac86a4fabd6dc60dfdbaab45cb511ba514c494b96c",
+  "c4517f45bbde70f43c54748a88fa3622800a62c9da69d18524d8398c06cf1639",
+  "4af16ed6a95faaa50ae356e969a9d3d33eb01f0600f12e9055a188784b5a2dba",
+  "1b761fbec7c29383071ddde4201b7f96b29a4afc77de4d8fc8beff62aff3ad9e",
+  "2113e8c8183519f89a131ffa07c06e6f3c614788537e350a0d9fff1093c423d1",
   "1bcab0bb7fb40aaa0b66635a01eb9f661b4fb5b06c4a8f08a1568c9a176c80ca",
   "89b8e7d0019d1d08bb3cb754a64d2aeed38f063d53fe582163dab0e061d5dda3",
   "3772f3ebe8c8f98044f28fda6cf5674fb095a5c4927c99d1d99d73f0faebe7c3",
@@ -375,7 +375,7 @@ describe("durable provider contract inventory", () => {
         rows: 325,
         sha256: predecessorDefaultInventorySha256,
         currentOnlyRows: 87,
-        currentOnlySha256: "ac5f6b39808fefca6ae075bee201f87cc37e83be4df245f68d3754f866381131",
+        currentOnlySha256: "a8ff6d99b948861084dc3a88ee4ad7d5f157d5f6bed10dc5a56c2a6f60bab8d1",
         automationRows: [
           ["linked-device", "whatsapp", "messaging.automation.read", 1],
           ["linked-device", "whatsapp", "messaging.automation.send.attachment", 1],

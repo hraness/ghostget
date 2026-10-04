@@ -9,7 +9,7 @@ Use this as routing guidance only. Always inspect `ghostget capabilities <adapte
 | LinkedIn | `linkedin-web` | Browser cookies/profile | `body`, `visibility`, optional image and accessibility fields | Member or explicitly bound organization post |
 | LinkedIn | `linkedin` | Official OAuth | Inspect installed schema | Documented API post |
 | Bluesky | `bluesky-web` | Profile-backed Bluesky web session | `body`, optional image, media type, and alt text | AT Protocol feed post |
-| Substack | `substack-web` | Browser cookies/profile | `body`, optional Note media | Public Substack Note, not an article/newsletter |
+| Substack | `substack-web` | Browser cookies/profile | `body`, optional Note media | Public Substack Note, not an article/newsletter; `comments.create` on an article; `replies.create` under a Note or article comment |
 | Threads | `meta-web` | Browser cookies/profile | Text/image `posts.publish`: `body`, audience, optional one PNG. Video `media.publish`: `body`, audience, one MP4. | Threads post |
 
 Cleanup is capability-driven too. At this reference revision, `bluesky-web`
