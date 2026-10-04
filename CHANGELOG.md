@@ -7,6 +7,8 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.76
+
 Comment and reply on Substack through the authenticated web contract,
 live-verified end to end against the signed-in session.
 

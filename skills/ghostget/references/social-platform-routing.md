@@ -10,7 +10,7 @@ Use this as routing guidance only. Always inspect `ghostget capabilities <adapte
 | LinkedIn | `linkedin` | Official OAuth | Inspect installed schema | Documented API post |
 | Bluesky | `bluesky-web` | Profile-backed Bluesky web session | `body`, optional image, media type, and alt text | AT Protocol feed post |
 | Substack | `substack-web` | Browser cookies/profile | `body`, optional Note media | Public Substack Note, not an article/newsletter; `comments.create` on an article; `replies.create` under a Note or article comment |
-| Threads | `meta-web` | Browser cookies/profile | Text/image `posts.publish`: `body`, audience, optional one PNG. Video `media.publish`: `body`, audience, one MP4. | Threads post |
+| Threads | `threads-web` | Browser cookies/profile | Text/image `posts.publish`: `body`, audience, optional one PNG. Video `media.publish`: `body`, audience, one MP4. | Threads post |
 
 Cleanup is capability-driven too. At this reference revision, `bluesky-web`
 exposes observed `content.delete@1` only for one current-account post URI plus
@@ -34,6 +34,28 @@ independently says otherwise.
 - A provider may reject an otherwise valid image for dimensions, animation, color profile, or account entitlement. Report that provider-owned failure without converting the file unless the user asks for a derivative.
 - For user-supplied cross-post copy, never mark the package as AI-generated. Follow [X AI disclosure](x-ai-disclosure.md). Leave official `x` `made_with_ai` unset or `false`. `x-web` `posts.publish` has no such input field.
 - Prefer a GhostGet transport over the X composer. If the user explicitly requested a composer fallback, require Content disclosure Made with AI OFF before Post, then open the live permalink. A sparkle label means that target failed.
+
+## GitHub native participation boundary
+
+`github-web` exposes public profile and organization statistics, not Discussion
+or PR search, comment creation, inline reviews, or authenticated participation.
+Check its installed capabilities rather than guessing an operation name.
+
+When the user explicitly authorizes GitHub's official `gh` CLI, use a separate,
+reviewed native GitHub workflow for bounded discovery and exact confirmed
+comments. Keep that route distinct from GhostGet plans and receipts. This is
+not a fallback for an unavailable GhostGet operation, and this skill does not
+install or grant authority to a native helper. Do not export GitHub credentials
+into agent context, improvise browser clicks, expose arbitrary GraphQL or CLI
+arguments, or claim a native action was verified by GhostGet.
+
+For a repository suggestion, first read the current thread, relevant PR change,
+and contribution rules. Require a direct source-backed fit to an unresolved
+technical need, a useful answer independent of the link, and explicit maker
+disclosure. Bind the exact account, repository, destination, and body; obtain
+confirmation for that comment; dispatch once; retain its accepted ID before
+independent readback. Uncertain dispatch stays fenced for read-only recovery.
+Search results and topical similarity never authorize a promotional comment.
 
 ## Common invocation shape
 
