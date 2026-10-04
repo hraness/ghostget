@@ -7,6 +7,13 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.78
+
+Read closed Chromium profiles even when the browser leaves behind old process locks.
+
+- Upgrade Wordcell to its checked stale-lock fix. Require the recorded local process to be absent, its socket unavailable, and the profile locks unchanged before and after copying.
+- Preserve the source profile and its locks. Live or uncertain browser ownership still blocks snapshots.
+
 ## 0.18.77
 
 Try Lightpanda for public single-page text capture without changing the default browser.
