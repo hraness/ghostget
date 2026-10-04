@@ -1,6 +1,6 @@
 {
   "name": "@hraness/ghostget",
-  "version": "0.18.75",
+  "version": "0.18.76",
   "description": "GhostGet gives your AI agent named web actions: read a page, archive one media item, or use a connected account, without credentials or a browser to steer.",
   "license": "MIT",
   "type": "module",
@@ -283,6 +283,7 @@
     "src/whatsapp-message-like-me-source.ts",
     "src/fixtures/beeper-message-like-me-v1",
     "src/browser-admission.ts",
+    "src/lightpanda-browser.ts",
     "src/browser-profiles.ts",
     "src/browser-profiles-cli.ts",
     "src/browser-snapshots.ts",

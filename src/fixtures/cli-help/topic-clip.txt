@@ -9,6 +9,8 @@ Options
   --media none|images|all        Save images or all supported media
   --evidence none|source|screenshot|all
                                  Keep the page source or a screenshot
+  --browser-engine auto|chrome|lightpanda
+                                 Public text browser; auto uses Chrome
   --stdout                       Print Markdown instead of saving
   --force                        Replace an existing note
   --json                         Print machine-readable output

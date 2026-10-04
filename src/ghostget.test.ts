@@ -1596,6 +1596,88 @@ describe("auth CLI", () => {
     }
   });
 
+  describe("capture browser engine selection", () => {
+    test.each(["auto", "chrome", "lightpanda"] as const)("forwards explicit %s selection without exposing the flag to Wordcell", async (engine) => {
+      const testState = state();
+      const wrench = capture();
+      const executable = join(testState.directory, "lightpanda");
+      writeFileSync(executable, "#!/bin/sh\nprintf '1.0.0\\n'\n", { mode: 0o700 });
+      let observedEngine: string | undefined;
+      try {
+        const code = await main(
+          ["read", "https://example.com/article", "--mode", "browser", "--scope", "page", "--media", "none", "--browser-engine", engine],
+          { ...testState.environment, GHOSTGET_LIGHTPANDA_PATH: executable },
+          wrench.output,
+          {
+            clipMain: async (arguments_, environment, _output, clipDependencies) => {
+              expect(arguments_).not.toContain("--browser-engine");
+              const parsed = parseCaptureArguments(arguments_ ?? [], environment);
+              if (!parsed.ok || parsed.value.command !== "inspect") throw new Error("invalid engine fixture");
+              await clipDependencies?.runCapture?.(parsed.value);
+              return 0;
+            },
+            runCapture: async (_arguments, _environment, dependencies) => {
+              observedEngine = dependencies?.browserEngine;
+              throw new Error("stop after observing engine");
+            },
+          },
+        );
+        expect(code).toBe(3);
+        expect(observedEngine).toBe(engine);
+        expect(wrench.stderr()).toContain("stop after observing engine");
+      } finally {
+        rmSync(testState.directory, { recursive: true, force: true });
+      }
+    });
+
+    test("ignores ambient engine activation", async () => {
+      const testState = state();
+      const wrench = capture();
+      let observedEngine: string | undefined;
+      try {
+        const code = await main(["read", "https://example.com"], {
+          ...testState.environment, GHOSTGET_BROWSER_ENGINE: "lightpanda", LIGHTPANDA_PATH: "/missing/lightpanda",
+        }, wrench.output, {
+          clipMain: async (arguments_, environment, _output, dependencies) => {
+            const parsed = parseCaptureArguments(arguments_ ?? [], environment);
+            if (!parsed.ok || parsed.value.command !== "inspect") throw new Error("invalid engine fixture");
+            await dependencies?.runCapture?.(parsed.value);
+            return 0;
+          },
+          runCapture: async (_arguments, _environment, dependencies) => {
+            observedEngine = dependencies?.browserEngine;
+            throw new Error("stop after observing engine");
+          },
+        });
+        expect(code).toBe(3);
+        expect(observedEngine).toBe("auto");
+      } finally {
+        rmSync(testState.directory, { recursive: true, force: true });
+      }
+    });
+
+    test.each([
+      ["--browser-engine"],
+      ["--browser-engine", "unknown"],
+      ["--browser-engine", "chrome", "--browser-engine", "auto"],
+      ["--browser-engine", "lightpanda", "--cookie-source", "chrome"],
+      ["--browser-engine", "lightpanda", "--evidence", "screenshot"],
+    ].map((options) => ({ options })))("rejects invalid or incompatible capture options before delegation: %j", async ({ options }) => {
+      const testState = state();
+      const wrench = capture();
+      let called = false;
+      try {
+        expect(await main(["clip", "https://example.com", "--media", "none", ...options], testState.environment, wrench.output, {
+          clipMain: async () => { called = true; return 0; },
+        })).toBe(3);
+        expect(called).toBe(false);
+        expect(wrench.stderr()).not.toBe("");
+      } finally {
+        rmSync(testState.directory, { recursive: true, force: true });
+      }
+    });
+  });
+
   test("threads the command cancellation signal into capture admission", async () => {
     const testState = state();
     const wrench = capture();

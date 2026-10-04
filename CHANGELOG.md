@@ -7,6 +7,14 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.76
+
+Try Lightpanda for public single-page text capture without changing the default browser.
+
+- Add explicit `--browser-engine lightpanda` for a provisioned Lightpanda 1.0.0 executable, with `--scope page`, `--media none`, and no screenshot evidence.
+- Keep Chromium for automatic selection, connected accounts, cookies, profiles, attached tabs, media, screenshots, and expanded captures.
+- Start an owned Lightpanda server through GhostGet's existing network proxy, block page WebSockets, and retain local browser limits and cleanup.
+
 ## 0.18.75
 
 Search LinkedIn content through an authenticated, bounded browser read.

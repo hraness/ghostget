@@ -16,6 +16,11 @@ import {
   sha256,
 } from "./canonical-json";
 import {
+  acquireLightpandaBrowser,
+  selectBrowserEngine,
+  type BrowserEngineSelection,
+} from "./lightpanda-browser";
+import {
   currentProcessStartIdentity,
   processOwnerStatus,
   type ProcessOwnerIdentity,
@@ -843,6 +848,8 @@ export type BrowserCaptureAdmissionDependencies = {
   readonly acquireAdmission?: typeof acquireBrowserAdmission;
   readonly acquireBrowser?: typeof acquireKbBrowser;
   readonly runCapture?: typeof runKbCapture;
+  /** Explicit engine requested by the embedding CLI; auto is the default. */
+  readonly browserEngine?: BrowserEngineSelection;
   readonly monotonicNow?: () => number;
   readonly signal?: AbortSignal;
 };
@@ -860,8 +867,24 @@ export async function acquireCaptureBrowserWithAdmission(
   dependencies: BrowserCaptureAdmissionDependencies = {},
 ): Promise<AcquiredPage> {
   const acquireBrowser = dependencies.acquireBrowser ?? acquireKbBrowser;
+  const selectedEngine = selectBrowserEngine(
+    options,
+    dependencies.browserEngine ?? "auto",
+    environment,
+  );
+  const acquireSelectedBrowser = selectedEngine.engine === "lightpanda"
+    ? (browserOptions: CaptureArguments, directory: string) => acquireLightpandaBrowser(
+        browserOptions,
+        directory,
+        environment,
+      )
+    : (browserOptions: CaptureArguments, directory: string) => acquireBrowser(
+        browserOptions,
+        directory,
+        useDiscoveredProfile,
+      );
   if (options.browserLive || options.cdp !== undefined) {
-    return acquireBrowser(options, temporaryDirectory, useDiscoveredProfile);
+    return acquireSelectedBrowser(options, temporaryDirectory);
   }
 
   const monotonicNow = dependencies.monotonicNow ?? (() => performance.now());
@@ -890,10 +913,9 @@ export async function acquireCaptureBrowserWithAdmission(
     }
     operation = {
       ok: true,
-      value: await acquireBrowser(
+      value: await acquireSelectedBrowser(
         { ...options, timeoutMs: remainingTimeoutMs },
         temporaryDirectory,
-        useDiscoveredProfile,
       ),
     };
   } catch (error) {

@@ -2467,14 +2467,14 @@
 // 12,226,357 + 12,387 + 4,096 = 12,242,840 packed;
 // 24,392,854 + 353 + 65 = 24,393,272 payload.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "0.18.75 release-bump changelog and version pins over the verified 0.18.74 package",
+  scope: "0.18.76 opt-in Lightpanda capture module and release pins over the verified 0.18.75 package",
   command: "npm pack --ignore-scripts",
-  npmVersion: "11.16.0",
+  npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "e367b37901af34d2656741c9fb200d4b568061f4f17fc3d473debba160c76f29",
-  packedBytes: 12_226_357,
-  unpackedBytes: 24_392_854,
-  entryCount: 636,
+  archiveSha256: "43c83cea3697b74dc6414be4a5f7d252127e9cbd8c8f537ffa2f28a74a7b9df1",
+  packedBytes: 12_220_903,
+  unpackedBytes: 24_415_004,
+  entryCount: 637,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,
