@@ -2475,15 +2475,15 @@
 // 60297eb24c9df4f79ac5ac4bd0f1ff0d633c624cf063c78f9381d3c3aba8d74f. Retain the
 // reviewed allowances: 24,462,212 + 353 + 65 = 24,462,630.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "0.18.78 semantic-first Lightpanda capture over the reviewed 0.18.77 release",
+  scope: "0.18.79 semantic-first Lightpanda capture over the reviewed 0.18.78 release",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   nodeVersion: "24.20.0",
   zlibVersion: "1.2.12",
   platform: "darwin-arm64",
-  archiveSha256: "ec48c9ebbc08a99fc49b02a0cf6e8e6f6ee66172970384780ade36c9bbf13683",
-  packedBytes: 12_230_464,
-  unpackedBytes: 24_490_303,
+  archiveSha256: "d7f03d6c97d6ce4a88587a220557e544fdfc7ee3dc3745c1291ff2e3e0d19538",
+  packedBytes: 12_230_567,
+  unpackedBytes: 24_490_680,
   entryCount: 638,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

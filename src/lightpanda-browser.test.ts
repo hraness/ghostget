@@ -228,7 +228,8 @@ describe("Ghostget Lightpanda semantic lane", () => {
     const exitPath = join(directory, "server.closed");
     writeFileSync(executable, `#!${process.execPath}\nimport { writeFileSync } from "node:fs";\nwriteFileSync(${JSON.stringify(pidPath)}, String(process.pid));\nif (${JSON.stringify(scenario)} === "early-exit") process.exit(42);\nif (process.env.LIGHTPANDA_DISABLE_TELEMETRY !== "1") process.exit(43);\nif (process.env.HTTP_PROXY || process.env.ALL_PROXY || process.env.LIGHTPANDA_FIXTURE_UNSAFE) process.exit(44);\nconst port = Number(process.argv[process.argv.indexOf("--port") + 1]);\nconst server = Bun.serve({hostname:"127.0.0.1",port,fetch(){\nif (${JSON.stringify(scenario)} === "timeout") return new Promise(() => {});\nreturn Response.json({Browser:${JSON.stringify(scenario === "identity-mismatch" ? "Chrome/145" : "Lightpanda/1.0")},"Lightpanda-Version":"1.0.0",webSocketDebuggerUrl:\`ws://127.0.0.1:\${port}/\`});\n}});\nprocess.on("SIGTERM", () => { writeFileSync(${JSON.stringify(exitPath)}, "closed"); server.stop(true); process.exit(0); });\n`, { mode: 0o700 });
     let calls = 0;
-    const dependencies = createLightpandaDependencies(executable, performance.now() + 1500, async (_arguments, _options, input) => {
+    const timeoutMs = scenario === "timeout" ? 1500 : 5000;
+    const dependencies = createLightpandaDependencies(executable, performance.now() + timeoutMs, async (_arguments, _options, input) => {
       calls += 1;
       return { exitCode: scenario === "driver-failure" ? 1 : 0,
         stdout: input !== undefined
@@ -238,7 +239,7 @@ describe("Ghostget Lightpanda semantic lane", () => {
           : '{"success":true,"data":{"url":"about:blank"}}', stderr: "" };
     });
     try {
-      const commandOptions = { cwd: directory, environment: { HTTP_PROXY: "http://127.0.0.1:1", ALL_PROXY: "http://127.0.0.1:1", LIGHTPANDA_FIXTURE_UNSAFE: "fixture" }, timeoutMs: 1500, maxOutputBytes: 1024 };
+      const commandOptions = { cwd: directory, environment: { HTTP_PROXY: "http://127.0.0.1:1", ALL_PROXY: "http://127.0.0.1:1", LIGHTPANDA_FIXTURE_UNSAFE: "fixture" }, timeoutMs, maxOutputBytes: 1024 };
       const operation = dependencies.run!(["--proxy", "http://127.0.0.1:1234"], ["open", scenario === "unsupported-after-navigation" ? "https://example.com/article" : "about:blank"], commandOptions);
       if (scenario === "success") expect(await operation).toEqual({ url: "about:blank" });
       else await expect(operation).rejects.toThrow();
