@@ -67,7 +67,7 @@ const archivedSubscriberOperations = Object.freeze([
 export const substackWebPlugin = defineProviderPlugin({
   apiVersion: 1,
   id: "substack-web",
-  version: "1.6.0",
+  version: "1.7.0",
   displayName: "Substack Authenticated Web",
   sourceKind: "built-in",
   implementationSources: webImplementationSources(import.meta.url, [
@@ -86,7 +86,7 @@ export const substackWebPlugin = defineProviderPlugin({
     authKinds: browserSessionAuthKinds,
     operations: [...webSessionContractOperations(
       Object.values(substackContracts),
-      "151e56c34fffaf859237725877957af760acdafdef7ee88cddaa2562c4e3da70",
+      "094ccfba4f96ee1deed26201cab94154b8471f4f80db5d6e273c4f4117601427",
       {
         "posts.publish": [2],
       },
@@ -104,7 +104,11 @@ export const substackWebPlugin = defineProviderPlugin({
         },
       },
     ).map((operation) => {
-      if (operation.name === "posts.publish") {
+      if (
+        operation.name === "posts.publish"
+        || operation.name === "comments.create"
+        || operation.name === "replies.create"
+      ) {
         return Object.freeze({
           ...operation,
           reconciliation: Object.freeze({
@@ -145,6 +149,22 @@ export const substackWebPlugin = defineProviderPlugin({
             return {
               actualState: readback.present,
               reason: "exact-target-absence-readback",
+            };
+          }
+          if (operation === "comments.create" || operation === "replies.create") {
+            if (context?.kind !== "provider-accepted-target-presence") {
+              throw new Error(`Substack ${operation} reconciliation requires one exact accepted target`);
+            }
+            const readback = await runtime.readSubstackWebAcceptedCommentTargetPresence({
+              site: "substack",
+              action: operation,
+              contractVersion: 1,
+              timeoutMs: 60_000,
+              maxOutputBytes: 8 * 1024 * 1024,
+            }, input, auth, context.target.identifier);
+            return {
+              actualState: readback.present,
+              reason: "exact-target-readback",
             };
           }
           if (operation !== "posts.publish") {

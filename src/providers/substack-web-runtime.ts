@@ -1572,7 +1572,9 @@ const CREATED_NOTE_KEYS = Object.freeze([
   "edited_at",
   "handle",
   "id",
+  "is_ai_detection_disabled",
   "is_ai_generated_text",
+  "isFirstFeedCommentByUser",
   "language",
   "media_clip_id",
   "name",
@@ -2501,6 +2503,875 @@ type SubstackDeleteFailureStage =
   | "dispatch-admission"
   | "verification-recording";
 
+// ---------------------------------------------------------------------------
+// Substack article comments and Note/comment replies (comments.create@1,
+// replies.create@1).
+// ---------------------------------------------------------------------------
+
+function substackCommentText(value: unknown, label: string): string {
+  if (
+    typeof value !== "string"
+    || value.length < 1
+    || value.length > 1_000
+    || /[\0\r]/u.test(value)
+  ) throw new Error(`${label} must be bounded Substack comment text`);
+  return value;
+}
+
+type SubstackCommentCreatePlan = Readonly<{
+  articleId: number;
+  publicationId: number;
+  body: string;
+}>;
+
+export function prepareSubstackCommentCreateInput(
+  input: OperationInput,
+): SubstackCommentCreatePlan {
+  requireExactInputKeys(input, ["article_id", "publication_id", "body"]);
+  return Object.freeze({
+    articleId: positiveIdInput(input, "article_id"),
+    publicationId: positiveIdInput(input, "publication_id"),
+    body: substackCommentText(input.body, "input.body"),
+  });
+}
+
+type SubstackReplyParentType = "note" | "comment";
+
+type SubstackReplyCreatePlan = Readonly<{
+  parentType: SubstackReplyParentType;
+  parentId: number;
+  body: string;
+}>;
+
+export function prepareSubstackReplyCreateInput(
+  input: OperationInput,
+): SubstackReplyCreatePlan {
+  requireExactInputKeys(input, ["parent_type", "parent_id", "body"]);
+  const parentType = input.parent_type;
+  if (parentType === "chat") {
+    throw new Error("Substack chat replies remain capture-required");
+  }
+  if (parentType !== "note" && parentType !== "comment") {
+    throw new Error("input.parent_type must name note, comment, or chat");
+  }
+  if (
+    typeof input.parent_id !== "string"
+    || !/^[1-9][0-9]{0,15}$/u.test(input.parent_id)
+  ) throw new Error("input.parent_id must be a decimal Substack entity ID");
+  return Object.freeze({
+    parentType,
+    parentId: positiveInteger(Number(input.parent_id), "input.parent_id"),
+    body: substackCommentText(input.body, "input.body"),
+  });
+}
+
+type SubstackArticleWriteContext = Readonly<{
+  origin: string;
+  canonicalUrl: string | null;
+}>;
+
+/** Bind the exact article and publication before selecting its write origin. */
+async function resolveSubstackArticleWriteContext(
+  client: WebSessionClient,
+  recipe: WebSessionRecipe,
+  articleId: number,
+  publicationId: number,
+): Promise<SubstackArticleWriteContext> {
+  const url = new URL(`/api/v1/posts/by-id/${articleId}`, SUBSTACK_ORIGIN);
+  authorizeSubstackWebReadRequest({
+    operation: "articles.read",
+    url,
+    method: "GET",
+    targetId: articleId,
+  });
+  const article = normalizeSubstackArticleResponse(
+    await client.requestJson({
+      url,
+      method: "GET",
+      headers: jsonHeaders(),
+      expectedStatuses: [200],
+      expectedContentTypes: ["application/json"],
+      maxBytes: boundedMaximum(recipe),
+    }),
+    articleId,
+  ) as {
+    readonly post: Readonly<{
+      readonly publicationId: number;
+      readonly canonicalUrl: string | null;
+    }>;
+    readonly publication: Readonly<{ readonly subdomain: string | null }> | null;
+  };
+  if (article.post.publicationId !== publicationId) {
+    throw new Error("Substack article did not bind the confirmed publication");
+  }
+  const subdomain = article.publication?.subdomain;
+  if (
+    typeof subdomain !== "string"
+    || !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/u.test(subdomain)
+  ) throw new Error("Substack article publication did not expose a reviewed subdomain");
+  return Object.freeze({
+    origin: `https://${subdomain}.substack.com`,
+    canonicalUrl: article.post.canonicalUrl,
+  });
+}
+
+type ProjectedSubstackCommentEntity = Readonly<{
+  id: number;
+  userId: number;
+  publicationId: number | null;
+  postId: number | null;
+  body: string;
+  type: string | null;
+  ancestorPath: string | null;
+}>;
+
+type ProjectedSubstackComment = Readonly<{
+  entityKey: string | null;
+  comment: ProjectedSubstackCommentEntity;
+  post: unknown | null;
+  publication: Readonly<{ readonly subdomain: string | null }> | null;
+}>;
+
+/** Bind one exact comment entity to the confirmed request. */
+function assertSubstackCommentEntity(
+  projected: ProjectedSubstackComment,
+  expected: {
+    readonly commentId: number;
+    readonly userId: number;
+    readonly postId: number | null;
+    readonly publicationId: number | null;
+    readonly body: string;
+    readonly parentId: number | null;
+  },
+  label: string,
+): void {
+  const comment = projected.comment;
+  if (
+    comment.id !== expected.commentId
+    || comment.userId !== expected.userId
+    || comment.postId !== expected.postId
+    || comment.publicationId !== expected.publicationId
+    || comment.body !== expected.body
+  ) throw new Error(`${label} did not bind the confirmed comment`);
+  assertSubstackAncestorPath(comment.ancestorPath, expected.parentId, label);
+}
+
+function substackAncestorPathText(value: unknown, label: string): string {
+  if (typeof value !== "string" || value.length > 4_096) {
+    throw new Error(`${label} must be bounded ancestor-path text`);
+  }
+  return value;
+}
+
+function assertSubstackAncestorPath(
+  ancestorPath: string | null,
+  parentId: number | null,
+  label: string,
+): void {
+  if (parentId === null) {
+    if (ancestorPath !== null && !/^\s*\/?\s*$/u.test(ancestorPath)) {
+      throw new Error(`${label} returned an ancestor path for a top-level comment`);
+    }
+    return;
+  }
+  if (ancestorPath === null || ancestorPath.length > 4_096) {
+    throw new Error(`${label} omitted the reply ancestor path`);
+  }
+  const segments = ancestorPath.split(/[^0-9]+/u).filter((part) => part.length > 0);
+  if (!segments.includes(String(parentId))) {
+    throw new Error(`${label} did not bind the confirmed parent in its ancestor path`);
+  }
+}
+
+type SubstackCommentCreateFailureStage =
+  | "dispatch-admission"
+  | "article-preflight"
+  | "parent-preflight"
+  | "comment-create-transport"
+  | "comment-create-response-object"
+  | "comment-create-response-fields"
+  | "comment-create-actor"
+  | "comment-create-body"
+  | "comment-create-kind"
+  | "comment-create-parent-post"
+  | "comment-create-publication"
+  | "comment-create-parent"
+  | "comment-create-deleted-state"
+  | "comment-create-id"
+  | "accepted-target-recording"
+  | "comment-readback"
+  | "verification-recording";
+
+const CREATED_COMMENT_KEYS = Object.freeze([
+  ...CREATED_NOTE_KEYS,
+  "body_html",
+  "can_moderate",
+  "children",
+  "comment_count",
+  "metadata",
+  "parent_id",
+  "parent_children",
+  "post",
+  "ranking_detail",
+  "reaction",
+  "reactor_names",
+  "top_parent_id",
+]);
+
+class SubstackCommentCreateBindingError extends Error {
+  constructor(
+    readonly stage: SubstackCommentCreateFailureStage,
+    message: string,
+  ) {
+    super(message);
+    this.name = "SubstackCommentCreateBindingError";
+  }
+}
+
+function commentCreateBindingFailure(
+  stage: SubstackCommentCreateFailureStage,
+  message: string,
+): never {
+  throw new SubstackCommentCreateBindingError(stage, message);
+}
+
+/** Parse the created-comment response into its exact accepted identifier. */
+function parseCreatedSubstackComment(
+  value: unknown,
+  viewer: SubstackWebViewer,
+  expected: {
+    readonly body: string;
+    readonly postId: number | null;
+    readonly publicationId: number | null;
+    readonly parentId: number | null;
+    readonly noteKind: boolean;
+  },
+): number {
+  if (!isRecord(value)) {
+    commentCreateBindingFailure(
+      "comment-create-response-object",
+      "Substack comment create response must be an object",
+    );
+  }
+  try {
+    requireAllowedKeys(value, CREATED_COMMENT_KEYS, "Substack comment create response");
+  } catch {
+    commentCreateBindingFailure(
+      "comment-create-response-fields",
+      "Substack comment create response fields changed",
+    );
+  }
+  if (value.user_id !== viewer.id) {
+    commentCreateBindingFailure(
+      "comment-create-actor",
+      "Substack comment create response did not bind the confirmed actor",
+    );
+  }
+  if (value.body !== expected.body) {
+    commentCreateBindingFailure(
+      "comment-create-body",
+      "Substack comment create response did not bind the confirmed body",
+    );
+  }
+  if (
+    expected.noteKind
+    && value.type !== undefined
+    && value.type !== null
+    && value.type !== "feed"
+    && value.type !== "comment"
+  ) {
+    commentCreateBindingFailure(
+      "comment-create-kind",
+      "Substack reply create response did not bind the confirmed Note kind",
+    );
+  }
+  if (value.post_id !== expected.postId) {
+    commentCreateBindingFailure(
+      "comment-create-parent-post",
+      "Substack comment create response did not bind the confirmed post",
+    );
+  }
+  if (value.publication_id !== expected.publicationId) {
+    commentCreateBindingFailure(
+      "comment-create-publication",
+      "Substack comment create response did not bind the confirmed publication",
+    );
+  }
+  if (
+    value.parent_id !== undefined
+    && value.parent_id !== expected.parentId
+  ) {
+    commentCreateBindingFailure(
+      "comment-create-parent",
+      "Substack comment create response did not bind the confirmed parent",
+    );
+  }
+  try {
+    assertSubstackAncestorPath(
+      value.ancestor_path === null || value.ancestor_path === undefined
+        ? null
+        : substackAncestorPathText(value.ancestor_path, "Substack create ancestor_path"),
+      expected.parentId,
+      "Substack comment create response",
+    );
+  } catch {
+    commentCreateBindingFailure(
+      "comment-create-parent",
+      "Substack comment create response did not bind the confirmed parent",
+    );
+  }
+  if (value.deleted !== undefined && value.deleted !== false) {
+    commentCreateBindingFailure(
+      "comment-create-deleted-state",
+      "Substack comment create response returned a deleted comment",
+    );
+  }
+  try {
+    return positiveInteger(value.id, "Substack comment create response.id");
+  } catch {
+    commentCreateBindingFailure(
+      "comment-create-id",
+      "Substack comment create response did not return a valid comment identifier",
+    );
+  }
+}
+
+/** Read back one exact created comment through the global reader endpoint. */
+async function readExactSubstackComment(
+  client: WebSessionClient,
+  recipe: WebSessionRecipe,
+  commentId: number,
+): Promise<ProjectedSubstackComment> {
+  const url = new URL(`/api/v1/reader/comment/${commentId}`, SUBSTACK_ORIGIN);
+  authorizeSubstackWebReadRequest({
+    operation: "posts.note",
+    url,
+    method: "GET",
+    targetId: commentId,
+  });
+  return normalizeSubstackNoteResponse(
+    await client.requestJson({
+      url,
+      method: "GET",
+      headers: jsonHeaders(),
+      maxBytes: boundedMaximum(recipe),
+    }),
+    commentId,
+  ) as ProjectedSubstackComment;
+}
+
+async function readExactSubstackCommentAfterCreate(
+  client: WebSessionClient,
+  recipe: WebSessionRecipe,
+  expected: {
+    readonly commentId: number;
+    readonly userId: number;
+    readonly postId: number | null;
+    readonly publicationId: number | null;
+    readonly body: string;
+    readonly parentId: number | null;
+  },
+  options: {
+    readonly signal?: AbortSignal;
+    readonly operationDeadline?: WebSessionOperationDeadline;
+    readonly sleep: SubstackWebSleep;
+  },
+): Promise<ProjectedSubstackComment> {
+  for (let attempt = 0; attempt <= SUBSTACK_NOTE_READBACK_DELAYS_MS.length; attempt += 1) {
+    if (attempt > 0) {
+      await waitForSubstackNoteReadback(
+        SUBSTACK_NOTE_READBACK_DELAYS_MS[attempt - 1]!,
+        options.sleep,
+        options.signal,
+        options.operationDeadline,
+      );
+    }
+    try {
+      const comment = await readExactSubstackComment(client, recipe, expected.commentId);
+      assertSubstackCommentEntity(comment, expected, "Substack comment readback");
+      return comment;
+    } catch {
+      options.operationDeadline?.throwIfUnavailable(
+        "authenticated web operation deadline",
+      );
+      if (options.signal?.aborted === true) {
+        throw new Error("Substack comment readback was cancelled");
+      }
+      if (attempt === SUBSTACK_NOTE_READBACK_DELAYS_MS.length) {
+        throw new Error("Substack exact comment readback exhausted its reviewed window");
+      }
+    }
+  }
+  throw new Error("Substack exact comment readback exhausted its reviewed window");
+}
+
+type SubstackAcceptedCommentTarget = Readonly<{
+  commentId: number;
+  postId: number | null;
+  publicationId: number | null;
+  parentId: number | null;
+}>;
+
+function substackAcceptedCommentTargetIdentifier(
+  target: SubstackAcceptedCommentTarget,
+): string {
+  return canonicalJson(target);
+}
+
+function parseSubstackAcceptedCommentTarget(
+  identifier: unknown,
+): SubstackAcceptedCommentTarget {
+  if (
+    typeof identifier !== "string"
+    || identifier.length < 1
+    || identifier.length > 8_192
+    || /[\0\r\n]/u.test(identifier)
+  ) throw new Error("Substack accepted comment target must be bounded canonical JSON");
+  let value: unknown;
+  try {
+    value = JSON.parse(identifier) as unknown;
+  } catch {
+    throw new Error("Substack accepted comment target must be bounded canonical JSON");
+  }
+  if (!isRecord(value)) throw new Error("Substack accepted comment target changed shape");
+  requireExactKeys(
+    value,
+    ["commentId", "postId", "publicationId", "parentId"],
+    "Substack accepted comment target",
+  );
+  if (!isCanonicalJsonText(identifier, value)) {
+    throw new Error("Substack accepted comment target must use canonical JSON");
+  }
+  const optionalId = (field: unknown, label: string): number | null => {
+    if (field === null) return null;
+    return positiveInteger(field, label);
+  };
+  return Object.freeze({
+    commentId: positiveInteger(value.commentId, "Substack accepted comment target.commentId"),
+    postId: optionalId(value.postId, "Substack accepted comment target.postId"),
+    publicationId: optionalId(value.publicationId, "Substack accepted comment target.publicationId"),
+    parentId: optionalId(value.parentId, "Substack accepted comment target.parentId"),
+  });
+}
+
+function substackCommentDispatchEvent(
+  action: "comments.create" | "replies.create",
+  started: number,
+  verified: number,
+): WebSessionDispatchEvent {
+  return {
+    id: action,
+    index: 1,
+    progress: { planned: 1, started, verified },
+  };
+}
+
+/** Read only the exact provider-accepted comment or reply target; never dispatch. */
+export async function readSubstackWebAcceptedCommentTargetPresence(
+  recipe: WebSessionRecipe,
+  input: OperationInput,
+  auth: GhostgetAuth,
+  acceptedIdentifier: string,
+  options: {
+    readonly signal?: AbortSignal;
+    readonly operationDeadline?: WebSessionOperationDeadline;
+    readonly dependencies?: SubstackWebRuntimeDependencies;
+  } = {},
+): Promise<Readonly<{ present: true; commentId: number }>> {
+  if (
+    recipe.site !== "substack"
+    || (recipe.action !== "comments.create" && recipe.action !== "replies.create")
+    || recipe.contractVersion !== 1
+  ) throw new Error("Substack accepted comment readback supports only comments.create@1 and replies.create@1");
+  const target = parseSubstackAcceptedCommentTarget(acceptedIdentifier);
+  const client = await createWebSessionClient(SUBSTACK_ORIGIN, auth, {
+    timeoutMs: recipe.timeoutMs,
+    ...(options.signal === undefined ? {} : { signal: options.signal }),
+    ...(options.operationDeadline === undefined
+      ? {}
+      : { operationDeadline: options.operationDeadline }),
+    ...(options.dependencies === undefined ? {} : { dependencies: options.dependencies }),
+  });
+  const viewer = await requireBoundViewer(client, auth, recipe.maxOutputBytes);
+  const body = recipe.action === "comments.create"
+    ? prepareSubstackCommentCreateInput(input).body
+    : prepareSubstackReplyCreateInput(input).body;
+  const projected = await readExactSubstackComment(client, recipe, target.commentId);
+  assertSubstackCommentEntity(projected, {
+    commentId: target.commentId,
+    userId: viewer.id,
+    postId: target.postId,
+    publicationId: target.publicationId,
+    body,
+    parentId: target.parentId,
+  }, "Substack accepted comment readback");
+  return Object.freeze({ present: true as const, commentId: target.commentId });
+}
+
+/** Publish one confirmed top-level comment on the exact bound article. */
+async function executeSubstackCommentCreate(
+  client: WebSessionClient,
+  recipe: WebSessionRecipe,
+  viewer: SubstackWebViewer,
+  auth: GhostgetAuth,
+  input: OperationInput,
+  options: {
+    readonly signal?: AbortSignal;
+    readonly operationDeadline?: WebSessionOperationDeadline;
+    readonly beforeDispatch?: (event: WebSessionDispatchEvent) => Promise<void>;
+    readonly afterProviderAcceptedMutationTarget?: (
+      event: WebSessionProviderAcceptedMutationTargetEvent,
+    ) => Promise<void>;
+    readonly afterDispatchVerified?: (event: WebSessionDispatchEvent) => Promise<void>;
+    readonly sleep: SubstackWebSleep;
+    readonly dependencies?: SubstackWebRuntimeDependencies;
+  },
+): Promise<WebSessionExecution> {
+  const plan = prepareSubstackCommentCreateInput(input);
+  let failureStage: SubstackCommentCreateFailureStage = "dispatch-admission";
+  let context: SubstackArticleWriteContext;
+  try {
+    failureStage = "article-preflight";
+    context = await resolveSubstackArticleWriteContext(
+      client,
+      recipe,
+      plan.articleId,
+      plan.publicationId,
+    );
+  } catch (error) {
+    if (error instanceof SubstackCommentCreateBindingError) throw error;
+    return {
+      status: "failed",
+      output: null,
+      finalUrl: SUBSTACK_ORIGIN,
+      dispatchStarted: false,
+      dispatch: { planned: 1, started: 0, verified: 0 },
+      error: `Substack comment dispatch failed before submission (stage: ${failureStage})`,
+    };
+  }
+  const reboundViewer = await currentViewer(client, boundedMaximum(recipe));
+  if (viewerSubject(reboundViewer) !== viewerSubject(viewer)) {
+    throw new Error("Substack current viewer changed before the comment dispatch");
+  }
+  let started = 0;
+  let verified = 0;
+  let commentId: number | null = null;
+  failureStage = "article-preflight";
+  let publicationClient: WebSessionClient;
+  try {
+    publicationClient = await createWebSessionClient(context.origin, auth, {
+      timeoutMs: recipe.timeoutMs,
+      ...(options.signal === undefined ? {} : { signal: options.signal }),
+      ...(options.operationDeadline === undefined
+        ? {}
+        : { operationDeadline: options.operationDeadline }),
+      ...(options.dependencies === undefined ? {} : { dependencies: options.dependencies }),
+    });
+  } catch {
+    return {
+      status: "failed",
+      output: null,
+      finalUrl: context.canonicalUrl ?? context.origin,
+      dispatchStarted: false,
+      dispatch: { planned: 1, started: 0, verified: 0 },
+      error: `Substack comment dispatch failed before submission (stage: ${failureStage})`,
+    };
+  }
+  failureStage = "dispatch-admission";
+  try {
+    await options.beforeDispatch?.(
+      substackCommentDispatchEvent("comments.create", started, verified),
+    );
+    started = 1;
+    failureStage = "comment-create-transport";
+    const createdResponse = await publicationClient.requestJson({
+      url: new URL(`/api/v1/post/${plan.articleId}/comment`, context.origin),
+      method: "POST",
+      headers: Object.freeze({
+        ...jsonPostHeaders(),
+        referer: `${context.origin}/`,
+      }),
+      body: JSON.stringify({ body: plan.body }),
+      expectedStatuses: [200, 201],
+      expectedContentTypes: ["application/json"],
+      maxBytes: boundedMaximum(recipe),
+    });
+    try {
+      commentId = parseCreatedSubstackComment(createdResponse, reboundViewer, {
+        body: plan.body,
+        postId: plan.articleId,
+        publicationId: plan.publicationId,
+        parentId: null,
+        noteKind: false,
+      });
+    } catch (error) {
+      failureStage = error instanceof SubstackCommentCreateBindingError
+        ? error.stage
+        : "comment-create-response-object";
+      throw error;
+    }
+    failureStage = "accepted-target-recording";
+    await options.afterProviderAcceptedMutationTarget?.({
+      id: "comments.create",
+      index: 1,
+      target: {
+        schemaVersion: 1,
+        identifier: substackAcceptedCommentTargetIdentifier({
+          commentId,
+          postId: plan.articleId,
+          publicationId: plan.publicationId,
+          parentId: null,
+        }),
+      },
+    });
+    failureStage = "comment-readback";
+    const comment = await readExactSubstackCommentAfterCreate(
+      client,
+      recipe,
+      {
+        commentId,
+        userId: reboundViewer.id,
+        postId: plan.articleId,
+        publicationId: plan.publicationId,
+        body: plan.body,
+        parentId: null,
+      },
+      options,
+    );
+    verified = 1;
+    failureStage = "verification-recording";
+    await options.afterDispatchVerified?.(
+      substackCommentDispatchEvent("comments.create", started, verified),
+    );
+    return {
+      status: "succeeded",
+      output: Object.freeze({ comment }),
+      finalUrl: context.canonicalUrl ?? context.origin,
+      dispatchStarted: true,
+      dispatch: { planned: 1, started, verified },
+    };
+  } catch {
+    return {
+      status: started > 0 ? "indeterminate" : "failed",
+      output: null,
+      finalUrl: context.canonicalUrl ?? context.origin,
+      dispatchStarted: started > 0,
+      dispatch: { planned: 1, started, verified },
+      error: started > 0
+        ? `Substack may have accepted the comment but exact actor, body, and target readback was not verified; reconcile before retrying (stage: ${failureStage})`
+        : `Substack comment dispatch failed before submission (stage: ${failureStage})`,
+    };
+  }
+}
+
+/** Publish one confirmed reply beneath an exact Note or article comment. */
+async function executeSubstackReplyCreate(
+  client: WebSessionClient,
+  recipe: WebSessionRecipe,
+  viewer: SubstackWebViewer,
+  auth: GhostgetAuth,
+  input: OperationInput,
+  options: {
+    readonly signal?: AbortSignal;
+    readonly operationDeadline?: WebSessionOperationDeadline;
+    readonly beforeDispatch?: (event: WebSessionDispatchEvent) => Promise<void>;
+    readonly afterProviderAcceptedMutationTarget?: (
+      event: WebSessionProviderAcceptedMutationTargetEvent,
+    ) => Promise<void>;
+    readonly afterDispatchVerified?: (event: WebSessionDispatchEvent) => Promise<void>;
+    readonly sleep: SubstackWebSleep;
+    readonly dependencies?: SubstackWebRuntimeDependencies;
+  },
+): Promise<WebSessionExecution> {
+  const plan = prepareSubstackReplyCreateInput(input);
+  let failureStage: SubstackCommentCreateFailureStage = "dispatch-admission";
+  let postId: number | null = null;
+  let publicationId: number | null = null;
+  let writeOrigin = SUBSTACK_ORIGIN;
+  let finalUrl = SUBSTACK_ORIGIN;
+  try {
+    failureStage = "parent-preflight";
+    const parent = await readExactSubstackComment(client, recipe, plan.parentId);
+    if (plan.parentType === "note") {
+      if (
+        parent.comment.type !== "feed"
+        || parent.comment.postId !== null
+        || parent.comment.publicationId !== null
+      ) throw new Error("Substack reply parent did not bind a Note entity");
+      finalUrl = SUBSTACK_ORIGIN;
+    } else {
+      if (parent.comment.postId === null || parent.comment.publicationId === null) {
+        throw new Error("Substack reply parent did not bind an article comment");
+      }
+      postId = parent.comment.postId;
+      publicationId = parent.comment.publicationId;
+      failureStage = "article-preflight";
+      const context = await resolveSubstackArticleWriteContext(
+        client,
+        recipe,
+        postId,
+        publicationId,
+      );
+      writeOrigin = context.origin;
+      finalUrl = context.canonicalUrl ?? context.origin;
+    }
+  } catch (error) {
+    if (error instanceof SubstackCommentCreateBindingError) throw error;
+    return {
+      status: "failed",
+      output: null,
+      finalUrl,
+      dispatchStarted: false,
+      dispatch: { planned: 1, started: 0, verified: 0 },
+      error: `Substack reply dispatch failed before submission (stage: ${failureStage})`,
+    };
+  }
+  const reboundViewer = await currentViewer(client, boundedMaximum(recipe));
+  if (viewerSubject(reboundViewer) !== viewerSubject(viewer)) {
+    throw new Error("Substack current viewer changed before the reply dispatch");
+  }
+  let started = 0;
+  let verified = 0;
+  let replyId: number | null = null;
+  let publicationClient: WebSessionClient | null = null;
+  if (plan.parentType === "comment") {
+    failureStage = "article-preflight";
+    try {
+      publicationClient = await createWebSessionClient(writeOrigin, auth, {
+        timeoutMs: recipe.timeoutMs,
+        ...(options.signal === undefined ? {} : { signal: options.signal }),
+        ...(options.operationDeadline === undefined
+          ? {}
+          : { operationDeadline: options.operationDeadline }),
+        ...(options.dependencies === undefined ? {} : { dependencies: options.dependencies }),
+      });
+    } catch {
+      return {
+        status: "failed",
+        output: null,
+        finalUrl,
+        dispatchStarted: false,
+        dispatch: { planned: 1, started: 0, verified: 0 },
+        error: `Substack reply dispatch failed before submission (stage: ${failureStage})`,
+      };
+    }
+  }
+  failureStage = "dispatch-admission";
+  try {
+    await options.beforeDispatch?.(
+      substackCommentDispatchEvent("replies.create", started, verified),
+    );
+    started = 1;
+    failureStage = "comment-create-transport";
+    let createdResponse: unknown;
+    if (plan.parentType === "note") {
+      createdResponse = await client.requestJson({
+        url: new URL("/api/v1/comment/feed", SUBSTACK_ORIGIN),
+        method: "POST",
+        headers: jsonPostHeaders(),
+        body: JSON.stringify({
+          bodyJson: substackBodyJson(plan.body),
+          parent_id: plan.parentId,
+        }),
+        expectedStatuses: [200],
+        expectedContentTypes: ["application/json"],
+        maxBytes: boundedMaximum(recipe),
+      });
+    } else {
+      if (publicationClient === null) throw new Error("Substack reply publication client was not prepared");
+      createdResponse = await publicationClient.requestJson({
+        url: new URL(`/api/v1/post/${postId}/comment`, writeOrigin),
+        method: "POST",
+        headers: Object.freeze({
+          ...jsonPostHeaders(),
+          referer: `${writeOrigin}/`,
+        }),
+        body: JSON.stringify({ body: plan.body, parent_id: plan.parentId }),
+        expectedStatuses: [200, 201],
+        expectedContentTypes: ["application/json"],
+        maxBytes: boundedMaximum(recipe),
+      });
+    }
+    try {
+      replyId = parseCreatedSubstackComment(createdResponse, reboundViewer, {
+        body: plan.body,
+        postId,
+        publicationId,
+        parentId: plan.parentId,
+        noteKind: plan.parentType === "note",
+      });
+    } catch (error) {
+      failureStage = error instanceof SubstackCommentCreateBindingError
+        ? error.stage
+        : "comment-create-response-object";
+      throw error;
+    }
+    failureStage = "accepted-target-recording";
+    await options.afterProviderAcceptedMutationTarget?.({
+      id: "replies.create",
+      index: 1,
+      target: {
+        schemaVersion: 1,
+        identifier: substackAcceptedCommentTargetIdentifier({
+          commentId: replyId,
+          postId,
+          publicationId,
+          parentId: plan.parentId,
+        }),
+      },
+    });
+    failureStage = "comment-readback";
+    const reply = await readExactSubstackCommentAfterCreate(
+      client,
+      recipe,
+      {
+        commentId: replyId,
+        userId: reboundViewer.id,
+        postId,
+        publicationId,
+        body: plan.body,
+        parentId: plan.parentId,
+      },
+      options,
+    );
+    verified = 1;
+    failureStage = "verification-recording";
+    await options.afterDispatchVerified?.(
+      substackCommentDispatchEvent("replies.create", started, verified),
+    );
+    return {
+      status: "succeeded",
+      output: Object.freeze({ reply }),
+      finalUrl: replyUrl(reboundViewer, plan, replyId, finalUrl),
+      dispatchStarted: true,
+      dispatch: { planned: 1, started, verified },
+    };
+  } catch {
+    return {
+      status: started > 0 ? "indeterminate" : "failed",
+      output: null,
+      finalUrl: replyId === null ? finalUrl : replyUrl(reboundViewer, plan, replyId, finalUrl),
+      dispatchStarted: started > 0,
+      dispatch: { planned: 1, started, verified },
+      error: started > 0
+        ? `Substack may have accepted the reply but exact actor, body, and parent readback was not verified; reconcile before retrying (stage: ${failureStage})`
+        : `Substack reply dispatch failed before submission (stage: ${failureStage})`,
+    };
+  }
+}
+
+function replyUrl(
+  viewer: SubstackWebViewer,
+  plan: SubstackReplyCreatePlan,
+  replyId: number,
+  articleUrl: string,
+): string {
+  if (plan.parentType === "note" && viewer.handle !== null) {
+    return substackNoteUrl(viewer.handle, replyId);
+  }
+  return articleUrl;
+}
+
 async function executeSubstackPersonalNoteDelete(
   client: WebSessionClient,
   recipe: WebSessionRecipe,
@@ -3120,6 +3991,8 @@ export async function executeSubstackWebOperation(
     && recipe.action !== "organizations.read"
     && recipe.action !== "posts.publish"
     && recipe.action !== "content.delete"
+    && recipe.action !== "comments.create"
+    && recipe.action !== "replies.create"
     && !isSubstackSubscriberOperation(recipe.action)
   ) throw new Error(`Substack authenticated web operation ${recipe.action} has no executable reviewed contract`);
   if (isSubstackSubscriberOperation(recipe.action)) {
@@ -3199,6 +4072,18 @@ export async function executeSubstackWebOperation(
   }
   if (recipe.action === "content.delete") {
     return executeSubstackPersonalNoteDelete(client, recipe, viewer, input, {
+      ...options,
+      sleep: options.dependencies?.sleep ?? sleepForSubstackReadback,
+    });
+  }
+  if (recipe.action === "comments.create") {
+    return executeSubstackCommentCreate(client, recipe, viewer, auth, input, {
+      ...options,
+      sleep: options.dependencies?.sleep ?? sleepForSubstackReadback,
+    });
+  }
+  if (recipe.action === "replies.create") {
+    return executeSubstackReplyCreate(client, recipe, viewer, auth, input, {
       ...options,
       sleep: options.dependencies?.sleep ?? sleepForSubstackReadback,
     });

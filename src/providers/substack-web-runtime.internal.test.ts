@@ -29,9 +29,12 @@ import {
   parseSubstackVideoUploadRecoveryTargetIdentifier,
   parseSubstackVideoUploadState,
   planSubstackVideoMultipartParts,
+  prepareSubstackCommentCreateInput,
   prepareSubstackPersonalNoteDeleteInput,
+  prepareSubstackReplyCreateInput,
   prepareSubstackVideoNotePublishInput,
   probeSubstackWebSubject,
+  readSubstackWebAcceptedCommentTargetPresence,
   readSubstackWebAcceptedNoteTargetPresence,
   readSubstackWebContentDeleteDesiredState,
   revalidateAndSnapshotSubstackVideoMultipartDispatch,
@@ -510,6 +513,42 @@ describe("Substack authenticated internal API runtime", () => {
       expected_body: NOTE_BODY,
       note_id: 0,
     })).toThrow("input.note_id");
+    expect(prepareSubstackCommentCreateInput({
+      article_id: ARTICLE_ID,
+      publication_id: PUBLICATION_ID,
+      body: COMMENT_BODY,
+    })).toEqual({
+      articleId: ARTICLE_ID,
+      publicationId: PUBLICATION_ID,
+      body: COMMENT_BODY,
+    });
+    expect(prepareSubstackReplyCreateInput({
+      parent_type: "note",
+      parent_id: `${PARENT_NOTE_ID}`,
+      body: REPLY_BODY,
+    })).toEqual({ parentType: "note", parentId: PARENT_NOTE_ID, body: REPLY_BODY });
+    expect(prepareSubstackReplyCreateInput({
+      parent_type: "comment",
+      parent_id: `${PARENT_COMMENT_ID}`,
+      body: REPLY_BODY,
+    })).toEqual({ parentType: "comment", parentId: PARENT_COMMENT_ID, body: REPLY_BODY });
+    for (const input of [
+      { article_id: ARTICLE_ID, publication_id: PUBLICATION_ID, body: COMMENT_BODY, extra: true },
+      { article_id: ARTICLE_ID, body: COMMENT_BODY },
+      { article_id: ARTICLE_ID, publication_id: PUBLICATION_ID, body: "" },
+      { article_id: ARTICLE_ID, publication_id: PUBLICATION_ID, body: "x".repeat(1_001) },
+    ]) {
+      expect(() => prepareSubstackCommentCreateInput(input)).toThrow();
+    }
+    for (const input of [
+      { parent_type: "chat", parent_id: "1", body: REPLY_BODY },
+      { parent_type: "thread", parent_id: "1", body: REPLY_BODY },
+      { parent_type: "note", parent_id: "abc", body: REPLY_BODY },
+      { parent_type: "note", parent_id: "0", body: REPLY_BODY },
+      { parent_type: "note", parent_id: "1", body: REPLY_BODY, extra: true },
+    ]) {
+      expect(() => prepareSubstackReplyCreateInput(input)).toThrow();
+    }
   });
 
   test("materializes one stable plan-bound MP4 with exact duration and dimensions", async () => {
@@ -2386,5 +2425,678 @@ describe("Substack authenticated internal API runtime", () => {
       },
     )).rejects.toThrow("did not match");
     expect(calls.at(-1)?.url.pathname).toBe(`/api/v1/posts/by-id/${ARTICLE_ID}`);
+  });
+});
+
+const COMMENT_BODY = "a comment bound to this article";
+const REPLY_BODY = "a reply bound to its parent";
+const NEW_COMMENT_ID = 606;
+const PARENT_COMMENT_ID = 707;
+const PARENT_NOTE_ID = 808;
+const NEW_REPLY_ID = 909;
+const PUBLICATION_ORIGIN = "https://wrench-owned.substack.com";
+const ARTICLE_CANONICAL_URL = "https://wrench-owned.substack.com/p/article";
+
+function articleResponse(overrides: Readonly<Record<string, unknown>> = {}): unknown {
+  return {
+    post: {
+      id: ARTICLE_ID,
+      publication_id: PUBLICATION_ID,
+      canonical_url: ARTICLE_CANONICAL_URL,
+      title: "Article",
+    },
+    publication: { id: PUBLICATION_ID, subdomain: "wrench-owned" },
+    ...overrides,
+  };
+}
+
+function createdComment(
+  id: number,
+  overrides: Readonly<Record<string, unknown>> = {},
+): unknown {
+  return {
+    id,
+    user_id: USER_ID,
+    post_id: ARTICLE_ID,
+    publication_id: PUBLICATION_ID,
+    body: COMMENT_BODY,
+    ancestor_path: "",
+    deleted: false,
+    type: "comment",
+    name: "Ghostget Reader",
+    reactions: {},
+    reaction: null,
+    status: "published",
+    reply_minimum_role: null,
+    metadata: { is_author: true },
+    reactor_names: [],
+    ...overrides,
+  };
+}
+
+function commentReadback(
+  id: number,
+  commentOverrides: Readonly<Record<string, unknown>> = {},
+): unknown {
+  return {
+    item: {
+      entity_key: `c-${id}`,
+      type: "comment",
+      comment: createdComment(id, commentOverrides),
+      post: null,
+      publication: null,
+    },
+  };
+}
+
+function noteParentReadback(
+  overrides: Readonly<Record<string, unknown>> = {},
+): unknown {
+  return {
+    item: {
+      entity_key: `c-${PARENT_NOTE_ID}`,
+      type: "comment",
+      comment: {
+        id: PARENT_NOTE_ID,
+        user_id: 55,
+        publication_id: null,
+        post_id: null,
+        body: "Parent note",
+        type: "feed",
+        reactions: {},
+        attachments: [],
+        ...overrides,
+      },
+      post: null,
+      publication: null,
+    },
+  };
+}
+
+function parentCommentReadback(
+  overrides: Readonly<Record<string, unknown>> = {},
+): unknown {
+  return {
+    item: {
+      entity_key: `c-${PARENT_COMMENT_ID}`,
+      type: "comment",
+      comment: {
+        id: PARENT_COMMENT_ID,
+        user_id: 55,
+        publication_id: PUBLICATION_ID,
+        post_id: ARTICLE_ID,
+        body: "Parent comment",
+        type: "comment",
+        reactions: {},
+        attachments: [],
+        ancestor_path: null,
+        ...overrides,
+      },
+      post: null,
+      publication: null,
+    },
+  };
+}
+
+function replyBodyJson(body = REPLY_BODY): unknown {
+  return {
+    type: "doc",
+    attrs: { schemaVersion: "v1", title: null },
+    content: [{
+      type: "paragraph",
+      content: [{ type: "text", text: body }],
+    }],
+  };
+}
+
+function createdReply(
+  overrides: Readonly<Record<string, unknown>> = {},
+): unknown {
+  return {
+    id: NEW_REPLY_ID,
+    user_id: USER_ID,
+    post_id: null,
+    publication_id: null,
+    body: REPLY_BODY,
+    ancestor_path: `${PARENT_NOTE_ID}`,
+    deleted: false,
+    type: "feed",
+    name: "Ghostget Reader",
+    reactions: {},
+    ...overrides,
+  };
+}
+
+function replyReadback(
+  commentOverrides: Readonly<Record<string, unknown>> = {},
+): unknown {
+  return {
+    item: {
+      entity_key: `c-${NEW_REPLY_ID}`,
+      type: "comment",
+      comment: createdReply(commentOverrides),
+      post: null,
+      publication: null,
+    },
+  };
+}
+
+describe("Substack article comments and replies", () => {
+  test("publishes one top-level article comment through the exact bound publication origin and verifies independent readback", async () => {
+    const calls: CapturedRequest[] = [];
+    const events: string[] = [];
+    const result = await executeSubstackWebOperation(
+      recipe("comments.create"),
+      { article_id: ARTICLE_ID, publication_id: PUBLICATION_ID, body: COMMENT_BODY },
+      boundAuth,
+      {
+        beforeDispatch: (event) => {
+          events.push(`before ${event.id}:${event.progress.started}`);
+          return Promise.resolve();
+        },
+        afterProviderAcceptedMutationTarget: (event) => {
+          events.push(`accepted ${event.target.identifier}`);
+          return Promise.resolve();
+        },
+        afterDispatchVerified: (event) => {
+          events.push(`after ${event.progress.verified}`);
+          return Promise.resolve();
+        },
+        dependencies: {
+          ...dependencies(calls, (request) => {
+            events.push(`${request.method} ${request.url.origin}${request.url.pathname}`);
+            const bootstrap = bootstrapResponse(request);
+            if (bootstrap !== null) return bootstrap;
+            if (
+              request.method === "GET"
+              && request.url.pathname === `/api/v1/posts/by-id/${ARTICLE_ID}`
+            ) return jsonResponse(articleResponse());
+            if (
+              request.method === "POST"
+              && request.url.pathname === `/api/v1/post/${ARTICLE_ID}/comment`
+            ) {
+              expect(request.url.origin).toBe(PUBLICATION_ORIGIN);
+              expect(JSON.parse(request.body ?? "null")).toEqual({
+                body: COMMENT_BODY,
+              });
+              return jsonResponse(createdComment(NEW_COMMENT_ID));
+            }
+            if (
+              request.method === "GET"
+              && request.url.pathname === `/api/v1/reader/comment/${NEW_COMMENT_ID}`
+            ) return jsonResponse(commentReadback(NEW_COMMENT_ID));
+            throw new Error(
+              `unexpected ${request.method} ${request.url.origin}${request.url.pathname}`,
+            );
+          }),
+          sleep: () => Promise.resolve(),
+        },
+      },
+    );
+    expect(result).toMatchObject({
+      status: "succeeded",
+      finalUrl: ARTICLE_CANONICAL_URL,
+      dispatchStarted: true,
+      dispatch: { planned: 1, started: 1, verified: 1 },
+    });
+    expect(events).toEqual([
+      "GET https://substack.com/api/v1/am_i_logged_in",
+      "GET https://substack.com/",
+      `GET https://substack.com/api/v1/posts/by-id/${ARTICLE_ID}`,
+      "GET https://substack.com/api/v1/am_i_logged_in",
+      "GET https://substack.com/",
+      "before comments.create:0",
+      `POST ${PUBLICATION_ORIGIN}/api/v1/post/${ARTICLE_ID}/comment`,
+      `accepted ${canonicalJson({
+        commentId: NEW_COMMENT_ID,
+        parentId: null,
+        postId: ARTICLE_ID,
+        publicationId: PUBLICATION_ID,
+      })}`,
+      `GET https://substack.com/api/v1/reader/comment/${NEW_COMMENT_ID}`,
+      "after 1",
+    ]);
+  });
+
+  test("rejects a mismatched article publication before any comment dispatch", async () => {
+    const calls: CapturedRequest[] = [];
+    const result = await executeSubstackWebOperation(
+      recipe("comments.create"),
+      { article_id: ARTICLE_ID, publication_id: PUBLICATION_ID + 1, body: COMMENT_BODY },
+      boundAuth,
+      {
+        beforeDispatch: () => Promise.reject(new Error("dispatch must not run")),
+        dependencies: dependencies(calls, (request) => {
+          const bootstrap = bootstrapResponse(request);
+          if (bootstrap !== null) return bootstrap;
+          if (request.url.pathname === `/api/v1/posts/by-id/${ARTICLE_ID}`) {
+            return jsonResponse(articleResponse());
+          }
+          throw new Error("comment dispatch must not run");
+        }),
+      },
+    );
+    expect(result).toMatchObject({
+      status: "failed",
+      dispatchStarted: false,
+      dispatch: { planned: 1, started: 0, verified: 0 },
+    });
+    expect(result.error).toContain("article-preflight");
+    expect(calls.map((call) => call.url.pathname)).not.toContain(
+      `/api/v1/post/${ARTICLE_ID}/comment`,
+    );
+  });
+
+  test("returns indeterminate when the article comment response does not bind the confirmed body", async () => {
+    const calls: CapturedRequest[] = [];
+    const accepted: string[] = [];
+    const result = await executeSubstackWebOperation(
+      recipe("comments.create"),
+      { article_id: ARTICLE_ID, publication_id: PUBLICATION_ID, body: COMMENT_BODY },
+      boundAuth,
+      {
+        beforeDispatch: () => Promise.resolve(),
+        afterProviderAcceptedMutationTarget: (event) => {
+          accepted.push(event.target.identifier);
+          return Promise.resolve();
+        },
+        dependencies: {
+          ...dependencies(calls, (request) => {
+            const bootstrap = bootstrapResponse(request);
+            if (bootstrap !== null) return bootstrap;
+            if (request.url.pathname === `/api/v1/posts/by-id/${ARTICLE_ID}`) {
+              return jsonResponse(articleResponse());
+            }
+            if (
+              request.method === "POST"
+              && request.url.pathname === `/api/v1/post/${ARTICLE_ID}/comment`
+            ) {
+              return jsonResponse(createdComment(NEW_COMMENT_ID, { body: "different" }));
+            }
+            throw new Error("readback must not run after a binding failure");
+          }),
+          sleep: () => Promise.resolve(),
+        },
+      },
+    );
+    expect(result).toMatchObject({
+      status: "indeterminate",
+      dispatchStarted: true,
+      dispatch: { planned: 1, started: 1, verified: 0 },
+    });
+    expect(result.error).toContain("comment-create-body");
+    expect(accepted).toEqual([]);
+  });
+
+  test("returns indeterminate when the accepted article comment cannot be read back", async () => {
+    const calls: CapturedRequest[] = [];
+    const accepted: string[] = [];
+    const result = await executeSubstackWebOperation(
+      recipe("comments.create"),
+      { article_id: ARTICLE_ID, publication_id: PUBLICATION_ID, body: COMMENT_BODY },
+      boundAuth,
+      {
+        beforeDispatch: () => Promise.resolve(),
+        afterProviderAcceptedMutationTarget: (event) => {
+          accepted.push(event.target.identifier);
+          return Promise.resolve();
+        },
+        dependencies: {
+          ...dependencies(calls, (request) => {
+            const bootstrap = bootstrapResponse(request);
+            if (bootstrap !== null) return bootstrap;
+            if (request.url.pathname === `/api/v1/posts/by-id/${ARTICLE_ID}`) {
+              return jsonResponse(articleResponse());
+            }
+            if (
+              request.method === "POST"
+              && request.url.pathname === `/api/v1/post/${ARTICLE_ID}/comment`
+            ) {
+              return jsonResponse(createdComment(NEW_COMMENT_ID));
+            }
+            if (request.url.pathname === `/api/v1/reader/comment/${NEW_COMMENT_ID}`) {
+              return jsonResponse(commentReadback(NEW_COMMENT_ID, { body: "other" }));
+            }
+            throw new Error("unexpected request");
+          }),
+          sleep: () => Promise.resolve(),
+        },
+      },
+    );
+    expect(result).toMatchObject({
+      status: "indeterminate",
+      dispatchStarted: true,
+      dispatch: { planned: 1, started: 1, verified: 0 },
+    });
+    expect(result.error).toContain("comment-readback");
+    expect(accepted).toEqual([canonicalJson({
+      commentId: NEW_COMMENT_ID,
+      parentId: null,
+      postId: ARTICLE_ID,
+      publicationId: PUBLICATION_ID,
+    })]);
+  });
+
+  test("publishes one reply beneath an exact Note through the central feed exchange", async () => {
+    const calls: CapturedRequest[] = [];
+    const result = await executeSubstackWebOperation(
+      recipe("replies.create"),
+      { parent_type: "note", parent_id: `${PARENT_NOTE_ID}`, body: REPLY_BODY },
+      boundAuth,
+      {
+        beforeDispatch: () => Promise.resolve(),
+        dependencies: {
+          ...dependencies(calls, (request) => {
+            const bootstrap = bootstrapResponse(request);
+            if (bootstrap !== null) return bootstrap;
+            if (
+              request.method === "GET"
+              && request.url.pathname === `/api/v1/reader/comment/${PARENT_NOTE_ID}`
+            ) return jsonResponse(noteParentReadback());
+            if (
+              request.method === "POST"
+              && request.url.pathname === "/api/v1/comment/feed"
+            ) {
+              expect(request.url.origin).toBe("https://substack.com");
+              expect(JSON.parse(request.body ?? "null")).toEqual({
+                bodyJson: replyBodyJson(),
+                parent_id: PARENT_NOTE_ID,
+              });
+              return jsonResponse(createdReply());
+            }
+            if (
+              request.method === "GET"
+              && request.url.pathname === `/api/v1/reader/comment/${NEW_REPLY_ID}`
+            ) return jsonResponse(replyReadback());
+            throw new Error(
+              `unexpected ${request.method} ${request.url.origin}${request.url.pathname}`,
+            );
+          }),
+          sleep: () => Promise.resolve(),
+        },
+      },
+    );
+    expect(result).toMatchObject({
+      status: "succeeded",
+      finalUrl: `https://substack.com/@wrench-reader/note/c-${NEW_REPLY_ID}`,
+      dispatchStarted: true,
+      dispatch: { planned: 1, started: 1, verified: 1 },
+    });
+  });
+
+  test("publishes one reply beneath an exact article comment through the publication origin", async () => {
+    const calls: CapturedRequest[] = [];
+    const result = await executeSubstackWebOperation(
+      recipe("replies.create"),
+      { parent_type: "comment", parent_id: `${PARENT_COMMENT_ID}`, body: REPLY_BODY },
+      boundAuth,
+      {
+        beforeDispatch: () => Promise.resolve(),
+        afterProviderAcceptedMutationTarget: (event) => {
+          expect(event.target.identifier).toBe(canonicalJson({
+            commentId: NEW_REPLY_ID,
+            parentId: PARENT_COMMENT_ID,
+            postId: ARTICLE_ID,
+            publicationId: PUBLICATION_ID,
+          }));
+          return Promise.resolve();
+        },
+        dependencies: {
+          ...dependencies(calls, (request) => {
+            const bootstrap = bootstrapResponse(request);
+            if (bootstrap !== null) return bootstrap;
+            if (
+              request.method === "GET"
+              && request.url.pathname === `/api/v1/reader/comment/${PARENT_COMMENT_ID}`
+            ) return jsonResponse(parentCommentReadback());
+            if (
+              request.method === "GET"
+              && request.url.pathname === `/api/v1/posts/by-id/${ARTICLE_ID}`
+            ) return jsonResponse(articleResponse());
+            if (
+              request.method === "POST"
+              && request.url.pathname === `/api/v1/post/${ARTICLE_ID}/comment`
+            ) {
+              expect(request.url.origin).toBe(PUBLICATION_ORIGIN);
+              expect(JSON.parse(request.body ?? "null")).toEqual({
+                body: REPLY_BODY,
+                parent_id: PARENT_COMMENT_ID,
+              });
+              return jsonResponse(createdReply({
+                post_id: ARTICLE_ID,
+                publication_id: PUBLICATION_ID,
+                ancestor_path: `${PARENT_COMMENT_ID}.${NEW_REPLY_ID}`,
+                type: "comment",
+              }));
+            }
+            if (
+              request.method === "GET"
+              && request.url.pathname === `/api/v1/reader/comment/${NEW_REPLY_ID}`
+            ) {
+              return jsonResponse(replyReadback({
+                post_id: ARTICLE_ID,
+                publication_id: PUBLICATION_ID,
+                ancestor_path: `${PARENT_COMMENT_ID}.${NEW_REPLY_ID}`,
+                type: "comment",
+              }));
+            }
+            throw new Error(
+              `unexpected ${request.method} ${request.url.origin}${request.url.pathname}`,
+            );
+          }),
+          sleep: () => Promise.resolve(),
+        },
+      },
+    );
+    expect(result).toMatchObject({
+      status: "succeeded",
+      finalUrl: ARTICLE_CANONICAL_URL,
+      dispatchStarted: true,
+      dispatch: { planned: 1, started: 1, verified: 1 },
+    });
+  });
+
+  test("refuses chat parents without touching the provider", async () => {
+    const calls: CapturedRequest[] = [];
+    await expect(executeSubstackWebOperation(
+      recipe("replies.create"),
+      { parent_type: "chat", parent_id: "404", body: REPLY_BODY },
+      boundAuth,
+      {
+        beforeDispatch: () => Promise.reject(new Error("dispatch must not run")),
+        dependencies: dependencies(calls, (request) => {
+          const bootstrap = bootstrapResponse(request);
+          if (bootstrap !== null) return bootstrap;
+          throw new Error("reply dispatch must not run");
+        }),
+      },
+    )).rejects.toThrow("capture-required");
+    expect(calls.map((call) => call.url.pathname)).toEqual([
+      "/api/v1/am_i_logged_in",
+      "/",
+    ]);
+  });
+
+  test("rejects a Note-id bound as a comment parent before any reply dispatch", async () => {
+    const calls: CapturedRequest[] = [];
+    const result = await executeSubstackWebOperation(
+      recipe("replies.create"),
+      { parent_type: "comment", parent_id: `${PARENT_NOTE_ID}`, body: REPLY_BODY },
+      boundAuth,
+      {
+        beforeDispatch: () => Promise.reject(new Error("dispatch must not run")),
+        dependencies: dependencies(calls, (request) => {
+          const bootstrap = bootstrapResponse(request);
+          if (bootstrap !== null) return bootstrap;
+          if (request.url.pathname === `/api/v1/reader/comment/${PARENT_NOTE_ID}`) {
+            return jsonResponse(noteParentReadback());
+          }
+          throw new Error("reply dispatch must not run");
+        }),
+      },
+    );
+    expect(result).toMatchObject({
+      status: "failed",
+      dispatchStarted: false,
+      dispatch: { planned: 1, started: 0, verified: 0 },
+    });
+    expect(result.error).toContain("parent-preflight");
+  });
+
+  test("rejects a created reply whose ancestor path omits the bound parent", async () => {
+    const calls: CapturedRequest[] = [];
+    const result = await executeSubstackWebOperation(
+      recipe("replies.create"),
+      { parent_type: "note", parent_id: `${PARENT_NOTE_ID}`, body: REPLY_BODY },
+      boundAuth,
+      {
+        beforeDispatch: () => Promise.resolve(),
+        dependencies: {
+          ...dependencies(calls, (request) => {
+            const bootstrap = bootstrapResponse(request);
+            if (bootstrap !== null) return bootstrap;
+            if (request.url.pathname === `/api/v1/reader/comment/${PARENT_NOTE_ID}`) {
+              return jsonResponse(noteParentReadback());
+            }
+            if (request.url.pathname === "/api/v1/comment/feed") {
+              return jsonResponse(createdReply({ ancestor_path: "999" }));
+            }
+            throw new Error("readback must not run after an ancestor binding failure");
+          }),
+          sleep: () => Promise.resolve(),
+        },
+      },
+    );
+    expect(result).toMatchObject({
+      status: "indeterminate",
+      dispatchStarted: true,
+      dispatch: { planned: 1, started: 1, verified: 0 },
+    });
+    expect(result.error).toContain("comment-create-parent");
+  });
+
+  test("never sends parent_comment_id in any reply or comment payload", async () => {
+    const calls: CapturedRequest[] = [];
+    for (const [action, input] of [
+      ["comments.create", { article_id: ARTICLE_ID, publication_id: PUBLICATION_ID, body: COMMENT_BODY }],
+      ["replies.create", { parent_type: "note", parent_id: `${PARENT_NOTE_ID}`, body: REPLY_BODY }],
+      ["replies.create", { parent_type: "comment", parent_id: `${PARENT_COMMENT_ID}`, body: REPLY_BODY }],
+    ] as const) {
+      await executeSubstackWebOperation(
+        recipe(action),
+        input,
+        boundAuth,
+        {
+          beforeDispatch: () => Promise.resolve(),
+          dependencies: {
+            ...dependencies(calls, (request) => {
+              const bootstrap = bootstrapResponse(request);
+              if (bootstrap !== null) return bootstrap;
+              if (request.url.pathname === `/api/v1/posts/by-id/${ARTICLE_ID}`) {
+                return jsonResponse(articleResponse());
+              }
+              if (request.url.pathname === `/api/v1/reader/comment/${PARENT_NOTE_ID}`) {
+                return jsonResponse(noteParentReadback());
+              }
+              if (request.url.pathname === `/api/v1/reader/comment/${PARENT_COMMENT_ID}`) {
+                return jsonResponse(parentCommentReadback());
+              }
+              if (request.url.pathname === `/api/v1/reader/comment/${NEW_COMMENT_ID}`) {
+                return jsonResponse(commentReadback(NEW_COMMENT_ID));
+              }
+              if (request.url.pathname === `/api/v1/reader/comment/${NEW_REPLY_ID}`) {
+                return jsonResponse(replyReadback(
+                  action === "replies.create" && input.parent_type === "comment"
+                    ? {
+                        post_id: ARTICLE_ID,
+                        publication_id: PUBLICATION_ID,
+                        ancestor_path: `${PARENT_COMMENT_ID}`,
+                        type: "comment",
+                      }
+                    : {},
+                ));
+              }
+              if (request.method === "POST") {
+                expect(request.body ?? "").not.toContain("parent_comment_id");
+                if (action === "comments.create") {
+                  expect(request.body ?? "").not.toContain("parent_id");
+                }
+                return jsonResponse(
+                  request.url.pathname === "/api/v1/comment/feed"
+                    ? createdReply()
+                    : input.parent_type === "comment"
+                      ? createdReply({
+                          post_id: ARTICLE_ID,
+                          publication_id: PUBLICATION_ID,
+                          ancestor_path: `${PARENT_COMMENT_ID}`,
+                          type: "comment",
+                        })
+                      : createdComment(NEW_COMMENT_ID),
+                );
+              }
+              throw new Error("unexpected request");
+            }),
+            sleep: () => Promise.resolve(),
+          },
+        },
+      );
+    }
+    const posts = calls.filter((call) => call.method === "POST");
+    expect(posts).toHaveLength(3);
+  });
+
+  test("reads only the exact accepted comment target for later presence reconciliation", async () => {
+    const calls: CapturedRequest[] = [];
+    const identifier = canonicalJson({
+      commentId: NEW_COMMENT_ID,
+      parentId: null,
+      postId: ARTICLE_ID,
+      publicationId: PUBLICATION_ID,
+    });
+    const result = await readSubstackWebAcceptedCommentTargetPresence(
+      recipe("comments.create"),
+      { article_id: ARTICLE_ID, publication_id: PUBLICATION_ID, body: COMMENT_BODY },
+      boundAuth,
+      identifier,
+      {
+        dependencies: dependencies(calls, (request) => {
+          const bootstrap = bootstrapResponse(request);
+          if (bootstrap !== null) return bootstrap;
+          if (request.url.pathname === `/api/v1/reader/comment/${NEW_COMMENT_ID}`) {
+            return jsonResponse(commentReadback(NEW_COMMENT_ID));
+          }
+          throw new Error(`unexpected ${request.method} ${request.url.pathname}`);
+        }),
+      },
+    );
+    expect(result).toEqual({ present: true, commentId: NEW_COMMENT_ID });
+    expect(calls.filter((call) => call.method === "POST")).toEqual([]);
+  });
+
+  test("fails closed when the article publication exposes no reviewed subdomain", async () => {
+    const calls: CapturedRequest[] = [];
+    const result = await executeSubstackWebOperation(
+      recipe("comments.create"),
+      { article_id: ARTICLE_ID, publication_id: PUBLICATION_ID, body: COMMENT_BODY },
+      boundAuth,
+      {
+        beforeDispatch: () => Promise.reject(new Error("dispatch must not run")),
+        dependencies: dependencies(calls, (request) => {
+          const bootstrap = bootstrapResponse(request);
+          if (bootstrap !== null) return bootstrap;
+          if (request.url.pathname === `/api/v1/posts/by-id/${ARTICLE_ID}`) {
+            return jsonResponse(articleResponse({
+              publication: { id: PUBLICATION_ID, subdomain: "not substack.example/x" },
+            }));
+          }
+          throw new Error("comment dispatch must not run");
+        }),
+      },
+    );
+    expect(result).toMatchObject({
+      status: "failed",
+      dispatchStarted: false,
+    });
+    expect(result.error).toContain("article-preflight");
   });
 });

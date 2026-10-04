@@ -430,6 +430,7 @@ const BEEPER_LOCAL_OPERATIONS = operationPolicies("beeper", [
 });
 const SUBSTACK_WEB_OPERATIONS = operationPolicies("substack", [
   "articles.read",
+  "comments.create",
   "comments.read",
   "content.delete",
   "feeds.read",
@@ -439,6 +440,7 @@ const SUBSTACK_WEB_OPERATIONS = operationPolicies("substack", [
   "posts.publish",
   "posts.read",
   "profiles.read",
+  "replies.create",
   "subscribers.export",
   "subscribers.import",
   "subscribers.import.status",
