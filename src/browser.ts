@@ -3901,7 +3901,10 @@ export async function createBrowserSession(
   };
   try {
     guardBrowserSetup(operationDeadline);
-    const sourceProfile = auth.kind === "browser-profile"
+    // A configured storage-state file seeds the contained context instead of
+    // cloning the profile: agent-browser cannot combine --profile with --state,
+    // and page storage in profile mode is off the record anyway.
+    const sourceProfile = auth.kind === "browser-profile" && auth.storageState === undefined
       ? profilePath(auth.profile)
       : null;
     if (sourceProfile !== null) {
@@ -3910,9 +3913,12 @@ export async function createBrowserSession(
       guardBrowserSetup(operationDeadline);
       globalArguments.push("--profile", clonedProfile.userDataPath);
       selectedProfileDirectory = clonedProfile.profileDirectory ?? null;
-    } else if (auth.kind === "browser-profile") {
+    } else if (auth.kind === "browser-profile" && auth.storageState === undefined) {
       guardBrowserSetup(operationDeadline);
       globalArguments.push("--profile", auth.profile);
+    }
+    if (auth.kind === "browser-profile" && auth.storageState !== undefined) {
+      globalArguments.push("--state", auth.storageState);
     }
     networkProxy = await runBrowserSetupStep(operationDeadline, () => {
       const creation = createNetworkProxy({

@@ -11,6 +11,11 @@ Commands
                                      Connect from exported cookies
   auth add <id> --browser-profile <name|path> --trust-profile-egress
                                      Use a whole Chrome profile
+                [--storage-state <path>]
+                                     Seed page storage (cookies + localStorage)
+                                     from a saved storage-state file instead of
+                                     cloning the profile; providers whose
+                                     sessions live in localStorage need this
   auth add <id> --oauth-provider <site> --token-file <path> --scopes <list>
   auth add <id> --linked-device <site> [--device-store <directory>]
   auth bind <id> --site <site> [--force]

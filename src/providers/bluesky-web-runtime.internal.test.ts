@@ -352,6 +352,100 @@ describe("Bluesky authenticated XRPC runtime", () => {
     expect(batches.flat(2)).not.toContain("fill");
   });
 
+  test("bootstraps the session from a reviewed storage-state file without launching a browser", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "gg-bsky-state-"));
+    try {
+      const statePath = join(directory, "state.json");
+      const storage = {
+        session: {
+          currentAccount: { did: VIEWER_DID },
+          accounts: [{
+            did: VIEWER_DID,
+            handle: "viewer.test",
+            accessJwt: ACCESS_TOKEN,
+            refreshJwt: REFRESH_TOKEN,
+            service: PDS_ORIGIN,
+          }],
+        },
+      };
+      writeFileSync(statePath, JSON.stringify({
+        cookies: [],
+        origins: [
+          {
+            origin: "https://example.com",
+            localStorage: [{ name: "BSKY_STORAGE", value: "{}" }],
+          },
+          {
+            origin: "https://bsky.app",
+            localStorage: [{ name: "BSKY_STORAGE", value: JSON.stringify(storage) }],
+          },
+        ],
+      }));
+      const seededAuth = {
+        schemaVersion: 1,
+        id: "bluesky-seeded",
+        kind: "browser-profile",
+        profile: "Arc Default",
+        storageState: statePath,
+        trustUnfilteredEgress: true,
+      } as const satisfies GhostgetAuth;
+      let launches = 0;
+      const calls: CapturedRequest[] = [];
+      const subject = await probeBlueskyWebSubject(seededAuth, {
+        dependencies: {
+          createBrowserSession: () => {
+            launches += 1;
+            return Promise.reject(new Error("browser must not launch"));
+          },
+          now: () => 2_000_000_000_000,
+          fetch: dependencies(calls, (request) => {
+            assertBaseRequest(request);
+            expect(nsid(request)).toBe("com.atproto.server.getSession");
+            return jsonResponse(sessionResponse());
+          }).fetch,
+        },
+      });
+      expect(subject).toBe(VIEWER_DID);
+      expect(launches).toBe(0);
+      expect(calls.map((request) => nsid(request))).toEqual(["com.atproto.server.getSession"]);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("fails closed when a storage-state file lacks the reviewed session", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "gg-bsky-state-"));
+    try {
+      const statePath = join(directory, "state.json");
+      writeFileSync(statePath, JSON.stringify({
+        cookies: [],
+        origins: [{
+          origin: "https://example.com",
+          localStorage: [{ name: "BSKY_STORAGE", value: "{}" }],
+        }],
+      }));
+      const seededAuth = {
+        schemaVersion: 1,
+        id: "bluesky-seeded",
+        kind: "browser-profile",
+        profile: "Arc Default",
+        storageState: statePath,
+        trustUnfilteredEgress: true,
+      } as const satisfies GhostgetAuth;
+      await expect(probeBlueskyWebSubject(seededAuth, {
+        dependencies: {
+          createBrowserSession: () => Promise.reject(new Error("browser must not launch")),
+          now: () => 2_000_000_000_000,
+          fetch: dependencies([], () => {
+            throw new Error("fetch must not run");
+          }).fetch,
+        },
+      })).rejects.toThrow("no reviewed session");
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
   test("passes the shared operation deadline into browser setup and batches", async () => {
     const operationDeadline = new OperationDeadline(1_000);
     const calls: CapturedRequest[] = [];

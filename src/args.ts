@@ -123,6 +123,7 @@ export type GhostgetArguments =
       readonly cookiesFile?: string;
       readonly browserProfile?: string;
       readonly browserExecutable?: string;
+      readonly storageState?: string;
       readonly oauthProvider?: OAuthProvider;
       readonly tokenFile?: string;
       readonly scopes?: readonly string[];
@@ -1404,6 +1405,7 @@ export function parseGhostgetArguments(raw: readonly string[]): ParseGhostgetRes
           "--cookies-file",
           "--browser-profile",
           "--browser-executable",
+          "--storage-state",
           "--oauth-provider",
           "--token-file",
           "--scopes",
@@ -1419,6 +1421,7 @@ export function parseGhostgetArguments(raw: readonly string[]): ParseGhostgetRes
       const cookiesFile = parsed.values["--cookies-file"];
       const browserProfile = parsed.values["--browser-profile"];
       const browserExecutable = parsed.values["--browser-executable"];
+      const storageState = parsed.values["--storage-state"];
       const oauthProvider = parsed.values["--oauth-provider"];
       const tokenFile = parsed.values["--token-file"];
       const rawScopes = parsed.values["--scopes"];
@@ -1444,6 +1447,7 @@ export function parseGhostgetArguments(raw: readonly string[]): ParseGhostgetRes
           || cookiesFile !== undefined
           || browserProfile !== undefined
           || browserExecutable !== undefined
+          || storageState !== undefined
           || parsed.booleans.has("--trust-profile-egress")
         ) {
           return {
@@ -1480,6 +1484,7 @@ export function parseGhostgetArguments(raw: readonly string[]): ParseGhostgetRes
           || cookiesFile !== undefined
           || browserProfile !== undefined
           || browserExecutable !== undefined
+          || storageState !== undefined
           || parsed.booleans.has("--trust-profile-egress")
         ) return { ok: false, message: "OAuth token-file options cannot be combined with cookie or browser-profile options" };
         if (oauthProvider === undefined || tokenFile === undefined || rawScopes === undefined) {
@@ -1525,6 +1530,9 @@ export function parseGhostgetArguments(raw: readonly string[]): ParseGhostgetRes
       if (browserExecutable !== undefined && browserProfile === undefined) {
         return { ok: false, message: "--browser-executable requires --browser-profile" };
       }
+      if (storageState !== undefined && browserProfile === undefined) {
+        return { ok: false, message: "--storage-state requires --browser-profile" };
+      }
       return {
         ok: true,
         value: {
@@ -1535,6 +1543,7 @@ export function parseGhostgetArguments(raw: readonly string[]): ParseGhostgetRes
           ...(cookiesFile === undefined ? {} : { cookiesFile }),
           ...(browserProfile === undefined ? {} : { browserProfile }),
           ...(browserExecutable === undefined ? {} : { browserExecutable }),
+          ...(storageState === undefined ? {} : { storageState }),
           ...(subject === undefined ? {} : { subject }),
           trustProfileEgress: parsed.booleans.has("--trust-profile-egress"),
           force: parsed.booleans.has("--force"),

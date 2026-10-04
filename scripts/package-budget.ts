@@ -2428,14 +2428,24 @@
 // Keep all existing projections and allowances:
 // 12,214,704 + 12,387 + 4,096 = 12,231,187 packed;
 // 24,340,569 + 353 + 65 = 24,340,987 payload.
+// The browser-profile storage-state seed adds the bounded file bootstrap to
+// bluesky-web-runtime, the --storage-state auth option through args, auth
+// storage, browser launch, and help text, plus the colocated tests: source
+// only over the unchanged 631-entry inventory. Two byte-identical npm 11.16.0
+// packs --ignore-scripts on darwin arm64 measured 631 entries,
+// 12,216,125 packed bytes and 24,346,332 payload bytes; archive SHA-256
+// b339f59aa94731ae1c837b8a6bd932c7335d0a3b23aba36c1aff947b2df67a49.
+// Keep all existing projections and allowances:
+// 12,216,125 + 12,387 + 4,096 = 12,232,608 packed;
+// 24,346,332 + 353 + 65 = 24,346,750 payload.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "0.18.73 release-bump changelog and version pins over the verified 0.18.72 package",
+  scope: "browser-profile storage-state session seed over the verified 0.18.73 package",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.16.0",
   platform: "darwin-arm64",
-  archiveSha256: "d7eb038ce1e417d66dbfa275a7a55e4cb8ccd93d591f75162a370803a10987b2",
-  packedBytes: 12_214_704,
-  unpackedBytes: 24_340_569,
+  archiveSha256: "b339f59aa94731ae1c837b8a6bd932c7335d0a3b23aba36c1aff947b2df67a49",
+  packedBytes: 12_216_125,
+  unpackedBytes: 24_346_332,
   entryCount: 631,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
