@@ -2491,16 +2491,25 @@
 // 59451cd8ec83a409969d46785f3400c09507c8b6e3d2aff03294537a50191b50. Retain the
 // reviewed allowances: 12,244,064 + 12,387 + 4,096 = 12,260,547 packed;
 // 24,496,816 + 353 + 65 = 24,497,234 unpacked.
+// The 0.18.83 release adds the engine-aware contained-session lane and the
+// LinkedIn profile-transport default over the reviewed 0.18.82 release.
+// Two clean npm 11.19.0 packs on Node 24.20.0 (zlib 1.2.12) with
+// --ignore-scripts on darwin arm64 were byte-identical at 638
+// files/entries, 12,237,548 packed bytes and 24,524,887 unpacked bytes;
+// archive SHA-256
+// 34a0261f74428b18798b6be57ab39bf72e68e45f000a20fa55d6d88272505082. Retain the
+// reviewed allowances: 12,237,548 + 12,387 + 4,096 = 12,254,031 packed;
+// 24,524,887 + 353 + 65 = 24,525,305 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "0.18.82 invoke --execute authorized publication over the documentation and WebMCP release",
+  scope: "0.18.83 engine-aware contained sessions over the invoke --execute release",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   nodeVersion: "24.20.0",
-  zlibVersion: "1.3.2.1-motley-42c2f19",
+  zlibVersion: "1.2.12",
   platform: "darwin-arm64",
-  archiveSha256: "59451cd8ec83a409969d46785f3400c09507c8b6e3d2aff03294537a50191b50",
-  packedBytes: 12_244_064,
-  unpackedBytes: 24_496_816,
+  archiveSha256: "34a0261f74428b18798b6be57ab39bf72e68e45f000a20fa55d6d88272505082",
+  packedBytes: 12_237_548,
+  unpackedBytes: 24_524_887,
   entryCount: 638,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

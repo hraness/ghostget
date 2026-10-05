@@ -23,6 +23,7 @@ import {
   type BrowserFileResolver,
 } from "../browser";
 import type { FileInputValue, OperationInput, WebSessionRecipe } from "../model";
+import type { BrowserEngineSelection } from "../lightpanda-browser";
 import {
   canonicalJson,
   isCanonicalJsonText,
@@ -200,6 +201,13 @@ export type LinkedInWebExecutionOptions = {
     event: WebSessionProviderAcceptedMutationTargetEvent,
   ) => Promise<void>;
   readonly afterDispatchVerified?: (event: WebSessionDispatchEvent) => Promise<void>;
+  /**
+   * Engine for contained browser read sessions. Unset uses each transport's
+   * qualified default — the LinkedIn profile transport prefers Lightpanda for
+   * cookie-yielding realms when a provisioned binary exists; "chrome" pins the
+   * Chromium lane.
+   */
+  readonly engine?: BrowserEngineSelection;
 };
 
 function isRecord(value: unknown): value is JsonRecord {
@@ -766,6 +774,7 @@ export async function probeLinkedInWebIdentity(
     readonly timeoutMs?: number;
     readonly dependencies?: LinkedInWebRuntimeDependencies;
     readonly signal?: AbortSignal;
+    readonly engine?: BrowserEngineSelection;
   } = {},
 ): Promise<{ readonly subject: string; readonly displayName: string | null }> {
   if (auth.kind === "browser-profile") {
@@ -783,6 +792,7 @@ export async function probeLinkedInWebIdentity(
           timeoutMs,
           maxOutputBytes: MAX_SUBJECT_BYTES,
           operationDeadline: deadline,
+          ...(options.engine === undefined ? {} : { engine: options.engine }),
         }),
         "authenticated web subject probe",
       );
@@ -896,6 +906,7 @@ async function createLinkedInStatsBrowserTransport(
     ...(options.publishCleanupResource === undefined
       ? {}
       : { publishCleanupResource: options.publishCleanupResource }),
+    ...(options.engine === undefined ? {} : { engine: options.engine }),
   });
 }
 
@@ -908,7 +919,16 @@ async function executeLinkedInContactInfoRead(
   const target = linkedInContactInfoTarget(input.profile_url);
   return runReadEffect(linkedInContactReadProgram(target).pipe(
     Effect.provide(LinkedInContactPlatformLive({
-      openBrowser: () => createLinkedInStatsBrowserTransport(auth, recipe, options),
+      // The contact overlay harvests live request bindings through
+      // `network requests` observation, which is unqualified on Lightpanda —
+      // it returns a well-formed empty list but has not been proven to report
+      // in-flight requests. Pin Chromium here until that observation is
+      // qualified; an explicit engine choice still wins.
+      openBrowser: () => createLinkedInStatsBrowserTransport(
+        auth,
+        recipe,
+        { ...options, engine: options.engine ?? "chrome" },
+      ),
       decodeIdentity: identityFromMeResponse,
       bindIdentity: identity => boundLinkedInStatsIdentity(auth, identity),
       observedAt: () => new Date(options.dependencies?.now?.() ?? Date.now()).toISOString(),
