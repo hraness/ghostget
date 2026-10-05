@@ -14,7 +14,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
+import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:net";
 
@@ -29,6 +29,7 @@ import { DeriveBrowserToolchain } from "./derive-browser-toolchain.test-support"
 
 import {
   acquireDerivationLifecycleGate,
+  cloneProfileBound,
   assertDerivationAuthCompatibility,
   assertDerivationRecorderCommandAllowed,
   DERIVATION_LIFECYCLE_ORPHAN_GRACE_MS,
@@ -1716,6 +1717,51 @@ describe("derivation session path defenses", () => {
       ), "covered by browser domains");
       expect(existsSync(ghostgetState)).toBeFalse();
     } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("the isolated profile clone retains the parent's temporary root for stale socket proof", async () => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), "ghostget-clone-temp-root-")));
+    const temporary = join(root, "temporary");
+    const userData = join(temporary, "user-data");
+    const source = join(userData, "Default");
+    const destination = join(root, "destination");
+    mkdirSync(source, { recursive: true, mode: 0o700 });
+    mkdirSync(destination, { mode: 0o700 });
+    writeFileSync(join(userData, "Local State"), "{}");
+    writeFileSync(join(source, "Preferences"), "{}");
+    symlinkSync(`${hostname()}-2147483647`, join(userData, "SingletonLock"));
+    symlinkSync("123", join(userData, "SingletonCookie"));
+    symlinkSync(join(temporary, "missing", "SingletonSocket"), join(userData, "SingletonSocket"));
+    const stats = lstatSync(destination, { bigint: true });
+    const previous = process.env.TMPDIR;
+    try {
+      process.env.TMPDIR = temporary;
+      const cloned = await cloneProfileBound(source, destination, {
+        device: stats.dev.toString(), inode: stats.ino.toString(),
+      });
+      expect(cloned).toEqual({ profile: "profile-user-data", profileDirectory: "Default" });
+      expect(readFileSync(join(destination, "profile-user-data", "Default", "Preferences"), "utf8")).toBe("{}");
+      expect(lstatSync(join(userData, "SingletonLock")).isSymbolicLink()).toBeTrue();
+      expect(existsSync(join(destination, "profile-user-data", "SingletonLock"))).toBeFalse();
+      const rejected = join(root, "rejected");
+      mkdirSync(rejected, { mode: 0o700 });
+      const rejectedStats = lstatSync(rejected, { bigint: true });
+      const expected = { device: rejectedStats.dev.toString(), inode: rejectedStats.ino.toString() };
+      unlinkSync(join(userData, "SingletonLock"));
+      symlinkSync(`${hostname()}-${process.pid}`, join(userData, "SingletonLock"));
+      await expect(cloneProfileBound(source, rejected, expected)).rejects.toThrow("active or retains a stale process lock");
+      expect(readdirSync(rejected)).toEqual([]);
+      unlinkSync(join(userData, "SingletonLock"));
+      symlinkSync(`${hostname()}-2147483647`, join(userData, "SingletonLock"));
+      unlinkSync(join(userData, "SingletonSocket"));
+      symlinkSync(join(root, "outside", "SingletonSocket"), join(userData, "SingletonSocket"));
+      await expect(cloneProfileBound(source, rejected, expected)).rejects.toThrow("active or retains a stale process lock");
+      expect(readdirSync(rejected)).toEqual([]);
+    } finally {
+      if (previous === undefined) delete process.env.TMPDIR;
+      else process.env.TMPDIR = previous;
       rmSync(root, { recursive: true, force: true });
     }
   });

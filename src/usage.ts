@@ -94,7 +94,7 @@ Options
   --auth <id>                    Read with a connected account
   --mode auto|http|browser|file  How to fetch the page (default: auto)
   --browser-engine auto|chrome|lightpanda
-                                 Public text browser; auto uses Chrome
+                                 Public text browser; auto prefers Lightpanda
   --browser-profile <name|path>  Use a signed-in Chrome profile
   --cookie-source <browser>      chrome|arc|brave|chromium|edge|firefox|safari
   --cookie-profile <name|path>   Which profile of that browser
@@ -118,7 +118,7 @@ Options
   --evidence none|source|screenshot|all
                                  Keep the page source or a screenshot
   --browser-engine auto|chrome|lightpanda
-                                 Public text browser; auto uses Chrome
+                                 Public text browser; auto prefers Lightpanda
   --stdout                       Print Markdown instead of saving
   --force                        Replace an existing note
   --json                         Print machine-readable output

@@ -274,7 +274,7 @@ type BoundProfileClone = {
 const activeChromiumProfileMessage =
   "Chromium profile is active or retains a stale process lock; fully quit the browser and retry";
 
-async function cloneProfileBound(source: string, directory: string, expected: DirectoryIdentity): Promise<BoundProfileClone> {
+export async function cloneProfileBound(source: string, directory: string, expected: DirectoryIdentity): Promise<BoundProfileClone> {
   const result = await runCommand(
     [
       process.execPath,
@@ -287,7 +287,7 @@ async function cloneProfileBound(source: string, directory: string, expected: Di
     ],
     {
       cwd: directory,
-      environment: { NODE_ENV: "production" },
+      environment: { NODE_ENV: "production", TMPDIR: tmpdir() },
       timeoutMs: 120_000,
       maxOutputBytes: 1024 * 1024,
       stdin: JSON.stringify({

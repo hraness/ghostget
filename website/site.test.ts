@@ -93,6 +93,7 @@ import {
   BEEPER_LOCAL_OPERATION_NAMES,
   BEEPER_LOCAL_OPERATION_RUNTIME_TRANSPORTS,
 } from "../src/providers/beeper-local";
+import { GOOGLE_GMAIL_READ_SCOPES } from "../src/oauth-google";
 import {
   LAYER_LABELS,
   LAYERS,
@@ -844,7 +845,11 @@ describe("ghostget.com static site", () => {
       const postHtml = await readFile(join(websiteRoot, "dist", path.slice(1), "index.html"), "utf8");
       expect(postHtml).toContain(`<link rel="canonical" href="${SITE_ORIGIN}${path}">`);
       expect(postHtml).toContain('By <a href="https://hraness.com" rel="author">Hraness</a>');
-      expect(postHtml).toContain(`<p class="plain-publication__provenance" data-drafting="ai" data-reviewer-type="ai">Drafted with AI and reviewed by ${post.admission.review?.reviewer}.</p>`);
+      const reviewerType = post.admission.review?.reviewerType;
+      const provenance = reviewerType === "human-editor"
+        ? `Drafted with AI and reviewed by ${post.admission.review?.reviewer}, a human editor.`
+        : `Drafted with AI and reviewed by ${post.admission.review?.reviewer}.`;
+      expect(postHtml).toContain(`<p class="plain-publication__provenance" data-drafting="ai" data-reviewer-type="${reviewerType}">${provenance}</p>`);
       expect(postHtml).toContain('class="editorial-figure"');
       expect(postHtml).not.toMatch(/(?:Published|Updated|Checked) <time/u);
       expect(postHtml).not.toContain("{{");
@@ -1814,14 +1819,73 @@ describe("ghostget.com static site", () => {
       ],
     });
 
+    // The Gmail guide promises three read-only actions and names the exact
+    // scopes the sign-in requests; both come from the release's own sources.
+    const gmail = pages.find((page) => page.definition.canonicalPath === "/docs/how-to/connect-gmail/");
+    const gmailRows = attestation.rows.filter((row) =>
+      row.surfaceId === "gmail" && row.completeness === "observed");
+    expect(new Set(gmailRows.map((row) => row.operation))).toEqual(
+      new Set(["contacts.list", "messaging.list", "messaging.read"]),
+    );
+    expect(gmailRows.every((row) => row.risk === "R1")).toBe(true);
+    expect(gmail?.definition.description).toContain("three read-only GhostGet actions");
+    for (const operation of ["contacts.list", "messaging.list", "messaging.read"]) {
+      expect(gmail?.html).toContain(`<code>${operation}</code>`);
+    }
+    expect(GOOGLE_GMAIL_READ_SCOPES).toHaveLength(3);
+    for (const scope of GOOGLE_GMAIL_READ_SCOPES) {
+      expect(gmail?.html).toContain(`<code>${scope.replace("https://www.googleapis.com/auth/", "")}</code>`);
+    }
+    for (const command of [
+      "ghostget auth login gmail-main --client-file /absolute/path/client_secret.json",
+      "ghostget auth login gmail-main --client-file /absolute/path/client_secret.json --force",
+      "ghostget auth remove gmail-main --yes",
+    ]) expect(gmail?.html).toContain(command);
+    expect(gmail?.html).toContain("<code>--no-open</code>");
+    expect(gmail?.html).toContain("<code>invalid_grant</code>");
+    expect(sitemap).toContain(`<loc>${SITE_ORIGIN}/docs/how-to/connect-gmail/</loc>`);
+    expect(llms).toContain(`${SITE_ORIGIN}/docs/how-to/connect-gmail/`);
+    expect(providerDirectory.entries.find((entry) => entry.surfaceId === "gmail")?.href)
+      .toBe("/docs/how-to/connect-gmail/");
+    const docsIndexHtml = pages.find((page) => page.definition.canonicalPath === "/docs/")?.html;
+    expect(docsIndexHtml).toContain('href="/docs/how-to/connect-gmail/"');
+
+    // The agent setup section names each host's real settings and the read
+    // error a sandbox without network access produces.
+    const gettingStartedHtml = pages.find((page) =>
+      page.definition.canonicalPath === "/docs/tutorials/getting-started/")?.html;
+    expect(gettingStartedHtml).toContain('<h2 id="agents">');
+    for (const setting of [
+      "codex -c 'sandbox_workspace_write.network_access=true'",
+      "[permissions.ghostget.network]",
+      "<code>features.network_proxy</code>",
+      'prefix_rule(pattern = ["ghostget", "read"], decision = "allow")',
+      '"allow": ["Bash(ghostget read *)"]',
+      '"excludedCommands": ["ghostget *"]',
+      "<code>http: could not resolve example.com</code>",
+      "<code>127.0.0.1</code>",
+    ]) expect(gettingStartedHtml).toContain(setting);
+    expect(llms).toContain(`${SITE_ORIGIN}/docs/tutorials/getting-started/#agents`);
+
+    // The WebMCP explainer names the current interface, the removed one, and
+    // the dated specification and Chrome status.
+    const webmcpHtml = pages.find((page) => page.definition.canonicalPath === "/webmcp/")?.html;
+    expect(webmcpHtml).toContain("<code>document.modelContext.registerTool(...)</code>");
+    expect(webmcpHtml).toContain("<code>navigator.modelContext</code>");
+    expect(webmcpHtml).toContain("origin trial from Chrome 149");
+    expect(webmcpHtml).toContain("<code>chrome://flags/#enable-webmcp-testing</code>");
+
     // The written explanations have independent editorial review. These checks
     // cover their publishing contract without pinning retired news prose or counts.
     for (const [sourceFile, record] of Object.entries(essayReviews)) {
       const essay = pages.find((page) => page.definition.sourceFile === sourceFile);
       expect(essay, sourceFile).toBeDefined();
       expect(essay?.html, sourceFile).toContain('class="plain-publication__provenance"');
-      expect(essay?.html, sourceFile).toContain('data-reviewer-type="ai"');
-      expect(essay?.html, sourceFile).toContain(`Drafted with AI and reviewed by ${record.review.reviewer}.`);
+      expect(essay?.html, sourceFile).toContain(`data-reviewer-type="${record.review.reviewerType}"`);
+      expect(essay?.html, sourceFile).toContain((record.review.reviewerType as string) === "human-editor"
+        ? `Drafted with AI and reviewed by ${record.review.reviewer}, a human editor.`
+        : `Drafted with AI and reviewed by ${record.review.reviewer}.`);
+      if (record.humanReview !== null) expect(record.humanReview.reviewerType).not.toBe("ai");
       expect(essay?.html, sourceFile).not.toContain('<time');
       expect(essay?.html, sourceFile).not.toContain('{{PROVIDER_CAPABILITY');
       expect(essay?.html, sourceFile).not.toContain('{{ESSAY_PROVENANCE}}');

@@ -17,10 +17,9 @@ GhostGet is free, MIT licensed, and runs on macOS and Linux with Bun 1.3.14.
 
 GhostGet keeps the pages and media it saves on your computer, gives your agent
 named actions instead of credentials, and leaves a record of each write that
-matters: the design every Hraness project shares. [The thread through
-hraness](https://hraness.com/writing/the-thread-through-hraness) follows that
-design across the projects, and the [ALGAL
-vision](https://algal.computer/docs/vision/) states the bet behind it.
+matters. [The thread through
+hraness](https://hraness.com/writing/the-thread-through-hraness) describes how
+the other Hraness projects share that design.
 
 ## Install
 
@@ -28,7 +27,7 @@ Install [Bun 1.3.14](https://bun.sh/docs/installation) if needed, then install
 GhostGet and read a public page:
 
 ```sh
-bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.78/hraness-ghostget-0.18.78.tgz
+bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.79/hraness-ghostget-0.18.79.tgz
 ghostget read https://example.com
 ```
 
@@ -49,9 +48,9 @@ which always names the latest published release. Upgrading from Wrench? Read the
 The optional Agent Skill teaches your agent when and how to use GhostGet:
 
 ```sh
-npx skills add hraness/ghostget#v0.18.78
+npx skills add hraness/ghostget#v0.18.79
 # With Bun instead:
-bunx skills add hraness/ghostget#v0.18.78
+bunx skills add hraness/ghostget#v0.18.79
 ```
 
 Start a new agent session, then ask: “Use GhostGet to read https://example.com
@@ -183,13 +182,13 @@ firewall.
 
 ## Built-in provider catalog
 
-This v0.18.78 source tree supports executable actions for 21 services: Beeper,
+This v0.18.79 source tree supports executable actions for 21 services: Beeper,
 Bluesky, ClasificadosOnline, Facebook, Facebook Groups, Facebook Marketplace,
 GitHub, Gmail, Hacker News, Instagram, iMessage, LinkedIn, Reddit, Substack,
 Threads, TikTok, Twitch, WebMCP Registry, WhatsApp, X, and YouTube. LinkedIn
 and X each have separate official and authenticated-web adapters. The bundled
 `webmcp` adapter also reaches every site listed in the public WebMCP Registry:
-1,800+ domains publishing live `navigator.modelContext` tool schemas. It is a
+1,800+ domains publishing live `document.modelContext` tool schemas. It is a
 public, credential-free route to `wmcp.ai`: it searches listed sites, reads one
 site's current tool schemas, and calls only tools the site declares
 `readOnlyHint` for. The registry runs the tool in a fresh headless page and
@@ -267,7 +266,7 @@ For that same released coordinate, install GhostGet in an agent or application
 that owns its own model, planning, tool loop, approvals, and interface:
 
 ```sh
-bun add https://github.com/hraness/ghostget/releases/download/v0.18.78/hraness-ghostget-0.18.78.tgz
+bun add https://github.com/hraness/ghostget/releases/download/v0.18.79/hraness-ghostget-0.18.79.tgz
 ```
 
 ```ts

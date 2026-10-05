@@ -137,7 +137,7 @@ export const HRANESS_LOGO_URL = "https://hraness.com/icon.png" as const;
 export const HRANESS_LINKEDIN_URL = "https://www.linkedin.com/company/hraness" as const;
 export const NPM_PACKAGE_URL = "https://www.npmjs.com/package/@hraness/ghostget" as const;
 export const SKILL_REPOSITORY = "hraness/ghostget" as const;
-export const CONTENT_REVIEWED_RELEASE = "v0.18.78" as const;
+export const CONTENT_REVIEWED_RELEASE = "v0.18.79" as const;
 export const DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com" as const;
 export const DEMO_PUBLIC_FILES = [
   "wrench-first-capture.gif",
@@ -182,7 +182,7 @@ export const PUBLIC_PAGES = [
   {
     canonicalPath: "/docs/reference/provider-capabilities/",
     description:
-      "See which provider actions GhostGet supports in the current release and how each service connects.",
+      "See which services and actions GhostGet supports in the current release, how each service connects, and how to check what your installation can run.",
     outputFile: "docs/reference/provider-capabilities/index.html",
     sourceFile: "docs-reference-provider-capabilities.html",
     title: "Provider support in GhostGet",
@@ -200,6 +200,14 @@ export const PUBLIC_PAGES = [
     outputFile: "docs/how-to/export-whatsapp/index.html",
     sourceFile: "docs-how-to-export-whatsapp.html",
     title: WHATSAPP_PAGE_METADATA.title,
+  },
+  {
+    canonicalPath: "/docs/how-to/connect-gmail/",
+    description:
+      "Create a Google OAuth desktop client, sign in once, and let your agent list and read Gmail threads and contacts through three read-only GhostGet actions.",
+    outputFile: "docs/how-to/connect-gmail/index.html",
+    sourceFile: "docs-how-to-connect-gmail.html",
+    title: "Connect Gmail to your agent through GhostGet",
   },
   {
     canonicalPath: "/docs/how-to/use-webmcp-sites/",
@@ -220,7 +228,7 @@ export const PUBLIC_PAGES = [
   {
     canonicalPath: "/webmcp/",
     description:
-      "WebMCP lets a website publish tools through navigator.modelContext. GhostGet reads them from the public WebMCP Registry and calls only tools declared read-only.",
+      "WebMCP lets a website publish tools through document.modelContext. GhostGet reads them from the public WebMCP Registry and calls only tools declared read-only.",
     outputFile: "webmcp/index.html",
     sourceFile: "webmcp.html",
     title: "WebMCP for agents: call website-published tools through GhostGet",
@@ -276,7 +284,7 @@ export const PUBLIC_PAGES = [
   {
     canonicalPath: "/compare/",
     description:
-      "Choose a page reader, browser tool, or account integration around the work the agent needs to do.",
+      "An agent may need the text of a page, a browser it controls, or an action in an account. Compare the tools built for each job.",
     outputFile: "compare/index.html",
     sourceFile: "compare-index.html",
     title: "How agents reach the web",
@@ -1619,6 +1627,11 @@ export async function buildWebsite(
       filter: () => true,
     }),
     cp(join(publicRoot, "marks"), join(outputRoot, "marks"), {
+      dereference: true,
+      recursive: true,
+      filter: () => true,
+    }),
+    cp(join(publicRoot, "landscape"), join(outputRoot, "landscape"), {
       dereference: true,
       recursive: true,
       filter: () => true,
