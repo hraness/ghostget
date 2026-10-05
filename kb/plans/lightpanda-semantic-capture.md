@@ -165,6 +165,15 @@ default. An explicit `engine: "chrome"` pins the old lane.
   but whether it reports in-flight requests is unproven — the contact
   overlay's request-binding harvest stays on Chromium until observed.
   Synthetic fixtures covered cookie import fidelity.
+- **Re-authenticated provider-200 (integrated path, post-v0.18.83):**
+  `createLinkedInProfileBrowserTransport` with `engine: "auto"` and a
+  publisher resolved to Lightpanda and returned the real voyager
+  identity (`plainId:75145295`, bound subject
+  `urn:li:fsd_profile:75145295`), 1,072,858-byte `/in/me/` profile
+  HTML, and 857,951-byte connections HTML — session create ~1.6 s,
+  identity ~0.3 s, profile ~0.8 s, connections ~0.8 s, with the full
+  durable cleanup journal. Both auth snapshots were byte-identical
+  afterward. The integrated LinkedIn funnel is qualified on live auth.
 
 ### Cleanup admission under a durable publisher
 
@@ -236,6 +245,38 @@ Chromium lane already seeds the same acquired cookies for
 `browser-profile + cookieSource` auths. The session invalidation window
 overlapped other signed-in-browser lane work, so attribution to the
 Lightpanda reads is not supported by the evidence.
+
+## The "auto" default (v0.18.84)
+
+After the live X and LinkedIn proofs, the contained-session engine
+default became `"auto"`: every headless session whose realm yields
+explicit cookies resolves to a provisioned Lightpanda, and Chromium
+remains the resolution for everything else. Eligibility adds the
+`!headed` gate — a headed session is definitionally a Chromium session,
+since headed windows exist only for anti-bot evasion on that lane. The
+preflight and bounded-fallback conditions now key on the resolved
+selection rather than the raw option, so an omitted `engine` receives
+the same unpublished-preflight protection as an explicit `"auto"`.
+
+- The LinkedIn profile transport computes `headed` from the resolved
+  engine (`resolvedEngine === "chrome"`), keeping Chrome's headed
+  anti-bot behavior on the Chromium lane while Lightpanda runs headless.
+- `linkedin-web-bootstrap` pins `"chrome"`: it issues `network
+  requests` commands (live revision discovery) on a `headed: false`
+  session, the only headed:false transport with an unqualified command
+  stream.
+- Headed transports — X transaction bootstrap, Instagram profile,
+  LinkedIn article/comment/post/feed/search — resolve to Chromium
+  through the headed gate alone, keeping the anti-bot property they
+  declared `headed: true` for.
+- Bluesky's storage bootstrap requires `browser-profile` auth (no
+  cookie source on the constructed `storageAuth`), so `auto` resolves
+  it to Chromium without a pin.
+- Provider-agnostic callers with no `engine` option (messaging
+  automation excluded — it owns a different session factory) get the
+  same default: unprovisioned environments change nothing, and the
+  pin convention is one line at the call site when a transport's
+  command stream is unqualified.
 
 ## Result
 

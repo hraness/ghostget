@@ -181,14 +181,16 @@ export type CreateBrowserSessionOptions = {
     ) => void;
   };
   /**
-   * Engine selection for the contained session. "chrome" is the default and
-   * preserves the existing Chromium lane. "lightpanda" requires an auth realm
-   * that yields explicit cookies and a provisioned Lightpanda 1.0.0 binary.
-   * "auto" resolves to Lightpanda only when both requirements hold, and a
+   * Engine selection for the contained session. "auto" is the default: it
+   * resolves to Lightpanda only for a headless session whose auth realm yields
+   * explicit cookies and when a Lightpanda 1.0.0 binary is provisioned, and a
    * pre-navigation Lightpanda protocol-compatibility failure retries once on
    * Chromium inside the same call; when cleanup publication is configured, the
    * compat probe runs on unpublished throwaway roots first so a retry never
-   * has to register a second durable identity. Every other failure propagates.
+   * has to register a second durable identity. "lightpanda" requires the same
+   * eligibility and fails closed. "chrome" pins the Chromium lane for
+   * transports whose commands Lightpanda has not been qualified to serve.
+   * Every other failure propagates.
    */
   readonly engine?: BrowserEngineSelection;
   /** Environment source for executable resolution and process isolation. */
@@ -3553,19 +3555,28 @@ function browserSessionYieldsCookies(auth: GhostgetAuth): boolean {
       && auth.storageState === undefined);
 }
 
-function selectBrowserSessionEngine(
+/**
+ * Resolve the requested engine selection to a concrete lane. Headless-only
+ * Lightpanda can serve only a session that yields explicit cookies and never
+ * requests a headed browser; anything else resolves to Chromium.
+ */
+export function selectBrowserSessionEngine(
   auth: GhostgetAuth,
   selection: BrowserEngineSelection,
+  headed: boolean,
   environment: Readonly<Record<string, string | undefined>>,
 ): "chrome" | "lightpanda" {
   if (selection !== "auto" && selection !== "chrome" && selection !== "lightpanda") {
     throw new Error("browser session engine must be auto, chrome, or lightpanda");
   }
-  const eligible = browserSessionYieldsCookies(auth);
-  if (selection === "lightpanda" && !eligible) {
+  const eligible = browserSessionYieldsCookies(auth) && !headed;
+  if (selection === "lightpanda" && !browserSessionYieldsCookies(auth)) {
     throw new Error(
       "Lightpanda browser sessions require an auth realm that yields explicit cookies",
     );
+  }
+  if (selection === "lightpanda" && headed) {
+    throw new Error("Lightpanda browser sessions cannot run headed");
   }
   // The Chrome lane never launches Lightpanda — resolving the executable here
   // would let a stale LIGHTPANDA_PATH break unrelated Chromium sessions.
@@ -3879,11 +3890,12 @@ export async function createBrowserSession(
   options: CreateBrowserSessionOptions,
 ): Promise<BrowserSession> {
   const environment = options.environment ?? process.env;
-  const engine = selectBrowserSessionEngine(auth, options.engine ?? "chrome", environment);
+  const selection = options.engine ?? "auto";
+  const engine = selectBrowserSessionEngine(auth, selection, options.headed, environment);
   if (engine !== "lightpanda") {
     return createContainedBrowserSession(manifest, auth, options, "chrome", environment);
   }
-  if (options.engine === "auto" && options.publishCleanupResource !== undefined) {
+  if (selection === "auto" && options.publishCleanupResource !== undefined) {
     // The first published resource pins this session's durable cleanup
     // identity; a post-publish Chromium retry could never register under a
     // fresh one. Resolve `auto` incompatibility before publication.
@@ -3903,7 +3915,7 @@ export async function createBrowserSession(
     return await createContainedBrowserSession(manifest, auth, options, "lightpanda", environment);
   } catch (error) {
     if (
-      options.engine === "auto"
+      selection === "auto"
       && error instanceof LightpandaCompatibilityError
       && error.beforeNavigation
     ) {

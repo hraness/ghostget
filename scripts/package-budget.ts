@@ -2491,25 +2491,25 @@
 // 59451cd8ec83a409969d46785f3400c09507c8b6e3d2aff03294537a50191b50. Retain the
 // reviewed allowances: 12,244,064 + 12,387 + 4,096 = 12,260,547 packed;
 // 24,496,816 + 353 + 65 = 24,497,234 unpacked.
-// The 0.18.83 release adds the engine-aware contained-session lane and the
-// LinkedIn profile-transport default over the reviewed 0.18.82 release.
+// The 0.18.84 release makes "auto" the contained-session engine default with
+// headless-only Lightpanda eligibility over the reviewed 0.18.83 release.
 // Two clean npm 11.19.0 packs on Node 24.20.0 (zlib 1.2.12) with
 // --ignore-scripts on darwin arm64 were byte-identical at 638
-// files/entries, 12,237,548 packed bytes and 24,524,887 unpacked bytes;
+// files/entries, 12,238,781 packed bytes and 24,527,832 unpacked bytes;
 // archive SHA-256
-// 34a0261f74428b18798b6be57ab39bf72e68e45f000a20fa55d6d88272505082. Retain the
-// reviewed allowances: 12,237,548 + 12,387 + 4,096 = 12,254,031 packed;
-// 24,524,887 + 353 + 65 = 24,525,305 unpacked.
+// a212c8c3050c1f9509a3725e40b0e9d20dfb8913b3c669f729e79a88adcacfea. Retain the
+// reviewed allowances: 12,238,781 + 12,387 + 4,096 = 12,255,264 packed;
+// 24,527,832 + 353 + 65 = 24,528,250 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "0.18.83 engine-aware contained sessions over the invoke --execute release",
+  scope: "0.18.84 auto-default engine selection over the engine-aware release",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   nodeVersion: "24.20.0",
   zlibVersion: "1.2.12",
   platform: "darwin-arm64",
-  archiveSha256: "34a0261f74428b18798b6be57ab39bf72e68e45f000a20fa55d6d88272505082",
-  packedBytes: 12_237_548,
-  unpackedBytes: 24_524_887,
+  archiveSha256: "a212c8c3050c1f9509a3725e40b0e9d20dfb8913b3c669f729e79a88adcacfea",
+  packedBytes: 12_238_781,
+  unpackedBytes: 24_527_832,
   entryCount: 638,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
