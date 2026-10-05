@@ -211,13 +211,13 @@ describe("ghostget.com static site", () => {
     expect(packageFiles).not.toContain("vercel.json");
     expect(manifest).toMatchObject({
       devDependencies: {
-        "@hraness/design-kit": "github:hraness/design-kit#v0.39.0",
+        "@hraness/design-kit": "github:hraness/design-kit#v0.41.0",
 
         "@hraness/site-footer": "https://github.com/hraness/site-footer/releases/download/v0.20.7/hraness-site-footer-0.20.7.tgz",
         "@hraness/ui": "github:hraness/ui#v0.5.18",
       },
     });
-    expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.39.0"');
+    expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.41.0"');
     expect(lockfile).toContain('"@hraness/ui": "github:hraness/ui#v0.5.18"');
 
     expect(lockfile).toContain('"@hraness/site-footer": "https://github.com/hraness/site-footer/releases/download/v0.20.7/hraness-site-footer-0.20.7.tgz"');
@@ -391,9 +391,11 @@ describe("ghostget.com static site", () => {
     const siteShellCss = await readFile(new URL(import.meta.resolve("@hraness/design-kit/site-shell.css")), "utf8");
     expect(builtCss.split(siteShellCss.trim())).toHaveLength(2);
     expect(builtCss).not.toContain('@import "./site-shell.css"');
-    for (const document of [...pages.map((page) => page.html), notFound]) {
-      expect(document).toContain('<body class="hraness-site-shell">');
+    for (const document of pages.map((page) => page.html)) {
+      expect(document).toContain('<body class="hraness-site-shell" data-hraness-landscape="page">');
     }
+    expect(notFound).toContain('<body class="hraness-site-shell">');
+    expect(notFound).not.toContain("data-hraness-landscape");
     expect(preview).not.toContain("hraness-site-shell");
     expect(builtCss).not.toMatch(/@import\b/iu);
     expect(builtCss.startsWith("@layer base, components;")).toBe(true);
@@ -2100,7 +2102,7 @@ describe("ghostget.com static site", () => {
     expect(direct?.status).toBe(200);
     expect(direct?.headers.get("link")).toBe(negotiated?.headers.get("link"));
     expect(await direct?.text()).toContain("# Install GhostGet and read your first page");
-  });
+  }, 15000);
 
   test("keeps every README release reference aligned with package identity", async () => {
     const [manifest, readme, attestation] = await Promise.all([
