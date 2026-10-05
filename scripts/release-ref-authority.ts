@@ -8,6 +8,8 @@ const REPOSITORY_URL = `https://github.com/${REPOSITORY}.git`;
 const MAIN_BRANCH = "main";
 const MAIN_REF = `refs/heads/${MAIN_BRANCH}`;
 const LOCAL_MAIN_REF = `refs/remotes/origin/${MAIN_BRANCH}`;
+const PUBLICATION_MAIN_REF = "refs/ghostget-release/publication-main";
+const PUBLICATION_TAG_REF = "refs/ghostget-release/publication-tag";
 const MAXIMUM_SNAPSHOT_BYTES = 64 * 1_024;
 const MAXIMUM_SNAPSHOT_ROWS = 500;
 const MAXIMUM_GIT_OUTPUT_BYTES = 256 * 1_024;
@@ -65,6 +67,15 @@ export type ReleaseRefAuthority = Readonly<{
 }>;
 
 export type ReleaseRefAuthorityInput = Readonly<{
+  requestedTag: string;
+  runner?: GitCommandRunner;
+  workingDirectory?: string;
+}>;
+
+export type ReleasePublicationAuthorityInput = Readonly<{
+  expectedMainSha: string;
+  expectedReleaseSha: string;
+  phase: "prewrite" | "postwrite";
   requestedTag: string;
   runner?: GitCommandRunner;
   workingDirectory?: string;
@@ -452,45 +463,143 @@ export function verifyReleaseRefAuthority(input: ReleaseRefAuthorityInput): Rele
   return Object.freeze({ mainSha: first.mainOid, sha: tag.objectName, tag: input.requestedTag });
 }
 
+// The publication job checks out the bare verified SHA, so its ref inventory
+// is empty: authority imports the governed refs under temporary
+// ghostget-release names, proves them, and removes them so the helper may run
+// again before every later write.
+export function verifyReleasePublicationAuthority(
+  input: ReleasePublicationAuthorityInput,
+): ReleaseRefAuthority {
+  if (stableVersion(input.requestedTag) === undefined) {
+    fail("Publication authority requires one canonical stable version.");
+  }
+  if (!SHA.test(input.expectedReleaseSha)) {
+    fail("Publication authority requires one exact release commit.");
+  }
+  if (!SHA.test(input.expectedMainSha)) {
+    fail("Publication authority requires one authenticated main commit.");
+  }
+  const runner = input.runner ?? createDefaultGitRunner(resolve(input.workingDirectory ?? process.cwd()));
+  if (checkedHead(runner) !== input.expectedReleaseSha) {
+    fail("Publication helper is not executing from the exact verified release commit.");
+  }
+  const first = readReleaseSnapshot(runner, input.requestedTag);
+  if (first.mainOid !== input.expectedMainSha) {
+    fail("Combined advertisement does not match authenticated current main.");
+  }
+  if (first.requestedTagOid !== input.expectedReleaseSha) {
+    fail("Publication requires one direct lightweight release tag from the combined advertisement.");
+  }
+
+  expectExactLocalRefs(runner, [], "Local publication-ref preflight");
+  const fetchHead = removeStaleFetchHead(runner);
+  const shallow = decode(command(
+    runner,
+    ["rev-parse", "--is-shallow-repository"],
+    "Repository shallow-state check",
+  ), "Repository shallow-state check").trim();
+  if (shallow !== "true" && shallow !== "false") fail("Repository shallow-state check was not exact.");
+  const requestedTagRef = `refs/tags/${input.requestedTag}`;
+  command(
+    runner,
+    [
+      "fetch",
+      "--no-tags",
+      "--no-write-fetch-head",
+      "--no-recurse-submodules",
+      ...(shallow === "true" ? ["--unshallow"] : []),
+      REPOSITORY_URL,
+      `${MAIN_REF}:${PUBLICATION_MAIN_REF}`,
+      `${requestedTagRef}:${PUBLICATION_TAG_REF}`,
+    ],
+    "Exact publication authority import",
+  );
+  if (existsSync(fetchHead)) fail("Exact publication authority import wrote forbidden FETCH_HEAD state.");
+  const refs = expectExactLocalRefs(
+    runner,
+    [PUBLICATION_MAIN_REF, PUBLICATION_TAG_REF],
+    "Local publication-ref import",
+  );
+  const main = refs[0];
+  const tag = refs[1];
+  if (
+    main === undefined
+    || main.objectType !== "commit"
+    || main.objectName !== first.mainOid
+    || main.peeledName !== ""
+    || main.peeledType !== ""
+  ) fail("Imported publication main is not the advertised commit.");
+  if (
+    tag === undefined
+    || tag.objectType !== "commit"
+    || tag.objectName !== first.requestedTagOid
+    || tag.peeledName !== ""
+    || tag.peeledType !== ""
+  ) fail("Imported publication tag is not the advertised direct lightweight commit.");
+  if (runner(["merge-base", "--is-ancestor", input.expectedReleaseSha, PUBLICATION_MAIN_REF]).exitCode !== 0) {
+    fail("Verified release commit is not an ancestor of authenticated current main.");
+  }
+  requireUnchangedReleaseControls(
+    runner,
+    input.expectedReleaseSha,
+    PUBLICATION_MAIN_REF,
+    `Release commit and authenticated current main at ${input.phase}`,
+  );
+  command(
+    runner,
+    ["update-ref", "-d", PUBLICATION_MAIN_REF, first.mainOid],
+    "Temporary publication main cleanup",
+  );
+  command(
+    runner,
+    ["update-ref", "-d", PUBLICATION_TAG_REF, first.requestedTagOid],
+    "Temporary publication tag cleanup",
+  );
+  expectExactLocalRefs(runner, [], "Local publication-ref cleanup");
+
+  const second = readReleaseSnapshot(runner, input.requestedTag);
+  if (second.canonical !== first.canonical) {
+    fail("Remote release-ref inventory changed at the publication boundary.");
+  }
+  return Object.freeze({
+    mainSha: first.mainOid,
+    sha: first.requestedTagOid,
+    tag: input.requestedTag,
+  });
+}
+
 function assertWorkflowIdentity(): void {
   if (process.env.GITHUB_REPOSITORY !== REPOSITORY || process.env.DEFAULT_BRANCH !== MAIN_BRANCH) {
     fail(`Release-ref authority must run for ${REPOSITORY} on exact default branch ${MAIN_BRANCH}.`);
   }
 }
 
+const USAGE = "Usage: release-ref-authority.ts release TAG | "
+  + "publication-prewrite TAG EXPECTED_RELEASE_SHA EXPECTED_MAIN_SHA | "
+  + "publication-postwrite TAG EXPECTED_RELEASE_SHA EXPECTED_MAIN_SHA";
+
 function main(): void {
   assertWorkflowIdentity();
   const [mode, first, second, third, ...extra] = process.argv.slice(2);
-  const publication = mode === "publication-prewrite" || mode === "publication-postwrite";
-  if (
-    extra.length > 0
-    || first === undefined
-    || (mode === "release" && (second !== undefined || third !== undefined))
-    || (mode !== "release" && !publication)
-    || (publication && (second === undefined || third === undefined))
-  ) {
-    fail(
-      "Usage: release-ref-authority.ts release TAG | "
-        + "publication-prewrite TAG RELEASE_SHA MAIN_SHA | "
-        + "publication-postwrite TAG RELEASE_SHA MAIN_SHA",
-    );
+  if (extra.length > 0 || mode === undefined || first === undefined) fail(USAGE);
+  if (mode === "release") {
+    if (second !== undefined || third !== undefined) fail(USAGE);
+    const authority = verifyReleaseRefAuthority({ requestedTag: first });
+    process.stdout.write(`sha=${authority.sha}\ntag=${authority.tag}\nmain_sha=${authority.mainSha}\n`);
+    return;
   }
-  if (publication) {
-    if (second === undefined || !SHA.test(second)) {
-      fail("Publication authority requires one exact release commit.");
-    }
-    if (third === undefined || !SHA.test(third)) {
-      fail("Publication authority requires one authenticated main commit.");
-    }
+  if (mode === "publication-prewrite" || mode === "publication-postwrite") {
+    if (second === undefined || third === undefined) fail(USAGE);
+    const authority = verifyReleasePublicationAuthority({
+      expectedMainSha: third,
+      expectedReleaseSha: second,
+      phase: mode === "publication-prewrite" ? "prewrite" : "postwrite",
+      requestedTag: first,
+    });
+    process.stdout.write(`sha=${authority.sha}\ntag=${authority.tag}\nmain_sha=${authority.mainSha}\n`);
+    return;
   }
-  const authority = verifyReleaseRefAuthority({ requestedTag: first });
-  if (second !== undefined && authority.sha !== second) {
-    fail("Verified release commit does not match the expected release commit.");
-  }
-  if (third !== undefined && authority.mainSha !== third) {
-    fail("Verified advertised main does not match the authenticated current main.");
-  }
-  process.stdout.write(`sha=${authority.sha}\ntag=${authority.tag}\nmain_sha=${authority.mainSha}\n`);
+  fail(USAGE);
 }
 
 if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();
