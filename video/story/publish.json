@@ -1,0 +1,8 @@
+{
+  "copies": [
+    ["ghostget-launch-1080p.mp4", "../../website/public/launch/ghostget-launch.mp4"],
+    ["ghostget-launch-1080p.webm", "../../website/public/launch/ghostget-launch.webm"],
+    ["ghostget-launch-poster.jpg", "../../website/public/launch/ghostget-launch-poster.jpg"],
+    ["ghostget-launch.en.vtt", "../../website/public/launch/ghostget-launch.vtt"]
+  ]
+}
