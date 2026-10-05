@@ -319,6 +319,60 @@ describe("Ghostget release ref authority", () => {
     },
   );
 
+  test.each([
+    ["publication-prewrite", "v1.0.0", "not-a-sha", "0".repeat(40), "one exact release commit"],
+    ["publication-postwrite", "v1.0.0", "0".repeat(40), "not-a-sha", "one authenticated main commit"],
+  ])(
+    "rejects malformed publication authority coordinates before remote inspection (%s)",
+    (...rest) => {
+      const arguments_ = rest.slice(0, 4) as [string, string, string, string];
+      const result = spawnSync("node", [
+        "--experimental-strip-types", join(import.meta.dir, "release-ref-authority.ts"),
+        ...arguments_,
+      ], {
+        encoding: "utf8",
+        env: {
+          PATH: process.env.PATH ?? "",
+          GITHUB_REPOSITORY: "hraness/ghostget",
+          DEFAULT_BRANCH: "main",
+        },
+        stdio: ["ignore", "pipe", "pipe"],
+        maxBuffer: 64 * 1_024,
+        timeout: 10_000,
+      });
+      expect(result.error).toBeUndefined();
+      expect(result.status).toBe(1);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toContain(`Publication authority requires ${rest[4]}`);
+    },
+  );
+
+  test.each([
+    ["publication-prewrite", "v1.0.0"],
+    ["publication-postwrite", "v1.0.0", "0".repeat(40)],
+  ])(
+    "rejects incomplete publication authority arguments (%s)",
+    (...arguments_) => {
+      const result = spawnSync("node", [
+        "--experimental-strip-types", join(import.meta.dir, "release-ref-authority.ts"),
+        ...arguments_,
+      ], {
+        encoding: "utf8",
+        env: {
+          PATH: process.env.PATH ?? "",
+          GITHUB_REPOSITORY: "hraness/ghostget",
+          DEFAULT_BRANCH: "main",
+        },
+        stdio: ["ignore", "pipe", "pipe"],
+        maxBuffer: 64 * 1_024,
+        timeout: 10_000,
+      });
+      expect(result.error).toBeUndefined();
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("Usage: release-ref-authority.ts release TAG");
+    },
+  );
+
   test("accepts one lightweight release tag below protected current main", () => {
     const input = fixture();
     checkoutRelease(input);

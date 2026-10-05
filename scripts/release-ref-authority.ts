@@ -460,11 +460,36 @@ function assertWorkflowIdentity(): void {
 
 function main(): void {
   assertWorkflowIdentity();
-  const [mode, first, ...extra] = process.argv.slice(2);
-  if (extra.length > 0 || mode !== "release" || first === undefined) {
-    fail("Usage: release-ref-authority.ts release TAG");
+  const [mode, first, second, third, ...extra] = process.argv.slice(2);
+  const publication = mode === "publication-prewrite" || mode === "publication-postwrite";
+  if (
+    extra.length > 0
+    || first === undefined
+    || (mode === "release" && (second !== undefined || third !== undefined))
+    || (mode !== "release" && !publication)
+    || (publication && (second === undefined || third === undefined))
+  ) {
+    fail(
+      "Usage: release-ref-authority.ts release TAG | "
+        + "publication-prewrite TAG RELEASE_SHA MAIN_SHA | "
+        + "publication-postwrite TAG RELEASE_SHA MAIN_SHA",
+    );
+  }
+  if (publication) {
+    if (second === undefined || !SHA.test(second)) {
+      fail("Publication authority requires one exact release commit.");
+    }
+    if (third === undefined || !SHA.test(third)) {
+      fail("Publication authority requires one authenticated main commit.");
+    }
   }
   const authority = verifyReleaseRefAuthority({ requestedTag: first });
+  if (second !== undefined && authority.sha !== second) {
+    fail("Verified release commit does not match the expected release commit.");
+  }
+  if (third !== undefined && authority.mainSha !== third) {
+    fail("Verified advertised main does not match the authenticated current main.");
+  }
   process.stdout.write(`sha=${authority.sha}\ntag=${authority.tag}\nmain_sha=${authority.mainSha}\n`);
 }
 
