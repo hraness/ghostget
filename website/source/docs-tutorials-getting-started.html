@@ -105,7 +105,7 @@ enabled = true</code></pre></div>
           <p>To leave network access off for other commands, let only <code>ghostget read</code> run outside the sandbox without asking. Add this rule to <code>~/.codex/rules/default.rules</code>; rules are an experimental Codex feature:</p>
           <div class="command-panel"><pre><code>prefix_rule(pattern = ["ghostget", "read"], decision = "allow")</code></pre></div>
           <p>Check how Codex applies the rule with <code>codex execpolicy check --pretty --rules ~/.codex/rules/default.rules -- ghostget read https://example.com</code>. Codex’s <a href="https://learn.chatgpt.com/docs/agent-approvals-security">approvals and security guide</a>, <a href="https://learn.chatgpt.com/docs/permissions">permission profiles reference</a>, and <a href="https://learn.chatgpt.com/docs/agent-configuration/rules">rules guide</a> cover these settings.</p>
-          <p class="review-note">Status on October 4, 2026: each Codex setting above was tried with Codex CLI 0.160.0 by running <code>ghostget read https://example.com</code> under <code>codex sandbox</code>.</p>
+          <p class="review-note">Status on October 4, 2026: each Codex setting above was tried with Codex CLI 0.160.0 by running <code>ghostget read https://example.com --mode http</code> under <code>codex sandbox</code>.</p>
           <h3 id="agents-claude-code">Claude Code</h3>
           <p>In Manual mode, Claude Code asks before it runs a shell command outside its built-in read-only set. Choose “Yes, and don’t ask again” to save the rule for the repository, or allow GhostGet reads for every project in <code>~/.claude/settings.json</code>:</p>
           <div class="command-panel"><pre><code>{
