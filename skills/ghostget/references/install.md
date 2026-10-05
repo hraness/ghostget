@@ -24,7 +24,7 @@ of substituting `main`, another tag, or a different package version. Install
 that exact release and verify a public-page read:
 
 ```sh
-bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.85/hraness-ghostget-0.18.85.tgz
+bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.86/hraness-ghostget-0.18.86.tgz
 ghostget read https://example.com
 ```
 
@@ -61,7 +61,7 @@ Do not clone the repository merely to run the CLI. Importing the SDK is a
 separate project dependency and does not install a global command:
 
 ```sh
-bun add https://github.com/hraness/ghostget/releases/download/v0.18.85/hraness-ghostget-0.18.85.tgz
+bun add https://github.com/hraness/ghostget/releases/download/v0.18.86/hraness-ghostget-0.18.86.tgz
 ```
 
 `ghostget adapter sync-bundled` upgrades exact bundled baselines, including an

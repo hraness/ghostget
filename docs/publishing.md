@@ -337,7 +337,7 @@ These commands require the matching published immutable v0.18.85 release.
 For the CLI:
 
 ```sh
-bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.85/hraness-ghostget-0.18.85.tgz
+bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.86/hraness-ghostget-0.18.86.tgz
 ghostget --version
 ghostget doctor --json
 ```

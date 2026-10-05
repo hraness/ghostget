@@ -9,7 +9,7 @@ are authoritative and may change.
 | X | `x-web` | `posts.publish` when the installed schema accepts `video/mp4` | Consumer X post. Observed `x-web` `posts.publish` now accepts one plan-bound PNG or one MP4. |
 | X | `x` | `posts.publish` when the installed schema accepts `video/mp4` | Official OAuth post. Already schemas MP4. |
 | LinkedIn | `linkedin` | video-capable `posts.publish` | Observed official OAuth member or explicitly bound organization post. |
-| LinkedIn | `linkedin-web` | `media.publish` when observed | Consumer-web member video; currently a separate capture-required route so image `posts.publish` remains unchanged. |
+| LinkedIn | `linkedin-web` | `media.publish` | Observed consumer-web member video post; image `posts.publish` remains a separate observed contract. |
 | Bluesky | `bluesky-web` | `media.publish` | Observed AT Protocol video feed post; image `posts.publish` remains a separate observed contract. |
 | Substack | `substack-web` | `media.publish` when observed | Public Substack Note, not an article or newsletter. |
 | TikTok | `tiktok-web` | `media.publish` when observed | Native TikTok video |
@@ -28,19 +28,18 @@ single-request video upload, durable created-post identity, and independent
 permalink actor/text/video readback. Bluesky `media.publish@2` observes one
 plan-bound ISO BMFF MP4, the fixed first-party legacy upload and response-bound
 processing job, processed blob, exact repository record, durable accepted
-target, and authoritative PDS plus public AppView readbacks. LinkedIn web,
-Substack Notes, TikTok, Instagram, and YouTube expose bounded video `media.publish`
+target, and authoritative PDS plus public AppView readbacks. LinkedIn web
+`media.publish@1` observes one plan-bound MP4, the member video upload
+registration and byte transfer, the normalized create response, and an exact
+permalink readback. Substack `media.publish@1` observes one plan-bound MP4,
+authenticated upload initialization, ordered S3 multipart transfer, transcode
+and status polling, attachment binding, exact Note create, and independent
+readback of the bound `media_upload_id` and transcoded `mediaUpload` state.
+TikTok, Instagram, and YouTube expose bounded video `media.publish`
 reservations. Those routes stay `capture-required` until their exact upload,
 processing, request, response, actor/target, and independent readback contracts
-are implemented and proven.
-For Substack specifically, an authorized profile-backed fixture proved 200
-initialization, ordered raw multipart transfer, transcode, status polling, and
-video-attachment creation. The final Note create returned 403 twice, including
-one GhostGet-native attempt, so there is no provider-created video Note or exact
-readback to graduate. `content.delete@1` is independently observed for cleanup
-of an exact authored personal Note; that does not imply video publication.
-Treat them as unavailable until the installed capability independently says
-`observed`.
+are implemented and proven. Treat them as unavailable until the installed
+capability independently says `observed`.
 
 ## Selection rules
 

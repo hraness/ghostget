@@ -100,8 +100,8 @@ describe("Substack web provider plugin", () => {
     expect(originalReceipt).toBe("f0a20609b1d0a0c902b52bdb99483a4115a1f2ad61c40d797e45e92f803bc796");
     const identity = reviewedBuiltInContractIdentity("substack-web", "1.7.0");
     const predecessors = identity.legacyDistributionReadImplementationSha256 ?? [];
-    expect(predecessors).toHaveLength(12);
-    expect(predecessors[0]?.implementationSha256).toBe("62507025edf4836d122027832fc2f49d04e6331487c40e10dbe5f8a1fa6ae797");
+    expect(predecessors).toHaveLength(13);
+    expect(predecessors[0]?.implementationSha256).toBe("1ff335a9f8d2f4d071dfa0c197bd2fcf7d5c59884e815db230a357891e02080f");
     const subscriberV2 = new Set(["subscribers.export", "subscribers.import", "subscribers.import.status"]);
     for (const distribution of predecessors) {
       for (const operation of registered.operations) {
@@ -153,15 +153,17 @@ describe("Substack web provider plugin", () => {
     expect(binding.reconcile).toBeFunction();
   });
 
-  test("keeps video inert while graduating exact personal-Note deletion", () => {
+  test("graduates exact MP4 Note publication and personal-Note deletion", () => {
     const video = binding.operations.find((candidate) => candidate.name === "media.publish");
     expect(video).toMatchObject({
       contractVersion: 1,
       risk: "R3",
-      state: "capture-required",
+      state: "observed",
       dispatch: "single",
+      reconciliation: {
+        kind: "provider-accepted-target-presence",
+      },
     });
-    expect(video).not.toHaveProperty("reconciliation");
     const deletion = binding.operations.find((candidate) => candidate.name === "content.delete");
     expect(deletion).toMatchObject({
         contractVersion: 1,

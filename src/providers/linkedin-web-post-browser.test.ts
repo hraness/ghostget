@@ -94,6 +94,9 @@ describe("LinkedIn native post contained-browser transport", () => {
           ]);
           return Promise.resolve([{ success: true, result: { opened: true } }]);
         }
+        if (command?.[0] === "wait") {
+          return Promise.resolve([{ success: true, result: { waited: true } }]);
+        }
         if (command?.[0] === "network") return Promise.resolve([pageBindingRecord()]);
         if (commands.some((candidate) => candidate[0] !== "eval" || candidate[1] === undefined)) {
           throw new Error("unexpected LinkedIn post browser command");
@@ -137,7 +140,7 @@ describe("LinkedIn native post contained-browser transport", () => {
             entityUrn: "urn:li:fsd_share:7000000000000000000",
           })]);
         }
-        if (sources[0]?.includes("const readbackPath=")) {
+        if (sources[0]?.includes("LinkedIn post readback permalink")) {
           expect(sources).toHaveLength(1);
           readbacks += 1;
           return Promise.resolve([browserRecord({ read: true })]);
@@ -309,5 +312,409 @@ describe("LinkedIn native post contained-browser transport", () => {
       );
     }
     await transport.close();
+  });
+
+  test("executes create and readback sources against the observed normalized-included and permalink shapes", async () => {
+    const postText = "observed create & permalink shapes";
+    const activityId = "7512910091130421248";
+    const entityUrn = `urn:li:fsd_update:(urn:li:activity:${activityId},FEED_DETAIL,EMPTY,DEFAULT,false)`;
+    const permalink = `https://www.linkedin.com/feed/update/urn:li:activity:${activityId}/`;
+    const profileUrn = "urn:li:fsd_profile:ACoAAExactCurrentProfile";
+    const mediaUrn = "urn:li:digitalmediaAsset:C4D22AQExactImage";
+    const identityBody = {
+      data: {
+        plainId: "123456789",
+        "*miniProfile": "urn:li:fs_miniProfile:ACoAAExactCurrentProfile",
+      },
+      included: [{
+        entityUrn: "urn:li:fs_miniProfile:ACoAAExactCurrentProfile",
+        publicIdentifier: "hraness",
+        firstName: "Ben",
+        lastName: "Guo",
+      }],
+    };
+    const createBody = {
+      data: {},
+      included: [
+        {
+          $type: "com.linkedin.voyager.dash.feed.Update",
+          entityUrn,
+        },
+        {
+          $type: "com.linkedin.voyager.dash.contentcreation.Share",
+          entityUrn: "urn:li:fsd_share:7512910091130421248",
+          status: {
+            lifecycleState: {
+              UnpublishedState: null,
+              "*PublishedState": entityUrn,
+            },
+          },
+        },
+      ],
+    };
+    const permalinkHtml = [
+      `<html><body>`,
+      `"entityUrn":"urn:li:activity:${activityId}"`,
+      `"commentary":{"text":"${postText.replace(/&/gu, "&amp;").replace(/</gu, "&lt;").replace(/>/gu, "&gt;").replace(/"/gu, "&quot;").replace(/'/gu, "&#39;")}"}`,
+      `href="https://www.linkedin.com/in/hraness/"`,
+      `<span>Ben Guo</span>`,
+      mediaUrn,
+      `</body></html>`,
+    ].join("");
+
+    const globals = globalThis as Record<string, unknown>;
+    const priorFetch = globals.fetch;
+    const priorLocation = globals.location;
+    const priorDocument = globals.document;
+    const jsonResponse = (body: unknown) => ({
+      headers: {
+        get: (name: string) =>
+          name.toLowerCase() === "content-type"
+            ? "application/vnd.linkedin.normalized+json+2.1"
+            : null,
+      },
+      status: 200,
+      json: () => Promise.resolve(body),
+      text: () => Promise.resolve(JSON.stringify(body)),
+    });
+    globals.location = { origin: "https://www.linkedin.com" };
+    globals.document = { cookie: 'JSESSIONID="ajax:test-csrf-token"' };
+    globals.fetch = ((url: unknown, init: unknown) => {
+      if (
+        init !== null
+        && typeof init === "object"
+        && (init as { method?: string }).method === "POST"
+      ) {
+        return Promise.resolve(jsonResponse(createBody));
+      }
+      if (url === "/voyager/api/me") return Promise.resolve(jsonResponse(identityBody));
+      if (url === permalink) {
+        return Promise.resolve({
+          headers: {
+            get: (name: string) =>
+              name.toLowerCase() === "content-type" ? "text/html" : null,
+          },
+          status: 200,
+          text: () => Promise.resolve(permalinkHtml),
+        });
+      }
+      return Promise.reject(new Error(`unexpected fetch ${String(url)}`));
+    }) as typeof fetch;
+
+    let createdUrn = "";
+    let read: Readonly<Record<string, unknown>> | null = null;
+    const session: BrowserSession = {
+      runBatch: (commands) => {
+        const command = commands[0];
+        if (command?.[0] === "open" || command?.[0] === "wait") {
+          return Promise.resolve([{ success: true, result: { ok: true } }]);
+        }
+        if (command?.[0] === "network") return Promise.resolve([pageBindingRecord()]);
+        const source = command?.[1] ?? "";
+        if (
+          !source.includes("const createPath=")
+          && !source.includes("LinkedIn post readback permalink")
+        ) {
+          throw new Error("unexpected LinkedIn evaluation source");
+        }
+        return (async () => {
+          const value = await (new Function(`return ${source}`)() as Promise<unknown>);
+          return [browserRecord(value as Readonly<Record<string, unknown>>)];
+        })();
+      },
+      close: () => Promise.resolve(),
+      cleanup: () => Promise.resolve(),
+    };
+
+    try {
+      const transport = await createLinkedInPostBrowserTransport(auth, {
+        timeoutMs: 10_000,
+        dependencies: { createBrowserSession: () => Promise.resolve(session) },
+      });
+      const variables = { post: { commentary: { text: postText } } };
+      createdUrn = await transport.createPost(
+        auth.subject,
+        profileUrn,
+        variables,
+        mediaUrn,
+      );
+      read = await transport.readPost(
+        auth.subject,
+        profileUrn,
+        variables,
+        mediaUrn,
+        createdUrn,
+      ) as Readonly<Record<string, unknown>>;
+      await transport.close();
+    } finally {
+      globals.fetch = priorFetch as typeof fetch;
+      if (priorLocation === undefined) delete globals.location;
+      else globals.location = priorLocation;
+      if (priorDocument === undefined) delete globals.document;
+      else globals.document = priorDocument;
+    }
+
+    expect(createdUrn).toBe(entityUrn);
+    expect(read).toMatchObject({
+      entityMatched: true,
+      actorMatched: true,
+      textMatched: true,
+      mediaMatched: true,
+      mediaUrn,
+      lifecycle: "PUBLISHED",
+      url: permalink,
+    });
+  });
+
+  test("binds the observed share-only MEDIA_PROCESSING video create response and ugcPost permalink readback", async () => {
+    const postText = "observed video create & permalink shapes";
+    const ugcPostId = "7512923399980044289";
+    const entityUrn = `urn:li:fsd_share:urn:li:ugcPost:${ugcPostId}`;
+    const permalink = `https://www.linkedin.com/feed/update/urn:li:ugcPost:${ugcPostId}/`;
+    const profileUrn = "urn:li:fsd_profile:ACoAAExactCurrentProfile";
+    const mediaUrn = "urn:li:fsd_video:C4D22AQExactVideo";
+    const identityBody = {
+      data: {
+        plainId: "123456789",
+        "*miniProfile": "urn:li:fs_miniProfile:ACoAAExactCurrentProfile",
+      },
+      included: [{
+        entityUrn: "urn:li:fs_miniProfile:ACoAAExactCurrentProfile",
+        publicIdentifier: "hraness",
+        firstName: "Ben",
+        lastName: "Guo",
+      }],
+    };
+    const createBody = {
+      data: {},
+      included: [
+        {
+          $type: "com.linkedin.voyager.dash.contentcreation.Share",
+          entityUrn,
+          status: {
+            lifecycleState: {
+              PublishedState: null,
+              UnpublishedState: "MEDIA_PROCESSING",
+            },
+          },
+        },
+      ],
+    };
+    const permalinkHtml = [
+      `<html><body>`,
+      `"entityUrn":"urn:li:ugcPost:${ugcPostId}"`,
+      `"commentary":{"text":"${postText}"}`,
+      `href="https://www.linkedin.com/in/hraness/"`,
+      `<span>Ben Guo</span>`,
+      mediaUrn,
+      `</body></html>`,
+    ].join("");
+
+    const globals = globalThis as Record<string, unknown>;
+    const priorFetch = globals.fetch;
+    const priorLocation = globals.location;
+    const priorDocument = globals.document;
+    const jsonResponse = (body: unknown) => ({
+      headers: {
+        get: (name: string) =>
+          name.toLowerCase() === "content-type"
+            ? "application/vnd.linkedin.normalized+json+2.1"
+            : null,
+      },
+      status: 200,
+      json: () => Promise.resolve(body),
+      text: () => Promise.resolve(JSON.stringify(body)),
+    });
+    globals.location = { origin: "https://www.linkedin.com" };
+    globals.document = { cookie: 'JSESSIONID="ajax:test-csrf-token"' };
+    globals.fetch = ((url: unknown, init: unknown) => {
+      if (
+        init !== null
+        && typeof init === "object"
+        && (init as { method?: string }).method === "POST"
+      ) {
+        return Promise.resolve(jsonResponse(createBody));
+      }
+      if (url === "/voyager/api/me") return Promise.resolve(jsonResponse(identityBody));
+      if (url === permalink) {
+        return Promise.resolve({
+          headers: {
+            get: (name: string) =>
+              name.toLowerCase() === "content-type" ? "text/html" : null,
+          },
+          status: 200,
+          text: () => Promise.resolve(permalinkHtml),
+        });
+      }
+      return Promise.reject(new Error(`unexpected fetch ${String(url)}`));
+    }) as typeof fetch;
+
+    let createdUrn = "";
+    let read: Readonly<Record<string, unknown>> | null = null;
+    const session: BrowserSession = {
+      runBatch: (commands) => {
+        const command = commands[0];
+        if (command?.[0] === "open" || command?.[0] === "wait") {
+          return Promise.resolve([{ success: true, result: { ok: true } }]);
+        }
+        if (command?.[0] === "network") return Promise.resolve([pageBindingRecord()]);
+        const source = command?.[1] ?? "";
+        if (
+          !source.includes("const createPath=")
+          && !source.includes("LinkedIn post readback permalink")
+        ) {
+          throw new Error("unexpected LinkedIn evaluation source");
+        }
+        return (async () => {
+          const value = await (new Function(`return ${source}`)() as Promise<unknown>);
+          return [browserRecord(value as Readonly<Record<string, unknown>>)];
+        })();
+      },
+      close: () => Promise.resolve(),
+      cleanup: () => Promise.resolve(),
+    };
+
+    try {
+      const transport = await createLinkedInPostBrowserTransport(auth, {
+        timeoutMs: 10_000,
+        dependencies: { createBrowserSession: () => Promise.resolve(session) },
+      });
+      const variables = { post: { commentary: { text: postText } } };
+      createdUrn = await transport.createPost(
+        auth.subject,
+        profileUrn,
+        variables,
+        mediaUrn,
+        "VIDEO",
+      );
+      read = await transport.readPost(
+        auth.subject,
+        profileUrn,
+        variables,
+        mediaUrn,
+        createdUrn,
+        "VIDEO",
+      ) as Readonly<Record<string, unknown>>;
+      await transport.close();
+    } finally {
+      globals.fetch = priorFetch as typeof fetch;
+      if (priorLocation === undefined) delete globals.location;
+      else globals.location = priorLocation;
+      if (priorDocument === undefined) delete globals.document;
+      else globals.document = priorDocument;
+    }
+
+    expect(createdUrn).toBe(entityUrn);
+    expect(read).toMatchObject({
+      entityMatched: true,
+      actorMatched: true,
+      textMatched: true,
+      mediaMatched: true,
+      mediaUrn,
+      lifecycle: "PUBLISHED",
+      url: permalink,
+    });
+  });
+
+  test("rejects a permalink readback that omits the author's member markers", async () => {
+    const postText = "observed permalink without the author";
+    const activityId = "7512910091130421248";
+    const entityUrn = `urn:li:fsd_update:(urn:li:activity:${activityId},FEED_DETAIL,EMPTY,DEFAULT,false)`;
+    const permalink = `https://www.linkedin.com/feed/update/urn:li:activity:${activityId}/`;
+    const profileUrn = "urn:li:fsd_profile:ACoAAExactCurrentProfile";
+    const identityBody = {
+      data: {
+        plainId: "123456789",
+        "*miniProfile": "urn:li:fs_miniProfile:ACoAAExactCurrentProfile",
+      },
+      included: [{
+        entityUrn: "urn:li:fs_miniProfile:ACoAAExactCurrentProfile",
+        publicIdentifier: "hraness",
+        firstName: "Ben",
+        lastName: "Guo",
+      }],
+    };
+    const permalinkHtml = [
+      `<html><body>`,
+      `"entityUrn":"urn:li:activity:${activityId}"`,
+      `"commentary":{"text":"${postText}"}`,
+      `href="https://www.linkedin.com/in/someone-else/"`,
+      `<span>Sam Person</span>`,
+      `</body></html>`,
+    ].join("");
+
+    const globals = globalThis as Record<string, unknown>;
+    const priorFetch = globals.fetch;
+    const priorLocation = globals.location;
+    const priorDocument = globals.document;
+    globals.location = { origin: "https://www.linkedin.com" };
+    globals.document = { cookie: 'JSESSIONID="ajax:test-csrf-token"' };
+    globals.fetch = ((url: unknown) => {
+      if (url === "/voyager/api/me") {
+        return Promise.resolve({
+          headers: {
+            get: (name: string) =>
+              name.toLowerCase() === "content-type"
+                ? "application/vnd.linkedin.normalized+json+2.1"
+                : null,
+          },
+          status: 200,
+          json: () => Promise.resolve(identityBody),
+          text: () => Promise.resolve(JSON.stringify(identityBody)),
+        });
+      }
+      if (url === permalink) {
+        return Promise.resolve({
+          headers: {
+            get: (name: string) =>
+              name.toLowerCase() === "content-type" ? "text/html" : null,
+          },
+          status: 200,
+          text: () => Promise.resolve(permalinkHtml),
+        });
+      }
+      return Promise.reject(new Error(`unexpected fetch ${String(url)}`));
+    }) as typeof fetch;
+
+    const session: BrowserSession = {
+      runBatch: (commands) => {
+        const command = commands[0];
+        if (command?.[0] === "open" || command?.[0] === "wait") {
+          return Promise.resolve([{ success: true, result: { ok: true } }]);
+        }
+        if (command?.[0] === "network") return Promise.resolve([pageBindingRecord()]);
+        const source = command?.[1] ?? "";
+        if (!source.includes("LinkedIn post readback permalink")) {
+          throw new Error("unexpected LinkedIn evaluation source");
+        }
+        return (async () => {
+          const value = await (new Function(`return ${source}`)() as Promise<unknown>);
+          return [browserRecord(value as Readonly<Record<string, unknown>>)];
+        })();
+      },
+      close: () => Promise.resolve(),
+      cleanup: () => Promise.resolve(),
+    };
+
+    try {
+      const transport = await createLinkedInPostBrowserTransport(auth, {
+        timeoutMs: 10_000,
+        dependencies: { createBrowserSession: () => Promise.resolve(session) },
+      });
+      await expect(transport.readPost(
+        auth.subject,
+        profileUrn,
+        { post: { commentary: { text: postText } } },
+        null,
+        entityUrn,
+      )).rejects.toThrow("did not bind the confirmed post");
+      await transport.close();
+    } finally {
+      globals.fetch = priorFetch as typeof fetch;
+      if (priorLocation === undefined) delete globals.location;
+      else globals.location = priorLocation;
+      if (priorDocument === undefined) delete globals.document;
+      else globals.document = priorDocument;
+    }
   });
 });

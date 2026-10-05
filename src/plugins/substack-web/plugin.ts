@@ -86,7 +86,7 @@ export const substackWebPlugin = defineProviderPlugin({
     authKinds: browserSessionAuthKinds,
     operations: [...webSessionContractOperations(
       Object.values(substackContracts),
-      "094ccfba4f96ee1deed26201cab94154b8471f4f80db5d6e273c4f4117601427",
+      "44899d0fb82aa7063b171818934f73e5cf3414d4bbc177f833a9e5e6fd22b633",
       {
         "posts.publish": [2],
       },
@@ -106,6 +106,7 @@ export const substackWebPlugin = defineProviderPlugin({
     ).map((operation) => {
       if (
         operation.name === "posts.publish"
+        || operation.name === "media.publish"
         || operation.name === "comments.create"
         || operation.name === "replies.create"
       ) {
@@ -156,6 +157,22 @@ export const substackWebPlugin = defineProviderPlugin({
               throw new Error(`Substack ${operation} reconciliation requires one exact accepted target`);
             }
             const readback = await runtime.readSubstackWebAcceptedCommentTargetPresence({
+              site: "substack",
+              action: operation,
+              contractVersion: 1,
+              timeoutMs: 60_000,
+              maxOutputBytes: 8 * 1024 * 1024,
+            }, input, auth, context.target.identifier);
+            return {
+              actualState: readback.present,
+              reason: "exact-target-readback",
+            };
+          }
+          if (operation === "media.publish") {
+            if (context?.kind !== "provider-accepted-target-presence") {
+              throw new Error("Substack media.publish reconciliation requires one exact accepted target");
+            }
+            const readback = await runtime.readSubstackWebAcceptedNoteTargetPresence({
               site: "substack",
               action: operation,
               contractVersion: 1,

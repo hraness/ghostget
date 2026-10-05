@@ -18,8 +18,6 @@ export const LINKEDIN_MESSENGER_CONVERSATIONS_OBSERVED_QUERY_ID =
 export const LINKEDIN_MESSENGER_GRAPHQL_PATH = "/voyager/api/voyagerMessagingGraphQL/graphql";
 export const LINKEDIN_POST_CREATE_MUTATION_ID =
   "voyagerContentcreationDashShares.80089eb2e82a2dfa23cb621fb09eb7bf";
-export const LINKEDIN_POST_READBACK_QUERY_ID =
-  "voyagerFeedDashUpdates.00f9ed72d35c2a949114759b829f9886";
 export const LINKEDIN_GRAPHQL_PATH = "/voyager/api/graphql";
 export const LINKEDIN_COMMENT_CREATE_PATH =
   "/voyager/api/voyagerSocialDashNormComments";
@@ -215,9 +213,55 @@ export const LINKEDIN_WEB_OPERATIONS = {
   "media.publish": {
     effect: "write",
     risk: "R3",
-    state: "capture-required",
-    evidence: "none",
-    requests: [],
+    state: "observed",
+    evidence: "live-har",
+    requests: [
+      {
+        kind: "restli-write",
+        method: "POST",
+        path: "/voyager/api/voyagerVideoDashMediaUploadMetadata",
+        queryId: null,
+        fixedQueryParameters: [["action", "upload"]],
+        bodyContract: "VIDEO_SHARING registration for the exact plan-bound MP4 size and fixed filename",
+        targetHostnameFamilies: ["linkedin.com"],
+      },
+      {
+        kind: "server-bound-upload",
+        method: "PUT",
+        path: "server-returned exact upload URL",
+        queryId: null,
+        fixedQueryParameters: [],
+        bodyContract: "exact registered MP4 bytes once, or exact contiguous registered parts once",
+        targetHostnameFamilies: ["linkedin.com", "licdn.com"],
+      },
+      {
+        kind: "restli-write",
+        method: "POST",
+        path: "/voyager/api/voyagerVideoDashMediaUploadMetadata",
+        queryId: null,
+        fixedQueryParameters: [["action", "completeMultipartUpload"]],
+        bodyContract: "registered artifact, multipart metadata, and exact per-part response evidence only",
+        targetHostnameFamilies: ["linkedin.com"],
+      },
+      {
+        kind: "registered-mutation",
+        method: "POST",
+        path: LINKEDIN_GRAPHQL_PATH,
+        queryId: LINKEDIN_POST_CREATE_MUTATION_ID,
+        fixedQueryParameters: [["action", "execute"]],
+        bodyContract: "one PUBLISHED FEED post with exact commentary, fixed commenter scope, confirmed visibility, and a response-bound VIDEO media URN with optional exact title",
+        targetHostnameFamilies: ["linkedin.com"],
+      },
+      {
+        kind: "server-rendered-read",
+        method: "GET",
+        path: "/feed/update/:acceptedUrn/ bounded post permalink HTML",
+        queryPrefix: null,
+        allowedQueryParameters: [],
+        requiredQueryParameters: [],
+        fixedQueryParameters: [],
+      },
+    ],
   },
   "posts.read": {
     effect: "read",
@@ -269,16 +313,13 @@ export const LINKEDIN_WEB_OPERATIONS = {
         targetHostnameFamilies: ["linkedin.com"],
       },
       {
-        kind: "registered-query",
+        kind: "server-rendered-read",
         method: "GET",
-        path: LINKEDIN_GRAPHQL_PATH,
-        queryPrefix: "voyagerFeedDashUpdates",
-        allowedQueryParameters: ["includeWebMetadata", "queryId", "variables"],
-        requiredQueryParameters: ["includeWebMetadata", "queryId", "variables"],
-        fixedQueryParameters: [
-          ["includeWebMetadata", "true"],
-          ["queryId", LINKEDIN_POST_READBACK_QUERY_ID],
-        ],
+        path: "/feed/update/:acceptedUrn/ bounded post permalink HTML",
+        queryPrefix: null,
+        allowedQueryParameters: [],
+        requiredQueryParameters: [],
+        fixedQueryParameters: [],
       },
     ],
   },
@@ -2840,11 +2881,15 @@ export function linkedInMessengerConversationsUrl(
 
 export type LinkedInPostVisibility = "public" | "connections";
 
+export type LinkedInPostMediaCategory = "IMAGE" | "VIDEO";
+
 export type LinkedInPostCreateInput = {
   readonly body: string;
   readonly visibility: LinkedInPostVisibility;
   readonly mediaUrn: string | null;
   readonly altText: string | null;
+  readonly mediaCategory?: LinkedInPostMediaCategory;
+  readonly mediaTitle?: string | null;
 };
 
 export type LinkedInPostProjection = {
@@ -2870,6 +2915,17 @@ export function linkedInPostVisibility(value: unknown): LinkedInPostVisibility {
   return value;
 }
 
+export function linkedInPostMediaTitle(value: unknown): string | null {
+  if (value === undefined) return null;
+  if (
+    typeof value !== "string"
+    || value.length < 1
+    || value.length > 200
+    || /[\0\r\n]/u.test(value)
+  ) throw new Error("LinkedIn video title must be 1-200 plain-text characters");
+  return value;
+}
+
 export function linkedInPostAltText(value: unknown, mediaPresent: boolean): string | null {
   if (value === undefined) return null;
   if (!mediaPresent) throw new Error("LinkedIn alt_text requires one reviewed image");
@@ -2886,8 +2942,8 @@ export function linkedInPostMediaUrn(value: unknown): string {
   if (
     typeof value !== "string"
     || value.length > 512
-    || !/^urn:li:(?:digitalmediaAsset|fsd_image):[A-Za-z0-9_(),.:%=-]{1,448}$/u.test(value)
-  ) throw new Error("LinkedIn image upload returned an invalid media URN");
+    || !/^urn:li:(?:digitalmediaAsset|fsd_image|fsd_video):[A-Za-z0-9_(),.:%=-]{1,448}$/u.test(value)
+  ) throw new Error("LinkedIn media upload returned an invalid media URN");
   return value;
 }
 
@@ -2895,7 +2951,11 @@ export function linkedInPostEntityUrn(value: unknown): string {
   if (
     typeof value !== "string"
     || value.length > 512
-    || !/^urn:li:(?:fsd_share|share|ugcPost):[A-Za-z0-9_(),.:%=-]{1,448}$/u.test(value)
+    || (
+      !/^urn:li:(?:fsd_share|share|ugcPost|activity):[A-Za-z0-9_(),.:%=-]{1,448}$/u.test(value)
+      && !/^urn:li:fsd_update:\(urn:li:activity:\d{10,20},[A-Za-z0-9_(),.%=-]{1,380}\)$/u.test(value)
+      && !/^urn:li:fsd_share:urn:li:(?:ugcPost|share|activity):[0-9]{10,20}$/u.test(value)
+    )
   ) throw new Error("LinkedIn post response returned an invalid entity URN");
   return value;
 }
@@ -2907,11 +2967,25 @@ export function buildLinkedInPostCreateVariables(
   const body = linkedInPostText(input.body);
   const visibility = linkedInPostVisibility(input.visibility);
   const mediaUrn = input.mediaUrn === null ? null : linkedInPostMediaUrn(input.mediaUrn);
-  const altText = linkedInPostAltText(input.altText ?? undefined, mediaUrn !== null);
+  const mediaCategory = input.mediaCategory ?? "IMAGE";
+  if (mediaCategory !== "IMAGE" && mediaCategory !== "VIDEO") {
+    throw new Error("LinkedIn media category must be IMAGE or VIDEO");
+  }
+  if (mediaCategory === "VIDEO" && mediaUrn === null) {
+    throw new Error("LinkedIn VIDEO posts require a registered media URN");
+  }
+  const altText = mediaCategory === "VIDEO"
+    ? null
+    : linkedInPostAltText(input.altText ?? undefined, mediaUrn !== null);
+  const mediaTitle = mediaCategory === "VIDEO"
+    ? linkedInPostMediaTitle(input.mediaTitle ?? undefined)
+    : null;
+  if (mediaCategory === "VIDEO" && input.altText !== undefined && input.altText !== null) {
+    throw new Error("LinkedIn VIDEO posts carry the video title, not alt_text");
+  }
   const post: Record<string, unknown> = {
     allowedCommentersScope: "ALL",
     commentary: {
-      $type: "com.linkedin.voyager.dash.deco.common.text.TextViewModelV2",
       attributesV2: [],
       text: body,
     },
@@ -2924,26 +2998,14 @@ export function buildLinkedInPostCreateVariables(
   };
   if (mediaUrn !== null) {
     post.media = {
-      category: "IMAGE",
+      category: mediaCategory,
       mediaUrn,
       tapTargets: [],
       ...(altText === null ? {} : { altText }),
+      ...(mediaTitle === null ? {} : { title: mediaTitle }),
     };
   }
   return Object.freeze({ post: Object.freeze(post) });
-}
-
-/** Exact current registered GraphQL readback for one response-bound backend share URN. */
-export function linkedInPostReadbackUrl(entityUrnValue: unknown): URL {
-  const entityUrn = linkedInPostEntityUrn(entityUrnValue);
-  const url = new URL(LINKEDIN_GRAPHQL_PATH, "https://www.linkedin.com");
-  url.searchParams.set("includeWebMetadata", "true");
-  url.searchParams.set("queryId", LINKEDIN_POST_READBACK_QUERY_ID);
-  url.searchParams.set(
-    "variables",
-    `(moduleKey:feed-item:desktop,urnOrNss:${entityUrn})`,
-  );
-  return url;
 }
 
 /** Parse the minimal code-owned browser projection after create plus independent readback. */

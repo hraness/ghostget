@@ -2318,6 +2318,21 @@ function tweetMediaIds(legacy: JsonRecord, expectedReadbackType: "photo" | "vide
   return Object.freeze(first);
 }
 
+function tweetMediaUrls(legacy: JsonRecord): readonly string[] {
+  for (const name of ["entities", "extended_entities"] as const) {
+    const container = legacy[name];
+    if (!isRecord(container) || !Array.isArray(container.media)) continue;
+    return Object.freeze(container.media.map((item, index) => {
+      const media = record(item, `X post ${name}.media[${index}]`);
+      if (typeof media.url !== "string" || !media.url.startsWith("https://t.co/")) {
+        throw new Error("X post media entity omitted its t.co url");
+      }
+      return media.url;
+    }));
+  }
+  return Object.freeze([]);
+}
+
 /**
  * Bind confirmed CreateTweet text from the long-form note_tweet record when
  * present. Live long posts keep a short preview in legacy.full_text; that
@@ -2351,13 +2366,6 @@ function assertTweetBinding(
   const result = unwrapTweet(value, `${label}.result`);
   const id = postId(result.rest_id, "X created post rest_id");
   const legacy = record(result.legacy, `${label}.legacy`);
-  const returnedText = boundCreateTweetText(result, legacy);
-  if (returnedText !== expectedText) throw new Error("X created post response did not bind the confirmed text");
-  if (legacy.user_id_str !== expectedAuthorId) throw new Error("X created post response did not bind the confirmed viewer");
-  const returnedReply = typeof legacy.in_reply_to_status_id_str === "string" ? legacy.in_reply_to_status_id_str : null;
-  if (returnedReply !== replyTo) throw new Error("X created post response did not bind the confirmed reply target");
-  const returnedQuote = typeof legacy.quoted_status_id_str === "string" ? legacy.quoted_status_id_str : null;
-  if (returnedQuote !== quote) throw new Error("X created post response did not bind the confirmed quote target");
   const mediaIds = expectedMediaType === null
     ? tweetMediaIds(legacy, "photo")
     : tweetMediaIds(legacy, xMediaReadbackType(expectedMediaType));
@@ -2365,6 +2373,20 @@ function assertTweetBinding(
     (expectedMediaId === null && mediaIds.length !== 0)
     || (expectedMediaId !== null && (mediaIds.length !== 1 || mediaIds[0] !== expectedMediaId))
   ) throw new Error("X created post response did not bind the confirmed media upload");
+  let returnedText = boundCreateTweetText(result, legacy);
+  if (returnedText !== null && mediaIds.length > 0) {
+    // X appends each attached media entity's t.co url to legacy.full_text.
+    const suffix = tweetMediaUrls(legacy).map((url) => ` ${url}`).join("");
+    if (suffix.length > 0 && returnedText.endsWith(suffix)) {
+      returnedText = returnedText.slice(0, returnedText.length - suffix.length);
+    }
+  }
+  if (returnedText !== expectedText) throw new Error("X created post response did not bind the confirmed text");
+  if (legacy.user_id_str !== expectedAuthorId) throw new Error("X created post response did not bind the confirmed viewer");
+  const returnedReply = typeof legacy.in_reply_to_status_id_str === "string" ? legacy.in_reply_to_status_id_str : null;
+  if (returnedReply !== replyTo) throw new Error("X created post response did not bind the confirmed reply target");
+  const returnedQuote = typeof legacy.quoted_status_id_str === "string" ? legacy.quoted_status_id_str : null;
+  if (returnedQuote !== quote) throw new Error("X created post response did not bind the confirmed quote target");
   const bound = { id, url: `${X_ORIGIN}/i/status/${id}` };
   rejectXTweetMadeWithAiLabel(result, bound);
   return bound;

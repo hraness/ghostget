@@ -102,6 +102,7 @@ import {
   parseMetaJsonScripts,
   parseInstagramViewerId,
   parseThreadsViewerId,
+  projectThreadsPublishPost,
   projectThreadsPublishVideo,
   ThreadsAuthRepairRequiredError,
   type FacebookMarketplaceFeed,
@@ -158,11 +159,16 @@ const THREADS_ASBD_ID = "359341";
 const INSTAGRAM_UPLOAD_ORIGIN = "https://i.instagram.com";
 const INSTAGRAM_WEB_APP_ID = "936619743392459";
 const INSTAGRAM_ASBD_ID = "359341";
+const MAX_THREADS_TRANSCODE_POLLS = 15;
+const THREADS_TRANSCODE_POLL_MS = 2_000;
+const defaultSleep = (milliseconds: number): Promise<void> =>
+  new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
 
 export type MetaWebRuntimeDependencies = Partial<WebSessionNetworkDependencies> & {
   readonly createInstagramProfileBrowserTransport?:
     typeof createInstagramProfileBrowserTransport;
   readonly now?: () => number;
+  readonly sleep?: (milliseconds: number) => Promise<void>;
 };
 
 function metaWebSessionDependencies(
@@ -1032,6 +1038,13 @@ type ThreadsUploadedMedia = Readonly<{
   width: number;
 }>;
 
+/** Threads embeds drift between the bare post pk and its "<pk>_<ownerId>" id; compare the canonical bare form. */
+function threadsBareMediaId(mediaId: string, viewerId: string): string {
+  return mediaId.endsWith(`_${viewerId}`)
+    ? mediaId.slice(0, mediaId.length - viewerId.length - 1)
+    : mediaId;
+}
+
 function assertThreadsUploadAcknowledgement(
   value: unknown,
   uploadId: string,
@@ -1042,6 +1055,32 @@ function assertThreadsUploadAcknowledgement(
     || value.status !== "ok"
     || value.upload_id !== uploadId
   ) throw new Error("Threads upload acknowledgement did not bind the exact upload ID");
+}
+
+/** The video rupload now answers {status:"ok", media_id:<int>} instead of
+ * echoing the upload id; bind either exact shape and keep upload_id in the
+ * configure form since the entity name carries the upload session. */
+function assertThreadsVideoUploadAcknowledgement(
+  value: unknown,
+  uploadId: string,
+): void {
+  if (!isRecord(value) || value.status !== "ok") {
+    throw new Error("Threads video upload acknowledgement did not complete");
+  }
+  if (hasExactKeys(value, ["status", "upload_id"])) {
+    if (value.upload_id !== uploadId) {
+      throw new Error("Threads video upload acknowledgement did not bind the exact upload ID");
+    }
+    return;
+  }
+  const mediaId = value.media_id;
+  if (
+    !hasExactKeys(value, ["status", "media_id"])
+    || !(
+      (typeof mediaId === "number" && Number.isInteger(mediaId) && mediaId > 0)
+      || (typeof mediaId === "string" && /^[0-9]{1,32}$/u.test(mediaId))
+    )
+  ) throw new Error("Threads video upload acknowledgement did not bind the exact upload ID");
 }
 
 async function uploadThreadsImage(
@@ -1121,7 +1160,7 @@ async function uploadThreadsVideo(
     expectedContentTypes: ["application/json"],
     maxBytes: MAX_THREADS_UPLOAD_ACKNOWLEDGEMENT_BYTES,
   });
-  assertThreadsUploadAcknowledgement(acknowledgement, uploadId);
+  assertThreadsVideoUploadAcknowledgement(acknowledgement, uploadId);
   return Object.freeze({
     height: video.height,
     id: uploadId,
@@ -1213,39 +1252,65 @@ function threadsCreatedPost(
       "Threads create response did not match the reviewed success shape",
     );
   }
+  let responseMedia: Readonly<{ height: number; width: number }> | null = null;
   const minimalLocator = hasExactKeys(value.media, ["code", "permalink", "pk"]);
-  if (!minimalLocator && uploaded?.mediaType !== 2) {
-    throw new ThreadsCreateResponseError(
-      "success-shape",
-      "Threads create response did not match the reviewed success shape",
-    );
-  }
   if (!minimalLocator) {
+    const upload = uploaded;
     try {
-      const projected = projectThreadsPublishVideo(
-        value.media,
-        "Threads video create response media",
-      );
-      const projectedUser = isRecord(projected.user) ? projected.user : null;
-      if (
-        projected.caption !== expectedBody
-        || projected.user === null
-        || projectedUser?.id !== viewerId
-        || projected.video === null
-        || projected.video.mediaId !== projected.id
-        || uploaded === null
-        || projected.video.mediaType !== uploaded.mediaType
-        || projected.video.width !== uploaded.width
-        || projected.video.height !== uploaded.height
-        || (projected.canonical_url !== null
-          && projected.canonical_url !== value.media.permalink)
-      ) {
-        throw new Error("unbound rich video response");
+      if (upload !== null && upload.mediaType === 2) {
+        const video = projectThreadsPublishVideo(
+          value.media,
+          "Threads video create response media",
+        );
+        const videoUser = isRecord(video.user) ? video.user : null;
+        // Threads transcodes MP4 uploads, so the response carries the stored
+        // rendition's dimensions rather than the source file's. Bind the
+        // response-reported rendition and let the permalink readback prove the
+        // same dimensions on the published post.
+        if (
+          video.caption !== expectedBody
+          || videoUser?.id !== viewerId
+          || video.video === null
+          || video.video.mediaId !== video.id
+          || video.video.mediaType !== upload.mediaType
+          || video.video.width < 1
+          || video.video.height < 1
+          || (video.canonical_url !== null
+            && video.canonical_url !== value.media.permalink)
+        ) {
+          throw new Error("unbound rich video response");
+        }
+        responseMedia = Object.freeze({
+          height: video.video.height,
+          width: video.video.width,
+        });
+      } else {
+        const projected = projectThreadsPublishPost(
+          value.media,
+          "Threads create response media",
+        );
+        const projectedUser = isRecord(projected.user) ? projected.user : null;
+        const imageBound = upload === null
+          ? projected.image === null
+          : projected.image !== null
+            && projected.image.mediaId === projected.id
+            && projected.image.mediaType === upload.mediaType
+            && projected.image.width === upload.width
+            && projected.image.height === upload.height;
+        if (
+          projected.caption !== expectedBody
+          || projectedUser?.id !== viewerId
+          || !imageBound
+          || (projected.canonical_url !== null
+            && projected.canonical_url !== value.media.permalink)
+        ) {
+          throw new Error("unbound rich post response");
+        }
       }
     } catch {
       throw new ThreadsCreateResponseError(
         "success-shape",
-        "Threads video create response did not bind the confirmed actor, text, and media",
+        "Threads create response did not bind the confirmed actor, text, and media",
       );
     }
   }
@@ -1300,10 +1365,10 @@ function threadsCreatedPost(
     media: uploaded === null
       ? null
       : Object.freeze({
-          height: uploaded.height,
+          height: responseMedia?.height ?? uploaded.height,
           mediaId: pk,
           mediaType: uploaded.mediaType,
-          width: uploaded.width,
+          width: responseMedia?.width ?? uploaded.width,
         }),
   });
 }
@@ -1328,6 +1393,10 @@ async function createThreadsPost(
   uploaded: ThreadsUploadedMedia | null,
   config: ThreadsRequestConfig,
   uploadId: string,
+  options: {
+    readonly operationDeadline?: WebSessionOperationDeadline;
+    readonly sleep: (milliseconds: number) => Promise<void>;
+  },
 ): Promise<ThreadsCreatedPost> {
   const csrfToken = webSessionCookie(client.cookies, "csrftoken");
   const webSessionId = threadsWebSessionId(uploadId);
@@ -1346,7 +1415,12 @@ async function createThreadsPost(
   );
   let response: unknown;
   try {
-    response = await client.requestJson({
+    // Video uploads transcode asynchronously; the create endpoint answers a
+    // bounded 202 {"status":"fail","message":"Transcode not finished yet."}
+    // until the transcode completes. That exact response is not a published
+    // post, so the identical form may be retried a bounded number of times.
+    // Every other status or body stays fail-closed.
+    const createRequest = () => client.requestJsonResponse({
       url: new URL("/api/v1/media/configure_text_post_app_feed/", ORIGINS.threads),
       method: "POST",
       headers: threadsApiHeaders(
@@ -1356,11 +1430,35 @@ async function createThreadsPost(
         "application/x-www-form-urlencoded;charset=UTF-8",
       ),
       body: form.toString(),
-      expectedStatuses: [200],
+      expectedStatuses: [200, 202],
       expectedContentTypes: ["application/json", "text/plain"],
       maxBytes: 256 * 1024,
     });
+    const transcodePending = (result: { readonly status: number; readonly value: unknown }) =>
+      result.status === 202
+      && isRecord(result.value)
+      && hasExactKeys(result.value, ["message", "status"])
+      && result.value.status === "fail"
+      && result.value.message === "Transcode not finished yet.";
+    let createResult = await createRequest();
+    for (
+      let attempt = 0;
+      attempt < MAX_THREADS_TRANSCODE_POLLS && transcodePending(createResult);
+      attempt += 1
+    ) {
+      options.operationDeadline?.throwIfUnavailable("authenticated web operation deadline");
+      await options.sleep(THREADS_TRANSCODE_POLL_MS);
+      createResult = await createRequest();
+    }
+    if (createResult.status !== 200) {
+      throw new ThreadsCreateResponseError(
+        "success-shape",
+        "Threads create response did not match the reviewed success shape",
+      );
+    }
+    response = createResult.value;
   } catch (error) {
+    if (error instanceof ThreadsCreateResponseError) throw error;
     throw new ThreadsCreateResponseError(
       threadsCreateRequestFailureCategory(error),
       "Threads create request did not return one reviewed response",
@@ -1391,6 +1489,7 @@ async function executeThreadsPost(
     ) => Promise<void>;
     readonly afterDispatchVerified?: (event: WebSessionDispatchEvent) => Promise<void>;
     readonly now: () => number;
+    readonly sleep: (milliseconds: number) => Promise<void>;
   },
 ): Promise<WebSessionExecution> {
   const image = prepared.attachment === undefined
@@ -1433,6 +1532,12 @@ async function executeThreadsPost(
       uploaded,
       config,
       uploadId,
+      {
+        ...(options.operationDeadline === undefined
+          ? {}
+          : { operationDeadline: options.operationDeadline }),
+        sleep: options.sleep,
+      },
     );
     const createdImage = created.media;
     failureStage = "accepted target retention";
@@ -1485,7 +1590,8 @@ async function executeThreadsPost(
       const remoteImage = post.image;
       if (
         remoteImage === null
-        || remoteImage.mediaId !== createdImage.mediaId
+        || threadsBareMediaId(remoteImage.mediaId, dispatchViewer.id)
+          !== threadsBareMediaId(createdImage.mediaId, dispatchViewer.id)
         || remoteImage.mediaType !== createdImage.mediaType
         || remoteImage.width !== createdImage.width
         || remoteImage.height !== createdImage.height
@@ -1546,6 +1652,7 @@ async function executeThreadsVideo(
     ) => Promise<void>;
     readonly afterDispatchVerified?: (event: WebSessionDispatchEvent) => Promise<void>;
     readonly now: () => number;
+    readonly sleep: (milliseconds: number) => Promise<void>;
   },
 ): Promise<WebSessionExecution> {
   const video = await materializeThreadsVideo(
@@ -1578,6 +1685,12 @@ async function executeThreadsVideo(
       uploaded,
       config,
       uploadId,
+      {
+        ...(options.operationDeadline === undefined
+          ? {}
+          : { operationDeadline: options.operationDeadline }),
+        sleep: options.sleep,
+      },
     );
     const createdVideo = created.media;
     if (createdVideo === null || createdVideo.mediaType !== 2) {
@@ -1615,11 +1728,12 @@ async function executeThreadsVideo(
       created.locator.code,
       created.locator.url,
       prepared.body,
-      video,
+      { height: createdVideo.height, width: createdVideo.width },
     );
     const remoteVideo = post.video as ThreadsVideoProjection;
     if (
-      remoteVideo.mediaId !== createdVideo.mediaId
+      threadsBareMediaId(remoteVideo.mediaId, dispatchViewer.id)
+        !== threadsBareMediaId(createdVideo.mediaId, dispatchViewer.id)
       || remoteVideo.mediaType !== createdVideo.mediaType
       || remoteVideo.width !== createdVideo.width
       || remoteVideo.height !== createdVideo.height
@@ -1860,7 +1974,8 @@ export async function readThreadsWebPublishedMutationTarget(
     const media = post.video;
     if (
       media === null
-      || media.mediaId !== mediaTarget.remoteMediaId
+      || threadsBareMediaId(media.mediaId, viewerId)
+        !== threadsBareMediaId(mediaTarget.remoteMediaId, viewerId)
       || media.mediaType !== mediaTarget.mediaType
       || media.width !== mediaTarget.width
       || media.height !== mediaTarget.height
@@ -1881,7 +1996,8 @@ export async function readThreadsWebPublishedMutationTarget(
     if (mediaTarget !== null) {
       if (
         media === null
-        || media.mediaId !== mediaTarget.remoteMediaId
+        || threadsBareMediaId(media.mediaId, viewerId)
+          !== threadsBareMediaId(mediaTarget.remoteMediaId, viewerId)
         || media.mediaType !== mediaTarget.mediaType
         || media.width !== mediaTarget.width
         || media.height !== mediaTarget.height
@@ -3279,6 +3395,7 @@ async function executeMetaWebOperationInternal(
         ? {}
         : { afterDispatchVerified: options.afterDispatchVerified }),
       now: options.dependencies?.now ?? Date.now,
+      sleep: options.dependencies?.sleep ?? defaultSleep,
     });
   }
   if (prepared.kind === "threads-video") {
@@ -3300,6 +3417,7 @@ async function executeMetaWebOperationInternal(
         ? {}
         : { afterDispatchVerified: options.afterDispatchVerified }),
       now: options.dependencies?.now ?? Date.now,
+      sleep: options.dependencies?.sleep ?? defaultSleep,
     });
   }
   let output: unknown;

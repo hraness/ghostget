@@ -625,7 +625,7 @@ function collectionResponses(
   const collections: LinkedInWebJsonRecord[] = [];
   if (
     candidate.$type === COLLECTION_TYPE
-    && Array.isArray(candidate["*elements"])
+    && (Array.isArray(candidate["*elements"]) || Array.isArray(candidate.elements))
   ) collections.push(candidate);
   for (const nested of Object.values(candidate)) {
     collections.push(...collectionResponses(nested, depth + 1, seen));
@@ -774,7 +774,9 @@ export function projectLinkedInProfileActivityPage(input: {
     throw new Error("LinkedIn profile-activity response did not bind one collection");
   }
   const collection = collections[0]!;
-  const references = collection["*elements"];
+  const references = Array.isArray(collection["*elements"])
+    ? collection["*elements"]
+    : collection.elements;
   if (!Array.isArray(references) || references.length > LINKEDIN_PROFILE_ACTIVITY_MAX_ITEMS) {
     throw new Error("LinkedIn profile-activity collection exceeded its reviewed bound");
   }
@@ -783,6 +785,11 @@ export function projectLinkedInProfileActivityPage(input: {
   }
   const counts = socialCountsByActivityUrn(normalized.included);
   const posts = references.map((reference, index) => {
+    // `*elements` carries URN references resolved through `included`; the
+    // `elements` encoding may inline the Update entity directly.
+    if (isRecord(reference)) {
+      return projectUpdate(reference, counts);
+    }
     const urn = boundedText(reference, `LinkedIn profile-activity elements[${index}]`, 4_096);
     const entity = normalized.entitiesByUrn.get(urn);
     if (entity === undefined) {

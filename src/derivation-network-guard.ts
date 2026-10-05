@@ -192,7 +192,7 @@ function runtimeCases(browserDomains: readonly string[]): readonly GuardRuntimeC
       { label: `block-${index}-ws`, url: `ws://${host}/wrench-check`, type: "websocket", ruleId: 1 },
       { label: `block-${index}-trailing-dot`, url: `https://${host}./wrench-check`, type: "main_frame", ruleId: 1 },
       { label: `block-${index}-suffix`, url: `https://${host}.invalid/wrench-check`, type: "main_frame", ruleId: 1 },
-      { label: `block-${index}-sibling`, url: `https://not-${host}/wrench-check`, type: "main_frame", ruleId: 1 },
+      { label: `block-${index}-sibling`, url: `https://not-${base}/wrench-check`, type: "main_frame", ruleId: 1 },
     );
     if (domain.startsWith("*.")) {
       cases.push({

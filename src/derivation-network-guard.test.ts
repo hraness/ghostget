@@ -112,6 +112,20 @@ describe("contained derivation MV3 guard", () => {
     ]) expect(wildcardRegex.test(value)).toBeFalse();
   });
 
+  test("sibling-negative readiness cases stay outside wildcard subtrees", () => {
+    const domains = ["studio.example.com", "*.upload.example.com"];
+    const script = derivationGuardExtensionFiles(domains)["readiness.js"] ?? "";
+    // A wildcard's sibling-negative must not remain inside the allowed subtree,
+    // or the block expectation can never hold and readiness can never pass.
+    expect(script).toContain('"url":"https://not-upload.example.com/wrench-check"');
+    expect(script).not.toContain("not-wrench-check.upload.example.com");
+    const allowRegex = new RegExp(
+      derivationGuardRules(domains)[2]?.condition.regexFilter ?? "",
+      "iu",
+    );
+    expect(allowRegex.test("https://not-upload.example.com/wrench-check")).toBeFalse();
+  });
+
   test("binds exact private extension identities and detects byte, mode, and inode drift", async () => {
     const root = mkdtempSync(join(tmpdir(), "wrench-guard-files-test-"));
     chmodSync(root, 0o700);
