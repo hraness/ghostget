@@ -231,6 +231,19 @@ export function assertOperationPermission(invocation: PreparedInvocation, option
   if (description.decision === "ask" && activeAdmission(description, invocation.input, options) === undefined) approvalRequired();
 }
 
+export function assertAuthorizedPublicationPermission(invocation: PreparedInvocation, options: Options): void {
+  const operation = invocation.manifest.operations[invocation.operationId];
+  if ((invocation.operationId !== "posts.publish" && invocation.operationId !== "media.publish")
+    || operation?.risk !== "R3" || invocation.auth.subject === undefined
+    || invocation.manifest.surfaceId === "hacker-news") {
+    throw new OperationPermissionError("OPERATION_PERMISSION_DENIED", "Authorized execution supports only subject-bound R3 publication operations.");
+  }
+  const description = describeInvocation(invocation, options);
+  if (description.resolution.operation.state !== "observed") denied();
+  if (description.decision === "deny") denied();
+  if (description.decision === "ask") approvalRequired();
+}
+
 export async function checkOperationPermission(invocation: PreparedInvocation, options: Options): Promise<void> {
   assertOperationPermission(invocation, options);
   if (!readOperationPolicy(options.environment).managed) return;
@@ -294,12 +307,13 @@ export async function recheckProviderApproval(target: ProviderTarget, checked: C
 }
 
 /** Invocation-local permits cannot authorize another input, account, manifest or policy revision. */
-export async function withOperationPermission<T>(invocation: PreparedInvocation, optionsValue: Options & { readonly plan?: StoredPlan }, work: () => Promise<T>): Promise<T> {
+export async function withOperationPermission<T>(invocation: PreparedInvocation, optionsValue: Options & { readonly plan?: StoredPlan; readonly requireAllow?: boolean }, work: () => Promise<T>): Promise<T> {
   const options = { ...optionsValue, environment: Object.freeze({ ...optionsValue.environment }) };
   const policy = readOperationPolicy(options.environment);
   if (!policy.managed) return withUnmanagedOperationPermission(options.environment, work);
   const description = describeInvocation(invocation, options);
   if (description.decision === "deny") denied();
+  if (optionsValue.requireAllow === true && description.decision === "ask") approvalRequired();
   const existing = activeAdmission(description, invocation.input, options);
   if (existing !== undefined) {
     if (options.plan !== undefined && existing.planDigest !== options.plan.digest) return changed();

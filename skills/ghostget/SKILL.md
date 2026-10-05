@@ -283,6 +283,16 @@ transport, account, scalar input, attachment hashes and order, side effect,
 contract hash, and dispatch schedule, then run the printed `ghostget confirm
 <digest>`. A messaging turn uses its stricter private preview and same-turn
 authorization procedure in [agentic messaging](references/messaging.md).
+For unattended public posts, `--execute` runs one observed, subject-bound R3
+`posts.publish` or `media.publish` directly. It still prepares the exact
+immutable plan, binds account, input, and attachment hashes, and uses the same
+durable single-dispatch lifecycle as `confirm` — without a per-post
+confirmation command. It carries the same authority as preview-then-confirm:
+unmanaged state homes admit it, and managed Ask or Deny refuses without an
+approval request. It requires an explicit `--auth` and cannot combine with
+`--preview`, `--cache-only`, or `--duplicate-risk-of`. Other writes retain
+their existing confirmation requirements.
+
 Never retry `pending`, `partial`, or `indeterminate` work. Reconcile from
 independently observed, secret-free evidence only when the installed exact
 contract advertises reconciliation; image-upload draft contracts deliberately

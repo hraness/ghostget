@@ -213,6 +213,7 @@ import {
   cancelInvocationPlan,
   confirmMessagingInvocation,
   confirmInvocation,
+  executeAuthorizedPublication,
   createAndSaveInvocationPlan,
   createReadProjectionQueryForInvocation,
   type createInvocationPlan,
@@ -3603,6 +3604,17 @@ async function runCommand(
     );
     const operation = invocation.manifest.operations[arguments_.operationId];
     if (operation === undefined) throw new Error("operation disappeared before invocation");
+    if (arguments_.execute === true) {
+      const result = await executeAuthorizedPublication(invocation, {
+        headed: arguments_.headed,
+        environment,
+        registry: dependencies.providerPluginRegistry,
+        ...(signal === undefined ? {} : { signal }),
+      });
+      print(output, invocationView(result), arguments_.json);
+      if (result.receipt.status === "succeeded" || result.receipt.status === "submitted") onUsefulResult?.();
+      return result.receipt.status === "succeeded" || result.receipt.status === "submitted" ? 0 : result.receipt.status === "indeterminate" ? 5 : 3;
+    }
     if (operation.risk === "R4") {
       throw new Error("R4 capabilities are blocked by wrench");
     }
