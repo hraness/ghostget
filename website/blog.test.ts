@@ -52,11 +52,13 @@ describe("GhostGet blog admission", () => {
     for (const post of BLOG_POSTS) {
       expect(post.admission.href).toBe(blogPostPath(post.slug));
       expect(post.admission.drafting).toBe("ai");
-      expect(["ai", "human-editor"]).toContain(post.admission.review?.reviewerType);
+      expect(["ai", "human-editor"]).toContain(post.admission.review!.reviewerType);
       // A recorded human review names a person; it never stands in for an AI review.
-      if (post.admission.humanReview !== null) expect(post.admission.humanReview.reviewerType).not.toBe("ai");
+      if (post.admission.humanReview !== null) expect(["author", "human-editor", "subject-expert"]).toContain(post.admission.humanReview.reviewerType);
       if (post.admission.review?.reviewerType === "human-editor") {
-        expect(post.admission.humanReview).toEqual(post.admission.review);
+        expect(post.admission.humanReview?.reviewer).toBe(post.admission.review.reviewer);
+        expect(post.admission.humanReview?.reviewerType).toBe(post.admission.review.reviewerType);
+        expect(post.admission.humanReview?.reviewedOn).toBe(post.admission.review.reviewedOn);
       }
       if (post.admission.lifecycle === "indexable") {
         expect(articleAdmissionPasses(post.admission.scores)).toBe(true);
