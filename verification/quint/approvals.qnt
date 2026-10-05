@@ -201,4 +201,5 @@ module approvals {
 
   // A grant requested with a use secret allows only that requester.
   val onlyHolderAllowed: bool = bound implies allowedTo.forall(id => id == requester)
+  val approvalsSafety: bool = and { atMostOneUse, onlyHolderAllowed }
 }

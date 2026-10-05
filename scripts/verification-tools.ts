@@ -30,6 +30,9 @@ import {
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
+import { newIdGenerator } from "@informalsystems/quint/dist/src/idGenerator.js";
+import { parsePhase1fromText } from "@informalsystems/quint/dist/src/parsing/quintParserFrontend.js";
+
 import { parseItfTrace } from "./verification-itf.js";
 import { LEAN_LAKE_VARIABLE, LEAN_PROJECT_VARIABLE } from "./verification-lean-oracle.js";
 
@@ -817,6 +820,45 @@ export function parseQuintModels(value: unknown): readonly QuintModel[] {
 
 export async function readQuintModels(root: string = REPOSITORY_ROOT): Promise<readonly QuintModel[]> {
   return parseQuintModels(JSON.parse(await readFile(join(root, "verification/quint/models.json"), "utf8")) as unknown);
+}
+
+export function requireQuintProofSource(file: string, membershipSource: string, compiledSource: string): void {
+  if (membershipSource !== compiledSource) {
+    throw new Error(`${file} positive membership source differs from its cached IR source`);
+  }
+}
+
+export function quintPositiveChecks(model: QuintModel, source: string): readonly Readonly<{ invariant: string; members: readonly string[] }>[] {
+  if (model.file !== "approvals.qnt") {
+    return model.invariants.map((invariant) => ({ invariant, members: [invariant] }));
+  }
+  const members = ["atMostOneUse", "onlyHolderAllowed"];
+  if (model.module !== "approvals" || model.init !== "init" || model.step !== "step"
+    || JSON.stringify(model.invariants) !== JSON.stringify(members)) {
+    throw new Error("approvals.qnt positive-check registry changed; requalify its conjunction");
+  }
+  const parsed = parsePhase1fromText(newIdGenerator(), source, model.file);
+  if (parsed.errors.length !== 0 || parsed.modules.length !== 1 || parsed.modules[0]?.name !== model.module) {
+    throw new Error("approvals.qnt must parse as its one registered module");
+  }
+  const declarations = parsed.modules[0].declarations;
+  const localDeclarations = declarations.filter((declaration) => "name" in declaration);
+  if (localDeclarations.length !== declarations.length
+    || new Set(localDeclarations.map((declaration) => declaration.name)).size !== declarations.length
+    || declarations.some((declaration) => declaration.kind === "import" || declaration.kind === "export" || declaration.kind === "instance")) {
+    throw new Error("approvals.qnt conjunction requires unique local declarations");
+  }
+  const definitions = [...members, "approvalsSafety"].map((name) => localDeclarations.find((declaration) => declaration.name === name));
+  if (definitions.some((definition) => definition?.kind !== "def" || definition.qualifier !== "val" || definition.typeAnnotation?.kind !== "bool")) {
+    throw new Error("approvals.qnt conjunction and members must be boolean state values");
+  }
+  const conjunction = definitions[2];
+  if (conjunction?.kind !== "def" || conjunction.expr.kind !== "app" || conjunction.expr.opcode !== "and"
+    || conjunction.expr.args.length !== members.length
+    || !conjunction.expr.args.every((argument, index) => argument.kind === "name" && argument.name === members[index])) {
+    throw new Error("approvalsSafety must be exactly the conjunction of every registered invariant");
+  }
+  return [{ invariant: "approvalsSafety", members }];
 }
 
 /** The `quint run` arguments for one seeded simulation at a profile's bounds. */
@@ -2113,14 +2155,15 @@ export async function verifyQuint(
     return { result, outDirectory };
   };
   // Two units of one model may share a shard; compile its IR once.
-  const compiledIr = new Map<string, Promise<string>>();
-  const compileModel = (model: QuintModel): Promise<string> => {
+  const compiledIr = new Map<string, Promise<Readonly<{ path: string; source: string }>>>();
+  const compileModel = (model: QuintModel): Promise<Readonly<{ path: string; source: string }>> => {
     const existing = compiledIr.get(model.file);
     if (existing !== undefined) return existing;
     const compiling = (async () => {
       // Quint writes the IR with an asynchronous stdout write and then exits,
       // which cuts a macOS pipe off at 64 KiB. A file receives every byte.
       const irPath = join(irDirectory, `${model.module}.qnt.json`);
+      const source = await readFile(join(quintDirectory, model.file), "utf8");
       const compiled = await runLogged(context, `quint compile ${model.file}`, `quint-compile-${model.module}`, [
         "/bin/sh", "-c", 'out="$1"; shift; exec "$@" > "$out"', "sh", irPath,
         node, quint, "compile", "--target", "json", "--main", model.module, model.file,
@@ -2134,7 +2177,10 @@ export async function verifyQuint(
       if (compiled.exitCode !== 0 || compiled.stdout !== "" || !isPlainObject(ir)) {
         throw new Error(`quint compile ${model.file} did not produce its JSON IR`);
       }
-      return irPath;
+      if (source !== await readFile(join(quintDirectory, model.file), "utf8")) {
+        throw new Error(`${model.file} changed while its IR was compiled`);
+      }
+      return { path: irPath, source };
     })();
     compiledIr.set(model.file, compiling);
     return compiling;
@@ -2143,6 +2189,7 @@ export async function verifyQuint(
     const model = unit.model;
     const name = model.module;
     const bounds = quintBounds(model, context.profile);
+    const positiveChecks: Record<string, unknown>[] = [];
     if (unit.core) {
       if (nightly && model.nightly === undefined) context.log(`${model.file}: no nightly bounds recorded; repeating the CI bounds`);
       const typecheck = await quintRun(`quint typecheck ${model.file}`, `quint-typecheck-${name}`, ["typecheck", model.file]);
@@ -2164,14 +2211,26 @@ export async function verifyQuint(
     }
     if (checksApalache(model)) {
       if (unit.core || unit.mutants.length > 0) {
-        const irPath = await compileModel(model);
+        const source = unit.core ? await readFile(join(quintDirectory, model.file), "utf8") : null;
+        const checks = source === null ? [] : quintPositiveChecks(model, source);
+        const compiled = await compileModel(model);
+        const irPath = compiled.path;
         if (unit.core) {
-          for (const invariant of model.invariants) {
+          requireQuintProofSource(model.file, source!, compiled.source);
+          const sourceSha256 = createHash("sha256").update(source!).digest("hex");
+          const irSha256 = createHash("sha256").update(await readFile(irPath)).digest("hex");
+          if (source !== await readFile(join(quintDirectory, model.file), "utf8")) {
+            throw new Error(`${model.file} changed while its positive-check IR was compiled`);
+          }
+          for (const check of checks) {
+            const { invariant, members } = check;
             const step = `apalache check ${name} ${model.step} ${invariant}`;
+            const logName = `apalache-${name}-${invariant}`;
             const { result } = await apalacheRun(
-              step, `apalache-${name}-${invariant}`, bounds.apalache.length, model.init, irPath, model.step, invariant,
+              step, logName, bounds.apalache.length, model.init, irPath, model.step, invariant,
             );
             requireLoggedVerdict(context, step, "pass", apalacheVerdict(result, bounds.apalache.length), result);
+            positiveChecks.push({ invariant, members, sourceSha256, irSha256, init: model.init, next: model.step, length: bounds.apalache.length, verdict: "pass", log: `${logName}.log` });
             context.log(`${step}: no violation up to length ${String(bounds.apalache.length)}`);
           }
         }
@@ -2191,6 +2250,7 @@ export async function verifyQuint(
       model: model.file,
       core: unit.core,
       invariants: unit.core ? model.invariants : [],
+      positiveChecks,
       mutants: unit.mutants.map((mutant) => mutant.step),
       profile: context.profile,
       simulation: unit.core ? bounds.simulation : null,

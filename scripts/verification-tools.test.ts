@@ -10,6 +10,7 @@
  * the same placeholders the checker logs use.
  */
 import { describe, expect, test } from "bun:test";
+import "./verification-approvals-conjunction.test.js";
 import { createHash } from "node:crypto";
 import {
   cp,
