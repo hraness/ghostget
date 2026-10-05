@@ -136,8 +136,16 @@ unsupported Lightpanda protocol method before target navigation, after complete
 Lightpanda cleanup and within the original timeout. A navigated page is never
 replayed. Explicit Lightpanda selection, security denials, identity failures,
 and cleanup failures never trigger that retry. Existing
-HTTP and typed provider routes are unchanged; authenticated browser capture
-continues to use Chromium until its exact auth handoff is qualified.
+HTTP and typed provider routes are unchanged.
+
+Authenticated browser sessions take the same engine choice internally. The
+LinkedIn profile read transport (identity, personal stats, connections, and
+organization reads) prefers a provisioned Lightpanda for cookie-yielding
+account realms, imports session cookies through the driver's input channel,
+and still selects Chromium for profile-backed, storage-state, and other
+non-cookie realms or when no binary is provisioned. Contact reads keep
+Chromium while their live network-request observation remains unqualified,
+as does every other authenticated provider flow.
 
 ## Author a portable provider
 

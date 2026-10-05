@@ -7,6 +7,15 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.83
+
+Prefer a provisioned Lightpanda for LinkedIn profile reads while Chromium stays authoritative for the remaining transports.
+
+- `createBrowserSession` accepts a browser-engine selection: `"auto"` resolves to Lightpanda only for cookie-yielding realms with a provisioned binary, `"chrome"` keeps the existing lane, and `"lightpanda"` requires both eligibility and provisioning.
+- The LinkedIn profile transport defaults to `"auto"` for its qualified reads — identity, personal stats, connections, and organizations — and keeps cookie values out of process arguments by seeding through the driver's stdin batch.
+- Chromium fallback is limited to a recognized Lightpanda protocol incompatibility raised before navigation inside the original deadline; provider rejections, authentication failures, and cleanup failures never fall back.
+- Contact reads stay on Chromium because their overlay harvests live `network requests` bindings, which Lightpanda has not been proven to report. Article, comment, post, feed, search, and every other provider read also keep the unqualified Chromium default.
+
 ## 0.18.82
 
 Publish observed, subject-bound `posts.publish` and `media.publish` operations

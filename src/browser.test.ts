@@ -44,6 +44,7 @@ import {
   parseLastJsonWithExactLaunchHashes,
   PreservedBrowserArtifactsError,
   profilePath,
+  proveLaunchIntentAgentBrowserCleanupResourceQuiescent,
   provePinnedAgentBrowserCleanupResourceAbsentRootQuiescence,
   provePreparedAgentBrowserCleanupResourceQuiescent,
   refreshBrowserCleanupResourceQuiescence,
@@ -55,6 +56,7 @@ import {
   type BrowserCleanupResourceIdentityV2,
 } from "./browser";
 import type { BrowserRecipe, GhostgetManifest } from "./model";
+import { LightpandaCompatibilityError } from "./lightpanda-browser";
 import {
   OperationDeadline,
   type OperationDeadlineClock,
@@ -4753,6 +4755,1750 @@ describe("browser process isolation helpers", () => {
         rmSync(artifactsDirectory, { recursive: true, force: true });
       }
       rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("routes cookie-yielding sessions through Lightpanda only when provisioned", async () => {
+    const root = mkdtempSync(join(tmpdir(), "io-lightpanda-stub-"));
+    try {
+      const stub = join(root, "lightpanda");
+      writeFileSync(stub, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+      const provisionedExecutables: string[] = [];
+      const driverCommands: string[][] = [];
+      const driverGlobals: string[][] = [];
+      let chromeCommands = 0;
+      let serveClosed = 0;
+      const session = await createBrowserSession(manifest, auth, {
+        headed: false,
+        timeoutMs: 5_000,
+        maxOutputBytes: 64 * 1024,
+        engine: "auto",
+        environment: {
+          GHOSTGET_LIGHTPANDA_PATH: stub,
+          PATH: process.env.PATH ?? "/usr/bin:/bin",
+        },
+        dependencies: {
+          runCommand: () => {
+            chromeCommands += 1;
+            return Promise.resolve({
+              stdout: "{\"success\":true}\n",
+              stderr: "",
+              exitCode: 0,
+            });
+          },
+          startNetworkProxy: () => Promise.resolve({
+            url: "http://127.0.0.1:43124",
+            port: 43_124,
+            close: () => Promise.resolve(),
+          }),
+          acquireCookieRecords: () => Promise.resolve({
+            cookies: [{
+              name: "session",
+              value: "private-cookie-value",
+              domain: "example.com",
+              hostOnly: true,
+              path: "/",
+              secure: true,
+              httpOnly: true,
+              sameSite: "Lax" as const,
+              expires: 0,
+            }],
+            warnings: [],
+          }),
+          createLightpandaDependencies: (executable) => {
+            provisionedExecutables.push(executable);
+            return {
+              run: (globalArguments, command) => {
+                driverGlobals.push([...globalArguments]);
+                driverCommands.push([...command]);
+                return Promise.resolve({ ok: true });
+              },
+              runBatch: (globalArguments, commands) => {
+                driverGlobals.push([...globalArguments]);
+                for (const command of commands) driverCommands.push([...command]);
+                return Promise.resolve();
+              },
+              close: () => {
+                serveClosed += 1;
+                return Promise.resolve();
+              },
+            };
+          },
+        },
+      });
+      expect(provisionedExecutables).toEqual([realpathSync(stub)]);
+      await session.close();
+      await session.cleanup();
+      expect(chromeCommands).toBe(0);
+      const verbs = driverCommands.map((command) => command[0]);
+      expect(verbs).toEqual(["open", "cookies", "open", "close"]);
+      expect(driverCommands[0]).toEqual(["open", "about:blank"]);
+      expect(driverCommands[2]).toEqual(["open", "https://example.com/robots.txt"]);
+      const globals = driverGlobals[0] ?? [];
+      expect(globals).toContain("--proxy");
+      expect(globals[globals.indexOf("--proxy") + 1]).toBe("http://127.0.0.1:43124");
+      expect(globals).not.toContain("--allowed-domains");
+      expect(globals).not.toContain("--executable-path");
+      expect(globals).not.toContain("--args");
+      expect(serveClosed).toBeGreaterThanOrEqual(1);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("keeps non-cookie realms and unprovisioned auto sessions on Chromium", async () => {
+    const chromeBatches: string[][] = [];
+    let lightpandaFactories = 0;
+    const baseDependencies = {
+      runCommand: (command: readonly string[], options: { readonly stdin?: string }) => {
+        if (command.includes("batch")) {
+          chromeBatches.push([...command]);
+          const batch = JSON.parse(options.stdin ?? "[]") as readonly unknown[];
+          return Promise.resolve({
+            stdout: `${JSON.stringify(batch.map(() => ({ success: true, data: null })))}\n`,
+            stderr: "",
+            exitCode: 0,
+          });
+        }
+        return Promise.resolve({ stdout: "{\"success\":true}\n", stderr: "", exitCode: 0 });
+      },
+      startNetworkProxy: () => Promise.resolve({
+        url: "http://127.0.0.1:43124",
+        port: 43_124,
+        close: () => Promise.resolve(),
+      }),
+      acquireCookieRecords: () => Promise.resolve({ cookies: [], warnings: [] }),
+      createLightpandaDependencies: () => {
+        lightpandaFactories += 1;
+        throw new Error("Lightpanda must not be provisioned for this session");
+      },
+    };
+    const profileDirectory = mkdtempSync(join(tmpdir(), "io-profile-"));
+    const storageStateAuth: GhostgetAuth = {
+      schemaVersion: 1,
+      id: "state",
+      kind: "browser-profile",
+      profile: realpathSync(profileDirectory),
+      trustUnfilteredEgress: true,
+      cookieSource: "chrome",
+      storageState: "/tmp/ghostget-missing-state.json",
+    };
+    const root = mkdtempSync(join(tmpdir(), "io-lightpanda-stub-"));
+    try {
+      const stub = join(root, "lightpanda");
+      writeFileSync(stub, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+      // A browser-profile realm that pairs its cookie source with storage
+      // state cannot transfer the storage into Lightpanda; auto stays on
+      // Chromium even when a Lightpanda binary is provisioned.
+      const stateSession = await createBrowserSession(manifest, storageStateAuth, {
+        headed: false,
+        timeoutMs: 5_000,
+        maxOutputBytes: 64 * 1024,
+        engine: "auto",
+        environment: {
+          GHOSTGET_LIGHTPANDA_PATH: stub,
+          PATH: process.env.PATH ?? "/usr/bin:/bin",
+        },
+        dependencies: baseDependencies,
+      });
+      await stateSession.close();
+      await stateSession.cleanup();
+      expect(lightpandaFactories).toBe(0);
+      expect(chromeBatches).not.toHaveLength(0);
+      const stateIndex = chromeBatches[0]?.indexOf("--state") ?? -1;
+      expect(chromeBatches[0]?.[stateIndex + 1]).toBe("/tmp/ghostget-missing-state.json");
+
+      // Without provisioning the same cookie-yielding realm stays on Chromium.
+      const unprovisioned = await createBrowserSession(manifest, auth, {
+        headed: false,
+        timeoutMs: 5_000,
+        maxOutputBytes: 64 * 1024,
+        engine: "auto",
+        environment: { PATH: process.env.PATH ?? "/usr/bin:/bin" },
+        dependencies: baseDependencies,
+      });
+      await unprovisioned.close();
+      await unprovisioned.cleanup();
+      expect(lightpandaFactories).toBe(0);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+      rmSync(profileDirectory, { recursive: true, force: true });
+    }
+  });
+
+  test("rejects explicit Lightpanda without provisioning or cookie-yielding auth", async () => {
+    const storageStateAuth: GhostgetAuth = {
+      schemaVersion: 1,
+      id: "state",
+      kind: "browser-profile",
+      profile: "/tmp/ghostget-missing-profile",
+      trustUnfilteredEgress: true,
+    };
+    const root = mkdtempSync(join(tmpdir(), "io-lightpanda-stub-"));
+    try {
+      const stub = join(root, "lightpanda");
+      writeFileSync(stub, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+      const missing = await rejectionMessage(createBrowserSession(manifest, auth, {
+        headed: false,
+        timeoutMs: 5_000,
+        maxOutputBytes: 64 * 1024,
+        engine: "lightpanda",
+        environment: { PATH: process.env.PATH ?? "/usr/bin:/bin" },
+      }));
+      expect(missing).toContain("LIGHTPANDA_PATH");
+      const ineligible = await rejectionMessage(createBrowserSession(manifest, storageStateAuth, {
+        headed: false,
+        timeoutMs: 5_000,
+        maxOutputBytes: 64 * 1024,
+        engine: "lightpanda",
+        environment: {
+          GHOSTGET_LIGHTPANDA_PATH: stub,
+          PATH: process.env.PATH ?? "/usr/bin:/bin",
+        },
+      }));
+      expect(ineligible).toContain("yields explicit cookies");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("falls back to Chromium only for a pre-navigation Lightpanda incompatibility", async () => {
+    const root = mkdtempSync(join(tmpdir(), "io-lightpanda-stub-"));
+    try {
+      const stub = join(root, "lightpanda");
+      writeFileSync(stub, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+      for (const beforeNavigation of [true, false]) {
+        let chromeCommands = 0;
+        let serveClosed = 0;
+        const attempt = createBrowserSession(manifest, auth, {
+          headed: false,
+          timeoutMs: 5_000,
+          maxOutputBytes: 64 * 1024,
+          engine: "auto",
+          environment: {
+            GHOSTGET_LIGHTPANDA_PATH: stub,
+            PATH: process.env.PATH ?? "/usr/bin:/bin",
+          },
+          dependencies: {
+            runCommand: (_command, options) => {
+              chromeCommands += 1;
+              if (_command.includes("batch")) {
+                const batch = JSON.parse(options.stdin ?? "[]") as readonly unknown[];
+                return Promise.resolve({
+                  stdout: `${JSON.stringify(batch.map(() => ({ success: true, data: null })))}\n`,
+                  stderr: "",
+                  exitCode: 0,
+                });
+              }
+              return Promise.resolve({ stdout: "{\"success\":true}\n", stderr: "", exitCode: 0 });
+            },
+            startNetworkProxy: () => Promise.resolve({
+              url: "http://127.0.0.1:43124",
+              port: 43_124,
+              close: () => Promise.resolve(),
+            }),
+            acquireCookieRecords: () => Promise.resolve({ cookies: [], warnings: [] }),
+            createLightpandaDependencies: () => ({
+              run: (_globals, command) => {
+                if (command[0] === "close") return Promise.resolve({ closed: true });
+                return Promise.reject(new LightpandaCompatibilityError(beforeNavigation));
+              },
+              close: () => {
+                serveClosed += 1;
+                return Promise.resolve();
+              },
+            }),
+          },
+        });
+        if (beforeNavigation) {
+          const session = await attempt;
+          expect(chromeCommands).toBeGreaterThan(0);
+          expect(serveClosed).toBeGreaterThanOrEqual(1);
+          await session.close();
+          await session.cleanup();
+        } else {
+          const failure = await rejectionValue(attempt);
+          expect(failure).toBeInstanceOf(LightpandaCompatibilityError);
+          expect(chromeCommands).toBe(0);
+          expect(serveClosed).toBeGreaterThanOrEqual(1);
+        }
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("publishes a Lightpanda session as launch-intent and cleans it through the unbound quiescence proof", async () => {
+    const root = mkdtempSync(join(tmpdir(), "io-lightpanda-stub-"));
+    type PublishedCleanupResource = Parameters<
+      NonNullable<
+        Parameters<typeof createBrowserSession>[2]["publishCleanupResource"]
+      >
+    >[0];
+    const published: PublishedCleanupResource[] = [];
+    const cleanupEvents: string[] = [];
+    const inspectedSessions: string[] = [];
+    const driverCommands: string[][] = [];
+    let serveClosed = 0;
+    try {
+      const stub = join(root, "lightpanda");
+      writeFileSync(stub, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+      const session = await createBrowserSession(manifest, auth, {
+        headed: false,
+        timeoutMs: 5_000,
+        maxOutputBytes: 64 * 1024,
+        engine: "lightpanda",
+        environment: {
+          GHOSTGET_LIGHTPANDA_PATH: stub,
+          PATH: process.env.PATH ?? "/usr/bin:/bin",
+        },
+        publishCleanupResource: Object.assign(
+          (resource: PublishedCleanupResource) => {
+            if (published.length > 0) {
+              expect(browserCleanupResourceExtends(
+                published[published.length - 1]!,
+                resource,
+              )).toBeTrue();
+              expect(resource.session).toBe(published[0]!.session);
+            }
+            published.push(resource);
+          },
+          {
+            markBrowserCleanupQuiescent: (): void => {
+              cleanupEvents.push("journal-quiescent");
+            },
+            markBrowserCleanupRootRemoved: (
+              _resource: PublishedCleanupResource,
+              rootName: "artifacts" | "socket",
+            ): void => {
+              cleanupEvents.push(`journal-${rootName}`);
+            },
+          },
+        ),
+        dependencies: {
+          runCommand: (command) => {
+            // Lightpanda sessions never publish a control witness, so no
+            // cdp-url inspection may run; session info only answers after the
+            // owned serve child was reaped, reporting the session inactive.
+            expect(command.includes("cdp-url")).toBeFalse();
+            if (command.includes("info")) {
+              const sessionIndex = command.indexOf("--session");
+              inspectedSessions.push(command[sessionIndex + 1] ?? "");
+              const resource = published[0];
+              if (resource === undefined) {
+                throw new Error("session inspection ran before publication");
+              }
+              return Promise.resolve({
+                stdout: `${JSON.stringify({
+                  success: true,
+                  data: {
+                    active: false,
+                    namespace: null,
+                    pid: null,
+                    runtime: null,
+                    runtimeError: null,
+                    session: resource.session,
+                    socketDir: resource.socketDirectory,
+                    version: null,
+                  },
+                })}\n`,
+                stderr: "",
+                exitCode: 0,
+              });
+            }
+            return Promise.resolve({
+              stdout: "{\"success\":true}\n",
+              stderr: "",
+              exitCode: 0,
+            });
+          },
+          startNetworkProxy: () => Promise.resolve({
+            url: "http://127.0.0.1:43124",
+            port: 43_124,
+            close: () => Promise.resolve(),
+          }),
+          acquireCookieRecords: () => Promise.resolve({
+            cookies: [{
+              name: "session",
+              value: "private-cookie-value",
+              domain: "example.com",
+              hostOnly: true,
+              path: "/",
+              secure: true,
+              httpOnly: true,
+              sameSite: "Lax" as const,
+              expires: 0,
+            }],
+            warnings: [],
+          }),
+          createLightpandaDependencies: () => ({
+            run: (_globals, command) => {
+              driverCommands.push([...command]);
+              return Promise.resolve({ ok: true });
+            },
+            runBatch: (_globals, commands) => {
+              for (const command of commands) driverCommands.push([...command]);
+              return Promise.resolve();
+            },
+            close: () => {
+              serveClosed += 1;
+              return Promise.resolve();
+            },
+          }),
+        },
+      });
+      await session.close();
+      await session.cleanup();
+      expect(published.map((resource) => resource.kind === "agent-browser-session-v2"
+        ? resource.phase
+        : "legacy")).toEqual([
+        "prepared",
+        "launch-intent",
+      ]);
+      expect(cleanupEvents).toEqual([
+        "journal-quiescent",
+        "journal-artifacts",
+        "journal-socket",
+      ]);
+      expect(inspectedSessions.length).toBeGreaterThanOrEqual(2);
+      expect(serveClosed).toBeGreaterThanOrEqual(1);
+      const recovered = parseBrowserRecoveryHandle(session.recoveryHandle!);
+      expect(existsSync(recovered.socketDirectory)).toBeFalse();
+      expect(existsSync(recovered.artifactsDirectory)).toBeFalse();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("converges a Lightpanda cleanup while the daemon supervisor is still restarting", async () => {
+    const root = mkdtempSync(join(tmpdir(), "io-lightpanda-stub-"));
+    type PublishedCleanupResource = Parameters<
+      NonNullable<
+        Parameters<typeof createBrowserSession>[2]["publishCleanupResource"]
+      >
+    >[0];
+    const published: PublishedCleanupResource[] = [];
+    let sessionInfoCalls = 0;
+    try {
+      const stub = join(root, "lightpanda");
+      writeFileSync(stub, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+      const session = await createBrowserSession(manifest, auth, {
+        headed: false,
+        timeoutMs: 5_000,
+        maxOutputBytes: 64 * 1024,
+        engine: "lightpanda",
+        environment: {
+          GHOSTGET_LIGHTPANDA_PATH: stub,
+          PATH: process.env.PATH ?? "/usr/bin:/bin",
+        },
+        publishCleanupResource: Object.assign(
+          (resource: PublishedCleanupResource) => {
+            published.push(resource);
+          },
+          {
+            markBrowserCleanupQuiescent: (): void => {},
+            markBrowserCleanupRootRemoved: (): void => {},
+          },
+        ),
+        dependencies: {
+          runCommand: (command) => {
+            if (command.includes("info")) {
+              sessionInfoCalls += 1;
+              const resource = published[0];
+              if (resource === undefined) {
+                throw new Error("session inspection ran before publication");
+              }
+              // The daemon keeps reporting the just-closed CDP session active
+              // while its supervisor restarts; only after the owned serve
+              // child is reaped does it settle inactive.
+              const active = sessionInfoCalls <= 2;
+              return Promise.resolve({
+                stdout: `${JSON.stringify({
+                  success: true,
+                  data: active
+                    ? {
+                        active: true,
+                        namespace: null,
+                        pid: 43125,
+                        runtime: {
+                          browserLaunched: false,
+                          effectiveLaunch: {
+                            browserLaunched: false,
+                            engine: "lightpanda",
+                            launchHash: null,
+                          },
+                          engine: "lightpanda",
+                        },
+                        runtimeError: null,
+                        session: resource.session,
+                        socketDir: resource.socketDirectory,
+                        version: "0.32.3",
+                      }
+                    : {
+                        active: false,
+                        namespace: null,
+                        pid: null,
+                        runtime: null,
+                        runtimeError: null,
+                        session: resource.session,
+                        socketDir: resource.socketDirectory,
+                        version: null,
+                      },
+                })}\n`,
+                stderr: "",
+                exitCode: 0,
+              });
+            }
+            return Promise.resolve({
+              stdout: "{\"success\":true}\n",
+              stderr: "",
+              exitCode: 0,
+            });
+          },
+          startNetworkProxy: () => Promise.resolve({
+            url: "http://127.0.0.1:43124",
+            port: 43_124,
+            close: () => Promise.resolve(),
+          }),
+          acquireCookieRecords: () => Promise.resolve({
+            cookies: [],
+            warnings: [],
+          }),
+          createLightpandaDependencies: () => ({
+            run: () => Promise.resolve({ ok: true }),
+            runBatch: () => Promise.resolve(),
+            close: () => Promise.resolve(),
+          }),
+          cleanupLifecycle: {
+            sleep: () => Promise.resolve(),
+          },
+        },
+      });
+      await session.close();
+      await session.cleanup();
+      expect(sessionInfoCalls).toBeGreaterThanOrEqual(4);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("auto resolves to Chromium through an unpublished preflight when the Lightpanda driver is incompatible", async () => {
+    const root = mkdtempSync(join(tmpdir(), "io-lightpanda-stub-"));
+    type PublishedCleanupResource = Parameters<
+      NonNullable<
+        Parameters<typeof createBrowserSession>[2]["publishCleanupResource"]
+      >
+    >[0];
+    const published: PublishedCleanupResource[] = [];
+    const cleanupEvents: string[] = [];
+    let browserClosed = false;
+    let daemonLive = true;
+    let lightpandaFactories = 0;
+    let chromeLaunched = false;
+    const launchHash = "18446744073709551615";
+    const exactLaunchHashJson = (value: unknown): string =>
+      JSON.stringify(value).replaceAll(
+        `"launchHash":"${launchHash}"`,
+        `"launchHash":${launchHash}`,
+      );
+    const lifecycle = {
+      effectiveLaunch: {
+        browserLaunched: true,
+        engine: "chrome",
+        launchHash,
+      },
+      launched: false,
+      relaunchedBrowser: false,
+      restartedBackground: false,
+      restoreStatus: "not_configured",
+      reused: true,
+      saveStatus: "not_attempted",
+    } as const;
+    const sessionInfoFor = (
+      session: string,
+      socketDir: string,
+    ): Record<string, unknown> => ({
+      success: true,
+      data: browserClosed && !daemonLive
+        ? {
+            active: false,
+            namespace: null,
+            pid: null,
+            runtime: null,
+            runtimeError: null,
+            session,
+            socketDir,
+            version: null,
+          }
+        : {
+            active: true,
+            namespace: null,
+            pid: process.pid,
+            runtime: {
+              backgroundPid: process.pid,
+              browserLaunched: !browserClosed,
+              compatibilityStatus: "current",
+              effectiveLaunch: browserClosed
+                ? {
+                    browserLaunched: false,
+                    engine: "chrome",
+                    launchHash: null,
+                  }
+                : lifecycle.effectiveLaunch,
+              engine: "chrome",
+              launchHash: browserClosed ? null : launchHash,
+              lifecycle: browserClosed
+                ? {
+                    ...lifecycle,
+                    effectiveLaunch: {
+                      browserLaunched: false,
+                      engine: "chrome",
+                      launchHash: null,
+                    },
+                  }
+                : lifecycle,
+              namespace: null,
+              pageCount: browserClosed ? 0 : 1,
+              restoreCheckFn: null,
+              restoreCheckText: null,
+              restoreCheckUrl: null,
+              restoreKey: null,
+              restoreLoadedPath: null,
+              restoreSave: "auto",
+              restoreSavedPath: null,
+              restoreStatus: "not_configured",
+              restoreStatusDetail: null,
+              restoreValidationPending: false,
+              saveStatus: "not_attempted",
+              session,
+              socketDir,
+            },
+            runtimeError: null,
+            session,
+            socketDir,
+            version: "0.32.3",
+          },
+    });
+    try {
+      const stub = join(root, "lightpanda");
+      writeFileSync(stub, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+      const session = await createBrowserSession(manifest, auth, {
+        headed: false,
+        timeoutMs: 5_000,
+        maxOutputBytes: 64 * 1024,
+        engine: "auto",
+        environment: {
+          GHOSTGET_LIGHTPANDA_PATH: stub,
+          PATH: process.env.PATH ?? "/usr/bin:/bin",
+        },
+        publishCleanupResource: Object.assign(
+          (resource: PublishedCleanupResource) => {
+            published.push(resource);
+          },
+          {
+            markBrowserCleanupQuiescent: (): void => {
+              cleanupEvents.push("journal-quiescent");
+            },
+            markBrowserCleanupRootRemoved: (
+              _resource: PublishedCleanupResource,
+              rootName: "artifacts" | "socket",
+            ): void => {
+              cleanupEvents.push(`journal-${rootName}`);
+            },
+          },
+        ),
+        dependencies: {
+          runCommand: (command, options) => {
+            if (command.includes("batch")) {
+              chromeLaunched = true;
+              const batch = JSON.parse(
+                options.stdin ?? "[]",
+              ) as readonly unknown[];
+              return Promise.resolve({
+                stdout: `${JSON.stringify(batch.map(() => ({
+                  success: true,
+                  data: null,
+                })))}\n`,
+                stderr: "",
+                exitCode: 0,
+              });
+            }
+            const sessionIndex = command.indexOf("--session");
+            const socketDir =
+              options.environment.AGENT_BROWSER_SOCKET_DIR ?? "";
+            if (command.includes("info")) {
+              const requested = command[sessionIndex + 1] ?? "";
+              if (requested !== published[0]?.session) {
+                // The unpublished preflight identity is always reported
+                // inactive once its owned serve child is reaped.
+                return Promise.resolve({
+                  stdout: `${JSON.stringify({
+                    success: true,
+                    data: {
+                      active: false,
+                      namespace: null,
+                      pid: null,
+                      runtime: null,
+                      runtimeError: null,
+                      session: requested,
+                      socketDir,
+                      version: null,
+                    },
+                  })}\n`,
+                  stderr: "",
+                  exitCode: 0,
+                });
+              }
+              return Promise.resolve({
+                stdout: `${exactLaunchHashJson(sessionInfoFor(
+                  requested,
+                  socketDir,
+                ))}\n`,
+                stderr: "",
+                exitCode: 0,
+              });
+            }
+            if (command.includes("cdp-url")) {
+              return Promise.resolve({
+                stdout: `${exactLaunchHashJson({
+                  success: true,
+                  data: {
+                    cdpUrl: "ws://127.0.0.1:43125/devtools/browser/exact-test",
+                    lifecycle,
+                  },
+                })}\n`,
+                stderr: "",
+                exitCode: 0,
+              });
+            }
+            if (command.includes("close")) browserClosed = true;
+            return Promise.resolve({
+              stdout: "{\"success\":true}\n",
+              stderr: "",
+              exitCode: 0,
+            });
+          },
+          startNetworkProxy: () => Promise.resolve({
+            url: "http://127.0.0.1:43124",
+            port: 43_124,
+            close: () => Promise.resolve(),
+          }),
+          acquireCookieRecords: () => Promise.resolve({
+            cookies: [],
+            warnings: [],
+          }),
+          createLightpandaDependencies: () => {
+            lightpandaFactories += 1;
+            return {
+              run: () => Promise.resolve({ ok: true }),
+              runBatch: (_globals, commands) => {
+                if (
+                  commands.some((command) => command[0] === "open")
+                ) {
+                  return Promise.reject(new LightpandaCompatibilityError(true));
+                }
+                return Promise.resolve();
+              },
+              close: () => Promise.resolve(),
+            };
+          },
+          cleanupLifecycle: {
+            ownerStatus: () => daemonLive
+              ? "exact-live-owner"
+              : "different-or-dead",
+            terminateOwner: () => {
+              daemonLive = false;
+            },
+            cdpEndpointStatus: () => Promise.resolve("unavailable"),
+            sleep: () => Promise.resolve(),
+          },
+        },
+      });
+      await session.close();
+      await session.cleanup();
+      expect(chromeLaunched).toBeTrue();
+      expect(lightpandaFactories).toBe(1);
+      expect(
+        published.every((resource) =>
+          resource.session === published[0]?.session
+        ),
+      ).toBeTrue();
+      expect(published.map((resource) => resource.kind === "agent-browser-session-v2"
+        ? resource.phase
+        : "legacy")).toEqual([
+        "prepared",
+        "launch-intent",
+        "controlled",
+      ]);
+      expect(cleanupEvents).toEqual([
+        "journal-quiescent",
+        "journal-artifacts",
+        "journal-socket",
+      ]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("auto resolves to Chromium when the daemon keeps the failed preflight session active", async () => {
+    const root = mkdtempSync(join(tmpdir(), "io-lightpanda-stub-"));
+    type PublishedCleanupResource = Parameters<
+      NonNullable<
+        Parameters<typeof createBrowserSession>[2]["publishCleanupResource"]
+      >
+    >[0];
+    const published: PublishedCleanupResource[] = [];
+    let chromeLaunched = false;
+    let lightpandaFactories = 0;
+    let preflightArtifactsDirectory: string | null = null;
+    let preflightSocketDirectory: string | null = null;
+    const launchHash = "18446744073709551615";
+    const exactLaunchHashJson = (value: unknown): string =>
+      JSON.stringify(value).replaceAll(
+        `"launchHash":"${launchHash}"`,
+        `"launchHash":${launchHash}`,
+      );
+    const lifecycle = {
+      effectiveLaunch: {
+        browserLaunched: true,
+        engine: "chrome",
+        launchHash,
+      },
+      launched: false,
+      relaunchedBrowser: false,
+      restartedBackground: false,
+      restoreStatus: "not_configured",
+      reused: true,
+      saveStatus: "not_attempted",
+    } as const;
+    let browserClosed = false;
+    let daemonLive = true;
+    try {
+      const stub = join(root, "lightpanda");
+      writeFileSync(stub, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+      const session = await createBrowserSession(manifest, auth, {
+        headed: false,
+        timeoutMs: 5_000,
+        maxOutputBytes: 64 * 1024,
+        engine: "auto",
+        environment: {
+          GHOSTGET_LIGHTPANDA_PATH: stub,
+          PATH: process.env.PATH ?? "/usr/bin:/bin",
+        },
+        publishCleanupResource: Object.assign(
+          (resource: PublishedCleanupResource) => {
+            published.push(resource);
+          },
+          {
+            markBrowserCleanupQuiescent: (): void => {},
+            markBrowserCleanupRootRemoved: (): void => {},
+          },
+        ),
+        dependencies: {
+          runCommand: (command, options) => {
+            if (command.includes("batch")) {
+              chromeLaunched = true;
+              const batch = JSON.parse(
+                options.stdin ?? "[]",
+              ) as readonly unknown[];
+              return Promise.resolve({
+                stdout: `${JSON.stringify(batch.map(() => ({
+                  success: true,
+                  data: null,
+                })))}\n`,
+                stderr: "",
+                exitCode: 0,
+              });
+            }
+            if (command.includes("info")) {
+              const sessionIndex = command.indexOf("--session");
+              const requested = command[sessionIndex + 1] ?? "";
+              const socketDir =
+                options.environment.AGENT_BROWSER_SOCKET_DIR ?? "";
+              if (requested !== published[0]?.session) {
+                // The daemon keeps the failed preflight session active; the
+                // fallback must not depend on that view converging.
+                return Promise.resolve({
+                  stdout: `${JSON.stringify({
+                    success: true,
+                    data: {
+                      active: true,
+                      namespace: null,
+                      pid: 43126,
+                      runtime: {
+                        browserLaunched: false,
+                        effectiveLaunch: {
+                          browserLaunched: false,
+                          engine: "lightpanda",
+                          launchHash: null,
+                        },
+                        engine: "lightpanda",
+                      },
+                      runtimeError: null,
+                      session: requested,
+                      socketDir,
+                      version: "0.32.3",
+                    },
+                  })}\n`,
+                  stderr: "",
+                  exitCode: 0,
+                });
+              }
+              return Promise.resolve({
+                stdout: `${exactLaunchHashJson({
+                  success: true,
+                  data: browserClosed && !daemonLive
+                    ? {
+                        active: false,
+                        namespace: null,
+                        pid: null,
+                        runtime: null,
+                        runtimeError: null,
+                        session: requested,
+                        socketDir,
+                        version: null,
+                      }
+                    : {
+                        active: true,
+                        namespace: null,
+                        pid: process.pid,
+                        runtime: {
+                          backgroundPid: process.pid,
+                          browserLaunched: !browserClosed,
+                          compatibilityStatus: "current",
+                          effectiveLaunch: browserClosed
+                            ? {
+                                browserLaunched: false,
+                                engine: "chrome",
+                                launchHash: null,
+                              }
+                            : lifecycle.effectiveLaunch,
+                          engine: "chrome",
+                          launchHash: browserClosed ? null : launchHash,
+                          lifecycle: browserClosed
+                            ? {
+                                ...lifecycle,
+                                effectiveLaunch: {
+                                  browserLaunched: false,
+                                  engine: "chrome",
+                                  launchHash: null,
+                                },
+                              }
+                            : lifecycle,
+                          namespace: null,
+                          pageCount: browserClosed ? 0 : 1,
+                          restoreCheckFn: null,
+                          restoreCheckText: null,
+                          restoreCheckUrl: null,
+                          restoreKey: null,
+                          restoreLoadedPath: null,
+                          restoreSave: "auto",
+                          restoreSavedPath: null,
+                          restoreStatus: "not_configured",
+                          restoreStatusDetail: null,
+                          restoreValidationPending: false,
+                          saveStatus: "not_attempted",
+                          session: requested,
+                          socketDir,
+                        },
+                        runtimeError: null,
+                        session: requested,
+                        socketDir,
+                        version: "0.32.3",
+                      },
+                })}\n`,
+                stderr: "",
+                exitCode: 0,
+              });
+            }
+            if (command.includes("cdp-url")) {
+              return Promise.resolve({
+                stdout: `${exactLaunchHashJson({
+                  success: true,
+                  data: {
+                    cdpUrl: "ws://127.0.0.1:43125/devtools/browser/exact-test",
+                    lifecycle,
+                  },
+                })}\n`,
+                stderr: "",
+                exitCode: 0,
+              });
+            }
+            if (command.includes("close")) browserClosed = true;
+            return Promise.resolve({
+              stdout: "{\"success\":true}\n",
+              stderr: "",
+              exitCode: 0,
+            });
+          },
+          startNetworkProxy: () => Promise.resolve({
+            url: "http://127.0.0.1:43124",
+            port: 43_124,
+            close: () => Promise.resolve(),
+          }),
+          acquireCookieRecords: () => Promise.resolve({
+            cookies: [],
+            warnings: [],
+          }),
+          createLightpandaDependencies: () => {
+            lightpandaFactories += 1;
+            return {
+              run: (_globals, command) => {
+                if (command[0] === "close") {
+                  return Promise.resolve({ closed: true });
+                }
+                return Promise.resolve({ ok: true });
+              },
+              runBatch: (_globals, commands, options) => {
+                preflightArtifactsDirectory = options.cwd;
+                preflightSocketDirectory =
+                  options.environment.AGENT_BROWSER_SOCKET_DIR ?? null;
+                if (commands.some((command) => command[0] === "open")) {
+                  return Promise.reject(
+                    new LightpandaCompatibilityError(true),
+                  );
+                }
+                return Promise.resolve();
+              },
+              close: () => Promise.resolve(),
+            };
+          },
+          cleanupLifecycle: {
+            ownerStatus: () => daemonLive
+              ? "exact-live-owner"
+              : "different-or-dead",
+            terminateOwner: () => {
+              daemonLive = false;
+            },
+            cdpEndpointStatus: () => Promise.resolve("unavailable"),
+            sleep: () => Promise.resolve(),
+          },
+        },
+      });
+      await session.close();
+      await session.cleanup();
+      expect(chromeLaunched).toBeTrue();
+      expect(lightpandaFactories).toBe(1);
+      expect(published.map((resource) => resource.kind === "agent-browser-session-v2"
+        ? resource.phase
+        : "legacy")).toEqual([
+        "prepared",
+        "launch-intent",
+        "controlled",
+      ]);
+      expect(preflightArtifactsDirectory).not.toBeNull();
+      expect(preflightSocketDirectory).not.toBeNull();
+      // The failed probe's teardown was complete, so its throwaway roots are
+      // removed even though the daemon's view never converged.
+      expect(existsSync(preflightArtifactsDirectory!)).toBeFalse();
+      expect(existsSync(preflightSocketDirectory!)).toBeFalse();
+    } finally {
+      if (preflightArtifactsDirectory !== null) {
+        rmSync(preflightArtifactsDirectory, { recursive: true, force: true });
+      }
+      if (preflightSocketDirectory !== null) {
+        rmSync(preflightSocketDirectory, { recursive: true, force: true });
+      }
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("auto resolves to Chromium but preserves preflight roots when inactivity never converges", async () => {
+    const root = mkdtempSync(join(tmpdir(), "io-lightpanda-stub-"));
+    type PublishedCleanupResource = Parameters<
+      NonNullable<
+        Parameters<typeof createBrowserSession>[2]["publishCleanupResource"]
+      >
+    >[0];
+    const published: PublishedCleanupResource[] = [];
+    let chromeLaunched = false;
+    let lightpandaFactories = 0;
+    let preflightArtifactsDirectory: string | null = null;
+    let preflightSocketDirectory: string | null = null;
+    const launchHash = "18446744073709551615";
+    const exactLaunchHashJson = (value: unknown): string =>
+      JSON.stringify(value).replaceAll(
+        `"launchHash":"${launchHash}"`,
+        `"launchHash":${launchHash}`,
+      );
+    const lifecycle = {
+      effectiveLaunch: {
+        browserLaunched: true,
+        engine: "chrome",
+        launchHash,
+      },
+      launched: false,
+      relaunchedBrowser: false,
+      restartedBackground: false,
+      restoreStatus: "not_configured",
+      reused: true,
+      saveStatus: "not_attempted",
+    } as const;
+    let browserClosed = false;
+    let daemonLive = true;
+    let convergenceNow = 0;
+    try {
+      const stub = join(root, "lightpanda");
+      writeFileSync(stub, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+      const session = await createBrowserSession(manifest, auth, {
+        headed: false,
+        timeoutMs: 5_000,
+        maxOutputBytes: 64 * 1024,
+        engine: "auto",
+        environment: {
+          GHOSTGET_LIGHTPANDA_PATH: stub,
+          PATH: process.env.PATH ?? "/usr/bin:/bin",
+        },
+        publishCleanupResource: Object.assign(
+          (resource: PublishedCleanupResource) => {
+            published.push(resource);
+          },
+          {
+            markBrowserCleanupQuiescent: (): void => {},
+            markBrowserCleanupRootRemoved: (): void => {},
+          },
+        ),
+        dependencies: {
+          runCommand: (command, options) => {
+            if (command.includes("batch")) {
+              chromeLaunched = true;
+              const batch = JSON.parse(
+                options.stdin ?? "[]",
+              ) as readonly unknown[];
+              return Promise.resolve({
+                stdout: `${JSON.stringify(batch.map(() => ({
+                  success: true,
+                  data: null,
+                })))}\n`,
+                stderr: "",
+                exitCode: 0,
+              });
+            }
+            if (command.includes("info")) {
+              const sessionIndex = command.indexOf("--session");
+              const requested = command[sessionIndex + 1] ?? "";
+              const socketDir =
+                options.environment.AGENT_BROWSER_SOCKET_DIR ?? "";
+              if (requested !== published[0]?.session) {
+                // The daemon never observes the closed preflight session as
+                // inactive inside the bounded convergence window.
+                return Promise.resolve({
+                  stdout: `${JSON.stringify({
+                    success: true,
+                    data: {
+                      active: true,
+                      namespace: null,
+                      pid: 43126,
+                      runtime: {
+                        browserLaunched: false,
+                        effectiveLaunch: {
+                          browserLaunched: false,
+                          engine: "lightpanda",
+                          launchHash: null,
+                        },
+                        engine: "lightpanda",
+                      },
+                      runtimeError: null,
+                      session: requested,
+                      socketDir,
+                      version: "0.32.3",
+                    },
+                  })}\n`,
+                  stderr: "",
+                  exitCode: 0,
+                });
+              }
+              return Promise.resolve({
+                stdout: `${exactLaunchHashJson({
+                  success: true,
+                  data: browserClosed && !daemonLive
+                    ? {
+                        active: false,
+                        namespace: null,
+                        pid: null,
+                        runtime: null,
+                        runtimeError: null,
+                        session: requested,
+                        socketDir,
+                        version: null,
+                      }
+                    : {
+                        active: true,
+                        namespace: null,
+                        pid: process.pid,
+                        runtime: {
+                          backgroundPid: process.pid,
+                          browserLaunched: !browserClosed,
+                          compatibilityStatus: "current",
+                          effectiveLaunch: browserClosed
+                            ? {
+                                browserLaunched: false,
+                                engine: "chrome",
+                                launchHash: null,
+                              }
+                            : lifecycle.effectiveLaunch,
+                          engine: "chrome",
+                          launchHash: browserClosed ? null : launchHash,
+                          lifecycle: browserClosed
+                            ? {
+                                ...lifecycle,
+                                effectiveLaunch: {
+                                  browserLaunched: false,
+                                  engine: "chrome",
+                                  launchHash: null,
+                                },
+                              }
+                            : lifecycle,
+                          namespace: null,
+                          pageCount: browserClosed ? 0 : 1,
+                          restoreCheckFn: null,
+                          restoreCheckText: null,
+                          restoreCheckUrl: null,
+                          restoreKey: null,
+                          restoreLoadedPath: null,
+                          restoreSave: "auto",
+                          restoreSavedPath: null,
+                          restoreStatus: "not_configured",
+                          restoreStatusDetail: null,
+                          restoreValidationPending: false,
+                          saveStatus: "not_attempted",
+                          session: requested,
+                          socketDir,
+                        },
+                        runtimeError: null,
+                        session: requested,
+                        socketDir,
+                        version: "0.32.3",
+                      },
+                })}\n`,
+                stderr: "",
+                exitCode: 0,
+              });
+            }
+            if (command.includes("cdp-url")) {
+              return Promise.resolve({
+                stdout: `${exactLaunchHashJson({
+                  success: true,
+                  data: {
+                    cdpUrl: "ws://127.0.0.1:43125/devtools/browser/exact-test",
+                    lifecycle,
+                  },
+                })}\n`,
+                stderr: "",
+                exitCode: 0,
+              });
+            }
+            if (command.includes("close")) browserClosed = true;
+            return Promise.resolve({
+              stdout: "{\"success\":true}\n",
+              stderr: "",
+              exitCode: 0,
+            });
+          },
+          startNetworkProxy: () => Promise.resolve({
+            url: "http://127.0.0.1:43124",
+            port: 43_124,
+            close: () => Promise.resolve(),
+          }),
+          acquireCookieRecords: () => Promise.resolve({
+            cookies: [],
+            warnings: [],
+          }),
+          createLightpandaDependencies: () => {
+            lightpandaFactories += 1;
+            return {
+              run: (_globals, command) => {
+                if (command[0] === "close") {
+                  return Promise.resolve({ closed: true });
+                }
+                return Promise.resolve({ ok: true });
+              },
+              runBatch: (_globals, _commands, options) => {
+                preflightArtifactsDirectory = options.cwd;
+                preflightSocketDirectory =
+                  options.environment.AGENT_BROWSER_SOCKET_DIR ?? null;
+                return Promise.resolve();
+              },
+              close: () => Promise.resolve(),
+            };
+          },
+          cleanupLifecycle: {
+            ownerStatus: () => daemonLive
+              ? "exact-live-owner"
+              : "different-or-dead",
+            terminateOwner: () => {
+              daemonLive = false;
+            },
+            cdpEndpointStatus: () => Promise.resolve("unavailable"),
+            sleep: () => Promise.resolve(),
+            // Advance half a second per read: the preflight convergence window
+            // exhausts its retries in a few attempts while the Chromium
+            // cleanup's three-refusal endpoint loop still fits its bound.
+            now: () => (convergenceNow += 500),
+          },
+        },
+      });
+      await session.close();
+      await session.cleanup();
+      expect(chromeLaunched).toBeTrue();
+      expect(lightpandaFactories).toBe(1);
+      expect(published.map((resource) => resource.kind === "agent-browser-session-v2"
+        ? resource.phase
+        : "legacy")).toEqual([
+        "prepared",
+        "launch-intent",
+        "controlled",
+      ]);
+      expect(preflightArtifactsDirectory).not.toBeNull();
+      expect(preflightSocketDirectory).not.toBeNull();
+      // Quiescence was never proved, so the throwaway roots are preserved
+      // rather than deleted under an uncertain daemon view.
+      expect(existsSync(preflightArtifactsDirectory!)).toBeTrue();
+      expect(existsSync(preflightSocketDirectory!)).toBeTrue();
+    } finally {
+      if (preflightArtifactsDirectory !== null) {
+        rmSync(preflightArtifactsDirectory, { recursive: true, force: true });
+      }
+      if (preflightSocketDirectory !== null) {
+        rmSync(preflightSocketDirectory, { recursive: true, force: true });
+      }
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("rejects a foreign session's inactive report during launch-intent quiescence", async () => {
+    const artifactsDirectory = mkdtempSync(join(tmpdir(), "io-browser-"));
+    const socketDirectory = mkdtempSync(join("/tmp", "io-ab-"));
+    try {
+      const configPath = join(artifactsDirectory, "agent-browser.json");
+      writeFileSync(configPath, "{}\n", { mode: 0o600 });
+      const session = `io-${process.pid}-${"a".repeat(12)}`;
+      const directoryIdentity = (path: string) => {
+        const stats = lstatSync(path, { bigint: true });
+        return {
+          device: stats.dev.toString(),
+          inode: stats.ino.toString(),
+          birthtimeNs: stats.birthtimeNs.toString(),
+          mode: "448" as const,
+          uid: stats.uid.toString(),
+        };
+      };
+      const resource = parseBrowserCleanupResourceIdentity({
+        kind: "agent-browser-session-v2",
+        recoveryHandle: browserRecoveryHandle({
+          session,
+          configPath,
+          socketDirectory,
+          artifactsDirectory,
+        }),
+        session,
+        socketDirectory,
+        socketDirectoryIdentity: directoryIdentity(socketDirectory),
+        artifactsDirectory,
+        artifactsDirectoryIdentity: directoryIdentity(artifactsDirectory),
+        phase: "launch-intent",
+        control: null,
+      }) as BrowserCleanupResourceIdentityV2;
+      const failure = await rejectionValue(
+        proveLaunchIntentAgentBrowserCleanupResourceQuiescent(resource, {
+          runCommand: () => Promise.resolve({
+            stdout: `${JSON.stringify({
+              success: true,
+              data: {
+                active: false,
+                namespace: null,
+                pid: null,
+                runtime: null,
+                runtimeError: null,
+                session: `io-${process.pid}-${"b".repeat(12)}`,
+                socketDir: socketDirectory,
+                version: null,
+              },
+            })}\n`,
+            stderr: "",
+            exitCode: 0,
+          }),
+        }),
+      );
+      expect(failure).toBeInstanceOf(Error);
+      const socketMismatch = await rejectionValue(
+        proveLaunchIntentAgentBrowserCleanupResourceQuiescent(resource, {
+          runCommand: () => Promise.resolve({
+            stdout: `${JSON.stringify({
+              success: true,
+              data: {
+                active: false,
+                namespace: null,
+                pid: null,
+                runtime: null,
+                runtimeError: null,
+                session,
+                socketDir: `${socketDirectory}-other`,
+                version: null,
+              },
+            })}\n`,
+            stderr: "",
+            exitCode: 0,
+          }),
+        }),
+      );
+      expect(socketMismatch).toBeInstanceOf(Error);
+    } finally {
+      rmSync(artifactsDirectory, { recursive: true, force: true });
+      rmSync(socketDirectory, { recursive: true, force: true });
+    }
+  });
+
+  test("fails closed when a post-publish incompatibility cannot register the Chromium retry", async () => {
+    const root = mkdtempSync(join(tmpdir(), "io-lightpanda-stub-"));
+    type PublishedCleanupResource = Parameters<
+      NonNullable<
+        Parameters<typeof createBrowserSession>[2]["publishCleanupResource"]
+      >
+    >[0];
+    const published: PublishedCleanupResource[] = [];
+    let lightpandaFactories = 0;
+    try {
+      const stub = join(root, "lightpanda");
+      writeFileSync(stub, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+      const failure = await rejectionValue(createBrowserSession(manifest, auth, {
+        headed: false,
+        timeoutMs: 5_000,
+        maxOutputBytes: 64 * 1024,
+        engine: "auto",
+        environment: {
+          GHOSTGET_LIGHTPANDA_PATH: stub,
+          PATH: process.env.PATH ?? "/usr/bin:/bin",
+        },
+        publishCleanupResource: Object.assign(
+          (resource: PublishedCleanupResource) => {
+            // Model the durable registrar: only an identical session may
+            // republish; a second attempt's fresh identity is rejected.
+            if (
+              published.length > 0
+              && resource.session !== published[0]?.session
+            ) {
+              throw new Error("browser cleanup resource identity drifted");
+            }
+            published.push(resource);
+          },
+          {
+            markBrowserCleanupQuiescent: (): void => {},
+            markBrowserCleanupRootRemoved: (): void => {},
+          },
+        ),
+        dependencies: {
+          runCommand: (command, options) => {
+            if (command.includes("batch")) {
+              const batch = JSON.parse(
+                options.stdin ?? "[]",
+              ) as readonly unknown[];
+              return Promise.resolve({
+                stdout: `${JSON.stringify(batch.map(() => ({
+                  success: true,
+                  data: null,
+                })))}\n`,
+                stderr: "",
+                exitCode: 0,
+              });
+            }
+            if (command.includes("info")) {
+              const sessionIndex = command.indexOf("--session");
+              const requested = command[sessionIndex + 1] ?? "";
+              const resource = published[0];
+              return Promise.resolve({
+                stdout: `${JSON.stringify({
+                  success: true,
+                  data: {
+                    active: false,
+                    namespace: null,
+                    pid: null,
+                    runtime: null,
+                    runtimeError: null,
+                    session: requested,
+                    socketDir: resource === undefined
+                      ? options.environment.AGENT_BROWSER_SOCKET_DIR ?? ""
+                      : resource.socketDirectory,
+                    version: null,
+                  },
+                })}\n`,
+                stderr: "",
+                exitCode: 0,
+              });
+            }
+            return Promise.resolve({
+              stdout: "{\"success\":true}\n",
+              stderr: "",
+              exitCode: 0,
+            });
+          },
+          startNetworkProxy: () => Promise.resolve({
+            url: "http://127.0.0.1:43124",
+            port: 43_124,
+            close: () => Promise.resolve(),
+          }),
+          acquireCookieRecords: () => Promise.resolve({
+            cookies: [],
+            warnings: [],
+          }),
+          createLightpandaDependencies: () => {
+            lightpandaFactories += 1;
+            const preflight = lightpandaFactories === 1;
+            return {
+              run: () => Promise.resolve({ ok: true }),
+              runBatch: () => preflight
+                ? Promise.resolve()
+                : Promise.reject(new LightpandaCompatibilityError(true)),
+              close: () => Promise.resolve(),
+            };
+          },
+          cleanupLifecycle: {
+            sleep: () => Promise.resolve(),
+          },
+        },
+      }));
+      // The compat failure arrived after the launch-intent identity was
+      // durable, so the Chromium retry cannot register a second identity; the
+      // session fails closed with its roots preserved or already journaled.
+      expect(failure).toBeInstanceOf(PreservedBrowserArtifactsError);
+      expect(lightpandaFactories).toBe(2);
+      const first = published[0];
+      const latest = published[published.length - 1];
+      if (first === undefined || latest === undefined) {
+        throw new Error("the Lightpanda attempt never published");
+      }
+      expect(latest.kind).toBe("agent-browser-session-v2");
+      if (latest.kind !== "agent-browser-session-v2") {
+        throw new Error("the Lightpanda attempt published a legacy resource");
+      }
+      expect(latest.phase).toBe("launch-intent");
+      expect(existsSync(first.socketDirectory)).toBeFalse();
+      expect(existsSync(first.artifactsDirectory)).toBeFalse();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("a stale LIGHTPANDA_PATH never affects an explicit Chromium session", async () => {
+    let lightpandaFactories = 0;
+    let chromeBatches = 0;
+    const session = await createBrowserSession(manifest, auth, {
+      headed: false,
+      timeoutMs: 5_000,
+      maxOutputBytes: 64 * 1024,
+      engine: "chrome",
+      environment: {
+        GHOSTGET_LIGHTPANDA_PATH: "/nonexistent/lightpanda",
+        LIGHTPANDA_PATH: "/also/nonexistent/lightpanda",
+        PATH: process.env.PATH ?? "/usr/bin:/bin",
+      },
+      dependencies: {
+        runCommand: (command, options) => {
+          if (command.includes("batch")) {
+            chromeBatches += 1;
+            const batch = JSON.parse(
+              options.stdin ?? "[]",
+            ) as readonly unknown[];
+            return Promise.resolve({
+              stdout: `${JSON.stringify(batch.map(() => ({
+                success: true,
+                data: null,
+              })))}\n`,
+              stderr: "",
+              exitCode: 0,
+            });
+          }
+          return Promise.resolve({
+            stdout: "{\"success\":true}\n",
+            stderr: "",
+            exitCode: 0,
+          });
+        },
+        startNetworkProxy: () => Promise.resolve({
+          url: "http://127.0.0.1:43124",
+          port: 43_124,
+          close: () => Promise.resolve(),
+        }),
+        acquireCookieRecords: () => Promise.resolve({
+          cookies: [],
+          warnings: [],
+        }),
+        createLightpandaDependencies: () => {
+          lightpandaFactories += 1;
+          throw new Error("a Chromium session must not resolve Lightpanda");
+        },
+      },
+    });
+    await session.close();
+    await session.cleanup();
+    expect(lightpandaFactories).toBe(0);
+    expect(chromeBatches).toBeGreaterThan(0);
+  });
+
+  test("keeps imported cookie values inside the Lightpanda stdin batch channel", async () => {
+    const root = mkdtempSync(join(tmpdir(), "io-lightpanda-stub-"));
+    const secret = "private-cookie-value-0123456789";
+    const runArgv: string[][] = [];
+    const batchCommands: string[][] = [];
+    try {
+      const stub = join(root, "lightpanda");
+      writeFileSync(stub, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+      const session = await createBrowserSession(manifest, auth, {
+        headed: false,
+        timeoutMs: 5_000,
+        maxOutputBytes: 64 * 1024,
+        engine: "lightpanda",
+        environment: {
+          GHOSTGET_LIGHTPANDA_PATH: stub,
+          PATH: process.env.PATH ?? "/usr/bin:/bin",
+        },
+        dependencies: {
+          runCommand: (command) => {
+            runArgv.push([...command]);
+            return Promise.resolve({
+              stdout: "{\"success\":true}\n",
+              stderr: "",
+              exitCode: 0,
+            });
+          },
+          startNetworkProxy: () => Promise.resolve({
+            url: "http://127.0.0.1:43124",
+            port: 43_124,
+            close: () => Promise.resolve(),
+          }),
+          acquireCookieRecords: () => Promise.resolve({
+            cookies: [{
+              name: "session",
+              value: secret,
+              domain: "example.com",
+              hostOnly: true,
+              path: "/",
+              secure: true,
+              httpOnly: true,
+              sameSite: "Lax" as const,
+              expires: 0,
+            }],
+            warnings: [],
+          }),
+          createLightpandaDependencies: () => ({
+            run: (globalArguments, command) => {
+              runArgv.push([...globalArguments, ...command]);
+              return Promise.resolve({ ok: true });
+            },
+            runBatch: (_globals, commands) => {
+              for (const command of commands) {
+                batchCommands.push([...command]);
+              }
+              return Promise.resolve();
+            },
+            close: () => Promise.resolve(),
+          }),
+        },
+      });
+      await session.close();
+      await session.cleanup();
+      const cookieCommand = batchCommands.find(
+        (command) => command[0] === "cookies",
+      );
+      expect(cookieCommand?.slice(0, 4)).toEqual([
+        "cookies",
+        "set",
+        "session",
+        secret,
+      ]);
+      for (const argv of runArgv) {
+        expect(argv).not.toContain(secret);
+      }
+      expect(batchCommands.every((command) => command[0] !== "batch"))
+        .toBeTrue();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("rejects an active Lightpanda session during Chromium control binding", async () => {
+    const artifactsDirectory = mkdtempSync(join(tmpdir(), "io-browser-"));
+    const socketDirectory = mkdtempSync(join("/tmp", "io-ab-"));
+    chmodSync(artifactsDirectory, 0o700);
+    chmodSync(socketDirectory, 0o700);
+    const session = "io-125-abcdef123456";
+    const configPath = join(artifactsDirectory, "agent-browser.json");
+    writeFileSync(configPath, "{}\n", { mode: 0o600 });
+    const statsIdentity = (path: string) => {
+      const stats = lstatSync(path, { bigint: true });
+      return {
+        device: stats.dev.toString(),
+        inode: stats.ino.toString(),
+        birthtimeNs: stats.birthtimeNs.toString(),
+        mode: "448" as const,
+        uid: stats.uid.toString(),
+      };
+    };
+    try {
+      const launchIntent = parseBrowserCleanupResourceIdentity({
+        kind: "agent-browser-session-v2",
+        recoveryHandle: browserRecoveryHandle({
+          session,
+          configPath,
+          socketDirectory,
+          artifactsDirectory,
+        }),
+        session,
+        socketDirectory,
+        socketDirectoryIdentity: statsIdentity(socketDirectory),
+        artifactsDirectory,
+        artifactsDirectoryIdentity: statsIdentity(artifactsDirectory),
+        phase: "launch-intent",
+        control: null,
+      }) as BrowserCleanupResourceIdentityV2;
+      const rejection = await rejectionMessage(
+        bindLiveAgentBrowserCleanupResource(launchIntent, {
+          captureOwner: () => ({
+            pid: 43125,
+            bootId: "a".repeat(64),
+            processStartId: "b".repeat(64),
+          }),
+          ownerStatus: () => "exact-live-owner",
+          runCommand: (command) => {
+            if (command.includes("info")) {
+              return Promise.resolve({
+                stdout: `${JSON.stringify({
+                  success: true,
+                  data: {
+                    active: true,
+                    namespace: null,
+                    pid: 43125,
+                    runtime: {
+                      browserLaunched: false,
+                      effectiveLaunch: {
+                        browserLaunched: false,
+                        engine: "lightpanda",
+                        launchHash: null,
+                      },
+                      engine: "lightpanda",
+                    },
+                    runtimeError: null,
+                    session,
+                    socketDir: socketDirectory,
+                    version: "0.32.3",
+                  },
+                })}\n`,
+                stderr: "",
+                exitCode: 0,
+              });
+            }
+            return Promise.resolve({
+              stdout: "{\"success\":true}\n",
+              stderr: "",
+              exitCode: 0,
+            });
+          },
+        }),
+      );
+      expect(rejection).toContain("runtime is malformed");
+    } finally {
+      rmSync(socketDirectory, { recursive: true, force: true });
+      rmSync(artifactsDirectory, { recursive: true, force: true });
     }
   });
 });
