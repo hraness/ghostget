@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en" data-hraness-theme="paper" data-palette="gruvbox">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#fbf1c7" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">
+    <title>Connect Gmail to your agent through GhostGet</title>
+    <meta name="description" content="Create a Google OAuth desktop client, sign in once, and let your agent list and read Gmail threads and contacts through three read-only GhostGet actions.">
+    <meta name="robots" content="max-image-preview:large">
+    <link rel="canonical" href="https://ghostget.com/docs/how-to/connect-gmail/">
+    <link rel="icon" href="/icon.png" type="image/png" sizes="32x32">
+    <link rel="icon" href="/icon-96.png" type="image/png" sizes="96x96">
+    <link rel="apple-touch-icon" href="/apple-icon.png" sizes="180x180">
+    <link rel="stylesheet" href="{{CSS_ASSET}}">
+    <link rel="sitemap" type="application/xml" href="/sitemap.xml">
+    {{MARKDOWN_ALTERNATE}}
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="GhostGet">
+    <meta property="og:title" content="Connect Gmail to your agent through GhostGet">
+    <meta property="og:description" content="Create a Google OAuth desktop client, sign in once, and let your agent list and read Gmail threads and contacts through three read-only GhostGet actions.">
+    <meta property="og:url" content="https://ghostget.com/docs/how-to/connect-gmail/">
+    <meta property="og:image" content="https://ghostget.com/og.png">
+    <meta property="og:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Connect Gmail to your agent through GhostGet">
+    <meta name="twitter:description" content="Create a Google OAuth desktop client, sign in once, and let your agent list and read Gmail threads and contacts through three read-only GhostGet actions.">
+    <meta name="twitter:image" content="https://ghostget.com/og.png">
+    <meta name="twitter:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
+    <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
+    <meta name="ghostget-posthog-key" content="{{POSTHOG_KEY}}">
+    <script type="application/ld+json">{{JSON_LD}}</script>
+    <script type="module" src="{{ANALYTICS_ASSET}}"></script>
+    <script type="module" src="{{FOIL_ASSET}}"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="topbar guide-topbar">
+      <a aria-label="{{PORTFOLIO_NAME}} home" class="wordmark hraness-foil-text" data-foil="" href="/"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span> {{PORTFOLIO_NAME}}</a>
+      <nav aria-label="Primary">
+        <a href="/docs/tutorials/getting-started/">Install</a>
+        <a aria-current="location" href="/docs/reference/provider-capabilities/">Providers</a>
+        <a href="/docs/">Docs</a>
+        <a href="https://github.com/hraness/ghostget">GitHub <span aria-hidden="true">↗</span></a>
+        <a href="https://account.hraness.com/">Account</a>
+      </nav>
+    </header>
+    <main class="guide-main" id="main" tabindex="-1">
+      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">GhostGet</a></li><li><a href="/docs/">Docs</a></li><li aria-current="page">Gmail</li></ol></nav>
+      <article class="guide-article">
+        <header class="guide-hero provider-guide-hero">
+          <p class="eyebrow">How-to guide · Gmail adapter · {{GHOSTGET_RELEASE}}</p>
+          <h1>Connect Gmail with your own Google OAuth client</h1>
+          <p class="answer-lede">GhostGet’s Gmail adapter lists and reads your mail threads and contacts through Google’s Gmail and People APIs. You create the Google OAuth client and sign in once from your terminal. Your agent then calls three read-only actions with the account name you chose. GhostGet can’t send, draft, label, or delete mail.</p>
+          <p class="review-note">This guide describes {{GHOSTGET_RELEASE}}. Status on October 4, 2026: the Google Cloud console steps match Google’s <a href="https://developers.google.com/workspace/guides/configure-oauth-consent">consent screen guide</a> and <a href="https://developers.google.com/workspace/gmail/api/quickstart/python">Gmail API quickstart</a>, and the sign-in was not run with a Google account for this guide. Run <code>ghostget capabilities gmail --json</code> for the actions installed on your computer.</p>
+        </header>
+
+        <section aria-labelledby="choose">
+          <h2 id="choose">Choose Claude’s Gmail connector or GhostGet</h2>
+          <p>If you work in Claude, Anthropic’s <a href="https://support.claude.com/en/articles/10166901-use-google-workspace-connectors">Gmail connector</a> needs no Google Cloud project. Connect it at <a href="https://claude.ai/customize/connectors">claude.ai/customize/connectors</a>, and <a href="https://code.claude.com/docs/en/mcp#use-mcp-servers-from-claude-ai">Claude Code lists it in <code>/mcp</code></a> when you sign in with your Claude account. It searches and reads mail, drafts messages, and by default asks for your approval before it sends, replies, or forwards.</p>
+          <p>Use GhostGet when your agent is Codex, Cursor, or a script; when Claude Code signs in with an API key, because connectors load only with a Claude subscription sign-in; when you want the grant to belong to your own Google Cloud project with read-only scopes; or when you need contact lists with interaction counts and saved copies of threads with their attachments.</p>
+        </section>
+
+        <section aria-labelledby="actions">
+          <h2 id="actions">What your agent can read</h2>
+          <ul class="guide-list">
+            <li><code>contacts.list</code> returns your saved Google Contacts, your Other contacts, or an <code>interactions</code> summary of the addresses you exchange mail with, including sent and received counts. The summary reads message headers, labels, and dates, never message text, and leaves out spam, trash, drafts, and chats.</li>
+            <li><code>messaging.list</code> returns your inbox or the results of one Gmail search, such as <code>from:example.com has:attachment</code>.</li>
+            <li><code>messaging.read</code> returns one thread, using the <code>thread_id</code> from <code>messaging.list</code>.</li>
+          </ul>
+          <p>Reading a message doesn’t mark it as read. Each <code>messaging.list</code> row includes a <code>threadUrl</code>. Pass it to <code>ghostget read</code> with the same <code>--auth</code> name to print the thread as Markdown, or to <code>ghostget clip</code> to save the thread and its attachments in GhostGet’s private state folder.</p>
+          <p>GhostGet asks Google for three scopes: <code>gmail.readonly</code>, <code>contacts.readonly</code>, and <code>contacts.other.readonly</code>. Google classifies <a href="https://developers.google.com/workspace/gmail/api/auth/scopes"><code>gmail.readonly</code> as a restricted scope</a>: your consent lets the app read all of your mail, even though the <code>interactions</code> summary reads only headers.</p>
+        </section>
+
+        <section aria-labelledby="client">
+          <h2 id="client">Create a Google OAuth desktop client</h2>
+          <p>Use a Google Cloud project you own. These steps follow the Google Auth platform pages in the Google Cloud console.</p>
+          <ol class="guide-list">
+            <li>Create a project, or choose an existing one, in the <a href="https://console.cloud.google.com/">Google Cloud console</a>.</li>
+            <li>Enable the Gmail API and the People API for the project.</li>
+            <li>Set up the consent screen under Google Auth platform › Branding. Choose External as the audience for a personal Gmail account.</li>
+            <li>Add your Google account as a test user under Google Auth platform › Audience.</li>
+            <li>Create a client under Google Auth platform › Clients, with Desktop app as the application type.</li>
+            <li>Download the client’s JSON file and keep it in a private folder.</li>
+          </ol>
+          <div class="command-panel"><pre><code>chmod 600 /absolute/path/client_secret.json</code></pre></div>
+          <p>GhostGet accepts only a Desktop app client. A Web application client stops sign-in with <code>Google OAuth client document contains unsupported field web</code>.</p>
+        </section>
+
+        <section aria-labelledby="sign-in">
+          <h2 id="sign-in">Sign in from your terminal</h2>
+          <p>Run these commands yourself in a terminal, not through your agent, so the sign-in never passes through the agent:</p>
+          <div class="command-panel"><pre><code>ghostget adapter sync-bundled --json
+ghostget auth login gmail-main --client-file /absolute/path/client_secret.json</code></pre></div>
+          <p>GhostGet opens Google’s consent page in your browser and waits up to 10 minutes for you to approve. Google sends the approval back to a temporary address at <code>127.0.0.1</code> on your computer, so finish sign-in in a browser on the same computer. GhostGet also prints the sign-in URL; add <code>--no-open</code> to skip opening the browser. While your app is in Testing, Google shows a warning before you grant access.</p>
+          <p>After you approve, GhostGet checks which Gmail address signed in, prints it, and renews access automatically. It keeps the credential in a file that only your user account can read, inside GhostGet’s state folder. That file isn’t encrypted or kept in your system keychain, so keep the state folder out of shared backups. <code>gmail-main</code> is the name your agent passes with <code>--auth</code>.</p>
+        </section>
+
+        <section aria-labelledby="renewal">
+          <h2 id="renewal">Keep the connection past seven days</h2>
+          <p>While your app’s publishing status is Testing, <a href="https://support.google.com/cloud/answer/15549945">Google ends each authorization seven days after consent</a>. To keep the connection, choose Publish app under Google Auth platform › Audience, then sign in again with <code>--force</code>:</p>
+          <div class="command-panel"><pre><code>ghostget auth login gmail-main --client-file /absolute/path/client_secret.json --force</code></pre></div>
+          <p>A published app that asks for <code>gmail.readonly</code> shows Google’s unverified-app screen until Google verifies it. Google <a href="https://developers.google.com/identity/protocols/oauth2/production-readiness/restricted-scope-verification">doesn’t require verification</a> for personal use, when you are the only user or your users are a few people you know.</p>
+          <p>Google sets an end date on the credential itself only when you <a href="https://developers.google.com/identity/protocols/oauth2/native-app">grant time-based access</a>. When it does, GhostGet prints that date after sign-in.</p>
+        </section>
+
+        <section aria-labelledby="check">
+          <h2 id="check">Check the connection</h2>
+          <div class="command-panel"><pre><code>ghostget gmail contacts.list --auth gmail-main \
+  --input '{"collection":"contacts","limit":1,"include_stats":false}' --json
+ghostget gmail messaging.list --auth gmail-main \
+  --input '{"view":"inbox","limit":5}' --json</code></pre></div>
+          <p>Then ask your agent, for example: “Use GhostGet with <code>--auth gmail-main</code> to list my five newest inbox threads.” An agent that runs commands in a sandbox needs network access first; see <a href="/docs/tutorials/getting-started/#agents">Run GhostGet from Codex, Claude Code, or Cursor</a>.</p>
+        </section>
+
+        <section aria-labelledby="troubleshooting">
+          <h2 id="troubleshooting">Fix sign-in and renewal errors</h2>
+          <ul class="guide-list">
+            <li><code>Google OAuth client document contains unsupported field web</code>: the file belongs to a Web application client. Create a Desktop app client and download its JSON file.</li>
+            <li><code>Google authorization timed out before consent completed</code>: approve access within 10 minutes, then run <code>ghostget auth login</code> again.</li>
+            <li><code>Google did not issue a refresh token; revoke the prior app grant and repeat login</code>: remove the app from your Google Account’s <a href="https://support.google.com/accounts/answer/13533235">third-party connections</a>, then sign in again.</li>
+            <li><code>the managed Google refresh credential expired; run ghostget auth login again</code>: the end date GhostGet printed at sign-in has passed. Sign in again with <code>--force</code>.</li>
+            <li><code>official provider returned HTTP 400 for POST /token</code>: Google refused to renew access, which its token endpoint reports as <code>invalid_grant</code>. An app in Testing reaches this seven days after consent. Google’s <a href="https://developers.google.com/identity/protocols/oauth2#expiration">other reasons</a> include removing the app’s access, changing your Google password while the app holds a Gmail scope, and six months without use. Publish the app if it’s still in Testing, then sign in again with <code>--force</code>.</li>
+          </ul>
+        </section>
+
+        <section aria-labelledby="disconnect">
+          <h2 id="disconnect">Disconnect Gmail</h2>
+          <div class="command-panel"><pre><code>ghostget auth remove gmail-main --yes</code></pre></div>
+          <p>This deletes GhostGet’s local credential. Google keeps your grant until you remove the app from your Google Account’s third-party connections.</p>
+        </section>
+
+        <aside class="guide-callout" aria-labelledby="gmail-next">
+          <h2 id="gmail-next">Review what your agent can reach</h2>
+          <p>Browse <a href="/docs/reference/provider-capabilities/#provider-gmail">Gmail’s supported action names and access methods</a>, then read the <a href="/docs/explanation/security-model/">security model</a> for how GhostGet ties each action to one account.</p>
+        </aside>
+      </article>
+    </main>
+    {{HRANESS_SITE_FOOTER}}
+  </body>
+</html>

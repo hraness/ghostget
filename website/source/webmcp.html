@@ -60,8 +60,10 @@
 
         <section aria-labelledby="what-is-webmcp">
           <h2 id="what-is-webmcp">What WebMCP is</h2>
-          <p>A WebMCP site runs <code>document.modelContext.registerTool(...)</code> in its own page: each tool has a name, a JSON input schema, optional annotations, and a function that executes against the site's own context. The site, not the agent, defines what is callable. A docs site might publish <code>search_docs</code>; a store might publish <code>list_products</code>. The browser tab becomes the API surface, and the page author writes the contract.</p>
+          <p>A WebMCP site runs <code>document.modelContext.registerTool(...)</code> in its own page: each tool has a name, a description, a JSON input schema, optional annotations, and a function that executes against the site's own context. The site, not the agent, defines what is callable. A docs site might publish <code>search_docs</code>; a store might publish <code>list_products</code>. The browser tab becomes the API surface, and the page author writes the contract.</p>
           <p>That inverts the usual agent loop. Instead of parsing DOM or driving clicks, the agent asks the page what it offers and calls it with structured input. The tool definitions travel with the page. Inspect the published input schema before making a call, because the site can change it.</p>
+          <p>Earlier Chrome builds exposed the same interface as <code>navigator.modelContext</code>. Chromium deprecated that name in version 150 and removed it from its source in July 2026, so code that still calls <code>navigator.modelContext</code> needs <code>document.modelContext</code>.</p>
+          <p>The <a href="https://webmachinelearning.github.io/webmcp/">WebMCP specification</a> is a draft report of the W3C Web Machine Learning Community Group, last revised on October 2, 2026, and not a W3C standard. <a href="https://developer.chrome.com/docs/ai/webmcp">Chrome offers WebMCP</a> as an origin trial from Chrome 149, and site authors can turn it on for local testing at <code>chrome://flags/#enable-webmcp-testing</code>. GhostGet's <code>webmcp</code> commands need neither: they read the registry's records, and the registry runs each tool call in its own headless page.</p>
         </section>
 
         <section aria-labelledby="registry">
