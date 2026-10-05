@@ -296,17 +296,30 @@ the same unpublished-preflight protection as an explicit `"auto"`.
   contradicts the adapter note's earlier finding for that realm: a
   bound `cookie-source` handoff is accepted where whole-profile reuse
   is impossible.
-- Residual live gap: the integrated session path (including durable
-  cleanup admission) is now mechanically green — a publisher-enabled
-  Lightpanda session published, journaled, and removed every private
-  root against the real driver. The identity read still lands inside
-  the dead-session window, so one provider-200 run through the
-  integrated path is pending re-authentication; `engine: "chrome"`
-  remains the documented escape lane.
+- Live gap closed post-release: after re-authentication, the
+  integrated `createLinkedInProfileBrowserTransport` with
+  `engine: "auto"` and a publisher resolved to Lightpanda and returned
+  the real voyager identity (`plainId:75145295`), 1,072,858-byte
+  profile HTML, and 857,951-byte connections HTML with the complete
+  durable cleanup journal and byte-identical auth snapshots.
+  `engine: "chrome"` remains the documented escape lane.
+- `"auto"` is the contained-session engine default in `v0.18.84`
+  (PR #563, merge `ded6b05c`, immutable GitHub Release with the
+  five-file contract, npm `0.18.84` admitted): every headless
+  cookie-yielding session resolves to a provisioned Lightpanda;
+  headed, profile-backed/storage-state, non-cookie, and unprovisioned
+  sessions resolve to Chromium. Live X evidence proved the generic
+  auth path independently of LinkedIn — authenticated `x.com/home`
+  stayed signed in as `hraness` (`rest_id 1695180519640633575`) while
+  an anonymous control was server-redirected to onboarding.
 - Chromium remains mandatory for visual evidence, attached or
   profile-backed sessions, connected accounts, and the unqualified
-  LinkedIn transports (article, comment, post, feed, search) and all
-  other providers by default.
+  LinkedIn transports (article, comment, post, feed, search), the
+  headed mutation/anti-bot lanes, and every headed request — the
+  headless-only eligibility gate keeps those on Chromium without
+  per-call-site pins. X's edge currently rejects the contained
+  headless Chrome entirely, so no Chrome-vs-Lightpanda X benchmark
+  exists; Lightpanda is the only contained engine that reaches it.
 
 ## Durable memory
 
