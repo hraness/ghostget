@@ -1,7 +1,7 @@
 ---
 type: plan
 area: browser-verification
-status: in-progress
+status: completed
 ---
 
 # Prefer provisioned Lightpanda for public semantic capture
@@ -221,16 +221,19 @@ Lightpanda reads is not supported by the evidence.
 - Delivered and verified: Lightpanda-first public semantic capture in
   Ghostget `v0.18.79` and Direct `v0.7.29`, released, mirrored
   byte-exact on npm, and promoted to production.
-- LinkedIn authenticated Lightpanda reads: **qualified for identity,
-  personal stats, connections, and organization reads.** Live adapter
-  evidence covered identity, profile HTML, and connections HTML on real
-  auth; unit tests cover engine selection, fallback, custody, and
-  seeding. The profile transport defaults to `"auto"` — Lightpanda
-  first for cookie-yielding realms with a provisioned binary, Chromium
-  otherwise. Contact reads stay on Chromium pending live
-  network-request-observation evidence. This contradicts the adapter
-  note's earlier finding for that realm: a bound `cookie-source`
-  handoff is accepted where whole-profile reuse is impossible.
+- LinkedIn authenticated Lightpanda reads shipped in `v0.18.83`
+  (PR #560, merge `0137e55b`, immutable GitHub Release with the
+  five-file contract, npm `0.18.83` admitted): **qualified for
+  identity, personal stats, connections, and organization reads.**
+  Live adapter evidence covered identity, profile HTML, and
+  connections HTML on real auth; unit tests cover engine selection,
+  fallback, custody, and seeding. The profile transport defaults to
+  `"auto"` — Lightpanda first for cookie-yielding realms with a
+  provisioned binary, Chromium otherwise. Contact reads stay on
+  Chromium pending live network-request-observation evidence. This
+  contradicts the adapter note's earlier finding for that realm: a
+  bound `cookie-source` handoff is accepted where whole-profile reuse
+  is impossible.
 - Residual live gap: the integrated session path (including durable
   cleanup admission) is now mechanically green — a publisher-enabled
   Lightpanda session published, journaled, and removed every private
