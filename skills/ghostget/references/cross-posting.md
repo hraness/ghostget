@@ -59,6 +59,8 @@ Cancel superseded or unused plans. If one target cannot be planned, report that 
 
 Cross-posting is not atomic. Confirm each reviewed digest once with `ghostget confirm <digest> --json`. Do not recreate an expired plan without rechecking the post package and authorization.
 
+For an owner-authorized unattended batch, each target may instead use `ghostget invoke <adapter> posts.publish|media.publish --auth <id> --execute --input <json> --json` when the installed invoke help advertises `--execute`. That path still prepares the same exact immutable plan with bound attachment hashes, applies the same account permission fence (managed Ask or Deny refuses), and records the same durable single-dispatch lifecycle — it only removes the separate confirmation command. Keep the preview+confirm flow for reviewed interactive batches; never use `--execute` to skip reporting the per-target ledger below.
+
 Classify each result independently:
 
 - `submitted`: record the run and provider-created object evidence, then settle availability through exact readback;

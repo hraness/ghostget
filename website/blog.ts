@@ -154,7 +154,11 @@ export const BLOG_POSTS: readonly BlogPost[] = [
         "reviewerType": "ai",
         "reviewedOn": "2026-09-30"
       },
-      "humanReview": null,
+      "humanReview": {
+        "reviewer": "Ben Guo",
+        "reviewerType": "human-editor",
+        "reviewedOn": "2026-10-04"
+      },
       "reassessOn": "2026-11-11",
       "harmIfWrong": "A reader could make the wrong tool, retry, verification, or data-import decision.",
       "refreshTriggers": [
@@ -170,7 +174,7 @@ export const BLOG_POSTS: readonly BlogPost[] = [
     "dek": "Account reads, message exports, and signed-in page captures supply information for contact search, writing, and research.",
     "eyebrow": "Connections",
     "published": "2026-09-24",
-    "updated": "2026-09-30",
+    "updated": "2026-10-04",
     "keywords": [
       "connections",
       "agents",
@@ -181,12 +185,12 @@ export const BLOG_POSTS: readonly BlogPost[] = [
       {
         "title": "GhostGet message exports",
         "href": "https://github.com/hraness/ghostget/blob/20c1f999/README.md",
-        "checkedOn": "2026-09-30"
+        "checkedOn": "2026-10-04"
       },
       {
         "title": "TextButler account connections",
         "href": "https://github.com/hraness/textbutler",
-        "checkedOn": "2026-09-30"
+        "checkedOn": "2026-10-04"
       }
     ],
     "admission": {
@@ -206,12 +210,12 @@ export const BLOG_POSTS: readonly BlogPost[] = [
         {
           "title": "GhostGet message exports",
           "url": "https://github.com/hraness/ghostget/blob/20c1f999/README.md",
-          "checkedOn": "2026-09-30"
+          "checkedOn": "2026-10-04"
         },
         {
           "title": "TextButler account connections",
           "url": "https://github.com/hraness/textbutler",
-          "checkedOn": "2026-09-30"
+          "checkedOn": "2026-10-04"
         }
       ],
       "observations": [
@@ -229,12 +233,16 @@ export const BLOG_POSTS: readonly BlogPost[] = [
       "owner": "Hraness, maintainers of hraness/ghostget",
       "drafting": "ai",
       "review": {
-        "reviewer": "Codex editorial review (AI)",
-        "reviewerType": "ai",
-        "reviewedOn": "2026-09-30"
+        "reviewer": "Ben Guo",
+        "reviewerType": "human-editor",
+        "reviewedOn": "2026-10-04"
       },
-      "humanReview": null,
-      "reassessOn": "2026-11-11",
+      "humanReview": {
+        "reviewer": "Ben Guo",
+        "reviewerType": "human-editor",
+        "reviewedOn": "2026-10-04"
+      },
+      "reassessOn": "2026-11-15",
       "harmIfWrong": "A reader could make the wrong tool, retry, verification, or data-import decision.",
       "refreshTriggers": [
         "A documented interface or relevant service behavior changes",
@@ -322,7 +330,11 @@ export const BLOG_POSTS: readonly BlogPost[] = [
         "reviewerType": "ai",
         "reviewedOn": "2026-09-30"
       },
-      "humanReview": null,
+      "humanReview": {
+        "reviewer": "Ben Guo",
+        "reviewerType": "human-editor",
+        "reviewedOn": "2026-10-04"
+      },
       "reassessOn": "2026-11-11",
       "harmIfWrong": "A reader could make the wrong tool, retry, verification, or data-import decision.",
       "refreshTriggers": [
@@ -411,7 +423,11 @@ export const BLOG_POSTS: readonly BlogPost[] = [
         "reviewerType": "ai",
         "reviewedOn": "2026-09-30"
       },
-      "humanReview": null,
+      "humanReview": {
+        "reviewer": "Ben Guo",
+        "reviewerType": "human-editor",
+        "reviewedOn": "2026-10-04"
+      },
       "reassessOn": "2026-11-11",
       "harmIfWrong": "A reader could make the wrong tool, retry, verification, or data-import decision.",
       "refreshTriggers": [
@@ -510,7 +526,11 @@ export const BLOG_POSTS: readonly BlogPost[] = [
         "reviewerType": "ai",
         "reviewedOn": "2026-09-30"
       },
-      "humanReview": null,
+      "humanReview": {
+        "reviewer": "Ben Guo",
+        "reviewerType": "human-editor",
+        "reviewedOn": "2026-10-04"
+      },
       "reassessOn": "2026-11-11",
       "harmIfWrong": "A reader could make the wrong tool, retry, verification, or data-import decision.",
       "refreshTriggers": [
@@ -729,10 +749,10 @@ export const BUILT_ON_RELATIONS: Readonly<Record<string, Readonly<{ href: string
   // emits the text-only capture bundle Sponge imports; no release does yet.
   "contract:sponge:wrench:imports-captures-from": null,
   // Registered in design-kit v0.30.3. Listed by owner decision on 2026-09-30;
-  // the link is Sponge's canonical page from the portfolio registry until a
+  // the link is Sponge's canonical URL from the portfolio registry until a
   // public "How Sponge uses GhostGet" post exists.
   "runtime:sponge:wrench:captures-signed-in-pages-through": {
-    href: "https://hraness.com/writing/the-knowledge-pack",
+    href: "https://sponge.computer",
     label: "Sponge, a local research service that keeps its sources and writes cited reports",
   },
   // Registered in design-kit v0.31.0. GhostGet Skills is a thin wrapper around

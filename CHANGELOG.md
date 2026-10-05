@@ -7,6 +7,28 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+Publish observed, subject-bound `posts.publish` and `media.publish` operations
+without a per-post confirmation command.
+
+- `ghostget invoke <adapter> <op> --execute` records the same exact immutable
+  plan and durable single-dispatch lifecycle as preview-then-confirm, under the
+  same account permission fence: managed Ask or Deny refuses without an
+  approval request, and Hacker News, reads, deletes, votes, messaging, and
+  unbound accounts stay outside the path.
+- The parser requires an explicit `--auth` and refuses `--execute` combined
+  with `--preview`, `--cache-only`, `--projection-identity-only`, or
+  `--duplicate-risk-of`.
+- Reviewed interactive batches keep the existing preview and `confirm` flow;
+  the agent skill documents when each applies.
+
+## 0.18.81
+
+Document running GhostGet from Claude Code, Codex, and Cursor, connecting Gmail, and the renamed WebMCP interface.
+
+- The getting-started tutorial installs from each agent's own setup, names Codex's sandbox and approval requirements, and states which clients were not run.
+- A new connect-gmail how-to walks the Google OAuth desktop-client setup, the read-only thread and contact actions, and token renewal limits.
+- The WebMCP page uses `document.modelContext`; `navigator.modelContext` appears only as the removed name.
+
 ## 0.18.79
 
 Use a provisioned Lightpanda 1.0.0 for automatic public single-page text capture, with Chromium for rendering and connected accounts.

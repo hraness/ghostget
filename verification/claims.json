@@ -338,7 +338,7 @@
     {
       "guide": "AGENTS.md",
       "anchor": "Keep mutations behind",
-      "digest": "f957eaa51a22b74513736ef0501807dac2b62d1e4a96994475843946c5a1c882",
+      "digest": "2689b1b21735ede8b879cbe4097bb9fc353e8b0c43d15cb8368f33971f753131",
       "claims": [
         "confirmed-write-at-most-once",
         "indeterminate-cleared-only-by-evidence",

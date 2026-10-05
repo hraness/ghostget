@@ -1,8 +1,35 @@
 import { describe, expect, test } from "bun:test";
 
 import { parseGhostgetArguments } from "./args";
+import { assertProperty, fc } from "./test-support";
 
 describe("ghostget CLI grammar", () => {
+  test("authorized publication is explicit and cannot combine with read or preview modes", () => {
+    expect(parseGhostgetArguments(["invoke", "x-web", "posts.publish", "--auth", "test-account", "--execute", "--input", "{}", "--json"]))
+      .toMatchObject({ ok: true, value: { command: "invoke", execute: true, authId: "test-account" } });
+    for (const option of ["--preview", "--cache-only", "--projection-identity-only"]) {
+      expect(parseGhostgetArguments(["invoke", "x-web", "posts.publish", "--auth", "test-account", "--execute", option]).ok).toBeFalse();
+    }
+    for (const operation of ["posts.read", "content.delete", "comments.create", "reactions.set"]) {
+      expect(parseGhostgetArguments(["invoke", "x-web", operation, "--auth", "test-account", "--execute"]).ok).toBeFalse();
+    }
+    expect(parseGhostgetArguments(["invoke", "x-web", "posts.publish", "--execute"]).ok).toBeFalse();
+  });
+
+  test("authorized publication grammar preserves the account and exclusive execution mode", () => {
+    assertProperty(fc.property(
+      fc.constantFrom("posts.publish", "media.publish", "posts.read", "content.delete", "messaging.send"),
+      fc.boolean(),
+      fc.uniqueArray(fc.constantFrom("--preview", "--cache-only", "--projection-identity-only", "--headed", "--json")),
+      (operation, account, flags) => {
+        const parsed = parseGhostgetArguments(["invoke", "x-web", operation, "--execute", ...(account ? ["--auth", "test-account"] : []), ...flags]);
+        expect(parsed.ok).toBe(account && (operation === "posts.publish" || operation === "media.publish")
+          && !flags.some(flag => ["--preview", "--cache-only", "--projection-identity-only"].includes(flag)));
+        if (parsed.ok) expect(parsed.value).toMatchObject({ execute: true, authId: "test-account" });
+      },
+    ));
+  });
+
   test("parses only one normalized reviewed iMessage transport install source", () => {
     expect(parseGhostgetArguments(["imessage", "transport", "install"])).toEqual({ ok: true, value: { command: "imessage-transport-install", json: false } });
     expect(parseGhostgetArguments([

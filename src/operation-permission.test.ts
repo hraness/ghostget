@@ -8,7 +8,7 @@ import { ensurePrivateStateDirectory, installManifest, removePrivateStateFile } 
 import { createServer, type Socket } from "node:net";
 import { messagingTurnDigest, parseMessagingTurnV1 } from "./messaging-types";
 import { providerPluginRegistry as registry } from "./provider-plugins";
-import { confirmInvocation, createAndSaveInvocationPlan, createMessagingCompositeInvocationPlan, executeReadInvocation, loadInvocationPlan, prepareInvocation, listRunReceipts } from "./runtime";
+import { confirmInvocation, createAndSaveInvocationPlan, createMessagingCompositeInvocationPlan, executeAuthorizedPublication, executeReadInvocation, loadInvocationPlan, prepareInvocation, listRunReceipts, readRunReceipt } from "./runtime";
 import { readCachedPreparedCapability, revalidatePreparedCapability } from "./read-client";
 import { authIncarnationReader } from "./read-projections";
 import { describeOperationPermission, describeOperationPermissionSet, describeOperationPermissions, setOperationPermission, checkProviderApproval, recheckProviderApproval, checkOperationPermission, withOperationPermission } from "./operation-permission";
@@ -62,6 +62,84 @@ async function approvalFixture(s: ReturnType<typeof state>, onRequest?: () => vo
   await new Promise<void>((resolve, reject) => { server.once("error", reject); server.listen(path, resolve); }); chmodSync(path, 0o600);
   return { requests, releases, async close() { for (const socket of sockets) socket.destroy(); await new Promise<void>(resolve => server.close(() => resolve())); } };
 }
+
+test("authorized publication holds the same account permission fence as confirm: ask and deny refuse", async () => {
+  const s = state(); const invocation = s.prepare("posts.publish");
+  let calls = 0;
+  const options = { ...s.options, headed: false, executeProvider: async () => { calls++; return execution(); } };
+  enableOperationPermissions(0, s.environment);
+  await expect(executeAuthorizedPublication(invocation, options)).rejects.toThrow("denied");
+  s.grant("ask", "posts.publish");
+  await expect(executeAuthorizedPublication(invocation, options)).rejects.toThrow("human approval");
+  s.grant("deny", "posts.publish");
+  await expect(executeAuthorizedPublication(invocation, options)).rejects.toThrow("denied");
+  expect(calls).toBe(0);
+  expect(listRunReceipts(s.environment)).toHaveLength(0);
+});
+
+test("authorized permission admission never requests an interactive ask approval", async () => {
+  const s = state(); enableOperationPermissions(0, s.environment); s.grant("ask", "posts.publish");
+  const approvals = await approvalFixture(s);
+  try {
+    await expect(withOperationPermission(s.prepare("posts.publish"), { ...s.options, requireAllow: true }, async () => "not executed")).rejects.toThrow("human approval");
+    expect(approvals.requests).toHaveLength(0);
+  } finally { await approvals.close(); }
+});
+
+test("authorized publication uses the durable single-dispatch fence without per-post confirmation", async () => {
+  const s = state();
+  const invocation = s.prepare("posts.publish"); let calls = 0;
+  const executeProvider: typeof import("./provider").executeProviderOperation = async (_manifest, _recipe, _input, _auth, options) => {
+    await options.beforeDispatch?.({ id: "posts-publish", index: 1, progress: { planned: 1, started: 0, verified: 0 } });
+    calls++;
+    await options.afterDispatchVerified?.({ id: "posts-publish", index: 1, progress: { planned: 1, started: 1, verified: 1 } });
+    return { status: "succeeded", output: { postId: "synthetic-post" }, finalUrl: null, dispatchStarted: true, dispatch: { planned: 1, started: 1, verified: 1 } };
+  };
+  const result = await executeAuthorizedPublication(invocation, { ...s.options, headed: false, executeProvider });
+  expect(result.receipt).toMatchObject({ status: "submitted", dispatchStarted: true });
+  expect(calls).toBe(1);
+  const storedReceipt = readRunReceipt(result.receipt.runId, s.environment);
+  expect(storedReceipt).toMatchObject({ status: "submitted", dispatchStarted: true });
+});
+
+test("authorized publication under an explicit managed Allow runs once without a human request", async () => {
+  const s = state(); enableOperationPermissions(0, s.environment); s.grant("allow", "posts.publish");
+  let calls = 0;
+  const approvals = await approvalFixture(s);
+  try {
+    const result = await executeAuthorizedPublication(s.prepare("posts.publish"), { ...s.options, headed: false,
+      executeProvider: async (_manifest, _recipe, _input, _auth, options) => {
+        calls++;
+        await options.beforeDispatch?.({ id: "posts-publish", index: 1, progress: { planned: 1, started: 0, verified: 0 } });
+        await options.afterDispatchVerified?.({ id: "posts-publish", index: 1, progress: { planned: 1, started: 1, verified: 1 } });
+        return { status: "succeeded", output: { postId: "managed-post" }, finalUrl: null, dispatchStarted: true, dispatch: { planned: 1, started: 1, verified: 1 } };
+      },
+    });
+    expect(result.receipt.status).toBe("submitted");
+    expect(calls).toBe(1);
+    expect(approvals.requests).toHaveLength(0);
+  } finally { await approvals.close(); }
+});
+
+test("authorized publication rechecks permission before durable dispatch", async () => {
+  const s = state(); enableOperationPermissions(0, s.environment); s.grant("allow", "posts.publish");
+  let submitted = false;
+  await expect(executeAuthorizedPublication(s.prepare("posts.publish"), { ...s.options, headed: false,
+    executeProvider: async (_manifest, _recipe, _input, _auth, options) => {
+      s.grant("ask", "posts.publish");
+      await options?.beforeDispatch?.({ id: "posts-publish", index: 1, progress: { planned: 1, started: 0, verified: 0 } });
+      submitted = true; return execution();
+    },
+  })).rejects.toThrow();
+  expect(submitted).toBe(false);
+  expect(listRunReceipts(s.environment)).toHaveLength(1);
+  expect(listRunReceipts(s.environment)[0]).toMatchObject({ status: "failed", dispatchStarted: false });
+});
+
+test("authorized publication rejects reads even when the account explicitly allows them", async () => {
+  const s = state(); enableOperationPermissions(0, s.environment); s.grant("allow");
+  await expect(executeAuthorizedPublication(s.prepare(), { ...s.options, headed: false })).rejects.toThrow("publication operations");
+});
 
 test("operation policy: unmanaged compatibility, opt-in default deny, and strict CAS revisions", () => {
   const s = state();

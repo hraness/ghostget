@@ -198,12 +198,15 @@ const invokeHelp = `Usage: ghostget invoke <adapter> <action> [options]
 
 Run one action from ghostget capabilities. Reads run right away. Changes,
 such as posting, print a preview first; run ghostget confirm <digest> to
-make the change once.
+make the change once. An observed posts.publish or media.publish can instead
+run one durable dispatch directly with --execute; the same account permission
+fence applies (managed Ask or Deny refuses).
 
 Options
   --input <json|@file|->             Action input
   --auth <id>                        Connected account to use
   --preview                          Show the change without making it
+  --execute                          Execute an owner-allowed publication once
   --cache-only                       Return the last saved result only
   --headed                           Show the browser window if one is used
   --json                             Print machine-readable output
