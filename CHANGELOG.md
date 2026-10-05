@@ -7,6 +7,18 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.86
+
+Publish MP4 video on LinkedIn, Threads, and Substack and repair the post-create response bindings on four providers.
+
+- `linkedin-web` `media.publish@1` observes one plan-bound MP4: member video upload registration and byte transfer, the normalized create response with the nested share URN, durable accepted-target retention, and exact permalink readback.
+- `threads` `media.publish@1` observes one plan-bound MP4: container create, transcode polling with rendition-dimension binding, and permalink readback.
+- `substack-web` `media.publish@1` observes one plan-bound MP4: upload initialization, ordered presigned S3 multipart transfer, transcode and status polling, video-attachment binding, exact Note create, and independent readback of the bound `media_upload_id` and `mediaUpload` state.
+- The X, Threads, LinkedIn, and Substack `posts.publish` create responses bind the shapes providers actually return, and the Substack Note create body and feed entity projection match the observed payloads.
+- Derivation network-guard readiness now accepts wildcard domains: the sibling-negative probe sits outside the wildcard subtree instead of inside it.
+- A crash-interrupted session removal no longer wedges the keyless session store: orphaned state-helper coordination artifacts no longer count as encrypted state, and the artifact-name predicate is shared with read projections.
+- `substack-web` keeps its shipped `1.7.0` reader identity as a route-scoped predecessor distribution.
+
 ## 0.18.85
 
 Import the Beeper SDK without initializing the provider command definitions.
