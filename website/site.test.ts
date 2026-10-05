@@ -844,7 +844,11 @@ describe("ghostget.com static site", () => {
       const postHtml = await readFile(join(websiteRoot, "dist", path.slice(1), "index.html"), "utf8");
       expect(postHtml).toContain(`<link rel="canonical" href="${SITE_ORIGIN}${path}">`);
       expect(postHtml).toContain('By <a href="https://hraness.com" rel="author">Hraness</a>');
-      expect(postHtml).toContain(`<p class="plain-publication__provenance" data-drafting="ai" data-reviewer-type="ai">Drafted with AI and reviewed by ${post.admission.review?.reviewer}.</p>`);
+      const reviewerType = post.admission.review?.reviewerType;
+      const provenance = reviewerType === "human-editor"
+        ? `Drafted with AI and reviewed by ${post.admission.review?.reviewer}, a human editor.`
+        : `Drafted with AI and reviewed by ${post.admission.review?.reviewer}.`;
+      expect(postHtml).toContain(`<p class="plain-publication__provenance" data-drafting="ai" data-reviewer-type="${reviewerType}">${provenance}</p>`);
       expect(postHtml).toContain('class="editorial-figure"');
       expect(postHtml).not.toMatch(/(?:Published|Updated|Checked) <time/u);
       expect(postHtml).not.toContain("{{");
@@ -1820,8 +1824,11 @@ describe("ghostget.com static site", () => {
       const essay = pages.find((page) => page.definition.sourceFile === sourceFile);
       expect(essay, sourceFile).toBeDefined();
       expect(essay?.html, sourceFile).toContain('class="plain-publication__provenance"');
-      expect(essay?.html, sourceFile).toContain('data-reviewer-type="ai"');
-      expect(essay?.html, sourceFile).toContain(`Drafted with AI and reviewed by ${record.review.reviewer}.`);
+      expect(essay?.html, sourceFile).toContain(`data-reviewer-type="${record.review.reviewerType}"`);
+      expect(essay?.html, sourceFile).toContain((record.review.reviewerType as string) === "human-editor"
+        ? `Drafted with AI and reviewed by ${record.review.reviewer}, a human editor.`
+        : `Drafted with AI and reviewed by ${record.review.reviewer}.`);
+      if (record.humanReview !== null) expect(record.humanReview.reviewerType).not.toBe("ai");
       expect(essay?.html, sourceFile).not.toContain('<time');
       expect(essay?.html, sourceFile).not.toContain('{{PROVIDER_CAPABILITY');
       expect(essay?.html, sourceFile).not.toContain('{{ESSAY_PROVENANCE}}');

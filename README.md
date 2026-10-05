@@ -17,10 +17,9 @@ GhostGet is free, MIT licensed, and runs on macOS and Linux with Bun 1.3.14.
 
 GhostGet keeps the pages and media it saves on your computer, gives your agent
 named actions instead of credentials, and leaves a record of each write that
-matters: the design every Hraness project shares. [The thread through
-hraness](https://hraness.com/writing/the-thread-through-hraness) follows that
-design across the projects, and the [ALGAL
-vision](https://algal.computer/docs/vision/) states the bet behind it.
+matters. [The thread through
+hraness](https://hraness.com/writing/the-thread-through-hraness) describes how
+the other Hraness projects share that design.
 
 ## Install
 
