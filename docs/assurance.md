@@ -8,17 +8,17 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 248 claims: 229 evidenced, 0 planned, and 19 not verified. It maps 93 guidelines from 5 guides; 70 list claims and 23 are exempt.
+The register holds 211 claims: 198 evidenced, 0 planned, and 13 not verified. It maps 87 guidelines from 5 guides; 64 list claims and 23 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
-| example test | 148 | 0 | 0 |
-| property test | 24 | 0 | 0 |
+| example test | 126 | 0 | 0 |
+| property test | 22 | 0 | 0 |
 | stateful model | 24 | 0 | 0 |
-| Quint model with production trace replay | 21 | 0 | 0 |
+| Quint model with production trace replay | 14 | 0 | 0 |
 | Lean proof with differential test | 8 | 0 | 0 |
 | differential oracle | 4 | 0 | 0 |
-| configuration readback | 0 | 0 | 15 |
+| configuration readback | 0 | 0 | 9 |
 | none | 0 | 0 | 4 |
 
 ## What is not verified
@@ -45,14 +45,8 @@ Every claim below also lists its own not-verified scope.
 - `tag-rulesets-two-split-pairs`: Exactly four active repository tag rulesets form two split creation-only and immutable pairs, one targeting only `refs/tags/v*` and one targeting only `refs/tags/desktop-v*-macos-arm64`; any other active tag ruleset is drift, and the split semantics, not the ruleset IDs or names, carry the authority. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
 - `immutable-releases-enabled-before-tag`: Repository immutable Releases stay enabled: administrator readback confirms enabled=true at setup, after any control change, and during drift recovery, and each Release run's immutable-release readback fails closed on a mutable Release. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift. An administrator could change the setting between readbacks; only the per-run immutable-release readback would then detect it.
 - `no-integration-tag-bypass`: Neither GitHub Actions nor any Integration other than the hraness-release-tagger App (stable v* tag creation only) has a release-tag ruleset bypass. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
-- `production-ref-lifecycle-ruleset`: Ruleset 21832074 targets exactly website-production and website-production-canary with no bypass actors and exact creation, deletion and non-fast-forward rules. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
-- `production-ref-update-ruleset-app-only`: Ruleset 21887484 supplies the sole update restriction on both production refs with exactly one Integration bypass, App 4783991, bypass_mode=always; no other actor (including Actions App 15368) may update either ref. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
 - `protect-main-ruleset`: Protect-main has no bypass actors, requires the pull-request path and exact Required CI check, approval minimum zero and require_code_owner_review=false while only one eligible code owner exists. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift. The listed tests check only the checked-in side of the contract.
-- `production-writer-env-config`: Environment production-ref-writer-key has deployment=false, main-only branch policy, no required reviewers or wait timer, prevent_self_review=false, no administrator bypass, exactly four App identity variables and the single WRENCH_RELEASE_APP_PRIVATE_KEY secret. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift. The listed tests check only the checked-in side of the contract. The workflow-side `deployment: false` is source-checked; the environment's protection settings are confirmed only by readback.
-- `release-app-permissions-exact`: The release App registration grants exactly metadata:read, contents:write and workflows:write with no Administration or other permission, and installation 158077029 selects only repository ID 1316443113. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
-- `promotion-canary-preserved`: refs/heads/website-production-canary remains at exactly 0bf88a064233635e0c5485c61f9c533974a7dca4 and is never reset, deleted or repurposed. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
-- `vercel-project-config`: Vercel project `prj_TZbDZ38ABPan158IqnczgsuTu6Ue` under team `team_UAd1iD2XogJlbFg4h14mRaPM` is linked to GitHub repository 1316443113 with `link.productionBranch=website-production`, `autoExposeSystemEnvs=true`, and persistent `autoAssignCustomDomains=true`; main and pull requests deploy only previews. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
-- `control-drift-freezes-production`: Any detected control-plane drift (rulesets, App bypass, App permissions, installation selection, writer environment) leaves production unchanged until the controls are requalified by fresh administrator readback. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift. Drift is detected only at setup, after control changes, and during recovery, not on each routine promotion.
+- `vercel-project-config`: Vercel project `prj_TZbDZ38ABPan158IqnczgsuTu6Ue` under team `team_UAd1iD2XogJlbFg4h14mRaPM` is linked to GitHub repository ID `1316443113` with `link.productionBranch=main`, `autoExposeSystemEnvs=true`, and persistent `autoAssignCustomDomains=true`. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
 - `website-informational-only`: `website/` explains and documents Ghostget and contains no agent runtime, authenticated product surface, or browser-based substitute for the CLI and SDK. No automated check inspects `website/` for authenticated surfaces, credential handling, or runtime features; review alone enforces this boundary.
 
 ### Exempt guidelines
@@ -115,7 +109,7 @@ Each claim holds only while its listed assumptions hold.
 | `filesystem-durability` | Data and directory entries that were fsynced persist across a crash or power loss. | 32 |
 | `same-user-trusted` | Processes running as the same operating-system user are trusted; file modes and owner-only sockets separate users. | 34 |
 | `process-liveness` | Process ID, process start time, and boot identity readings are truthful. | 10 |
-| `monotonic-clock` | The injected monotonic clock never runs backward. | 6 |
+| `monotonic-clock` | The injected monotonic clock never runs backward. | 4 |
 | `whatwg-url` | Bun's URL parser implements the WHATWG URL Standard. | 13 |
 | `dns-tls` | The operating-system resolver and the TLS stack behave as specified. | 7 |
 | `sha256` | SHA-256 is collision resistant. | 3 |
@@ -124,13 +118,13 @@ Each claim holds only while its listed assumptions hold.
 | `provider-behaviour` | Third-party providers behave as their observed contracts describe. | 31 |
 | `plugin-trusted` | Source plugins are trusted in-process code; portable execution contains ordinary failures, not hostile code. | 13 |
 | `onepassword` | The 1Password SDK and account return the requested secret faithfully. | 2 |
-| `github-api` | GitHub's REST, GraphQL, and Actions APIs report repository, run, and Release state truthfully. | 73 |
-| `github-enforcement` | GitHub enforces rulesets, environments, concurrency groups, immutable Releases, and token permissions as configured. | 72 |
+| `github-api` | GitHub's REST, GraphQL, and Actions APIs report repository, run, and Release state truthfully. | 48 |
+| `github-enforcement` | GitHub enforces rulesets, environments, concurrency groups, immutable Releases, and token permissions as configured. | 42 |
 | `sigstore` | Sigstore and `gh attestation verify` verify attestation bundles correctly. | 2 |
-| `npm-registry` | The npm registry enforces version immutability, trusted publishing, and provenance as documented. | 17 |
-| `vercel` | Vercel builds and serves deployments as its project settings and APIs report. | 37 |
-| `administrator-readback` | A signed-in administrator performs the documented live readbacks and reports them faithfully. | 15 |
-| `ci-runner` | GitHub-hosted runners execute the reviewed workflow faithfully. | 16 |
+| `npm-registry` | The npm registry enforces version immutability, trusted publishing, and provenance as documented. | 16 |
+| `vercel` | Vercel builds and serves deployments as its project settings and APIs report. | 7 |
+| `administrator-readback` | A signed-in administrator performs the documented live readbacks and reports them faithfully. | 9 |
+| `ci-runner` | GitHub-hosted runners execute the reviewed workflow faithfully. | 15 |
 | `verification-tools` | The pinned Quint, Apalache, JDK, elan, and Lean releases are sound for the outcomes they report. | 16 |
 | `edge-runtime` | The Vercel Edge runtime implements the Web Platform APIs the edge code uses. | 5 |
 
@@ -490,7 +484,7 @@ Connection and helper shutdown settle owned work before custody is released.
   - The connection model drives the production `Connections` class with a fake sign-in probe; real browser sign-in and provider verifiers are outside it.
   - The models sample their schedules: CI runs 200 helper schedules of up to 14 commands and 12 connection schedules of up to 8 commands over two attempts.
 
-### `control-plane` (13 claims)
+### `control-plane` (7 claims)
 
 #### `tag-ruleset-creation-only`
 
@@ -545,26 +539,6 @@ Neither GitHub Actions nor any Integration other than the hraness-release-tagger
 - Assumptions: `github-enforcement`, `administrator-readback`
 - Not verified: Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
 
-#### `production-ref-lifecycle-ruleset`
-
-Ruleset 21832074 targets exactly website-production and website-production-canary with no bypass actors and exact creation, deletion and non-fast-forward rules.
-
-- Not verified; intended layer: configuration readback.
-- Source: `AGENTS.md`: “Live ruleset `21832074` supplies no-bypass creation, deletion, and non-fast-forward protection to the production and persistent canary refs.”
-- Evidence: none
-- Assumptions: `github-enforcement`, `administrator-readback`
-- Not verified: Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
-
-#### `production-ref-update-ruleset-app-only`
-
-Ruleset 21887484 supplies the sole update restriction on both production refs with exactly one Integration bypass, App 4783991, bypass_mode=always; no other actor (including Actions App 15368) may update either ref.
-
-- Not verified; intended layer: configuration readback.
-- Source: `AGENTS.md`: “Live ruleset `21887484` supplies the sole update restriction and exact App `4783991` `Integration` bypass with `bypass_mode=always`; no other actor may update either ref.”
-- Evidence: none
-- Assumptions: `github-enforcement`, `administrator-readback`
-- Not verified: Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
-
 #### `protect-main-ruleset`
 
 Protect-main has no bypass actors, requires the pull-request path and exact Required CI check, approval minimum zero and require_code_owner_review=false while only one eligible code owner exists.
@@ -578,64 +552,16 @@ Protect-main has no bypass actors, requires the pull-request path and exact Requ
   - Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
   - The listed tests check only the checked-in side of the contract.
 
-#### `production-writer-env-config`
-
-Environment production-ref-writer-key has deployment=false, main-only branch policy, no required reviewers or wait timer, prevent_self_review=false, no administrator bypass, exactly four App identity variables and the single WRENCH_RELEASE_APP_PRIVATE_KEY secret.
-
-- Not verified; intended layer: configuration readback.
-- Source: `AGENTS.md`: “the main-only, automatically admitted `production-ref-writer-key` environment with no required deployment reviewers or wait timer, no administrator bypass, `prevent_self_review=false`, exactly four App identity variables and the one private-key secret.”
-- Also covers: `website/AGENTS.md`: “Keep no required deployment reviewers or wait timer, `prevent_self_review=false`, no administrator bypass, exact `main` admission, and `deployment: false`.”
-- Evidence: `scripts/npm-release-workflow.test.ts`
-- Assumptions: `github-enforcement`, `administrator-readback`
-- Not verified:
-  - Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
-  - The listed tests check only the checked-in side of the contract.
-  - The workflow-side `deployment: false` is source-checked; the environment's protection settings are confirmed only by readback.
-
-#### `release-app-permissions-exact`
-
-The release App registration grants exactly metadata:read, contents:write and workflows:write with no Administration or other permission, and installation 158077029 selects only repository ID 1316443113.
-
-- Not verified; intended layer: configuration readback.
-- Source: `AGENTS.md`: “The App registration and every minted token must close to exactly `metadata:read`, `contents:write`, and `workflows:write`, with no Administration or other permission.”
-- Also covers: `website/AGENTS.md`: “Keep the App and minted token permission set exact at `metadata:read`, `contents:write`, and `workflows:write`.”
-- Evidence: none
-- Assumptions: `github-enforcement`, `administrator-readback`
-- Not verified: Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
-
-#### `promotion-canary-preserved`
-
-refs/heads/website-production-canary remains at exactly 0bf88a064233635e0c5485c61f9c533974a7dca4 and is never reset, deleted or repurposed.
-
-- Not verified; intended layer: configuration readback.
-- Source: `AGENTS.md`: “Retain persistent canary `refs/heads/website-production-canary` at exact `C=0bf88a064233635e0c5485c61f9c533974a7dca4`; never reset, delete, or repurpose it.”
-- Evidence: none
-- Assumptions: `github-enforcement`, `administrator-readback`
-- Not verified: Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
-
 #### `vercel-project-config`
 
-Vercel project `prj_TZbDZ38ABPan158IqnczgsuTu6Ue` under team `team_UAd1iD2XogJlbFg4h14mRaPM` is linked to GitHub repository 1316443113 with `link.productionBranch=website-production`, `autoExposeSystemEnvs=true`, and persistent `autoAssignCustomDomains=true`; main and pull requests deploy only previews.
+Vercel project `prj_TZbDZ38ABPan158IqnczgsuTu6Ue` under team `team_UAd1iD2XogJlbFg4h14mRaPM` is linked to GitHub repository ID `1316443113` with `link.productionBranch=main`, `autoExposeSystemEnvs=true`, and persistent `autoAssignCustomDomains=true`.
 
 - Not verified; intended layer: configuration readback.
-- Source: `AGENTS.md`: “keep exact project `prj_TZbDZ38ABPan158IqnczgsuTu6Ue`, team `team_UAd1iD2XogJlbFg4h14mRaPM`, GitHub repository ID `1316443113`, `link.productionBranch=website-production`, `autoExposeSystemEnvs=true`, and persistent `autoAssignCustomDomains=true`.”
-- Also covers: `website/AGENTS.md`: “Keep Vercel project `prj_TZbDZ38ABPan158IqnczgsuTu6Ue` under team `team_UAd1iD2XogJlbFg4h14mRaPM` linked to GitHub repository ID `1316443113`”
+- Source: `AGENTS.md`: “keep exact project `prj_TZbDZ38ABPan158IqnczgsuTu6Ue`, team `team_UAd1iD2XogJlbFg4h14mRaPM`, GitHub repository ID `1316443113`, `link.productionBranch=main`, `autoExposeSystemEnvs=true`, and persistent `autoAssignCustomDomains=true`”
+- Also covers: `website/AGENTS.md`: “with `link.productionBranch=main`, `autoExposeSystemEnvs=true`, and `autoAssignCustomDomains=true`”
 - Evidence: none
 - Assumptions: `github-enforcement`, `vercel`, `administrator-readback`
 - Not verified: Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
-
-#### `control-drift-freezes-production`
-
-Any detected control-plane drift (rulesets, App bypass, App permissions, installation selection, writer environment) leaves production unchanged until the controls are requalified by fresh administrator readback.
-
-- Not verified; intended layer: configuration readback.
-- Source: `AGENTS.md`: “Any detected drift leaves production unchanged until those controls are requalified.”
-- Also covers: `website/AGENTS.md`: “Any detected drift leaves production unchanged until those controls are requalified.”
-- Evidence: none
-- Assumptions: `github-enforcement`, `administrator-readback`
-- Not verified:
-  - Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
-  - Drift is detected only at setup, after control changes, and during recovery, not on each routine promotion.
 
 ### `costs` (3 claims)
 
@@ -1329,7 +1255,7 @@ New run journals record the provider subject their auth record named; before dis
   - The fence model has two locators, one subject, three runs, 5,000 simulated samples of up to 12 steps, and Apalache to length 8; the replay drives the subject scan and recheck through the pure fence cores and a five-trace file-backed cover, not the `confirmInvocation` program, which the listed example tests cover.
   - A succeeded run under another locator neither fences nor replays across locators, by design.
 
-### `npm` (17 claims)
+### `npm` (16 claims)
 
 #### `npm-publish-after-canonical-only`
 
@@ -1354,22 +1280,6 @@ An npm failure never unpublishes or blocks the GitHub Release.
 - Not verified:
   - The model takes the job order (npm after the immutable Release) from the `needs` of `.github/workflows/release.yml`; it does not check that workflow file.
   - The replay drives the publisher handoff, promotion authority, and canonical download validators. The draft, resume, and Latest convergence of `publishCanonicalRelease` are modeled but not replayed.
-  - The model covers one run of up to three attempts; Apalache checks it to depth 10 and seeded simulation samples 2,000 runs of up to 12 steps.
-
-#### `npm-failure-never-blocks-promotion`
-
-A Release attempt that published the canonical Release and then failed a later npm job can still be promoted to the website through manual recovery: its authority resolution and the canonical download admit that attempt only through its bounded job inventory proving the four canonical jobs succeeded, and after a re-run of all jobs, only through the earlier receipt attempt that the Release body names, whose own inventory must prove all four, or, when that receipt attempt attested but did not publish, through one of at most three exact intermediate attempts of the same run whose own attempt record and inventory prove all four. Automatic promotion admits only a first attempt that succeeded.
-
-- Evidenced by Quint model with production trace replay.
-- Source: `AGENTS.md`: “Manual recovery requires a positive current attempt and admits an unsuccessful latest attempt only through that attempt's own bounded job inventory proving all four or, when that attempt did not publish, through the earlier receipt attempt that the Release body names, whose own bounded inventory must prove all four”
-- Also covers: `AGENTS.md`: “when that receipt attempt attested but did not publish, through one of at most three attempts strictly between it and the latest whose own attempt record binds the exact release actors, repository, workflow ID and path, tag push, tag, SHA, and completion and whose own complete bounded inventory proves all four; a wider gap fails closed, and the mutable body only selects which inventories to read.”
-- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/verification-release-replay.test.ts`, `verification/quint/release.qnt`
-- Assumptions: `github-api`, `npm-registry`
-- Not verified:
-  - The shell gate in `.github/workflows/website-production.yml` that limits automatic promotion to a successful first attempt is outside the model and its replay. The model lets automatic promotion admit any successful latest attempt, a superset of what the gate allows.
-  - Promotion after an npm failure waits for an owner to dispatch manual recovery; the automatic path fails its first-attempt gate by design.
-  - The model's `promotionNotBlocked` ghost flags a manual recovery or canonical download refusal whenever any attempt of the run proved all four canonical jobs, independent of the admission rule; the D8 and D15 mutants violate it, and the replay's verdict equality ties it to production. Recovery reads at most three attempts between the receipt attempt and the latest attempt and fails closed beyond that bound, so a Release published by an attempt followed by more than three further reruns cannot be promoted; the model's three attempts never reach that bound, which only the example tests cover.
-  - The replay serves synthetic run, job inventory, and Release responses to `resolveReleaseAuthority`; it does not exercise the deadline, pagination, or main-branch ancestry reads.
   - The model covers one run of up to three attempts; Apalache checks it to depth 10 and seeded simulation samples 2,000 runs of up to 12 steps.
 
 #### `npm-reauthorize-before-oidc`
@@ -1721,278 +1631,6 @@ Confirmation plan inputs are encrypted at rest with authenticated metadata; a mi
 - Evidence: `src/ghostget.test.ts`, `src/runtime.test.ts`
 - Assumptions: `same-user-trusted`, `encryption`
 - Not verified: Only the enumerated example cases are checked.
-
-### `promotion` (24 claims)
-
-#### `release-app-token-narrowed`
-
-Every minted App token is requested and validated to carry exactly metadata:read, contents:write, workflows:write, name only repository 1316443113, and a bounded one-hour expiry.
-
-- Evidenced by example test.
-- Source: `AGENTS.md`: “Runtime must request and validate a token narrowed to Ghostget repository ID `1316443113`”
-- Also covers: `website/AGENTS.md`: “Runtime must narrow and validate the minted token for Ghostget”
-- Evidence: `scripts/npm-release-workflow.test.ts`
-- Assumptions: `github-api`, `github-enforcement`, `vercel`
-- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
-
-#### `release-app-token-revoked-exactly-once`
-
-After the operation the helper sends exactly one DELETE /installation/token requiring 204 with zero body, then requires two stable 401 denials from the exact installation-repositories endpoint within a 30-second, at-most-ten-slot absolute schedule; a 200 after 401, nonconvergence, malformed or timing-ambiguous responses fail closed and nothing is retried.
-
-- Evidenced by property test.
-- Source: `AGENTS.md`: “send exactly one empty-204 revocation request and require two stable authorization denials”
-- Also covers: `website/AGENTS.md`: “the shared helper must send exactly one empty-204 token revocation”
-- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/release-app-token-revocation.test.ts`
-- Property tests: `scripts/release-app-token-revocation.test.ts`: “property: exactly one DELETE, then two stable denials inside ten absolute slots and 30 seconds, or fail closed”; `scripts/release-app-token-revocation.test.ts`: “property: a minted token is revoked exactly once whatever fails, and an unminted token is never revoked”
-- Assumptions: `monotonic-clock`, `github-api`, `github-enforcement`, `vercel`
-- Not verified:
-  - The properties drive `revokeReleaseAppTokenWithConvergence` and `withReleaseAppToken` with a fake fetch, clock, and sleeper; live revocation against GitHub is retained evidence from one workflow run, not a CI check.
-  - GitHub does not guarantee how quickly a revoked token stops working.
-
-#### `release-app-date-before-expiry`
-
-The GitHub Date header on the DELETE 204 and on every accepted 200 or 401 observation is canonical and strictly precedes the token's expires_at.
-
-- Evidenced by example test.
-- Source: `AGENTS.md`: “Require canonical GitHub `Date` headers strictly before the minted `expires_at` on that DELETE 204 and every accepted 200 or 401.”
-- Evidence: `scripts/npm-release-workflow.test.ts`
-- Assumptions: `github-api`, `github-enforcement`, `vercel`
-- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
-
-#### `release-app-revocation-receipt-semantics`
-
-propagationObserved=false iff the first two probes are the stable 401 pair with no 200; true iff at least one exact 200 preceded the final two 401s; advanced receipts bind this object as releaseAppRevocation and already-exact binds null.
-
-- Evidenced by example test.
-- Source: `AGENTS.md`: “`propagationObserved=false` means the first two probes were the stable 401 pair with no observed 200; `propagationObserved=true` means at least one exact 200 preceded the final two stable 401s. Bind that exact bounded object as `releaseAppRevocation`”
-- Evidence: `scripts/npm-release-workflow.test.ts`
-- Assumptions: `github-api`, `github-enforcement`, `vercel`
-- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
-
-#### `promotion-helper-bound-to-production-ref`
-
-The production helper is hard-bound to website-production and never targets the canary or any other ref.
-
-- Evidenced by example test.
-- Source: `AGENTS.md`: “Keep the production helper hard-bound to `website-production`.”
-- Evidence: `scripts/npm-release-workflow.test.ts`
-- Assumptions: `github-api`, `github-enforcement`, `vercel`
-- Not verified: Only the enumerated example cases are checked.
-
-#### `promotion-workflow-run-binding`
-
-The automatic workflow_run path requires repository 1316443113, Release workflow 323493609 at its exact path, tag push, first attempt, success, same head repository, and head SHA equal to the peeled immutable tag commit, with the payload run ID equal to the Release receipt's run ID.
-
-- Evidenced by example test.
-- Source: `AGENTS.md`: “bind its automatic `workflow_run` to Ghostget repository ID `1316443113` and Release workflow ID `323493609` plus the exact path, tag-push event, first attempt, success, head repository, tag, peeled immutable release SHA, and payload run ID.”
-- Evidence: `scripts/npm-release-workflow.test.ts`
-- Assumptions: `github-api`, `github-enforcement`, `vercel`
-- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
-
-#### `promotion-manual-recovery-untrusted-tag`
-
-Manual recovery runs only from the main-origin promotion workflow with an untrusted stable-tag input and carries no upstream SHA, run ID or attempt; it requires a positive current attempt and never reruns or changes the tag Release.
-
-- Evidenced by example test.
-- Source: `AGENTS.md`: “Manual recovery on that same main-origin workflow accepts only an untrusted stable-tag input and carries no upstream SHA, run ID, or attempt.”
-- Evidence: `scripts/npm-release-workflow.test.ts`
-- Assumptions: `github-api`, `github-enforcement`, `vercel`
-- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
-
-#### `promotion-run-id-from-receipt`
-
-The authoritative Release run ID is derived only from the Release's sampled exact Actions receipt and is carried through baseline-v4, promotion-v3 and every later authority, promotion and outcome check.
-
-- Evidenced by example test.
-- Source: `AGENTS.md`: “Carry that run ID through exact `wrench-provider-baseline-v4` and `wrench-provider-promotion-v3` receipts”
-- Evidence: `scripts/npm-release-workflow.test.ts`
-- Assumptions: `github-api`, `github-enforcement`, `vercel`
-- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
-
-#### `promotion-baseline-before-key-wait`
-
-A complete bounded Vercel Production deployment baseline (at most 500 deployments, two stable order-independent reads bracketed by authenticated GitHub Date headers) is recorded before any key-environment wait.
-
-- Evidenced by example test.
-- Source: `AGENTS.md`: “Record the complete bounded Vercel Production baseline before any key-environment wait.”
-- Evidence: `scripts/npm-release-workflow.test.ts`
-- Assumptions: `github-api`, `github-enforcement`, `vercel`
-- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
-
-#### `promotion-deployment-ref-sha-binding`
-
-The REST deployment's lowercase 40-hex .ref equals .sha equals the verified release commit, while the matching GraphQL deployment reports ref null and the same commitOid.
-
-- Evidenced by example test.
-- Source: `AGENTS.md`: “Bind the REST deployment's lowercase commit `.ref` and `.sha` to the verified release while GraphQL reports a null `ref` and the same `commitOid`.”
-- Evidence: `scripts/npm-release-workflow.test.ts`
-- Assumptions: `github-api`, `github-enforcement`, `vercel`
-- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
-
-#### `promotion-recovery-no-newer-success`
-
-Already-exact recovery selects the unique newest deployment for the verified SHA postdating the Release; a newer or same-second successful deployment for another SHA blocks recovery, while newer terminal failures do not displace the exact candidate.
-
-- Evidenced by example test.
-- Source: `docs/publishing.md`: “Recovery from an already-exact branch instead selects the unique newest deployment for the verified SHA and requires it to postdate the immutable Release. A newer or same-second deployment for another SHA blocks recovery when its current Vercel status is successful.”
-- Evidence: `scripts/npm-release-workflow.test.ts`
-- Assumptions: `github-api`, `github-enforcement`, `vercel`
-- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
-
-#### `production-branch-missing-is-hard-failure`
-
-After the one-time bootstrap, a missing website-production branch is a hard failure; no workflow or recovery creates it.
-
-- Evidenced by example test.
-- Source: `AGENTS.md`: “After it, a missing production branch is a hard failure.”
-- Evidence: `scripts/npm-release-workflow.test.ts`
-- Assumptions: `github-api`, `github-enforcement`, `vercel`
-- Not verified: Only the enumerated example cases are checked.
-
-#### `promotion-rest-graphql-public-budgets`
-
-Promotion stays within the documented request budgets: at most 209 REST calls in the provider outcome job and 358 together with the immutable Release workflow, at most 120 GraphQL requests at no more than two points each, and at most 32 unauthenticated public-host GETs.
-
-- Evidenced by example test.
-- Source: `docs/publishing.md`: “The immutable Release and downstream promotion workflows together use at most 370 REST calls”
-- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/release-provider-outcome.test.ts`
-- Assumptions: `github-api`, `github-enforcement`, `vercel`
-- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
-
-#### `promotion-actions-read-single-read`
-
-Only the initial verify job has `actions: read`, and its authority resolution reads the Release Actions run exactly once, binding stable numeric actor and triggering-actor IDs and types, repository identities, workflow ID and path, tag-push event, source SHA, completion, success, and attempt.
-
-- Evidenced by example test.
-- Source: `AGENTS.md`: “In the initial verify job's authority resolution, read that Actions run exactly once”
-- Evidence: `scripts/npm-release-workflow.test.ts`
-- Assumptions: `github-api`, `github-enforcement`, `vercel`
-- Not verified: Only the enumerated example cases are checked.
-
-#### `release-app-rest-cap-fourteen`
-
-The App path makes at most fourteen REST requests (three setup/mint, one DELETE, at most ten probes).
-
-- Evidenced by example test.
-- Source: `AGENTS.md`: “cap the App path at fourteen REST requests.”
-- Evidence: `scripts/npm-release-workflow.test.ts`
-- Assumptions: `github-api`, `github-enforcement`, `vercel`
-- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
-
-#### `release-app-env-scrubbed-from-gh`
-
-Every read-only gh child process has all WRENCH_RELEASE_APP_* values removed from its environment; the installation token reaches only the private GIT_ASKPASS for the exact fetch and push.
-
-- Evidenced by example test.
-- Source: `AGENTS.md`: “Scrub every `WRENCH_RELEASE_APP_*` value from read-only `gh` children.”
-- Also covers: `website/AGENTS.md`: “every read-only GitHub child must be scrubbed of App values”
-- Evidence: `scripts/npm-release-workflow.test.ts`
-- Assumptions: `github-api`, `github-enforcement`, `vercel`
-- Not verified: Only the enumerated example cases are checked.
-
-#### `promotion-leased-fast-forward-only`
-
-The production writer fetches only the verified tag, peels it locally to the independently verified SHA without executing tagged code, and pushes exactly one refspec with --force-with-lease=refs/heads/website-production:<expected-old>; a stale lease leaves the ref unchanged and the workflow never creates, deletes, force-moves or recreates the branch.
-
-- Evidenced by Quint model with production trace replay.
-- Source: `AGENTS.md`: “Fetch only the exact verified tag through the private askpass token, peel it locally”
-- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/release-ref-authority.test.ts`, `scripts/verification-promotion-replay.test.ts`, `verification/quint/promotion.qnt`
-- Assumptions: `github-api`, `github-enforcement`, `vercel`
-- Not verified:
-  - `verification/quint/promotion.qnt` checks one run of the website production workflow after its verify job, with seven abstract commits, one release tag, and a three-observation poll budget, against an environment that may move protected main, the production ref, and the tag, replace Latest, finish or fail the Vercel deployment, change the apex marker, and arm one of ten readback drifts between the two terminal readbacks. Quint simulation checks it with 3,000 samples of up to 14 steps and Apalache to length 11 in the Required verification job (every mutant step is found at that length; at length 10 the single-readback mutant is not), and the nightly workflow repeats it with 10,000 samples of up to 20 steps and Apalache to length 12.
-  - Its ITF replay runs the production `revalidateReleaseAuthority`, `createProviderBaseline`, `promoteWebsiteProduction`, and `waitForProviderOutcome` on 300 traces of up to 14 steps per step relation, and the production writer's real `/usr/bin/git` tag fetch, peel, and `--force-with-lease` push against a local bare repository. GitHub's REST and GraphQL answers and the public site are stubs computed from the model state, and longer schedules, more commits, and the production poll budget of 20 are not modelled.
-  - The replay's remote is a local bare repository, not GitHub. GitHub's ref-update ruleset and non-fast-forward rule are assumed under `github-enforcement`. That the workflow never creates, deletes, or recreates the branch, that the tag is fetched through the private askpass token, and that the peel executes no tagged code rest on the writer's fixed argument lists, which only the example tests in `scripts/npm-release-workflow.test.ts` check, and on the production-ref lifecycle ruleset, which only a live readback checks.
-  - Defect found and fixed here: `git push --porcelain` reports a stale `--force-with-lease` as `=` `[up to date]` with exit status 0 when the remote already holds the pushed commit, and the writer accepted that as its own update. It now requires the one porcelain update line from the leased SHA to the release SHA; the test “fails a leased write closed when the remote already holds the release commit” fails on the previous writer, and the replay's seeded `force-push` defect diverges from the model.
-
-#### `promotion-c-le-w-le-m`
-
-Promotion proves release commit C ≤ reviewed workflow source W ≤ protected current main M at every authority check before any provider or ref work, accepts only identical or strictly linear-forward movement of main, rejects rollback or divergence, and binds package, tag, Release, deployment, and production-ref identity to C.
-
-- Evidenced by Quint model with production trace replay.
-- Source: `AGENTS.md`: “prove release `C<=W<=M` for protected current main `M`, allowing only linear descendant movement after dispatch”
-- Also covers: `website/AGENTS.md`: “prove `C<=W<=M` for protected current main `M` at every authority sandwich”
-- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/release-ref-authority.test.ts`, `scripts/verification-promotion-replay.test.ts`, `verification/quint/promotion.qnt`
-- Assumptions: `github-api`, `github-enforcement`, `vercel`
-- Not verified:
-  - `verification/quint/promotion.qnt` checks one run of the website production workflow after its verify job, with seven abstract commits, one release tag, and a three-observation poll budget, against an environment that may move protected main, the production ref, and the tag, replace Latest, finish or fail the Vercel deployment, change the apex marker, and arm one of ten readback drifts between the two terminal readbacks. Quint simulation checks it with 3,000 samples of up to 14 steps and Apalache to length 11 in the Required verification job (every mutant step is found at that length; at length 10 the single-readback mutant is not), and the nightly workflow repeats it with 10,000 samples of up to 20 steps and Apalache to length 12.
-  - Its ITF replay runs the production `revalidateReleaseAuthority`, `createProviderBaseline`, `promoteWebsiteProduction`, and `waitForProviderOutcome` on 300 traces of up to 14 steps per step relation, and the production writer's real `/usr/bin/git` tag fetch, peel, and `--force-with-lease` push against a local bare repository. GitHub's REST and GraphQL answers and the public site are stubs computed from the model state, and longer schedules, more commits, and the production poll budget of 20 are not modelled.
-  - C ≤ W is the verify job's precondition in `scripts/release-ref-authority.ts`, covered by `scripts/release-ref-authority.test.ts`; the model fixes it and checks W ≤ M at every source check that passes, including a main that forks from C before W. Linear movement is judged against W: a main that later moves back to an earlier descendant of W still satisfies W ≤ M and is accepted, and protected main's non-fast-forward rule, assumed under `github-enforcement`, excludes that move.
-  - The model binds the tag, the Release, Latest, and the production ref to C. The package and deployment identity bindings are covered only by the listed example tests.
-
-#### `promotion-already-exact-no-credentials`
-
-When the production ref already equals the verified release, promotion takes a separate read-only path with no environment admission, App variable, private key, token mint, or Git push, and binds `releaseAppRevocation` to null.
-
-- Evidenced by example test.
-- Source: `AGENTS.md`: “An already-exact ref must take a separate read-only path with no environment, App variable, private key, token mint, or Git push.”
-- Evidence: `scripts/npm-release-workflow.test.ts`
-- Assumptions: `github-api`, `github-enforcement`, `vercel`
-- Not verified: Only the enumerated example cases are checked.
-
-#### `promotion-revalidate-after-admission`
-
-A required fast-forward enters production-ref-writer-key only after immutable release, workflow-source and provider-baseline checks pass, then revalidates C<=W<=M, peeled tag, immutable Release and Latest before credentials and mutation.
-
-- Evidenced by Quint model with production trace replay.
-- Source: `AGENTS.md`: “admit it automatically after the existing immutable release, exact workflow-source, and provider-baseline checks pass, then revalidate source and immutable release authority before credentials and mutation”
-- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/verification-promotion-replay.test.ts`, `verification/quint/promotion.qnt`
-- Assumptions: `github-api`, `github-enforcement`, `vercel`
-- Not verified:
-  - `verification/quint/promotion.qnt` checks one run of the website production workflow after its verify job, with seven abstract commits, one release tag, and a three-observation poll budget, against an environment that may move protected main, the production ref, and the tag, replace Latest, finish or fail the Vercel deployment, change the apex marker, and arm one of ten readback drifts between the two terminal readbacks. Quint simulation checks it with 3,000 samples of up to 14 steps and Apalache to length 11 in the Required verification job (every mutant step is found at that length; at length 10 the single-readback mutant is not), and the nightly workflow repeats it with 10,000 samples of up to 20 steps and Apalache to length 12.
-  - Its ITF replay runs the production `revalidateReleaseAuthority`, `createProviderBaseline`, `promoteWebsiteProduction`, and `waitForProviderOutcome` on 300 traces of up to 14 steps per step relation, and the production writer's real `/usr/bin/git` tag fetch, peel, and `--force-with-lease` push against a local bare repository. GitHub's REST and GraphQL answers and the public site are stubs computed from the model state, and longer schedules, more commits, and the production poll budget of 20 are not modelled.
-  - The model orders the checks inside one run. The `production-ref-writer-key` environment gate, the job `needs` graph, and which steps receive the release-App key are checked only by the workflow example tests in `scripts/npm-release-workflow.test.ts`, and their enforcement is assumed under `github-enforcement`. In the replay the write step stands in for `GitHubApi.advanceRef`, where production mints the release-App token, so the token's own lifecycle is not replayed.
-
-#### `promotion-observation-window`
-
-Provider outcome uses exactly 20 absolute observation slots at minute offsets 0..19 inside one injected monotonic half-open 20-minute window; latency never slides slots, no provider read starts at or after the deadline, and the job has a separate 30-minute timeout.
-
-- Evidenced by property test.
-- Source: `AGENTS.md`: “Keep 20 observation slots at absolute minute offsets zero through 19 inside one injected monotonic 20-minute `[start, deadline)` interval and a separate 30-minute read-only job”
-- Evidence: `scripts/npm-release-workflow.test.ts`
-- Property tests: `scripts/npm-release-workflow.test.ts`: “keeps 20 absolute observation slots under any read latency and partial sleep wakeups”
-- Assumptions: `monotonic-clock`, `github-api`, `github-enforcement`, `vercel`
-- Not verified:
-  - The property test runs `waitForProviderOutcome` 100 times against a candidate that never appears, with up to 64 generated read latencies from 1 to 45,000 ms and early sleep wakeups. Generated latencies rarely land exactly on the deadline, so the boundary read, clock regression, overflow, and a sleep that never reaches its slot are covered by the example test “enforces one half-open monotonic 20-minute provider observation deadline”.
-  - `verification/quint/promotion.qnt` abstracts time and does not carry this claim. The 30-minute provider job timeout is a workflow setting that an example test checks; GitHub enforcing it is assumed under `github-enforcement`.
-
-#### `promotion-eventual-promotion-or-stuck-evidence`
-
-An immutable Release is eventually promoted or leaves explicit stuck evidence (progress law).
-
-- Evidenced by Quint model with production trace replay.
-- Source: `kb/plans/formal-verification-assurance.md`: “The progress goal is "an immutable Release is eventually promoted or leaves explicit stuck evidence".”
-- Evidence: `scripts/verification-promotion-replay.test.ts`, `verification/quint/promotion.qnt`
-- Assumptions: `github-api`, `github-enforcement`, `vercel`, `ci-runner`
-- Not verified:
-  - `verification/quint/promotion.qnt` checks one run of the website production workflow after its verify job, with seven abstract commits, one release tag, and a three-observation poll budget, against an environment that may move protected main, the production ref, and the tag, replace Latest, finish or fail the Vercel deployment, change the apex marker, and arm one of ten readback drifts between the two terminal readbacks. Quint simulation checks it with 3,000 samples of up to 14 steps and Apalache to length 11 in the Required verification job (every mutant step is found at that length; at length 10 the single-readback mutant is not), and the nightly workflow repeats it with 10,000 samples of up to 20 steps and Apalache to length 12.
-  - Its ITF replay runs the production `revalidateReleaseAuthority`, `createProviderBaseline`, `promoteWebsiteProduction`, and `waitForProviderOutcome` on 300 traces of up to 14 steps per step relation, and the production writer's real `/usr/bin/git` tag fetch, peel, and `--force-with-lease` push against a local bare repository. GitHub's REST and GraphQL answers and the public site are stubs computed from the model state, and longer schedules, more commits, and the production poll budget of 20 are not modelled.
-  - The progress law is checked as a bounded safety property, not as a temporal one: no Quint or Apalache check of a liveness property under fairness runs. The invariant `boundedVerdict` shows that every run reaches a verdict within nine production steps (three authority checks, the baseline, the promotion checks, the write, and the model's three observations), and `stuckHasEvidence` that every stuck verdict names one of ten reasons that the environment state explains. Every production step stays enabled until the verdict, so under weak fairness for the workflow's jobs a run terminates; that step is argued, not checked.
-  - The stuck evidence is the failed run's refusal message; the replay maps each production refusal to the model's reason and fails on a refusal it cannot map. Eventual promotion across runs while the environment keeps faulting is outside the model: it needs Vercel to succeed and expose the exact marker inside the observation window.
-  - Progress assumes fair Actions scheduling and an owner who dispatches manual recovery when the automatic path is ineligible.
-
-#### `promotion-success-requires-stable-readbacks`
-
-Promotion succeeds only with one exact successful Vercel Production deployment plus stable terminal tag, Release, Latest, workflow-source, ref, inventory, status and two byte-stable canonical-host readbacks.
-
-- Evidenced by Quint model with production trace replay.
-- Source: `AGENTS.md`: “Bind one exact successful Vercel Production deployment plus stable terminal tag, Release, Latest, workflow source, ref, inventory, status, and canonical-host readbacks before promotion succeeds.”
-- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/release-provider-outcome.test.ts`, `scripts/verification-promotion-replay.test.ts`, `verification/quint/promotion.qnt`, `website/production-release-marker.test.ts`
-- Assumptions: `github-api`, `github-enforcement`, `vercel`
-- Not verified:
-  - `verification/quint/promotion.qnt` checks one run of the website production workflow after its verify job, with seven abstract commits, one release tag, and a three-observation poll budget, against an environment that may move protected main, the production ref, and the tag, replace Latest, finish or fail the Vercel deployment, change the apex marker, and arm one of ten readback drifts between the two terminal readbacks. Quint simulation checks it with 3,000 samples of up to 14 steps and Apalache to length 11 in the Required verification job (every mutant step is found at that length; at length 10 the single-readback mutant is not), and the nightly workflow repeats it with 10,000 samples of up to 20 steps and Apalache to length 12.
-  - Its ITF replay runs the production `revalidateReleaseAuthority`, `createProviderBaseline`, `promoteWebsiteProduction`, and `waitForProviderOutcome` on 300 traces of up to 14 steps per step relation, and the production writer's real `/usr/bin/git` tag fetch, peel, and `--force-with-lease` push against a local bare repository. GitHub's REST and GraphQL answers and the public site are stubs computed from the model state, and longer schedules, more commits, and the production poll budget of 20 are not modelled.
-  - The replay arms at most one drift per trace: the production ref, the candidate's status history, the apex marker, Latest, a health route, the `www` redirect, the tag commit, the Release, protected main, or the Production inventory. Combined drifts and GraphQL and REST disagreement are covered only by the listed example tests.
-  - Byte stability is checked as digest equality of the stubbed bodies; the canonical host's real HTTP behaviour is assumed under `vercel`.
-
-#### `promotion-candidate-status-history-clean`
-
-The pinned candidate's exhaustive REST status history (cap 500, empty sentinel page) must contain no failure, error or inactive row even if a newer row reports success; GraphQL latestStatus.id must equal the REST status node_id.
-
-- Evidenced by example test.
-- Source: `AGENTS.md`: “exhaustively audit only the pinned candidate's REST status history. Reject any retained failure, error, or inactive candidate status even after success.”
-- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/release-provider-outcome.test.ts`
-- Assumptions: `github-api`, `github-enforcement`, `vercel`
-- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
 
 ### `providers` (1 claim)
 
@@ -2355,10 +1993,10 @@ Re-running only the failed jobs of a Release run publishes the exact bytes that 
 
 #### `release-workflow-isolation`
 
-The Release workflow never reads, creates, or updates website-production, never receives the release App key or Administration permission, and never waits for Vercel.
+The Release workflow owns only the immutable Release and its npm mirror; it never reads, creates, or updates a website deployment ref, receives no additional credentials, and never waits for Vercel; website deployment follows merges to `main` directly.
 
 - Evidenced by example test.
-- Source: `AGENTS.md`: “The Release workflow must never read, create, or update `website-production`, receive the release App key, or wait for Vercel.”
+- Source: `AGENTS.md`: “it never reads, creates, or updates a website deployment ref, receives no additional credentials, and never waits for Vercel”
 - Evidence: `scripts/npm-release-workflow.test.ts`
 - Assumptions: `github-api`, `github-enforcement`
 - Not verified: Only the enumerated example cases are checked.
@@ -2954,7 +2592,7 @@ A state home in gateway-only mode restricts Ghostget command routing to policy-a
   - Only the enumerated example cases are checked.
   - Gateway-only mode is not an operating-system network sandbox; a same-user process can bypass the application policy.
 
-### `website` (12 claims)
+### `website` (6 claims)
 
 #### `analytics-allowlist-byte-ceiling`
 
@@ -2983,7 +2621,7 @@ Website release identity and install commands derive from the validated root pac
 
 #### `vercel-build-admission-fail-closed`
 
-A marked or Vercel-signalled build requires the exact marker, VERCEL=1, valid VERCEL_ENV, and exact VERCEL_GIT_COMMIT_REF; production requires website-production and non-production rejects it; inconsistent state fails before build.
+A marked or Vercel-signalled build requires the exact marker, VERCEL=1, valid VERCEL_ENV, and exact VERCEL_GIT_COMMIT_REF; production requires `main` and non-production rejects it; inconsistent state fails before build.
 
 - Evidenced by example test.
 - Source: `website/AGENTS.md`: “A marked or otherwise Vercel-signaled build must have the exact marker, `VERCEL=1`, a valid `VERCEL_ENV`, and an exact nonempty `VERCEL_GIT_COMMIT_REF`”
@@ -2996,78 +2634,8 @@ A marked or Vercel-signalled build requires the exact marker, VERCEL=1, valid VE
 Preview builds do not depend on npm or GitHub release availability.
 
 - Evidenced by example test.
-- Source: `website/AGENTS.md`: “preview builds must not depend on npm or GitHub release availability and must not emit the production marker”
+- Source: `website/AGENTS.md`: “Preview and local builds perform no release verification and remain independently buildable”
 - Evidence: `website/vercel-build.test.ts`
-- Assumptions: `vercel`
-- Not verified: Only the enumerated example cases are checked.
-
-#### `website-marker-production-only`
-
-Preview, development and local builds never emit the marker and remove any stale marker; a failed verifier or build cannot publish it.
-
-- Evidenced by example test.
-- Source: `AGENTS.md`: “Preview and local builds emit no marker.”
-- Also covers: `website/AGENTS.md`: “preview builds must not depend on npm or GitHub release availability and must not emit the production marker”
-- Evidence: `website/vercel-build.test.ts`
-- Assumptions: `vercel`
-- Not verified: Only the enumerated example cases are checked.
-
-#### `website-baseline-marker-404-only-v0165`
-
-The baseline reads the marker twice; a 404 is admitted only when promoting exact v0.16.5, and every later baseline requires one stable valid marker.
-
-- Evidenced by example test.
-- Source: `AGENTS.md`: “The provider baseline reads it twice; only exact v0.16.5 may begin from 404.”
-- Also covers: `website/AGENTS.md`: “The marker may be absent only at the v0.16.5 baseline that introduces it; every later baseline requires it.”
-- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/release-provider-outcome.test.ts`
-- Assumptions: `vercel`
-- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
-
-#### `website-www-exact-308`
-
-Each public snapshot requires exactly one no-follow www 308 whose Location preserves the marker path and query, plus bounded canonical apex health responses.
-
-- Evidenced by example test.
-- Source: `AGENTS.md`: “finishes with two stable apex marker/health snapshots plus one exact no-follow `www` 308 in each snapshot.”
-- Also covers: `website/AGENTS.md`: “require `www` to return one exact no-follow 308 to the same apex marker path and query”
-- Evidence: `scripts/release-provider-outcome.test.ts`
-- Assumptions: `vercel`
-- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
-
-#### `website-marker-seven-key-canonical`
-
-Only a verified Production build emits `/.well-known/wrench-release.json`, after the release verifier and site build pass, as one exact canonical seven-key JSON body (schema, package, repository, tag, version, verified HEAD, strict unique Vercel deployment URL) plus one line feed; reordered, expanded, noncanonical, or identity-drifting bodies are rejected.
-
-- Evidenced by example test.
-- Source: `AGENTS.md`: “A verified Production build emits one exact seven-key `/.well-known/wrench-release.json` after its site build, binding the verifier-proven local HEAD and release tag to the strict unique Vercel deployment URL.”
-- Also covers: `website/AGENTS.md`: “Each verified Production build emits exact bounded `/.well-known/wrench-release.json` bytes only after the release verifier and site build pass”
-- Evidence: `scripts/release-provider-outcome.test.ts`, `website/production-release-marker.test.ts`, `website/production-release-verifier.test.ts`, `website/vercel-build.test.ts`
-- Assumptions: `vercel`
-- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
-
-#### `website-outcome-baseline-to-target-only`
-
-During outcome the apex marker may show only the baseline identity or the exact target; a third identity, changed same-release deployment URL, target-to-baseline regression or disagreement with pinned status URLs fails closed.
-
-- Evidenced by Quint model with production trace replay.
-- Source: `AGENTS.md`: “Outcome requires that deployment URL to equal the pinned status URLs, permits only baseline-to-target movement”
-- Also covers: `website/AGENTS.md`: “Public outcome checks require that URL to equal the pinned deployment status”
-- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/verification-promotion-replay.test.ts`, `verification/quint/promotion.qnt`
-- Assumptions: `vercel`
-- Not verified:
-  - `verification/quint/promotion.qnt` checks one run of the website production workflow after its verify job, with seven abstract commits, one release tag, and a three-observation poll budget, against an environment that may move protected main, the production ref, and the tag, replace Latest, finish or fail the Vercel deployment, change the apex marker, and arm one of ten readback drifts between the two terminal readbacks. Quint simulation checks it with 3,000 samples of up to 14 steps and Apalache to length 11 in the Required verification job (every mutant step is found at that length; at length 10 the single-readback mutant is not), and the nightly workflow repeats it with 10,000 samples of up to 20 steps and Apalache to length 12.
-  - Its ITF replay runs the production `revalidateReleaseAuthority`, `createProviderBaseline`, `promoteWebsiteProduction`, and `waitForProviderOutcome` on 300 traces of up to 14 steps per step relation, and the production writer's real `/usr/bin/git` tag fetch, peel, and `--force-with-lease` push against a local bare repository. GitHub's REST and GraphQL answers and the public site are stubs computed from the model state, and longer schedules, more commits, and the production poll budget of 20 are not modelled.
-  - The model's apex marker takes four identities: the baseline, the target at the pinned deployment URL, the target at another deployment URL, and a third release. The replay reaches each refusal: a third identity, a target-to-baseline regression, a changed same-release deployment URL, and disagreement with the pinned status URL. Marker parsing and its canonical form are separate claims.
-
-#### `website-production-build-release-verified`
-
-A production Vercel build requires VERCEL_GIT_COMMIT_REF=website-production, exact marker env, local HEAD and package version equal to the v<version> tag commit, the canonical artifact, and a non-draft, non-prerelease, Latest immutable Release; main/preview refs never produce production, and missing or inconsistent Vercel state fails before verification.
-
-- Evidenced by example test.
-- Source: `AGENTS.md`: “`main` and pull requests are preview sources, never production website sources.”
-- Also covers: `website/AGENTS.md`: “Require `VERCEL_GIT_COMMIT_REF=website-production` only for production”
-- Also covers: `website/AGENTS.md`: “production verifies immutable GitHub metadata, exact five descriptors, bot/source receipt, manifest/archive digests, HEAD/tag, and Latest”
-- Evidence: `website/production-release-verifier.test.ts`, `website/vercel-build.test.ts`
 - Assumptions: `vercel`
 - Not verified: Only the enumerated example cases are checked.
 
@@ -3076,8 +2644,8 @@ A production Vercel build requires VERCEL_GIT_COMMIT_REF=website-production, exa
 Checked-in workflows stay token-free for Vercel and never mutate project settings, call the Vercel API, redeploy, alias, or promote; promotion outcome uses token-free public HTTPS plus read-only GitHub evidence.
 
 - Evidenced by example test.
-- Source: `docs/publishing.md`: “Checked-in workflows never mutate this project setting, call the Vercel API, or perform an alias or promote operation”
-- Also covers: `website/AGENTS.md`: “Checked-in workflows remain token-free and never mutate the setting, call Vercel APIs, alias, or promote.”
+- Source: `docs/publishing.md`: “Checked-in workflows never mutate project settings, call the Vercel API, or perform an alias or promote operation”
+- Also covers: `website/AGENTS.md`: “Checked-in workflows remain token-free and never mutate project settings, call Vercel APIs, alias, or promote”
 - Evidence: `scripts/npm-release-workflow.test.ts`
 - Assumptions: `vercel`
 - Not verified: Only the enumerated example cases are checked.

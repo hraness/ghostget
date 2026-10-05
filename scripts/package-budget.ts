@@ -2491,28 +2491,29 @@
 // 59451cd8ec83a409969d46785f3400c09507c8b6e3d2aff03294537a50191b50. Retain the
 // reviewed allowances: 12,244,064 + 12,387 + 4,096 = 12,260,547 packed;
 // 24,496,816 + 353 + 65 = 24,497,234 unpacked.
-// The 0.18.83 release adds the engine-aware contained-session lane and the
-// LinkedIn profile-transport default over the reviewed 0.18.82 release.
+// The 0.18.84 release makes "auto" the contained-session engine default with
+// headless-only Lightpanda eligibility over the reviewed 0.18.83 release.
 // Two clean npm 11.19.0 packs on Node 24.20.0 (zlib 1.2.12) with
 // --ignore-scripts on darwin arm64 were byte-identical at 638
-// files/entries, 12,237,548 packed bytes and 24,524,887 unpacked bytes;
+// files/entries, 12,238,781 packed bytes and 24,527,832 unpacked bytes;
 // archive SHA-256
-// 34a0261f74428b18798b6be57ab39bf72e68e45f000a20fa55d6d88272505082. Retain the
-// reviewed allowances: 12,237,548 + 12,387 + 4,096 = 12,254,031 packed;
-// 24,524,887 + 353 + 65 = 24,525,305 unpacked.
-// The 0.18.84 release adds the Substack, LinkedIn and Threads video
+// a212c8c3050c1f9509a3725e40b0e9d20dfb8913b3c669f729e79a88adcacfea. Retain the
+// reviewed allowances: 12,238,781 + 12,387 + 4,096 = 12,255,264 packed;
+// 24,527,832 + 353 + 65 = 24,528,250 unpacked.
+// The 0.18.85 Beeper SDK pin extraction keeps the provider contract bytes
+// unchanged while removing provider initialization from the client import.
+// Two npm 11.19.0 packs on Node 24.20.0 (zlib 1.3.2.1-motley-42c2f19)
+// with --ignore-scripts on darwin arm64 were byte-identical: 639 entries,
+// 12,220,202 packed bytes and 24,357,529 payload bytes; SHA-256
+// acad4b6558e011503df7c42662a461efbb77f6291d024776951e369b36671588.
+// Retain the existing platform projections and portability allowances.
+// The 0.18.86 release adds the Substack, LinkedIn and Threads video
 // media.publish lanes, their accepted-target reconciliations, the X,
 // Threads, LinkedIn and Substack create-response binding repairs and the
 // derivation network-guard wildcard readiness repair over the reviewed
-// 0.18.83 release. Two clean npm 11.19.0 packs on Node 24.20.0
-// (zlib 1.3.2.1-motley-42c2f19) with --ignore-scripts on darwin arm64 were
-// byte-identical at 638 files/entries, 12,259,609 packed bytes and
-// 24,579,206 unpacked bytes; archive SHA-256
-// 602e1d625e808b72fd8ed58134adc8434198a6c435ba63d881045069cf6f4870. Retain the
-// reviewed allowances: 12,259,609 + 12,387 + 4,096 = 12,276,092 packed;
-// 24,579,206 + 353 + 65 = 24,579,624 unpacked.
+// 0.18.85 release. RE-MEASURED-PLACEHOLDER
 export const repairPackageMeasurement = Object.freeze({
-  scope: "0.18.84 media.publish video lanes and create-response binding repairs",
+  scope: "0.18.86 media.publish video lanes and create-response binding repairs",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   nodeVersion: "24.20.0",

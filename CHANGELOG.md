@@ -7,6 +7,22 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.85
+
+Import the Beeper SDK without initializing the provider command definitions.
+
+- The SDK reads the same immutable CLI identity from a small shared module, preserving its existing exports, parser behavior, and provider contract hashes.
+- Refresh CI test-file weights from measured execution times while retaining every test and the existing eight runners.
+
+## 0.18.84
+
+Prefer a provisioned Lightpanda by default for every headless cookie-yielding contained browser session.
+
+- `createBrowserSession` defaults its engine selection to `"auto"`: Lightpanda serves sessions whose auth realm yields explicit cookies and that do not request a headed browser, while Chromium remains the resolution for headed sessions, non-cookie realms, and unprovisioned environments. The `auto`-only preflight and Chromium fallback now key on the resolved selection, so an omitted engine receives the same bounded recovery as an explicit one.
+- The LinkedIn profile transport computes its headed request from the resolved engine: Lightpanda sessions run headless while the Chromium lane keeps its headed anti-bot behavior, including contact reads, which stay pinned to Chromium for their live network-request observation.
+- The LinkedIn revision bootstrap pins `"chrome"` because it reads live `network requests` bindings Lightpanda has not been qualified to serve; the headed article, comment, post, feed, search, Instagram, and X mutation transports resolve to Chromium through the headless-only eligibility gate.
+- Live qualification: an authenticated `x.com` session through the shipped path rendered the logged-in `hraness` timeline (server-bound identity in the hydrated payload) where an anonymous control was redirected to onboarding, in ~2–3 s per full session lifecycle versus ~1 s on a neutral target against Chromium's ~4.6 s; a re-authenticated LinkedIn profile funnel returned the identity, profile, and connections reads through the same path with complete cleanup journals.
+
 ## 0.18.83
 
 Prefer a provisioned Lightpanda for LinkedIn profile reads while Chromium stays authoritative for the remaining transports.

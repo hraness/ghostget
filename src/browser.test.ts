@@ -4926,6 +4926,104 @@ describe("browser process isolation helpers", () => {
     }
   });
 
+  test("defaults to auto and keeps headed requests on Chromium", async () => {
+    const root = mkdtempSync(join(tmpdir(), "io-lightpanda-stub-"));
+    try {
+      const stub = join(root, "lightpanda");
+      writeFileSync(stub, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+      const environment = {
+        GHOSTGET_LIGHTPANDA_PATH: stub,
+        PATH: process.env.PATH ?? "/usr/bin:/bin",
+      };
+      let chromeCommands = 0;
+      let lightpandaFactories = 0;
+      const dependencies = {
+        runCommand: (command: readonly string[], options: { readonly stdin?: string }) => {
+          chromeCommands += 1;
+          if (command.includes("batch")) {
+            const batch = JSON.parse(options.stdin ?? "[]") as readonly unknown[];
+            return Promise.resolve({
+              stdout: `${JSON.stringify(batch.map(() => ({ success: true, data: null })))}\n`,
+              stderr: "",
+              exitCode: 0,
+            });
+          }
+          return Promise.resolve({
+            stdout: "{\"success\":true}\n",
+            stderr: "",
+            exitCode: 0,
+          });
+        },
+        startNetworkProxy: () => Promise.resolve({
+          url: "http://127.0.0.1:43124",
+          port: 43_124,
+          close: () => Promise.resolve(),
+        }),
+        acquireCookieRecords: () => Promise.resolve({
+          cookies: [{
+            name: "session",
+            value: "private-cookie-value",
+            domain: "example.com",
+            hostOnly: true,
+            path: "/",
+            secure: true,
+            httpOnly: true,
+            sameSite: "Lax" as const,
+            expires: 0,
+          }],
+          warnings: [],
+        }),
+        createLightpandaDependencies: () => {
+          lightpandaFactories += 1;
+          return {
+            run: () => Promise.resolve({ ok: true }),
+            runBatch: () => Promise.resolve(),
+            close: () => Promise.resolve(),
+          };
+        },
+      };
+      // An omitted engine is "auto": a cookie-yielding headless session
+      // resolves to provisioned Lightpanda without an explicit selection.
+      const implicit = await createBrowserSession(manifest, auth, {
+        headed: false,
+        timeoutMs: 5_000,
+        maxOutputBytes: 64 * 1024,
+        environment,
+        dependencies,
+      });
+      await implicit.close();
+      await implicit.cleanup();
+      expect(lightpandaFactories).toBe(1);
+      expect(chromeCommands).toBe(0);
+
+      // A headed request can only be a Chromium session, even under auto.
+      const headedSession = await createBrowserSession(manifest, auth, {
+        headed: true,
+        timeoutMs: 5_000,
+        maxOutputBytes: 64 * 1024,
+        environment,
+        dependencies,
+      });
+      await headedSession.close();
+      await headedSession.cleanup();
+      expect(lightpandaFactories).toBe(1);
+      expect(chromeCommands).toBeGreaterThan(0);
+
+      // Explicit Lightpanda still fails closed instead of silently dropping
+      // the headed requirement.
+      await expect(createBrowserSession(manifest, auth, {
+        headed: true,
+        timeoutMs: 5_000,
+        maxOutputBytes: 64 * 1024,
+        engine: "lightpanda",
+        environment,
+        dependencies,
+      })).rejects.toThrow("cannot run headed");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   test("rejects explicit Lightpanda without provisioning or cookie-yielding auth", async () => {
     const storageStateAuth: GhostgetAuth = {
       schemaVersion: 1,

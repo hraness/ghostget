@@ -85,6 +85,27 @@ Qualification, bounded to read-only evidence:
   `linkedin-main`). No session material was copied to disk, no provider
   writes were issued, and the auth realms were verified unchanged
   afterward. See Result for the outcome.
+- **Live X qualification (post-v0.18.83, shipped integrated path):**
+  `createBrowserSession` + `cookie-source` auth `x-main` (Chrome),
+  `engine: "lightpanda"`, publisher-enabled, repeated three times:
+  `x.com/home` stayed at `/home` with server-rendered
+  `"screen_name":"hraness"` and `"rest_id":"1695180519640633575"` in a
+  ~360 KB hydrated timeline. The same manifest with a cookie file
+  holding no X credentials was server-side redirected to
+  `x.com/i/jf/onboarding/…?mode=login` (43 KB shell, no identity) —
+  the login-flow difference proves server-side auth acceptance, not
+  just local seeding. End-to-end session lifecycle: ~2.1–3.0 s total
+  (create ~0.7–0.8 s, `x.com/home` nav ~1.1–1.8 s, eval ~40–70 ms,
+  close ~45–65 ms) with the full durable cleanup journal
+  (prepared → launch-intent → quiescent → artifacts → socket →
+  roots removed) on every leg. On a neutral `example.com` manifest,
+  Lightpanda completed the identical session lifecycle in 1,039 ms vs
+  contained Chromium's 4,604 ms (~4.4× faster, dominated by session
+  creation: 626 ms vs 4,021 ms). Separately observed: X's edge
+  currently HTTP-rejects the contained headless Chromium on every
+  tested path (root, `/home`, `/robots.txt`) regardless of cookies —
+  not a Lightpanda regression, but it means no on-X Chromium timing
+  baseline is currently obtainable.
 
 ## Engine-aware contained sessions and the LinkedIn default
 
@@ -144,6 +165,15 @@ default. An explicit `engine: "chrome"` pins the old lane.
   but whether it reports in-flight requests is unproven — the contact
   overlay's request-binding harvest stays on Chromium until observed.
   Synthetic fixtures covered cookie import fidelity.
+- **Re-authenticated provider-200 (integrated path, post-v0.18.83):**
+  `createLinkedInProfileBrowserTransport` with `engine: "auto"` and a
+  publisher resolved to Lightpanda and returned the real voyager
+  identity (`plainId:75145295`, bound subject
+  `urn:li:fsd_profile:75145295`), 1,072,858-byte `/in/me/` profile
+  HTML, and 857,951-byte connections HTML — session create ~1.6 s,
+  identity ~0.3 s, profile ~0.8 s, connections ~0.8 s, with the full
+  durable cleanup journal. Both auth snapshots were byte-identical
+  afterward. The integrated LinkedIn funnel is qualified on live auth.
 
 ### Cleanup admission under a durable publisher
 
@@ -216,6 +246,38 @@ Chromium lane already seeds the same acquired cookies for
 overlapped other signed-in-browser lane work, so attribution to the
 Lightpanda reads is not supported by the evidence.
 
+## The "auto" default (v0.18.84)
+
+After the live X and LinkedIn proofs, the contained-session engine
+default became `"auto"`: every headless session whose realm yields
+explicit cookies resolves to a provisioned Lightpanda, and Chromium
+remains the resolution for everything else. Eligibility adds the
+`!headed` gate — a headed session is definitionally a Chromium session,
+since headed windows exist only for anti-bot evasion on that lane. The
+preflight and bounded-fallback conditions now key on the resolved
+selection rather than the raw option, so an omitted `engine` receives
+the same unpublished-preflight protection as an explicit `"auto"`.
+
+- The LinkedIn profile transport computes `headed` from the resolved
+  engine (`resolvedEngine === "chrome"`), keeping Chrome's headed
+  anti-bot behavior on the Chromium lane while Lightpanda runs headless.
+- `linkedin-web-bootstrap` pins `"chrome"`: it issues `network
+  requests` commands (live revision discovery) on a `headed: false`
+  session, the only headed:false transport with an unqualified command
+  stream.
+- Headed transports — X transaction bootstrap, Instagram profile,
+  LinkedIn article/comment/post/feed/search — resolve to Chromium
+  through the headed gate alone, keeping the anti-bot property they
+  declared `headed: true` for.
+- Bluesky's storage bootstrap requires `browser-profile` auth (no
+  cookie source on the constructed `storageAuth`), so `auto` resolves
+  it to Chromium without a pin.
+- Provider-agnostic callers with no `engine` option (messaging
+  automation excluded — it owns a different session factory) get the
+  same default: unprovisioned environments change nothing, and the
+  pin convention is one line at the call site when a transport's
+  command stream is unqualified.
+
 ## Result
 
 - Delivered and verified: Lightpanda-first public semantic capture in
@@ -234,17 +296,30 @@ Lightpanda reads is not supported by the evidence.
   contradicts the adapter note's earlier finding for that realm: a
   bound `cookie-source` handoff is accepted where whole-profile reuse
   is impossible.
-- Residual live gap: the integrated session path (including durable
-  cleanup admission) is now mechanically green — a publisher-enabled
-  Lightpanda session published, journaled, and removed every private
-  root against the real driver. The identity read still lands inside
-  the dead-session window, so one provider-200 run through the
-  integrated path is pending re-authentication; `engine: "chrome"`
-  remains the documented escape lane.
+- Live gap closed post-release: after re-authentication, the
+  integrated `createLinkedInProfileBrowserTransport` with
+  `engine: "auto"` and a publisher resolved to Lightpanda and returned
+  the real voyager identity (`plainId:75145295`), 1,072,858-byte
+  profile HTML, and 857,951-byte connections HTML with the complete
+  durable cleanup journal and byte-identical auth snapshots.
+  `engine: "chrome"` remains the documented escape lane.
+- `"auto"` is the contained-session engine default in `v0.18.84`
+  (PR #563, merge `ded6b05c`, immutable GitHub Release with the
+  five-file contract, npm `0.18.84` admitted): every headless
+  cookie-yielding session resolves to a provisioned Lightpanda;
+  headed, profile-backed/storage-state, non-cookie, and unprovisioned
+  sessions resolve to Chromium. Live X evidence proved the generic
+  auth path independently of LinkedIn — authenticated `x.com/home`
+  stayed signed in as `hraness` (`rest_id 1695180519640633575`) while
+  an anonymous control was server-redirected to onboarding.
 - Chromium remains mandatory for visual evidence, attached or
   profile-backed sessions, connected accounts, and the unqualified
-  LinkedIn transports (article, comment, post, feed, search) and all
-  other providers by default.
+  LinkedIn transports (article, comment, post, feed, search), the
+  headed mutation/anti-bot lanes, and every headed request — the
+  headless-only eligibility gate keeps those on Chromium without
+  per-call-site pins. X's edge currently rejects the contained
+  headless Chrome entirely, so no Chrome-vs-Lightpanda X benchmark
+  exists; Lightpanda is the only contained engine that reaches it.
 
 ## Durable memory
 

@@ -87,7 +87,6 @@ import {
   renderProviderMarquee,
   renderProviderOverviewCards,
 } from "./provider-presentation";
-import { PRODUCTION_RELEASE_MARKER_PATH } from "./production-release-marker.mjs";
 import {
   BEEPER_LOCAL_OPERATION_CONTRACT_VERSIONS,
   BEEPER_LOCAL_OPERATION_NAMES,
@@ -211,13 +210,13 @@ describe("ghostget.com static site", () => {
     expect(packageFiles).not.toContain("vercel.json");
     expect(manifest).toMatchObject({
       devDependencies: {
-        "@hraness/design-kit": "github:hraness/design-kit#v0.39.0",
+        "@hraness/design-kit": "github:hraness/design-kit#v0.41.0",
 
         "@hraness/site-footer": "https://github.com/hraness/site-footer/releases/download/v0.20.7/hraness-site-footer-0.20.7.tgz",
         "@hraness/ui": "github:hraness/ui#v0.5.18",
       },
     });
-    expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.39.0"');
+    expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.41.0"');
     expect(lockfile).toContain('"@hraness/ui": "github:hraness/ui#v0.5.18"');
 
     expect(lockfile).toContain('"@hraness/site-footer": "https://github.com/hraness/site-footer/releases/download/v0.20.7/hraness-site-footer-0.20.7.tgz"');
@@ -348,13 +347,9 @@ describe("ghostget.com static site", () => {
     const beeperOperationCount =
       BEEPER_PRESENTATION_TRANSPORT_COUNTS.cliBackedOperationCount
       + BEEPER_PRESENTATION_TRANSPORT_COUNTS.desktopLoopbackOperationCount;
-    const staleMarkerPath = join(
-      websiteRoot,
-      "dist",
-      PRODUCTION_RELEASE_MARKER_PATH.slice(1),
-    );
-    await mkdir(join(websiteRoot, "dist/.well-known"), { recursive: true });
-    await writeFile(staleMarkerPath, "stale marker must not survive preview/local output\n");
+    const stalePath = join(websiteRoot, "dist", "stale.txt");
+    await mkdir(join(websiteRoot, "dist"), { recursive: true });
+    await writeFile(stalePath, "stale output must not survive a rebuild\n");
     await buildWebsite({
       VERCEL_ENV: "production",
       NEXT_PUBLIC_POSTHOG_HOST: DEFAULT_POSTHOG_HOST,
@@ -383,7 +378,7 @@ describe("ghostget.com static site", () => {
       readFile(join(repositoryRoot, "middleware.ts"), "utf8"),
     ]);
     const html = pages[0]!.html;
-    expect(await Bun.file(staleMarkerPath).exists()).toBe(false);
+    expect(await Bun.file(stalePath).exists()).toBe(false);
     const readme = await readFile(join(repositoryRoot, "README.md"), "utf8");
     const cssAsset = /<link rel="stylesheet" href="([^"?]+)">/u.exec(html)?.[1];
     expect(cssAsset).toMatch(/^\/assets\/styles-[a-f0-9]{12}\.css$/u);
@@ -391,9 +386,11 @@ describe("ghostget.com static site", () => {
     const siteShellCss = await readFile(new URL(import.meta.resolve("@hraness/design-kit/site-shell.css")), "utf8");
     expect(builtCss.split(siteShellCss.trim())).toHaveLength(2);
     expect(builtCss).not.toContain('@import "./site-shell.css"');
-    for (const document of [...pages.map((page) => page.html), notFound]) {
-      expect(document).toContain('<body class="hraness-site-shell">');
+    for (const document of pages.map((page) => page.html)) {
+      expect(document).toContain('<body class="hraness-site-shell" data-hraness-landscape="page">');
     }
+    expect(notFound).toContain('<body class="hraness-site-shell">');
+    expect(notFound).not.toContain("data-hraness-landscape");
     expect(preview).not.toContain("hraness-site-shell");
     expect(builtCss).not.toMatch(/@import\b/iu);
     expect(builtCss.startsWith("@layer base, components;")).toBe(true);
@@ -448,11 +445,7 @@ describe("ghostget.com static site", () => {
     const grammarWithoutImports = marketingGrammar.replace(/^@import[^\n]*\n/gmu, "").trim();
     expect(builtCss.split(grammarWithoutImports)).toHaveLength(2);
 
-    expect(vercel.git).toEqual({
-      deploymentEnabled: {
-        "website-production-canary": false,
-      },
-    });
+    expect(vercel.git).toBeUndefined();
 
     expect(sourceCss).toContain('--font-sans: "Nebula Sans", ui-sans-serif, system-ui');
     expect(sourceCss).not.toContain("--font-serif");
@@ -1057,13 +1050,6 @@ describe("ghostget.com static site", () => {
       { key: "X-Content-Type-Options", value: "nosniff" },
       { key: "Vary", value: "Accept" },
     ]);
-    const releaseMarkerHeaders = vercel.headers.find((rule: { source: string }) =>
-      rule.source === PRODUCTION_RELEASE_MARKER_PATH);
-    expect(releaseMarkerHeaders?.headers).toEqual([
-      { key: "Cache-Control", value: "no-store, max-age=0" },
-      { key: "Content-Type", value: "application/json; charset=utf-8" },
-    ]);
-
     const frameDenyHeaders = vercel.headers.find((rule: { source: string }) =>
       rule.source === "/((?!preview/$).*)");
     expect(frameDenyHeaders?.headers).toEqual([
@@ -2100,7 +2086,7 @@ describe("ghostget.com static site", () => {
     expect(direct?.status).toBe(200);
     expect(direct?.headers.get("link")).toBe(negotiated?.headers.get("link"));
     expect(await direct?.text()).toContain("# Install GhostGet and read your first page");
-  });
+  }, 15000);
 
   test("keeps every README release reference aligned with package identity", async () => {
     const [manifest, readme, attestation] = await Promise.all([

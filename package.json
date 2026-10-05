@@ -1,6 +1,6 @@
 {
   "name": "@hraness/ghostget",
-  "version": "0.18.83",
+  "version": "0.18.85",
   "description": "GhostGet gives your AI agent named web actions: read a page, archive one media item, or use a connected account, without credentials or a browser to steer.",
   "license": "MIT",
   "type": "module",
@@ -471,6 +471,7 @@
     "src/read-client.ts",
     "src/read-projections.ts",
     "src/providers/beeper-local-runtime.ts",
+    "src/providers/beeper-cli-pin.ts",
     "src/providers/beeper-local.ts",
     "src/providers/beeper-messaging.ts",
     "src/providers/beeper-omni.ts",
@@ -668,7 +669,6 @@
     "check:theme": "bun scripts/check-paper-theme.mjs",
     "website:build": "bun run website/build.ts",
     "launch:kit": "bun run website/launch/social-kit.ts",
-    "website:verify-production-release": "bun run website/production-release-verifier.ts",
     "website:vercel-build": "bun run website/vercel-build.ts",
     "website:test": "bun test --timeout 60000 ./website ./edge",
     "website:typecheck": "tsc --noEmit --project website/tsconfig.json && tsc --noEmit --project edge/tsconfig.json",
@@ -684,7 +684,7 @@
     "accept:media:authenticated": "bun run scripts/media/authenticated-capture-acceptance.ts",
     "test:standalone": "bun run scripts/standalone-smoke.ts",
     "test:package": "bun run ./scripts/package-smoke.ts",
-    "test:npm-release": "bun test --no-orphans --timeout 45000 --max-concurrency 1 ./scripts/release-ref-authority.test.ts ./scripts/npm-release-workflow.test.ts ./scripts/github-release-artifact.test.ts ./scripts/ci-pr-gate.test.ts ./scripts/release-provider-outcome.test.ts ./scripts/github-release-publish-model.test.ts ./scripts/release-app-token-revocation.test.ts ./scripts/npm-publish-model.test.ts",
+    "test:npm-release": "bun test --no-orphans --timeout 45000 --max-concurrency 1 ./scripts/release-ref-authority.test.ts ./scripts/npm-release-workflow.test.ts ./scripts/github-release-artifact.test.ts ./scripts/ci-pr-gate.test.ts ./scripts/release-provider-outcome.test.ts ./scripts/github-release-publish-model.test.ts ./scripts/npm-publish-model.test.ts",
     "check:static": "bun run typecheck && bun run check:effect && bun run website:check && bun run test:npm-release",
     "check:package": "bun run build && bun run test:package",
     "check:macos": "bun run ./scripts/ci-macos-check.ts",
@@ -722,7 +722,7 @@
     "typescript": "6.0.3"
   },
   "devDependencies": {
-    "@hraness/design-kit": "github:hraness/design-kit#v0.39.0",
+    "@hraness/design-kit": "github:hraness/design-kit#v0.41.0",
     "@hraness/direct": "https://github.com/hraness/direct/releases/download/v0.7.29/hraness-direct-0.7.29.tgz",
     "@hraness/posthog": "https://github.com/hraness/posthog/releases/download/v0.3.11/hraness-posthog-0.3.11.tgz",
     "@hraness/site-footer": "https://github.com/hraness/site-footer/releases/download/v0.20.7/hraness-site-footer-0.20.7.tgz",

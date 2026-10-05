@@ -24,7 +24,7 @@ import {
 import type {
   BeeperMessageLikeMeSourceCoordinate,
 } from "./beeper-message-like-me-source";
-import { BEEPER_CLI_PIN } from "./providers/beeper-local";
+import { BEEPER_CLI_PIN } from "./providers/beeper-cli-pin";
 import { GHOSTGET_VERSION } from "./version";
 
 export const BEEPER_CONTACT_INTERACTION_SCHEMA_VERSION = 1 as const;
