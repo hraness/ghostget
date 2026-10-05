@@ -85,6 +85,27 @@ Qualification, bounded to read-only evidence:
   `linkedin-main`). No session material was copied to disk, no provider
   writes were issued, and the auth realms were verified unchanged
   afterward. See Result for the outcome.
+- **Live X qualification (post-v0.18.83, shipped integrated path):**
+  `createBrowserSession` + `cookie-source` auth `x-main` (Chrome),
+  `engine: "lightpanda"`, publisher-enabled, repeated three times:
+  `x.com/home` stayed at `/home` with server-rendered
+  `"screen_name":"hraness"` and `"rest_id":"1695180519640633575"` in a
+  ~360 KB hydrated timeline. The same manifest with a cookie file
+  holding no X credentials was server-side redirected to
+  `x.com/i/jf/onboarding/…?mode=login` (43 KB shell, no identity) —
+  the login-flow difference proves server-side auth acceptance, not
+  just local seeding. End-to-end session lifecycle: ~2.1–3.0 s total
+  (create ~0.7–0.8 s, `x.com/home` nav ~1.1–1.8 s, eval ~40–70 ms,
+  close ~45–65 ms) with the full durable cleanup journal
+  (prepared → launch-intent → quiescent → artifacts → socket →
+  roots removed) on every leg. On a neutral `example.com` manifest,
+  Lightpanda completed the identical session lifecycle in 1,039 ms vs
+  contained Chromium's 4,604 ms (~4.4× faster, dominated by session
+  creation: 626 ms vs 4,021 ms). Separately observed: X's edge
+  currently HTTP-rejects the contained headless Chromium on every
+  tested path (root, `/home`, `/robots.txt`) regardless of cookies —
+  not a Lightpanda regression, but it means no on-X Chromium timing
+  baseline is currently obtainable.
 
 ## Engine-aware contained sessions and the LinkedIn default
 
