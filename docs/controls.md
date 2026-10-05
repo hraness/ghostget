@@ -5,7 +5,6 @@ of them.
 
 ```sh
 ghostget status              # accounts, approvals, saved outputs, web rules
-ghostget tui                 # keyboard control panel
 ghostget control serve       # run the control owner without a window
 ghostget control install     # optionally start the owner at login
 ```
@@ -36,7 +35,7 @@ without it.
 
 One process owns a state home's control helper at a time. `ghostget control
 serve` runs it headless with an owner-only agent socket and an administrative
-socket the control verbs use. `ghostget tui` and the control verbs reuse a
+socket the control verbs use. The control verbs reuse a
 running owner; with none running, each command starts a private helper for its
 own duration. `ghostget control stop` asks the owner to exit over its socket;
 it never signals a process. `ghostget control status` reports whether one
@@ -45,19 +44,6 @@ answers.
 `ghostget control install` registers a per-user login item that starts the
 owner at login. It is opt-in and asks for confirmation;
 `ghostget control uninstall` removes it.
-
-## Use the terminal panel
-
-Run `ghostget tui` for keyboard-driven account, permission, approval, and
-activity views. `ghostget tui --snapshot` prints the current state once, as
-text for a person and as the JSON envelope for an agent (`--json` forces it).
-
-The six sections are Setup, Accounts, Capabilities, Approvals, Activity, and
-Interfaces. Press Tab to change sections, use the arrow keys to choose a row,
-and press Enter to open its actions. Press `?` for keyboard help and `q` to quit.
-Changes show a review before you confirm them. For long approval previews, read
-through the complete preview before confirming. The TUI runs with the same Bun
-installation as the CLI; it needs no Rust compiler or separate download.
 
 ## The retired menu bar
 
@@ -86,7 +72,7 @@ vault created by `ghostget init` is a separate document store.
 On a supported desktop platform (macOS, Linux, or Windows), unlock the 1Password
 desktop app and enable its app integration. Keep the existing X token in a
 1Password field. Obtain the numeric X user ID for that token and its actual
-scopes before importing. The TUI and control owner may stay open; the import
+scopes before importing. The control owner may stay open; the import
 binds the exact account revision:
 
 ```sh

@@ -11,7 +11,7 @@ export function ghostgetUpdateOptions(
   assertGatewayCommandAllowed(argv, environment);
   const separator = argv.indexOf("--");
   const possibleHelp = (separator === -1 ? argv : argv.slice(0, separator)).some(argument => argument === "--help" || argument === "-h");
-  const inspecting = ["status", "capabilities", "doctor", "tui", "commands", "control", "support"].includes(argv[0] ?? "")
+  const inspecting = ["status", "capabilities", "doctor", "commands", "control", "support"].includes(argv[0] ?? "")
     || (argv[0] === "operator" && argv[1] === "doctor")
     || (["plugin", "plugins"].includes(argv[0] ?? "") && ["list", "show"].includes(argv[1] ?? ""))
     || argv.includes("--cache-only") || argv.includes("--projection-identity-only");

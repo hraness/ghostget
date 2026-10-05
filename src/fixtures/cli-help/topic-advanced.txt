@@ -1,6 +1,5 @@
 GhostGet advanced commands
 
-  ghostget tui --snapshot            Print the control panel as plain text
   ghostget vault --help              Import an X token from 1Password
   ghostget web request <https-url>   Fetch public text through your web rules
   ghostget interface list|export|import
@@ -13,8 +12,8 @@ GhostGet advanced commands
   ghostget runs show|reconcile       Inspect or settle one run
   ghostget operator doctor           Same as ghostget doctor
 
-The TUI uses a running control owner (ghostget control serve) when there
-is one. Setup guide: https://ghostget.com/getting-started
+Control verbs use a running control owner (ghostget control serve) when
+there is one. Setup guide: https://ghostget.com/getting-started
 
 Support for agents
   ghostget support protocol --json   How an agent offers optional support

@@ -166,7 +166,7 @@ explicit authority; uncertain results stay visible instead of being blindly
 retried. Local state is not all encrypted: see the
 [privacy guide](https://ghostget.com/privacy/) for the storage boundaries.
 
-Use `ghostget tui` or `ghostget status` to review accounts, permissions,
+Use `ghostget status` to review accounts, permissions,
 pending approvals and saved outputs. Every control has a command with `--json`
 output, and decisions ask you at the terminal; see the
 [CLI parity guide](docs/cli-parity.md). `ghostget control serve` keeps a

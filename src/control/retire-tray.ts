@@ -89,7 +89,6 @@ export function retiredNotices(retired: readonly Retired[]): string[] {
 
 export const MENUBAR_RETIRED = `The Ghostget menu bar has been retired. Use:
   ghostget status                  accounts, approvals and saved outputs
-  ghostget tui                     keyboard controls
   ghostget control serve           run the control owner without a window
   ghostget control install         start it at login
   ghostget menubar uninstall       move the old menu bar login item aside

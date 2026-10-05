@@ -1,6 +1,6 @@
 import { discoverChromeProfileChoices } from "../browser-profiles";
 
-/** One browser sign-in target the CLI and TUI can offer. */
+/** One browser sign-in target the CLI can offer. */
 export type BrowserChoice = {
   /** Stable action-id fragment; never derived from unbounded text. */
   readonly key: string;

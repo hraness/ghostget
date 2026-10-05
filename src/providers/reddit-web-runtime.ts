@@ -606,7 +606,7 @@ export async function probeRedditWebSubject(
 }
 
 /** The viewer probe resolves the account username beside the t2_ subject, so
- * menus and the TUI can name the account instead of printing the raw ID. */
+ * the CLI can name the account instead of printing the raw ID. */
 export async function probeRedditWebIdentity(
   auth: GhostgetAuth,
   options: {

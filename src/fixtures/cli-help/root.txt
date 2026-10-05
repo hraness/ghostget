@@ -30,7 +30,6 @@ Run actions
 
 Control GhostGet
   ghostget status                     Accounts, approvals and saved outputs
-  ghostget tui                        Open the keyboard control panel
   ghostget control serve|stop         Run the control owner without a window
   ghostget approvals|permissions|connections
                                       Every control action as a command

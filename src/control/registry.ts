@@ -22,7 +22,7 @@ import type { ControlEnvironment } from "./web-policy";
  * Every administrative `ControlRequest` action is one verb here, and every
  * former menu-bar item maps to one of these or an existing Ghostget command
  * (docs/cli-parity.md, checked by registry.test.ts). Verbs are clients: the
- * control owner (`ghostget control serve`, or an open TUI) stays the
+ * control owner (`ghostget control serve`) stays the
  * authority for every admission decision.
  */
 export const PRODUCT = "ghostget";
@@ -117,7 +117,7 @@ async function fetchSnapshot(client: HelperClient, accountId: string | null): Pr
   return data.snapshot;
 }
 
-/** The one-screen status shared by `status`, `tui --snapshot` and `tui --json`. */
+/** The one-screen status behind `status` (text and `--json`). */
 export async function readStatus(ports: ControlPorts, accountId: string | null): Promise<GhostgetStatus> {
   let snapshot: ControlSnapshot | null = null;
   let actionError: string | null = null;

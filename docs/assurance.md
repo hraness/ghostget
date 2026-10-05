@@ -8,11 +8,11 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 211 claims: 198 evidenced, 0 planned, and 13 not verified. It maps 87 guidelines from 5 guides; 64 list claims and 23 are exempt.
+The register holds 209 claims: 196 evidenced, 0 planned, and 13 not verified. It maps 87 guidelines from 5 guides; 64 list claims and 23 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
-| example test | 126 | 0 | 0 |
+| example test | 124 | 0 | 0 |
 | property test | 22 | 0 | 0 |
 | stateful model | 24 | 0 | 0 |
 | Quint model with production trace replay | 14 | 0 | 0 |
@@ -107,7 +107,7 @@ Each claim holds only while its listed assumptions hold.
 | `bun-runtime` | Bun and JavaScriptCore execute the sources and the test runner as specified. | 8 |
 | `filesystem-atomic-rename` | Same-volume rename and link are atomic. | 33 |
 | `filesystem-durability` | Data and directory entries that were fsynced persist across a crash or power loss. | 32 |
-| `same-user-trusted` | Processes running as the same operating-system user are trusted; file modes and owner-only sockets separate users. | 34 |
+| `same-user-trusted` | Processes running as the same operating-system user are trusted; file modes and owner-only sockets separate users. | 32 |
 | `process-liveness` | Process ID, process start time, and boot identity readings are truthful. | 10 |
 | `monotonic-clock` | The injected monotonic clock never runs backward. | 4 |
 | `whatwg-url` | Bun's URL parser implements the WHATWG URL Standard. | 13 |
@@ -312,7 +312,7 @@ R1 reads store a provisional receipt before execution, accept only zero-dispatch
 - Assumptions: none beyond the register-wide scope
 - Not verified: Only the enumerated example cases are checked.
 
-### `control` (14 claims)
+### `control` (12 claims)
 
 #### `agent-channel-cannot-escalate`
 
@@ -347,26 +347,6 @@ Administrative and agent control protocols are bounded and reject unknown fields
 - Property tests: `src/control/helper-client.test.ts`: “helper rejects malformed envelopes and nested contract drift”; `src/control/validation.test.ts`: “strict parsers reject every generated unknown key”
 - Assumptions: `same-user-trusted`
 - Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
-
-#### `tui-input-cannot-bypass-review`
-
-Terminal input, including pasted or unbracketed bursts, cannot issue confirmation or approval without the complete account and exact revision/digest review being displayed.
-
-- Evidenced by example test.
-- Source: `src/control/AGENTS.md`: “Terminal input, including pasted text, must never bypass that review.”
-- Evidence: `src/control/tui.test.ts`
-- Assumptions: `same-user-trusted`
-- Not verified: Only the enumerated example cases are checked.
-
-#### `tui-restores-terminal-state`
-
-The TUI restores terminal state (raw mode, cursor, alternate screen) before waiting for helper cancellation and custody settlement, including on failure and signals.
-
-- Evidenced by example test.
-- Source: `src/control/AGENTS.md`: “Restore terminal state before waiting for helper cancellation and custody settlement.”
-- Evidence: `src/control/tui.test.ts`
-- Assumptions: `same-user-trusted`
-- Not verified: Only the enumerated example cases are checked.
 
 #### `managed-policy-corrupt-denies`
 
@@ -410,17 +390,17 @@ Credential publication re-verifies the exact staged bytes and account revision; 
 
 #### `control-single-helper-owner`
 
-The control verbs and TUI share exactly one helper owner per state home; a second controller does not acquire custody.
+The control verbs share exactly one helper owner per state home; a second controller does not acquire custody.
 
 - Evidenced by stateful model.
-- Source: `src/control/AGENTS.md`: “The control verbs and TUI share one helper owner per state home.”
-- Evidence: `src/control/helper.ts`, `src/control/helper-owner.property.test.ts`, `src/control/helper-client.test.ts`, `src/control/helper-lifecycle.test.ts`, `src/control/tui.test.ts`
+- Source: `src/control/AGENTS.md`: “The control verbs share one helper owner per state home.”
+- Evidence: `src/control/helper.ts`, `src/control/helper-owner.property.test.ts`, `src/control/helper-client.test.ts`, `src/control/helper-lifecycle.test.ts`
 - Property tests: `src/control/helper-owner.property.test.ts`: “property: at most one live contender holds helper custody across inspect and commit races, crashes, restarts, and unknown owners”
 - Assumptions: `same-user-trusted`, `filesystem-durability`
 - Not verified:
   - The model drives the production owner record (`inspectControlOwner` and `commitControlOwner`) in one process. Process liveness is a fake that the model controls, so `processOwnerStatus`'s own inspection of real processes is outside it; its tests are in `src/process-identity.test.ts`.
   - Contenders interleave only between inspection and commit. That two separate processes cannot both win the create-if-absent or compare-and-swap write rests on the storage layer's exclusive create and locked replace, under the filesystem-durability assumption.
-  - That the menu and the TUI reach the one helper through its socket, rather than starting their own, rests on the listed example tests only.
+  - That controllers reach the one helper through its socket, rather than starting their own, rests on the listed example tests only.
   - The model samples its schedules: CI runs 30 schedules of up to 20 commands over three contenders.
 
 #### `no-cached-authorization-across-change`
@@ -2209,12 +2189,12 @@ A read path receives a branded read capability with only read members, such as `
   - The brand exists only in the type system; code that casts through `unknown` can still forge a capability.
   - Only the control snapshot, its account and permission listings, the auth checks of cache reads, live-read publication, and omni materialization, read-path invocation preparation, confirmation preparation, and the operation-permission account identity take the typed capability; other read paths are not covered.
 
-#### `tui-snapshot-read-only`
+#### `control-snapshot-read-only`
 
-The control snapshot that `ghostget status` and `ghostget tui --snapshot` read, and its account and permission listings, take no admission and create no state; auth incarnations are created only by account saves, the control-service startup backfill, and admitted execution paths.
+The control snapshot that `ghostget status` reads, and its account and permission listings, take no admission and create no state; auth incarnations are created only by account saves, the control-service startup backfill, and admitted execution paths.
 
 - Evidenced by property test.
-- Source: `AGENTS.md`: “The control snapshot that `ghostget status` and `ghostget tui --snapshot` read, and its account and permission listings, take no admission and create no state; account saves, the control-service startup backfill, and admitted execution paths create auth incarnations.”
+- Source: `AGENTS.md`: “The control snapshot that `ghostget status` reads, and its account and permission listings, take no admission and create no state; account saves, the control-service startup backfill, and admitted execution paths create auth incarnations.”
 - Evidence: `src/control/read-capability.test.ts`
 - Property tests: `src/control/read-capability.test.ts`: “for any set of legacy accounts and orphaned claims, listing revisions write nothing and match the admitted revision exactly when an incarnation exists”
 - Assumptions: `filesystem-atomic-rename`, `same-user-trusted`

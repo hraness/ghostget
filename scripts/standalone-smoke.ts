@@ -199,26 +199,27 @@ async function exercisePackedControls(
 
     const snapshot = await runCli(
       target,
-      "TUI snapshot from an absent state home",
-      ["tui", "--snapshot"],
+      "status snapshot from an absent state home",
+      ["status"],
       [0],
       PACKED_CONTROL_COMMAND_TIMEOUT_MS,
       controlsEnvironment,
     );
     if (snapshot.stderr !== ""
-      || !snapshot.stdout.startsWith(`Ghostget ${version} · Local controls\n`)
-      || !snapshot.stdout.includes("\nAccount: No account (public scope)\n")
-      || !snapshot.stdout.includes("\nAccounts: 0 · capabilities: 0 · approvals: 0 · interfaces: 0\n")
-      || !snapshot.stdout.includes("\nManaged permissions: off\n")
-      || !snapshot.stdout.includes("\nFirst read: ghostget read https://example.com\n")
+      || !snapshot.stdout.startsWith("== Ghostget ==\n")
+      || !snapshot.stdout.includes(`No accounts connected · v${version}\n`)
+      || !snapshot.stdout.includes("\nAccount: none (public scope)\n")
+      || !snapshot.stdout.includes("\nNo approvals waiting\n")
+      || !snapshot.stdout.includes("\nManaged: off · revision 0\n")
+      || !snapshot.stdout.includes("ghostget read https://example.com\n")
       || /[\u0000-\u0009\u000b-\u001f\u007f-\u009f]/u.test(snapshot.stdout)
       || !existsSync(join(controlsState, ".io-state.json"))
       || !existsSync(join(controlsState, "control"))) {
-      throw new Error(`${target.label} TUI did not return a clean helper-backed snapshot`);
+      throw new Error(`${target.label} status did not return a clean helper-backed snapshot`);
     }
     if (existsSync(join(controlsState, "control", "owner.json"))
       || existsSync(join(controlsState, "control", "agent.sock"))) {
-      throw new Error(`${target.label} TUI exited without releasing its helper ownership`);
+      throw new Error(`${target.label} status exited without releasing its helper ownership`);
     }
   } finally {
     await rm(controlsRoot, { recursive: true, force: true });

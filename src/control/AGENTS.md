@@ -3,11 +3,10 @@
 - `protocol.ts` – browser-safe administrative and agent contracts.
 - `helper.ts`, `service.ts` – process custody, transport and control composition.
 - `retire-tray.ts` – moves the retired menu bar's login item aside (never deletes) and answers `ghostget menubar` with the replacements.
-- `tui*.ts` – keyboard-driven control views, input decoding, and terminal lifetime.
 - `registry.ts`, `registry-words.ts` – the shared-grammar control verbs (`status`, `approvals`, `permissions`, `control`, …) with `--json` parity.
 - `admin-socket.ts` – the owner's capability-bound administrative socket used by those verbs.
-- `status-view.ts`, `outputs.ts` – the one-screen status model and saved-output listing shared by the TUI and CLI.
-- `helper-client.ts`, `control-response.ts` – bounded private control transport and strict response parsing shared by the CLI verbs and TUI.
+- `status-view.ts`, `outputs.ts` – the one-screen status model and saved-output listing used by the CLI.
+- `helper-client.ts`, `control-response.ts` – bounded private control transport and strict response parsing shared by the CLI verbs.
 - `vault-cli.ts`, `vault-input.ts` – explicit X-token import metadata and command guidance; secret resolution stays in `credential-helper.ts`.
 - `approval-*.ts` – exact human request and one-use approval lifetimes.
 - `web-*.ts`, `activity.ts` – bounded public retrieval and SQLite metadata.
@@ -26,12 +25,11 @@ verbs and requires the owner's private capability file. It is not a boundary
 against the same user, so every verb that grants, loosens, connects,
 disconnects, activates or installs passes the shared T1+T2 human gate; only
 inputs that strictly tighten run without it.
-The control verbs and TUI share one helper owner per state home. The token-import
+The control verbs share one helper owner per state home. The token-import
 command performs its own credential-helper ceremony without that owner, so
 imports run while control surfaces stay open. Keep account selection and
 exact revision/digest review visible before actions. Terminal input,
-including pasted text, must never bypass that review. Restore terminal state
-before waiting for helper cancellation and custody settlement.
+including pasted text, must never bypass that review.
 
 `service.ts` composes current account, manifest and implementation identities.
 Display optimizations must not cache authorization across a changed account,

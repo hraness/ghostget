@@ -7,6 +7,15 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+Remove the `ghostget tui` keyboard control panel.
+
+- `ghostget status` and `ghostget status --json` remain the review surface
+  for accounts, approvals, permissions, saved outputs, and next steps;
+  `ghostget control serve` still runs the shared control owner headless,
+  and `ghostget menubar` still covers retirement, doctor and uninstall.
+- Control verbs share one owner per state home; `ghostget tui` is now an
+  unknown command and the packed archive ships three fewer sources.
+
 ## 0.18.84
 
 Prefer a provisioned Lightpanda by default for every headless cookie-yielding contained browser session.
