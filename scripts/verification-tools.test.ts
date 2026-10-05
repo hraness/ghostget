@@ -981,9 +981,8 @@ describe("quint shard packing", () => {
     const fenceShard = shards.findIndex((shard) => shard.some((unit) => unit.core && unit.model.file === "fence.qnt"));
     expect(shards[fenceShard]).toHaveLength(1);
     expect(quintWorkForShard(models, { shard: fenceShard + 1, shardCount: QUINT_CI_SHARD_COUNT })).toEqual(shards[fenceShard]!);
-    // The model weight still sums a split model's parts, and promotion.qnt is measured.
+    // The model weight still sums a split model's parts.
     expect(quintModelWeight("fence.qnt")).toBeGreaterThan(1150);
-    expect(quintModelWeight("promotion.qnt")).toBe(300);
   });
 
   test("packs every part exactly once for any shard count", async () => {

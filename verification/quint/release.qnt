@@ -1,10 +1,10 @@
-// Release and promotion: one tag push starts Release run R, whose attempts
+// Release: one tag push starts Release run R, whose attempts
 // build, attest, publish the immutable GitHub Release, and publish npm. The
 // owner may re-run the failed jobs of the latest attempt, carrying its
 // successful jobs and their attested artifact, or re-run all jobs, which
 // rebuilds and re-signs under the new attempt. The publisher's handoff
-// (`verifyPublicationHandoff`), website promotion (`resolveReleaseAuthority`),
-// and the canonical download (`verifyCanonicalReleaseRun`) read the provider
+// (`verifyPublicationHandoff`) and the canonical download
+// (`verifyCanonicalReleaseRun`) read the provider
 // state this module keeps. The draft, resume, and Latest convergence of
 // `publishCanonicalRelease` are modeled here but not replayed.
 module release {
@@ -21,7 +21,6 @@ module release {
   // run's attested files, files naming a later attempt, or files naming the
   // current attempt whether or not it attested them.
   pure val SOURCES: Set[str] = Set("carried", "foreign", "future", "unsigned")
-  pure val MODES: Set[str] = Set("automatic", "manual")
   // Recovery reads at most this many attempts strictly between a receipt
   // attempt that attested but did not publish and the latest attempt
   // (`MAX_INTERMEDIATE_RELEASE_ATTEMPTS`). With MAX attempts the gap is at
@@ -47,15 +46,15 @@ module release {
   var handoff: str
   var handoffRun: int
   var handoffAttempt: int
-  // The last promotion or download verdict: "none", "admitted", or "refused".
+  // The last canonical-download verdict: "none", "admitted", or "refused".
   var verdict: str
-  // "", "automatic", "manual", or "download".
+  // "" or "download".
   var verdictPath: str
   // Ghost: the publisher refused the exact attested artifact its run carried.
   var refusedExact: bool
-  // Ghost: manual recovery or the canonical download refused a Release that
+  // Ghost: the canonical download refused a Release that
   // some attempt of its run proved by all four canonical jobs.
-  var promotionBlocked: bool
+  var downloadBlocked: bool
 
   action init = all {
     latest' = 0,
@@ -71,7 +70,7 @@ module release {
     verdict' = "none",
     verdictPath' = "",
     refusedExact' = false,
-    promotionBlocked' = false,
+    downloadBlocked' = false,
   }
 
   def conclusion(a: int, j: int): str = jobs.get(a).get(j)
@@ -149,7 +148,7 @@ module release {
       verdict' = "none",
       verdictPath' = "",
       refusedExact' = (refusedExact or (publishRuns and source == "carried" and not(admitted))),
-      promotionBlocked' = promotionBlocked,
+      downloadBlocked' = downloadBlocked,
     }
   }
 
@@ -165,27 +164,6 @@ module release {
     handoffRun' = 0,
     handoffAttempt' = 0,
     refusedExact' = refusedExact,
-  }
-
-  // Automatic promotion follows the completion of the latest attempt and
-  // requires its success. Manual recovery admits a latest attempt that proved
-  // all four canonical jobs, or the earlier receipt attempt the body names
-  // when that attempt proved all four, or, when that receipt attempt attested
-  // but did not publish, a bounded intermediate attempt that proved all four.
-  // Pre-fix D8 required success; pre-fix D15 read no intermediate attempt.
-  action promote(mode: str, rule: str): bool = {
-    val m = relAttempt
-    val admit =
-      if (mode == "automatic" or rule == "d8") succeeded(latest)
-      else if (rule == "d15") (all4(latest) or (m < latest and all4(m)))
-      else (all4(latest) or (m < latest and (all4(m) or (first3(m) and publishedBetween(m, latest)))))
-    all {
-      relState == "published",
-      keepRelease,
-      verdict' = if (admit) "admitted" else "refused",
-      verdictPath' = mode,
-      promotionBlocked' = (promotionBlocked or (mode == "manual" and not(admit) and anyPublished)),
-    }
   }
 
   // The canonical download admits the attesting attempt the manifest names
@@ -205,7 +183,7 @@ module release {
       keepRelease,
       verdict' = if (admit) "admitted" else "refused",
       verdictPath' = "download",
-      promotionBlocked' = (promotionBlocked or (not(admit) and anyPublished)),
+      downloadBlocked' = (downloadBlocked or (not(admit) and anyPublished)),
     }
   }
 
@@ -215,7 +193,7 @@ module release {
     keepRelease,
     verdict' = "none",
     verdictPath' = "",
-    promotionBlocked' = promotionBlocked,
+    downloadBlocked' = downloadBlocked,
   }
 
   // Adversarial handoffs arrive on one roll in four so that seeded
@@ -226,10 +204,8 @@ module release {
     nondet failAt = FAULTS.oneOf()
     nondet source = SOURCES.oneOf()
     nondet sourceRoll = 0.to(3).oneOf()
-    nondet mode = MODES.oneOf()
     any {
       startAttempt(kind, failAt, if (sourceRoll == 0) source else "carried", "fixed"),
-      promote(mode, "fixed"),
       download("fixed"),
       done,
     }
@@ -241,25 +217,8 @@ module release {
     nondet failAt = FAULTS.oneOf()
     nondet source = SOURCES.oneOf()
     nondet sourceRoll = 0.to(3).oneOf()
-    nondet mode = MODES.oneOf()
     any {
       startAttempt(kind, failAt, if (sourceRoll == 0) source else "carried", "d7"),
-      promote(mode, "fixed"),
-      download("fixed"),
-      done,
-    }
-  }
-
-  // Seeded defect D8: manual recovery requires a successful latest attempt.
-  action stepD8 = {
-    nondet kind = KINDS.oneOf()
-    nondet failAt = FAULTS.oneOf()
-    nondet source = SOURCES.oneOf()
-    nondet sourceRoll = 0.to(3).oneOf()
-    nondet mode = MODES.oneOf()
-    any {
-      startAttempt(kind, failAt, if (sourceRoll == 0) source else "carried", "fixed"),
-      promote(mode, "d8"),
       download("fixed"),
       done,
     }
@@ -271,26 +230,22 @@ module release {
     nondet failAt = FAULTS.oneOf()
     nondet source = SOURCES.oneOf()
     nondet sourceRoll = 0.to(3).oneOf()
-    nondet mode = MODES.oneOf()
     any {
       startAttempt(kind, failAt, if (sourceRoll == 0) source else "carried", "unbound"),
-      promote(mode, "fixed"),
       download("fixed"),
       done,
     }
   }
 
-  // Seeded defect D15: manual recovery and the canonical download read no
+  // Seeded defect D15: the canonical download reads no
   // attempt between the receipt attempt and the latest attempt.
   action stepD15 = {
     nondet kind = KINDS.oneOf()
     nondet failAt = FAULTS.oneOf()
     nondet source = SOURCES.oneOf()
     nondet sourceRoll = 0.to(3).oneOf()
-    nondet mode = MODES.oneOf()
     any {
       startAttempt(kind, failAt, if (sourceRoll == 0) source else "carried", "fixed"),
-      promote(mode, "d15"),
       download("d15"),
       done,
     }
@@ -303,10 +258,8 @@ module release {
     nondet failAt = FAULTS.oneOf()
     nondet source = SOURCES.oneOf()
     nondet sourceRoll = 0.to(3).oneOf()
-    nondet mode = MODES.oneOf()
     any {
       startAttempt(kind, failAt, if (sourceRoll == 0) source else "carried", "fixed"),
-      promote(mode, "fixed"),
       download("early"),
       done,
     }
@@ -319,21 +272,21 @@ module release {
     relState == "published" implies (relAttempt >= 1 and relAttempt <= latest and attested.contains((R, relAttempt))),
   }
 
-  // Promotion and the canonical download admit a published Release only when
+  // The canonical download admits a published Release only when
   // its receipt attempt, or a later attempt of its run up to the latest,
   // proved all four canonical jobs.
-  val promotionSound: bool =
+  val downloadSound: bool =
     verdict == "admitted" implies (relState == "published"
       and ATTEMPTS.exists(a => a >= relAttempt and a <= latest and all4(a)))
 
   // The publisher never refuses the exact attested artifact its run carries.
   val exactHandoffPublishes: bool = not(refusedExact)
 
-  // A failed npm job never blocks manual promotion or the canonical download
+  // A failed npm job never blocks the canonical download
   // of a Release that any attempt of its run published by proving all four
   // canonical jobs, including an intermediate failed-jobs rerun followed by a
   // rerun of all jobs whose publish failed (plan D15). The ghost does not
-  // restate the admission rule: it names any publishing attempt. The D8 and
-  // D15 mutants violate it.
-  val promotionNotBlocked: bool = not(promotionBlocked)
+  // restate the admission rule: it names any publishing attempt. The
+  // D15 mutant violates it.
+  val downloadNotBlocked: bool = not(downloadBlocked)
 }

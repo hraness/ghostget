@@ -5,15 +5,11 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
 import {
-  assertRemoteTagAbsent,
   type GitCommandResult,
   type GitCommandRunner,
   parseGovernedRemoteSnapshot,
-  parseRemoteMainSnapshot,
   parseRemoteTagSnapshot,
-  verifyReleasePublicationAuthority,
   verifyReleaseRefAuthority,
-  verifyStageSourceAuthority,
 } from "./release-ref-authority";
 
 const repositoryUrl = "https://github.com/hraness/ghostget.git";
@@ -30,9 +26,6 @@ const protectedReleaseRuntimePaths = Object.freeze([
   "scripts/package-smoke.ts",
   "scripts/private-source-client-runtime-smoke.ts",
   "scripts/release-provider-outcome.mjs",
-  "scripts/release-app-token.mjs",
-  "scripts/release-ref-writer.mjs",
-  "website/production-release-marker.mjs",
         "website/github-release-artifact.mjs",
         "website/release-notes.mjs",
 ]);
@@ -177,11 +170,6 @@ function checkoutRelease(input: Fixture): void {
   git(input.work, ["checkout", "--detach", "refs/tags/v1.0.0^{commit}"]);
 }
 
-function checkoutMain(input: Fixture): void {
-  git(input.work, ["fetch", "--depth=1", "--no-tags", input.remote, input.mainSha]);
-  git(input.work, ["checkout", "--detach", "FETCH_HEAD"]);
-}
-
 function checkoutSha(input: Fixture, sha: string): void {
   git(input.work, ["fetch", "--depth=1", "--no-tags", input.remote, sha]);
   git(input.work, ["checkout", "--detach", "FETCH_HEAD"]);
@@ -235,7 +223,6 @@ describe("bounded Ghostget remote ref inventories", () => {
       [tag, "refs/tags/v1.0.0"],
       [tag, "refs/tags/v1.0.1-rc.1"],
     );
-    expect(parseRemoteMainSnapshot(mainRow)).toBe(main);
     expect(parseRemoteTagSnapshot(tags, "v1.0.0").requestedTagOid).toBe(tag);
     expect(parseGovernedRemoteSnapshot(`${mainRow}${tags}`, "v1.0.0")).toEqual({
       canonical: `${mainRow}${tags}`,
@@ -266,13 +253,6 @@ describe("bounded Ghostget remote ref inventories", () => {
     ]) expect(() => parseRemoteTagSnapshot(value, "v1.0.0")).toThrow();
     expect(() => parseRemoteTagSnapshot(new Uint8Array([0xff]), "v1.0.0"))
       .toThrow("valid UTF-8");
-    for (const value of [
-      "",
-      inventory([main, "refs/heads/other"]),
-      inventory([main, "refs/heads/main"], [main, "refs/heads/main"]),
-      inventory(["z".repeat(40), "refs/heads/main"]),
-    ]) expect(() => parseRemoteMainSnapshot(value)).toThrow();
-
     const tooMany = Array.from({ length: 501 }, (_, index) =>
       inventory([tag, `refs/tags/v1.0.0-${String(index).padStart(3, "0")}`])).join("");
     expect(() => parseRemoteTagSnapshot(tooMany, "v1.0.0")).toThrow("row count");
@@ -312,7 +292,7 @@ describe("bounded Ghostget remote ref inventories", () => {
   });
 });
 
-describe("Ghostget release and promotion ref authority", () => {
+describe("Ghostget release ref authority", () => {
   test.each([undefined, "", "preview", "Main", "main ", "main"])(
     "requires exact workflow branch context before ref inspection (%s)",
     (defaultBranch) => {
@@ -334,7 +314,7 @@ describe("Ghostget release and promotion ref authority", () => {
       expect(result.status).toBe(1);
       expect(result.stdout).toBe("");
       expect(result.stderr).toContain(defaultBranch === "main"
-        ? "Unsupported release-ref authority mode."
+        ? "Usage: release-ref-authority.ts release TAG"
         : "Release-ref authority must run for hraness/ghostget on exact default branch main.");
     },
   );
@@ -344,7 +324,6 @@ describe("Ghostget release and promotion ref authority", () => {
     checkoutRelease(input);
     const { calls, runner } = runnerFor(input);
     expect(verifyReleaseRefAuthority({
-      mode: "release",
       requestedTag: "v1.0.0",
       runner,
       workingDirectory: input.work,
@@ -367,25 +346,11 @@ describe("Ghostget release and promotion ref authority", () => {
     );
   });
 
-  test("accepts a release below a workflow source below protected current main", () => {
-    const input = fixture();
-    checkoutSha(input, input.workflowSha);
-    const { runner } = runnerFor(input);
-    expect(verifyReleaseRefAuthority({
-      expectedReleaseSha: input.releaseSha,
-      mode: "promotion",
-      requestedTag: "v1.0.0",
-      runner,
-      workingDirectory: input.work,
-      workflowSha: input.workflowSha,
-    })).toEqual({ mainSha: input.mainSha, sha: input.releaseSha, tag: "v1.0.0" });
-  });
 
   test("rejects annotated requested tags without treating later raw tags as completed releases", () => {
     const annotated = fixture({ requestedTagKind: "annotated" });
     checkoutRelease(annotated);
     expect(() => verifyReleaseRefAuthority({
-      mode: "release",
       requestedTag: "v1.0.0",
       runner: runnerFor(annotated).runner,
       workingDirectory: annotated.work,
@@ -395,91 +360,46 @@ describe("Ghostget release and promotion ref authority", () => {
       const input = fixture({ higherTagKind });
       checkoutRelease(input);
       expect(verifyReleaseRefAuthority({
-        mode: "release",
-        requestedTag: "v1.0.0",
+          requestedTag: "v1.0.0",
         runner: runnerFor(input).runner,
         workingDirectory: input.work,
       })).toEqual({ mainSha: input.mainSha, sha: input.releaseSha, tag: "v1.0.0" });
     }
   });
 
-  test("rejects divergent promotion and release histories", () => {
-    const divergent = fixture({ divergent: true });
-    checkoutMain(divergent);
-    expect(() => verifyReleaseRefAuthority({
-      mode: "promotion",
-      requestedTag: "v1.0.0",
-      runner: runnerFor(divergent).runner,
-      workflowSha: divergent.mainSha,
-    })).toThrow("not an ancestor");
-
+  test("rejects a divergent release history", () => {
     const releaseDivergence = fixture({ divergent: true });
     checkoutRelease(releaseDivergence);
     expect(() => verifyReleaseRefAuthority({
-      mode: "release",
       requestedTag: "v1.0.0",
       runner: runnerFor(releaseDivergence).runner,
       workingDirectory: releaseDivergence.work,
     })).toThrow("Verified release commit is not an ancestor of exact advertised main");
   });
 
-  test("rejects wrong release checkout and workflow coordinates", () => {
+  test("rejects a wrong release checkout", () => {
     const wrongReleaseCheckout = fixture();
     checkoutRelease(wrongReleaseCheckout);
     checkoutSha(wrongReleaseCheckout, wrongReleaseCheckout.mainSha);
     expect(() => verifyReleaseRefAuthority({
-      mode: "release",
       requestedTag: "v1.0.0",
       runner: runnerFor(wrongReleaseCheckout).runner,
       workingDirectory: wrongReleaseCheckout.work,
     })).toThrow("Release tag and checkout must name one commit");
-
-    const workflowDivergence = fixture();
-    checkoutSha(workflowDivergence, workflowDivergence.workflowSha);
-    const workflowDivergenceRunner = runnerFor(workflowDivergence, {
-      mutateResult: (arguments_, _invocation, result) => {
-        if (
-          arguments_[0] === "merge-base"
-          && arguments_[1] === "--is-ancestor"
-          && arguments_[2] === workflowDivergence.workflowSha
-          && arguments_[3] === "refs/remotes/origin/main"
-        ) {
-          return Object.freeze({ ...result, exitCode: 1 });
-        }
-        return result;
-      },
-    });
-    expect(() => verifyReleaseRefAuthority({
-      mode: "promotion",
-      requestedTag: "v1.0.0",
-      runner: workflowDivergenceRunner.runner,
-      workingDirectory: workflowDivergence.work,
-      workflowSha: workflowDivergence.workflowSha,
-    })).toThrow("Promotion workflow source is not an ancestor of exact advertised main");
-
-    const input = fixture();
-    checkoutMain(input);
-    expect(() => verifyReleaseRefAuthority({
-      mode: "promotion",
-      requestedTag: "v1.0.0",
-      runner: runnerFor(input).runner,
-      workflowSha: "9".repeat(40),
-    })).toThrow("exact verified workflow source");
   });
 
   test("rejects unexpected refs and remote drift", () => {
     const input = fixture();
-    checkoutMain(input);
-    git(input.work, ["update-ref", "refs/heads/unexpected", input.mainSha]);
+    checkoutRelease(input);
+    git(input.work, ["update-ref", "refs/heads/unexpected", input.releaseSha]);
     expect(() => verifyReleaseRefAuthority({
-      mode: "promotion",
       requestedTag: "v1.0.0",
       runner: runnerFor(input).runner,
-      workflowSha: input.mainSha,
+      workingDirectory: input.work,
     })).toThrow("exact governed ref set");
 
     const driftInput = fixture();
-    checkoutMain(driftInput);
+    checkoutRelease(driftInput);
     let governedReads = 0;
     const drift = runnerFor(driftInput, {
       mutateResult: (arguments_, _invocation, result) => {
@@ -501,10 +421,9 @@ describe("Ghostget release and promotion ref authority", () => {
       },
     });
     expect(() => verifyReleaseRefAuthority({
-      mode: "promotion",
       requestedTag: "v1.0.0",
       runner: drift.runner,
-      workflowSha: driftInput.mainSha,
+      workingDirectory: driftInput.work,
     })).toThrow("changed during verification");
   });
 
@@ -512,7 +431,6 @@ describe("Ghostget release and promotion ref authority", () => {
     const releaseControlDrift = fixture({ workflowDrift: true });
     checkoutRelease(releaseControlDrift);
     expect(() => verifyReleaseRefAuthority({
-      mode: "release",
       requestedTag: "v1.0.0",
       runner: runnerFor(releaseControlDrift).runner,
       workingDirectory: releaseControlDrift.work,
@@ -525,311 +443,11 @@ describe("Ghostget release and promotion ref authority", () => {
       const releaseControlDrift = fixture({ releaseControlDriftPath });
       checkoutRelease(releaseControlDrift);
       expect(() => verifyReleaseRefAuthority({
-        mode: "release",
-        requestedTag: "v1.0.0",
+          requestedTag: "v1.0.0",
         runner: runnerFor(releaseControlDrift).runner,
         workingDirectory: releaseControlDrift.work,
       })).toThrow("different release-control definitions");
     },
   );
 
-  test("binds two combined advertisements immediately before publication", () => {
-    const input = fixture();
-    checkoutSha(input, input.releaseSha);
-    const success = runnerFor(input);
-    expect(verifyReleasePublicationAuthority({
-      expectedMainSha: input.mainSha,
-      expectedReleaseSha: input.releaseSha,
-      phase: "prewrite",
-      requestedTag: "v1.0.0",
-      runner: success.runner,
-      workingDirectory: input.work,
-    })).toEqual({ mainSha: input.mainSha, sha: input.releaseSha, tag: "v1.0.0" });
-    expect(success.calls.filter((call) => call[0] === "ls-remote")).toEqual([
-      ["ls-remote", "--sort=refname", "--refs", repositoryUrl, "refs/heads/main", "refs/tags/v*"],
-      ["ls-remote", "--sort=refname", "--refs", repositoryUrl, "refs/heads/main", "refs/tags/v*"],
-    ]);
-    expect(success.calls.find((call) => call[0] === "diff")).toEqual([
-      "diff",
-      "--quiet",
-      "--no-ext-diff",
-      "--no-textconv",
-      input.releaseSha,
-      "refs/ghostget-release/publication-main",
-      "--",
-      ".github/workflows",
-      "scripts/release-ref-authority.ts",
-  "scripts/release-source-ci.ts",
-      "scripts/npm-provenance-identity.ts",
-      "scripts/npm-package-identity.ts",
-        "scripts/github-release-artifact.ts",
-        "scripts/github-release-publish.ts",
-      "scripts/package-artifact.ts",
-      "scripts/package-budget.ts",
-      "scripts/package-smoke.ts",
-      "scripts/private-source-client-runtime-smoke.ts",
-      "scripts/release-provider-outcome.mjs",
-      "scripts/release-app-token.mjs",
-      "scripts/release-ref-writer.mjs",
-      "website/production-release-marker.mjs",
-        "website/github-release-artifact.mjs",
-        "website/release-notes.mjs",
-    ]);
-  });
-
-  test("rejects an annotated request and a changed terminal advertisement", () => {
-    const rejectedInput = fixture({ mainAtRelease: true, requestedTagKind: "annotated" });
-    checkoutSha(rejectedInput, rejectedInput.releaseSha);
-    expect(() => verifyReleasePublicationAuthority({
-      expectedMainSha: rejectedInput.mainSha,
-      expectedReleaseSha: rejectedInput.releaseSha,
-      phase: "prewrite",
-      requestedTag: "v1.0.0",
-      runner: runnerFor(rejectedInput).runner,
-      workingDirectory: rejectedInput.work,
-    })).toThrow();
-
-    const input = fixture();
-    checkoutSha(input, input.releaseSha);
-    let reads = 0;
-    const drift = runnerFor(input, {
-      mutateResult: (arguments_, _invocation, result) => {
-        if (arguments_[0] === "ls-remote" && arguments_.at(-1) === "refs/tags/v*") {
-          reads += 1;
-          if (reads === 2) {
-            return Object.freeze({
-              ...result,
-              stdout: new TextEncoder().encode(
-                new TextDecoder().decode(result.stdout).replace(input.mainSha, "8".repeat(40)),
-              ),
-            });
-          }
-        }
-        return result;
-      },
-    });
-    expect(() => verifyReleasePublicationAuthority({
-      expectedMainSha: input.mainSha,
-      expectedReleaseSha: input.releaseSha,
-      phase: "prewrite",
-      requestedTag: "v1.0.0",
-      runner: drift.runner,
-      workingDirectory: input.work,
-    })).toThrow("changed at the publication boundary");
-  });
-
-  test("treats a higher raw tag as incomplete in both publication phases", () => {
-    const supersededRawTag = fixture({ higherTagKind: "lightweight" });
-    checkoutSha(supersededRawTag, supersededRawTag.releaseSha);
-    for (const phase of ["prewrite", "postwrite"] as const) {
-      expect(verifyReleasePublicationAuthority({
-        expectedMainSha: supersededRawTag.mainSha,
-        expectedReleaseSha: supersededRawTag.releaseSha,
-        phase,
-        requestedTag: "v1.0.0",
-        runner: runnerFor(supersededRawTag).runner,
-        workingDirectory: supersededRawTag.work,
-      })).toEqual({
-        mainSha: supersededRawTag.mainSha,
-        sha: supersededRawTag.releaseSha,
-        tag: "v1.0.0",
-      });
-    }
-  });
-
-  for (const phase of ["prewrite", "postwrite"] as const) {
-    test(`rejects release-control drift at ${phase}`, () => {
-      for (const driftOptions of [
-        { workflowDrift: true },
-        { releaseControlDrift: true },
-      ] as const) {
-        const releaseControlDrift = fixture(driftOptions);
-        checkoutSha(releaseControlDrift, releaseControlDrift.releaseSha);
-        expect(() => verifyReleasePublicationAuthority({
-          expectedMainSha: releaseControlDrift.mainSha,
-          expectedReleaseSha: releaseControlDrift.releaseSha,
-          phase,
-          requestedTag: "v1.0.0",
-          runner: runnerFor(releaseControlDrift).runner,
-          workingDirectory: releaseControlDrift.work,
-        })).toThrow(`different release-control definitions at ${phase}`);
-      }
-    });
-  }
-});
-
-describe("Ghostget staging ref authority", () => {
-  test("accepts an artifact source at or below protected main and imports history without FETCH_HEAD", () => {
-    const input = fixture();
-    checkoutMain(input);
-    const currentOnly = runnerFor(input);
-    expect(verifyStageSourceAuthority({
-      expectedHeadSha: input.mainSha,
-      runner: currentOnly.runner,
-      workingDirectory: input.work,
-    })).toEqual({ sourceSha: input.mainSha });
-
-    const pushedInput = fixture();
-    checkoutMain(pushedInput);
-    const pushed = runnerFor(pushedInput);
-    expect(verifyStageSourceAuthority({
-      expectedHeadSha: pushedInput.mainSha,
-      previousSha: pushedInput.previousSha,
-      runner: pushed.runner,
-      workingDirectory: pushedInput.work,
-    })).toEqual({ previousSha: pushedInput.previousSha, sourceSha: pushedInput.mainSha });
-    const fetch = pushed.calls.find((call) => call[0] === "fetch") ?? [];
-    expect(fetch).toEqual([
-      "fetch",
-      "--no-tags",
-      "--no-write-fetch-head",
-      "--no-recurse-submodules",
-      "--unshallow",
-      repositoryUrl,
-      "refs/heads/main:refs/ghostget-release/stage-main",
-    ]);
-    expect(text(pushedInput.work, ["for-each-ref", "--format=%(refname)"])).toBe("");
-    expect(text(pushedInput.work, ["show", `${pushedInput.previousSha}:package.json`])).toContain("@hraness/ghostget");
-
-    const advanced = fixture();
-    checkoutSha(advanced, advanced.releaseSha);
-    expect(verifyStageSourceAuthority({
-      expectedHeadSha: advanced.releaseSha,
-      runner: runnerFor(advanced).runner,
-      workingDirectory: advanced.work,
-    })).toEqual({ sourceSha: advanced.releaseSha });
-
-    const divergent = fixture({ divergent: true });
-    checkoutSha(divergent, divergent.releaseSha);
-    expect(() => verifyStageSourceAuthority({
-      expectedHeadSha: divergent.releaseSha,
-      runner: runnerFor(divergent).runner,
-      workingDirectory: divergent.work,
-    })).toThrow("not an ancestor of protected main");
-  });
-
-  test("rejects invalid event bases, stale main, hidden refs, and main drift", () => {
-    const input = fixture();
-    checkoutMain(input);
-    for (const previousSha of ["0".repeat(40), input.mainSha, "not-a-sha"]) {
-      expect(() => verifyStageSourceAuthority({
-        expectedHeadSha: input.mainSha,
-        previousSha,
-        runner: runnerFor(input).runner,
-      })).toThrow("invalid prior main commit");
-    }
-    expect(() => verifyStageSourceAuthority({
-      expectedHeadSha: "9".repeat(40),
-      runner: runnerFor(input).runner,
-    })).toThrow("does not match the verified artifact source");
-
-    const divergent = fixture({ divergent: true });
-    checkoutMain(divergent);
-    expect(() => verifyStageSourceAuthority({
-      expectedHeadSha: divergent.mainSha,
-      previousSha: divergent.releaseSha,
-      runner: runnerFor(divergent).runner,
-    })).toThrow("not available in exact governed main history");
-
-    git(input.work, ["update-ref", "refs/heads/hidden", input.mainSha]);
-    expect(() => verifyStageSourceAuthority({
-      expectedHeadSha: input.mainSha,
-      runner: runnerFor(input).runner,
-    })).toThrow("exact governed ref set");
-    git(input.work, ["update-ref", "-d", "refs/heads/hidden"]);
-
-    let mainReads = 0;
-    const drift = runnerFor(input, {
-      mutateResult: (arguments_, _invocation, result) => {
-        if (arguments_[0] === "ls-remote" && arguments_.at(-1) === "refs/heads/main") {
-          mainReads += 1;
-          if (mainReads === 2) {
-            return Object.freeze({
-              ...result,
-              stdout: new TextEncoder().encode(`${"7".repeat(40)}\trefs/heads/main\n`),
-            });
-          }
-        }
-        return result;
-      },
-    });
-    expect(() => verifyStageSourceAuthority({
-      expectedHeadSha: input.mainSha,
-      runner: drift.runner,
-    })).toThrow("changed during staging verification");
-  });
-
-  test("proves exact tag absence with two combined governed-ref advertisements", () => {
-    const input = fixture();
-    checkoutMain(input);
-    const success = runnerFor(input);
-    expect(assertRemoteTagAbsent({
-      expectedHeadSha: input.mainSha,
-      runner: success.runner,
-      tag: "v1.0.1",
-    })).toEqual({ mainSha: input.mainSha, tag: "v1.0.1" });
-    expect(success.calls).toEqual([
-      ["ls-remote", "--sort=refname", "--refs", repositoryUrl, "refs/heads/main", "refs/tags/v1.0.1"],
-      ["for-each-ref", "--format=%(refname)%00%(objectname)%00%(objecttype)%00%(*objectname)%00%(*objecttype)"],
-      ["rev-parse", "--absolute-git-dir"],
-      ["rev-parse", "--git-path", "FETCH_HEAD"],
-      ["rev-parse", "--verify", "HEAD^{commit}"],
-      ["rev-parse", "--is-shallow-repository"],
-      [
-        "fetch",
-        "--no-tags",
-        "--no-write-fetch-head",
-        "--no-recurse-submodules",
-        "--unshallow",
-        repositoryUrl,
-        "refs/heads/main:refs/ghostget-release/stage-main",
-      ],
-      ["for-each-ref", "--format=%(refname)%00%(objectname)%00%(objecttype)%00%(*objectname)%00%(*objecttype)"],
-      ["merge-base", "--is-ancestor", input.mainSha, "refs/ghostget-release/stage-main"],
-      ["update-ref", "-d", "refs/ghostget-release/stage-main", input.mainSha],
-      ["for-each-ref", "--format=%(refname)%00%(objectname)%00%(objecttype)%00%(*objectname)%00%(*objecttype)"],
-      ["ls-remote", "--sort=refname", "--refs", repositoryUrl, "refs/heads/main", "refs/tags/v1.0.1"],
-    ]);
-    expect(() => assertRemoteTagAbsent({
-      runner: runnerFor(input).runner,
-      tag: "v1.0.0",
-    })).toThrow("already exists");
-    expect(() => assertRemoteTagAbsent({
-      runner: runnerFor(input).runner,
-      tag: "v1.0.1-rc.1",
-    })).toThrow("canonical stable version");
-    expect(() => assertRemoteTagAbsent({
-      runner: runnerFor(input).runner,
-      tag: "v9007199254740992.0.0",
-    })).toThrow("canonical stable version");
-    expect(assertRemoteTagAbsent({
-      expectedHeadSha: input.mainSha,
-      runner: runnerFor(input).runner,
-      tag: "v9007199254740991.0.0",
-    })).toEqual({
-      mainSha: input.mainSha,
-      tag: "v9007199254740991.0.0",
-    });
-
-    let reads = 0;
-    const drift = runnerFor(input, {
-      mutateResult: (arguments_, _invocation, result) => {
-        if (arguments_[0] === "ls-remote" && arguments_.at(-1) === "refs/tags/v1.0.1") {
-          reads += 1;
-          if (reads === 2) {
-            return Object.freeze({
-              ...result,
-              stdout: new TextEncoder().encode(`${"8".repeat(40)}\trefs/heads/main\n`),
-            });
-          }
-        }
-        return result;
-      },
-    });
-    expect(() => assertRemoteTagAbsent({
-      expectedHeadSha: input.mainSha,
-      runner: drift.runner,
-      tag: "v1.0.1",
-    })).toThrow("changed during absence verification");
-  });
 });

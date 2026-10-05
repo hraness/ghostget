@@ -66,8 +66,6 @@
     "examples/**/*.tsx",
     "website/build.ts",
     "website/ask-ai-about-this.test.ts",
-    "website/production-release-verifier.ts",
-    "website/production-release-verifier.test.ts",
     "website/vercel-build.ts",
     "website/vercel-build.test.ts",
     "website/provider-capability-attestation.ts",
