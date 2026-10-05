@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import { assertOperationPreparationPermission, checkOperationPermission, withOperationPermission, withUnmanagedOperationPermission, readOperationPolicy } from "./operation-permission";
+import { assertAuthorizedPublicationPermission, assertOperationPreparationPermission, checkOperationPermission, withOperationPermission, withUnmanagedOperationPermission, readOperationPolicy } from "./operation-permission";
 import type { ApprovalTarget } from "./control/protocol";
 import { ConfirmedWritePlatform, makeConfirmedWritePlatform } from "./confirmed-write-platform";
 import { confirmedWriteProgram } from "./confirmed-write-program";
@@ -5555,6 +5555,7 @@ async function confirmInvocationCore(
     readonly executeLocalCli?: LocalCliOperationExecutor;
     readonly executeReviewedTemplate?: typeof executeReviewedTemplateOperation;
     readonly signal?: AbortSignal;
+    readonly requireAllow?: boolean;
     readonly persistReceipt?: (receipt: RunReceipt, environment: Readonly<Record<string, string | undefined>>) => void;
   },
 ): Promise<InvocationResult> {
@@ -5595,9 +5596,17 @@ async function confirmInvocationCore(
   }, options))));
 }
 
+export async function executeAuthorizedPublication(invocation: PreparedInvocation, options: Parameters<typeof confirmInvocationCore>[1]): Promise<InvocationResult> {
+  const environment = options.environment ?? process.env;
+  const registry = options.registry ?? providerPluginRegistry;
+  assertAuthorizedPublicationPermission(invocation, { environment, registry });
+  const stored = createAndSaveInvocationPlan(invocation, environment, options.now ?? new Date(), registry);
+  return confirmInvocation(stored.digest, { ...options, environment, registry, requireAllow: true });
+}
+
 export async function confirmInvocation(digest: string, options: Parameters<typeof confirmInvocationCore>[1]): Promise<InvocationResult> {
   const environment = options.environment ?? process.env;
-  if (!readOperationPolicy(environment).managed) return withUnmanagedOperationPermission(environment, () => confirmInvocationCore(digest, options));
+  if (options.requireAllow !== true && !readOperationPolicy(environment).managed) return withUnmanagedOperationPermission(environment, () => confirmInvocationCore(digest, options));
   const registry = options.registry ?? providerPluginRegistry;
   const stored = loadInvocationPlan(digest, environment);
   let invocation: PreparedInvocation;
@@ -5612,7 +5621,7 @@ export async function confirmInvocation(digest: string, options: Parameters<type
     try { cancelInvocationPlan(digest, environment); } catch { /* the refusal below stands */ }
     throw error;
   }
-  return withOperationPermission(invocation, { environment, registry, plan: stored, ...(options.signal === undefined ? {} : { signal: options.signal }) },
+  return withOperationPermission(invocation, { environment, registry, plan: stored, requireAllow: options.requireAllow === true, ...(options.signal === undefined ? {} : { signal: options.signal }) },
     () => confirmInvocationCore(digest, options));
 }
 

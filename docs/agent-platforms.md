@@ -46,9 +46,12 @@ Platforms whose agents cannot execute local commands cannot reach Ghostget.
   profiles, selectors, and shell commands stay inside Ghostget. Connected
   accounts are admitted only through the operator's local control client
   (`ghostget` control commands or TUI), which also owns operation permissions and approvals.
-- Mutations require an exact preview and confirmation. An indeterminate
-  dispatch is never retried; it is reconciled from separately obtained
-  evidence.
+- Mutations require an exact preview and confirmation. An observed,
+  subject-bound R3 `posts.publish` or `media.publish` may instead dispatch
+  through `invoke --execute`, which records the same immutable plan and
+  single-dispatch lifecycle under the same account permission fence without
+  a separate confirmation command. An indeterminate dispatch is never
+  retried; it is reconciled from separately obtained evidence.
 - A state home in gateway-only mode accepts only policy-admitted operations;
   `contracts` and `capabilities` report the reduced surface rather than
   failing silently.

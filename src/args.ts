@@ -268,6 +268,7 @@ export type GhostgetArguments =
       readonly inputSource: string;
       readonly authId?: string;
       readonly duplicateRiskOf: readonly string[];
+      readonly execute?: true;
       readonly preview: boolean;
       readonly cacheOnly: boolean;
       readonly projectionIdentityOnly: boolean;
@@ -1974,7 +1975,7 @@ export function parseGhostgetArguments(raw: readonly string[]): ParseGhostgetRes
     const parsed = optionValues(
       raw.slice(3),
       ["--input", "--auth"],
-      ["--preview", "--cache-only", "--projection-identity-only", "--headed", "--json"],
+      ["--preview", "--execute", "--cache-only", "--projection-identity-only", "--headed", "--json"],
       ["--duplicate-risk-of"],
     );
     if (isFailure(parsed)) return parsed;
@@ -1982,6 +1983,12 @@ export function parseGhostgetArguments(raw: readonly string[]): ParseGhostgetRes
       parsed.repeatedValues["--duplicate-risk-of"] ?? [],
     );
     if ("ok" in duplicateRiskOf) return duplicateRiskOf;
+    if (parsed.booleans.has("--execute") && (
+      parsed.values["--auth"] === undefined
+      || (operationId !== "posts.publish" && operationId !== "media.publish")
+      || ["--preview", "--cache-only", "--projection-identity-only"].some(option => parsed.booleans.has(option))
+      || duplicateRiskOf.length > 0
+    )) return { ok: false, message: "invoke --execute requires an explicit account and publication operation without preview, cache, or duplicate-risk options" };
     if (
       parsed.booleans.has("--cache-only")
       && parsed.booleans.has("--preview")
@@ -2020,6 +2027,7 @@ export function parseGhostgetArguments(raw: readonly string[]): ParseGhostgetRes
           ? {}
           : { authId: parsed.values["--auth"] }),
         duplicateRiskOf,
+        ...(parsed.booleans.has("--execute") ? { execute: true as const } : {}),
         preview: parsed.booleans.has("--preview"),
         cacheOnly: parsed.booleans.has("--cache-only"),
         projectionIdentityOnly:

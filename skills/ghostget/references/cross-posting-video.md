@@ -106,7 +106,12 @@ parity.
 
 Cross-posting is not atomic. Confirm each reviewed digest once with
 `ghostget confirm <digest> --json`. Do not recreate an expired plan without
-rechecking the video package and authorization.
+rechecking the video package and authorization. For an owner-authorized
+unattended batch, each target may instead use `ghostget invoke <adapter>
+posts.publish|media.publish --auth <id> --execute` when installed invoke
+help advertises it; the same immutable plan, permission fence, and
+single-dispatch lifecycle apply, as in
+[cross-posting](cross-posting.md#confirm-once-per-platform).
 
 Classify each result independently:
 
