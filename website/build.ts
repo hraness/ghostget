@@ -964,7 +964,11 @@ function renderTemplate(
   rendered = replaceHtmlRequired(rendered, "{{CSS_ASSET}}", escapeHtml(options.cssAsset));
   rendered = replaceHtmlRequired(rendered, "{{FOIL_ASSET}}", escapeHtml(options.foilAsset));
   if (rendered.includes("{{HRANESS_SITE_FOOTER}}")) {
-    rendered = replaceRequired(rendered, "<body>", '<body class="hraness-site-shell">');
+    if (rendered.includes('<body data-hraness-landscape="page">')) {
+      rendered = replaceRequired(rendered, '<body data-hraness-landscape="page">', '<body class="hraness-site-shell" data-hraness-landscape="page">');
+    } else {
+      rendered = replaceRequired(rendered, "<body>", '<body class="hraness-site-shell">');
+    }
     rendered = replaceRequired(
       rendered,
       "{{HRANESS_SITE_FOOTER}}",
@@ -1391,6 +1395,7 @@ export async function buildWebsite(
     designKitPlainPublicationCss,
     designKitStatusPageCss,
     designKitMarqueeCss,
+    designKitProductLandscapeCss,
     designKitMockupsCss,
     hranessSiteFooterCss,
     blogShell,
@@ -1428,6 +1433,7 @@ export async function buildWebsite(
     readFile(designKitPlainPublicationStylesPath, "utf8"),
     readFile(fileURLToPath(import.meta.resolve("@hraness/design-kit/status-page.css")), "utf8"),
     readFile(fileURLToPath(import.meta.resolve("@hraness/design-kit/marketing-marquee.css")), "utf8"),
+    readFile(fileURLToPath(import.meta.resolve("@hraness/design-kit/product-landscape.css")), "utf8"),
     readFile(fileURLToPath(import.meta.resolve("@hraness/design-kit/mockups.css")), "utf8"),
     readFile(
       fileURLToPath(import.meta.resolve("@hraness/site-footer/stylex.css")),
@@ -1490,7 +1496,7 @@ export async function buildWebsite(
   const postHog = postHogEnvironment(environment);
   // The UI facade establishes its complete layer order before the static
   // marketing grammar and footer. Product tokens and composition follow them.
-  const compiledCss = `${uiCss}\n\n${designKitFontsCss.trim()}\n\n${designKitTypographyCss.trim()}\n\n${designKitProductMarketingCss.trim()}\n\n${designKitPlainSiteCss.replace('@import "./site-shell.css";', "").trim()}\n\n${designKitPlainPublicationCss.trim()}\n\n${designKitStatusPageCss.trim()}\n\n${designKitMarqueeCss.trim()}\n\n${designKitMockupsCss.trim()}\n\n${hranessSiteFooterCss.trim()}\n\n${paperThemeCss.trim()}\n\n${paletteSystemCss.trim()}\n\n${paletteBridgeCss.replace('@import "./palette-system.css";', "").trim()}\n\n${renderRelatedStyles(RELATED_PRODUCT_IDS)}\n\n${css.trimEnd()}\n\n${marketingPreset.files.get("product-marketing-preset.css")!.toString("utf8")}\n\n${marketingForcedColorsCss.trim()}\n`;
+  const compiledCss = `${uiCss}\n\n${designKitFontsCss.trim()}\n\n${designKitTypographyCss.trim()}\n\n${designKitProductMarketingCss.trim()}\n\n${designKitPlainSiteCss.replace('@import "./site-shell.css";', "").trim()}\n\n${designKitPlainPublicationCss.trim()}\n\n${designKitStatusPageCss.trim()}\n\n${designKitMarqueeCss.trim()}\n\n${designKitProductLandscapeCss.trim()}\n\n${designKitMockupsCss.trim()}\n\n${hranessSiteFooterCss.trim()}\n\n${paperThemeCss.trim()}\n\n${paletteSystemCss.trim()}\n\n${paletteBridgeCss.replace('@import "./palette-system.css";', "").trim()}\n\n${renderRelatedStyles(RELATED_PRODUCT_IDS)}\n\n${css.trimEnd()}\n\n${marketingPreset.files.get("product-marketing-preset.css")!.toString("utf8")}\n\n${marketingForcedColorsCss.trim()}\n`;
   const cssAsset = `/assets/styles-${contentHash(compiledCss)}.css`;
   const analyticsAsset = `/assets/analytics-${contentHash(analytics)}.js`;
   const skillInstallAsset = `/assets/skill-install-${contentHash(skillInstall)}.js`;
