@@ -35,7 +35,13 @@ import {
   type StateCrashMutant,
   type StateCrashPlan,
 } from "./state-crash-port.test-support";
-import { installManifest, readJsonFile, writePrivateJson } from "./storage";
+import {
+  ensurePrivateStateDirectory,
+  ghostgetStateHome,
+  installManifest,
+  readJsonFile,
+  writePrivateJson,
+} from "./storage";
 import { assertAsyncProperty, fc, type AsyncCommand } from "./test-support";
 
 // Laws, checked after every injected crash. A crash is a SIGKILL of the
@@ -702,7 +708,50 @@ describe("crash-injected session secrets", () => {
         },
       ),
       { numRuns: STATE_RUNS, interruptAfterTimeLimit: PROPERTY_TIME_LIMIT_MS },
+      "state-crash-harness/session-secrets-boundary",
     );
+  });
+
+  test("an orphaned state-helper claim does not wedge a keyless session store", () => {
+    const space = workspace();
+    const sessionDirectory = join(
+      ghostgetStateHome(space.environment),
+      "session-secrets",
+    );
+    ensurePrivateStateDirectory(sessionDirectory, space.environment);
+    // The exact artifact a killed session-remove leaves behind.
+    writeFileSync(
+      join(
+        sessionDirectory,
+        ".io-mutation-b796038b9fa6dd5d27a938ea595cd46b8fc185d7981b41f8802985d64241bc0f-waiting-a872393f-cad7-4f7c-82be-5395226feb3f.lock",
+      ),
+      `${JSON.stringify({
+        kind: "io-state-mutation-claim",
+        schemaVersion: 1,
+        targetSha256: "b796038b9fa6dd5d27a938ea595cd46b8fc185d7981b41f8802985d64241bc0f",
+        claimId: "a872393f-cad7-4f7c-82be-5395226feb3f",
+        pid: 4_000_000_001,
+        bootId: "6".repeat(64),
+        processStartId: "7".repeat(64),
+      })}\n`,
+      { mode: 0o600 },
+    );
+
+    writeSessionSecret(
+      SESSION_NAMESPACE,
+      SESSION_AUTH_ID,
+      SESSION_AUTH_HASH,
+      { token: "first" },
+      space.environment,
+    );
+    writeSessionSecret(
+      SESSION_NAMESPACE,
+      SESSION_AUTH_ID,
+      SESSION_AUTH_HASH,
+      { token: "second" },
+      space.environment,
+    );
+    expect(readSession(space)).toEqual({ token: "second" });
   });
 });
 

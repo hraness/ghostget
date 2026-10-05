@@ -2500,16 +2500,27 @@
 // 34a0261f74428b18798b6be57ab39bf72e68e45f000a20fa55d6d88272505082. Retain the
 // reviewed allowances: 12,237,548 + 12,387 + 4,096 = 12,254,031 packed;
 // 24,524,887 + 353 + 65 = 24,525,305 unpacked.
+// The 0.18.84 release adds the Substack, LinkedIn and Threads video
+// media.publish lanes, their accepted-target reconciliations, the X,
+// Threads, LinkedIn and Substack create-response binding repairs and the
+// derivation network-guard wildcard readiness repair over the reviewed
+// 0.18.83 release. Two clean npm 11.19.0 packs on Node 24.20.0
+// (zlib 1.3.2.1-motley-42c2f19) with --ignore-scripts on darwin arm64 were
+// byte-identical at 638 files/entries, 12,259,609 packed bytes and
+// 24,579,206 unpacked bytes; archive SHA-256
+// 602e1d625e808b72fd8ed58134adc8434198a6c435ba63d881045069cf6f4870. Retain the
+// reviewed allowances: 12,259,609 + 12,387 + 4,096 = 12,276,092 packed;
+// 24,579,206 + 353 + 65 = 24,579,624 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "0.18.83 engine-aware contained sessions over the invoke --execute release",
+  scope: "0.18.84 media.publish video lanes and create-response binding repairs",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   nodeVersion: "24.20.0",
-  zlibVersion: "1.2.12",
+  zlibVersion: "1.3.2.1-motley-42c2f19",
   platform: "darwin-arm64",
-  archiveSha256: "34a0261f74428b18798b6be57ab39bf72e68e45f000a20fa55d6d88272505082",
-  packedBytes: 12_237_548,
-  unpackedBytes: 24_524_887,
+  archiveSha256: "602e1d625e808b72fd8ed58134adc8434198a6c435ba63d881045069cf6f4870",
+  packedBytes: 12_259_609,
+  unpackedBytes: 24_579_206,
   entryCount: 638,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

@@ -18,6 +18,7 @@ import {
 import {
   createPrivateJsonIfAbsent,
   ensurePrivateStateDirectory,
+  isStateHelperArtifactName,
   listPrivateStateDirectory,
   readPrivateStateFileIfPresent,
   readRegularFile,
@@ -448,8 +449,9 @@ function encryptedStoreHasState(environment: Environment): boolean {
     environment,
     identity,
   ).some((entry) =>
-    entry.name !== SESSION_SECRET_COORDINATE_DIRECTORY
-    || entry.kind !== "directory");
+    (entry.name !== SESSION_SECRET_COORDINATE_DIRECTORY
+      || entry.kind !== "directory")
+    && (entry.kind !== "file" || !isStateHelperArtifactName(entry.name)));
 }
 
 function parseSessionKey(text: string): SessionKey {
@@ -1060,6 +1062,8 @@ function assertSessionKeyOwnsEncryptedStore(
     if (entry.kind !== "file") {
       throw new Error("encrypted session store is malformed");
     }
+    // An orphaned state-helper claim or staging artifact is not ciphertext.
+    if (isStateHelperArtifactName(entry.name)) continue;
     const text = readPrivateStateFileIfPresent(
       join(sessionDirectory, entry.name),
       MAX_ENCRYPTED_BYTES,

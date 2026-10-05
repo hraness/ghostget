@@ -2152,6 +2152,25 @@ export function removePrivateStateFileIfUnchanged(
   return response.removed === true;
 }
 
+/**
+ * Names the state helper itself may leave behind: atomic-write temporaries,
+ * mutation-claim locks, staged mutation bytes, and remove quarantines. These
+ * are coordination artifacts, not stored payload — callers that need to know
+ * whether a directory holds real state must not count them.
+ */
+const stateHelperArtifactNamePatterns = Object.freeze([
+  /^\.io-write-[1-9][0-9]{0,9}-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.tmp$/u,
+  /^\.io-mutation-[a-f0-9]{64}-(?:waiting|candidate|held)-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.lock$/u,
+  /^\.io-mutation-stage-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}-[1-9][0-9]{0,9}\.tmp$/u,
+  /^\.io-remove-file-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.quarantine$/u,
+  /^\.io-remove(?:-tree)?-[1-9][0-9]{0,9}-[1-9][0-9]{0,15}-[0-9a-f]{12}4[0-9a-f]{3}[89ab][0-9a-f]{15}\.quarantine$/u,
+]);
+
+/** True only for an inert state-helper coordination artifact name. */
+export function isStateHelperArtifactName(name: string): boolean {
+  return stateHelperArtifactNamePatterns.some((pattern) => pattern.test(name));
+}
+
 export function listPrivateStateDirectory(
   path: string,
   environment: Readonly<Record<string, string | undefined>> = process.env,

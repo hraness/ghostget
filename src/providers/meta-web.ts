@@ -2049,22 +2049,30 @@ function threadsVideo(
     || post.video_versions.length < 1
     || post.video_versions.length > 20
   ) throw new Error(`${label}.video_versions must contain 1 to 20 videos`);
+  // The permalink embed keeps per-rendition urls but may omit their dimensions;
+  // the media-level original_* fields remain the bound rendition.
   let originalCandidateFound = false;
   for (const [index, candidateValue] of post.video_versions.entries()) {
     const candidate = record(candidateValue, `${label}.video_versions[${index}]`);
-    const candidateWidth = positiveThreadsImageDimension(
-      candidate.width,
-      `${label}.video_versions[${index}].width`,
-    );
-    const candidateHeight = positiveThreadsImageDimension(
-      candidate.height,
-      `${label}.video_versions[${index}].height`,
-    );
+    const candidateWidth = candidate.width === undefined
+      ? undefined
+      : positiveThreadsImageDimension(
+          candidate.width,
+          `${label}.video_versions[${index}].width`,
+        );
+    const candidateHeight = candidate.height === undefined
+      ? undefined
+      : positiveThreadsImageDimension(
+          candidate.height,
+          `${label}.video_versions[${index}].height`,
+        );
     threadsImageCandidateUrl(
       candidate.url,
       `${label}.video_versions[${index}].url`,
     );
-    if (candidateWidth === width && candidateHeight === height) {
+    if (candidateWidth === undefined && candidateHeight === undefined) {
+      originalCandidateFound = true;
+    } else if (candidateWidth === width && candidateHeight === height) {
       originalCandidateFound = true;
     }
   }
@@ -2198,11 +2206,16 @@ export function normalizeThreadsPostHtml(
   if (parseThreadsViewerId(html) !== viewerId) {
     throw new Error("Threads post readback changed its bound viewer");
   }
+  // Threads permalink embeds drift between a bare post pk and the
+  // actor-suffixed "<pk>_<viewerId>" id, and currently omit canonical_url;
+  // the fetched locator path already binds code, so bind it when present.
+  const acceptedPostIds = new Set([expectedPostId, `${expectedPostId}_${viewerId}`]);
   const matches: Readonly<Record<string, unknown>>[] = [];
   walk(parseMetaJsonScripts(html), (value) => {
     if (
       !isRecord(value)
-      || (value.id !== expectedPostId && value.pk !== expectedPostId)
+      || (!acceptedPostIds.has(typeof value.id === "string" ? value.id : "")
+        && !acceptedPostIds.has(typeof value.pk === "string" ? value.pk : ""))
       || value.caption === undefined
       || value.user === undefined
     ) return;
@@ -2211,13 +2224,14 @@ export function normalizeThreadsPostHtml(
     const imageMatches = expectedImage === null
       ? projected.image === null
       : projected.image !== null
-        && projected.image.mediaId === expectedPostId
+        && acceptedPostIds.has(projected.image.mediaId)
         && projected.image.width === expectedImage.width
         && projected.image.height === expectedImage.height;
     if (
-      projected.caption === expectedCaption
+      acceptedPostIds.has(projected.id)
+      && projected.caption === expectedCaption
       && projected.code === expectedCode
-      && projected.canonical_url === locator.href
+      && (projected.canonical_url === null || projected.canonical_url === locator.href)
       && user?.id === viewerId
       && imageMatches
     ) {
@@ -2274,22 +2288,25 @@ export function normalizeThreadsVideoPostHtml(
     throw new Error("Threads video post readback changed its bound viewer");
   }
   const matches: ThreadsVideoPostProjection[] = [];
+  const acceptedPostIds = new Set([expectedPostId, `${expectedPostId}_${viewerId}`]);
   walk(parseMetaJsonScripts(html), (value) => {
     if (
       !isRecord(value)
-      || (value.id !== expectedPostId && value.pk !== expectedPostId)
+      || (!acceptedPostIds.has(typeof value.id === "string" ? value.id : "")
+        && !acceptedPostIds.has(typeof value.pk === "string" ? value.pk : ""))
       || value.caption === undefined
       || value.user === undefined
     ) return;
     const projected = projectThreadsPublishVideo(value, "Threads video post readback");
     const user = isRecord(projected.user) ? projected.user : null;
     if (
-      projected.caption === expectedCaption
+      acceptedPostIds.has(projected.id)
+      && projected.caption === expectedCaption
       && projected.code === expectedCode
-      && projected.canonical_url === locator.href
+      && (projected.canonical_url === null || projected.canonical_url === locator.href)
       && user?.id === viewerId
       && projected.video !== null
-      && projected.video.mediaId === expectedPostId
+      && acceptedPostIds.has(projected.video.mediaId)
       && projected.video.width === expectedVideo.width
       && projected.video.height === expectedVideo.height
     ) matches.push(projected);

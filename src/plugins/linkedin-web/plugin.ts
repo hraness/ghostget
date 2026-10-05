@@ -154,6 +154,23 @@ function linkedinPostIssues(
   return Object.freeze([]);
 }
 
+function linkedinMediaPublishIssues(
+  input: Readonly<Record<string, unknown>>,
+): readonly string[] {
+  const issues: string[] = [];
+  if (
+    input.title !== undefined
+    && (typeof input.title !== "string"
+      || input.title.length < 1
+      || input.title.length > 200
+      || /[\0\r\n]/u.test(input.title))
+  ) issues.push("input.title must be one bounded plain-text video title of 1-200 characters");
+  if (input.alt_text !== undefined) {
+    issues.push("input.alt_text is not supported; LinkedIn video posts carry input.title");
+  }
+  return Object.freeze(issues);
+}
+
 function linkedinCommentPostIssues(
   input: Readonly<Record<string, unknown>>,
 ): readonly string[] {
@@ -221,7 +238,7 @@ function linkedinArticleDraftV2Dispatches(
 
 const currentOperations = webSessionContractOperations(
   Object.values(linkedinContracts),
-    "4e05b18690ed8561f50cc7ad6678c5dacfa72784d6afdccc5c234139b6b6db86",
+    "938952b892b1263cc73dd1398cbf716c3727e55997f222d40eaa84e18e59cb36",
   {
     "posts.publish": [2],
     "feeds.read": [2],
@@ -241,6 +258,10 @@ const currentOperations = webSessionContractOperations(
       id: "posts.publish",
       description: "Publish one externally visible LinkedIn post with the exact confirmed audience and content.",
     })]),
+    "media.publish": () => Object.freeze([Object.freeze({
+      id: "media.publish",
+      description: "Upload one exact MP4 and publish one externally visible LinkedIn video post with the exact confirmed audience and commentary.",
+    })]),
     "comments.create": () => Object.freeze([Object.freeze({
       id: "comments.create",
       description: "Publish one externally visible comment on the exact confirmed LinkedIn post.",
@@ -256,6 +277,15 @@ const currentOperations = webSessionContractOperations(
     return Object.freeze({
       ...operation,
       validateInput: linkedinPostIssues,
+      reconciliation: Object.freeze({
+        kind: "provider-accepted-target-presence" as const,
+      }),
+    });
+  }
+  if (operation.name === "media.publish") {
+    return Object.freeze({
+      ...operation,
+      validateInput: linkedinMediaPublishIssues,
       reconciliation: Object.freeze({
         kind: "provider-accepted-target-presence" as const,
       }),
@@ -446,14 +476,14 @@ export const linkedinWebPlugin = defineProviderPlugin({
         execute: (_manifest, recipe, input, auth, options) =>
           runtime.executeLinkedInWebOperation(recipe, input, auth, options),
         reconcile: async (operation, input, auth, context) => {
-          if (operation === "posts.publish") {
+          if (operation === "posts.publish" || operation === "media.publish") {
             if (context?.kind !== "provider-accepted-target-presence") {
-              throw new Error("LinkedIn posts.publish reconciliation requires one exact accepted target");
+              throw new Error(`LinkedIn ${operation} reconciliation requires one exact accepted target`);
             }
             const readback = await runtime.readLinkedInWebAcceptedPostTargetPresence({
               site: "linkedin",
               action: operation,
-              contractVersion: 3,
+              contractVersion: operation === "media.publish" ? 1 : 3,
               timeoutMs: 60_000,
               maxOutputBytes: 2 * 1024 * 1024,
             }, input, auth, context.target.identifier);

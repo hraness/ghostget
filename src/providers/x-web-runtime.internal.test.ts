@@ -381,15 +381,19 @@ function publishedTweetResult(options: {
   readonly extra?: Readonly<Record<string, unknown>>;
 }): unknown {
   const media = options.mediaId === undefined || options.mediaId === null
-    ? {}
+    ? { fullText: options.text, legacyEntities: {} }
     : {
-        entities: { media: [{ id_str: options.mediaId, type: options.mediaType ?? "photo" }] },
-        extended_entities: { media: [{ id_str: options.mediaId, type: options.mediaType ?? "photo" }] },
+        // X appends each attached media entity's t.co url to legacy.full_text.
+        fullText: `${options.text} https://t.co/fakemedia1`,
+        legacyEntities: {
+          entities: { media: [{ id_str: options.mediaId, type: options.mediaType ?? "photo", url: "https://t.co/fakemedia1" }] },
+          extended_entities: { media: [{ id_str: options.mediaId, type: options.mediaType ?? "photo", url: "https://t.co/fakemedia1" }] },
+        },
       };
   return {
     rest_id: CREATED_POST_ID,
     legacy: {
-      full_text: options.text,
+      full_text: media.fullText,
       user_id_str: options.authorId ?? VIEWER_ID,
       ...(options.replyTo === undefined || options.replyTo === null
         ? {}
@@ -397,7 +401,7 @@ function publishedTweetResult(options: {
       ...(options.quote === undefined || options.quote === null
         ? {}
         : { quoted_status_id_str: options.quote }),
-      ...media,
+      ...media.legacyEntities,
     },
     ...(options.extra ?? {}),
   };
@@ -3691,6 +3695,39 @@ describe("X authenticated internal-API runtime", () => {
       },
     )).toEqual({ present: true, postId: CREATED_POST_ID });
     expect(videoCalls.every((request) => request.method === "GET")).toBeTrue();
+    const tamperedIdentifier = canonicalJson({ postId: CREATED_POST_ID, mediaId: "67890" });
+    const tamperedCalls: CapturedRequest[] = [];
+    await expect(readXWebPublishedMutationTarget(
+      xRecipe("posts.publish", 4),
+      { body: videoBody, media: { kind: "file", reference: "fixture" }, media_type: "video/mp4" },
+      xAuth,
+      tamperedIdentifier,
+      {
+        dependencies: dependencies(tamperedCalls, (request) => {
+          if (request.url.href === "https://x.com/home") {
+            return new Response(homeHtml(), { headers: { "content-type": "text/html" } });
+          }
+          if (request.url.href === MAIN_URL) {
+            return new Response(mainBundle(
+              descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
+              descriptor("TweetResultByRestId", "LbQZrAWyKPvExi8di3-EoA", "query"),
+            ), { headers: { "content-type": "application/javascript" } });
+          }
+          if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
+          if (request.url.pathname.endsWith("/TweetResultByRestId")) {
+            // A media t.co suffix must not let a different body pass text binding.
+            return jsonResponse({
+              data: {
+                tweetResult: {
+                  result: publishedTweetResult({ text: "tampered body", mediaId: "67890", mediaType: "video" }),
+                },
+              },
+            });
+          }
+          throw new Error(`unexpected X tampered reconciliation request ${request.url.href}`);
+        }),
+      },
+    )).rejects.toThrow("did not bind the confirmed text");
     const longBody = "L".repeat(1158);
     const longIdentifier = canonicalJson({ postId: CREATED_POST_ID, mediaId: null });
     const longCalls: CapturedRequest[] = [];

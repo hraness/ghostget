@@ -91,6 +91,7 @@ import {
   linkedInParentCommentTarget,
   linkedInPostAltText,
   linkedInPostEntityUrn,
+  linkedInPostMediaTitle,
   linkedInPostMediaUrn,
   linkedInPostText,
   linkedInPostVisibility,
@@ -163,6 +164,8 @@ const MAX_LINKEDIN_ARTICLE_CHARACTERS = 125_000;
 const MAX_LINKEDIN_ARTICLE_INLINE_IMAGES = 20;
 const MAX_LINKEDIN_ARTICLE_IMAGE_BYTES = 5 * 1024 * 1024;
 const MAX_LINKEDIN_POST_IMAGE_BYTES = 20 * 1024 * 1024;
+const MIN_LINKEDIN_POST_VIDEO_BYTES = 75_000;
+const MAX_LINKEDIN_POST_VIDEO_BYTES = 64 * 1024 * 1024;
 
 type JsonRecord = Record<string, unknown>;
 
@@ -1319,6 +1322,97 @@ async function materializeLinkedInPostImage(
   }
 }
 
+type LinkedInPostVideo = {
+  readonly bytes: Uint8Array;
+};
+
+function linkedInVideoFileInput(value: unknown): FileInputValue {
+  if (!isRecord(value)) {
+    throw new Error("LinkedIn media.publish media must be one plan-bound MP4");
+  }
+  const descriptor = value;
+  if (
+    !hasExactKeys(descriptor, ["kind", "reference"])
+    || descriptor.kind !== "file"
+    || typeof descriptor.reference !== "string"
+    || descriptor.reference.length < 1
+    || descriptor.reference.length > 1_024
+  ) throw new Error("LinkedIn media.publish media must be one plan-bound MP4");
+  return descriptor as FileInputValue;
+}
+
+async function materializeLinkedInPostVideo(
+  media: FileInputValue,
+  fileResolver: BrowserFileResolver | undefined,
+  operationDeadline: WebSessionOperationDeadline | undefined,
+): Promise<LinkedInPostVideo> {
+  if (fileResolver === undefined) {
+    throw new Error("LinkedIn video upload requires the plan-bound file resolver");
+  }
+  const resolveFile = () => fileResolver([media]);
+  const paths = operationDeadline === undefined
+    ? await resolveFile()
+    : await operationDeadline.run(
+        resolveFile,
+        "authenticated web operation deadline",
+      );
+  if (paths.length !== 1 || typeof paths[0] !== "string") {
+    throw new Error("LinkedIn video resolver did not return exactly one file");
+  }
+  const noFollow = "O_NOFOLLOW" in constants ? constants.O_NOFOLLOW : 0;
+  const handle = operationDeadline === undefined
+    ? await open(paths[0], constants.O_RDONLY | noFollow)
+    : await operationDeadline.run(
+        () => open(paths[0]!, constants.O_RDONLY | noFollow),
+        "authenticated web operation deadline",
+      );
+  try {
+    const before = operationDeadline === undefined
+      ? await handle.stat()
+      : await operationDeadline.run(
+          () => handle.stat(),
+          "authenticated web operation deadline",
+        );
+    if (
+      !before.isFile()
+      || before.size < MIN_LINKEDIN_POST_VIDEO_BYTES
+      || before.size > MAX_LINKEDIN_POST_VIDEO_BYTES
+    ) throw new Error("LinkedIn video must be a regular MP4 between 75,000 bytes and 64 MiB");
+    const bytes = operationDeadline === undefined
+      ? await handle.readFile()
+      : await operationDeadline.run(
+          () => handle.readFile(),
+          "authenticated web operation deadline",
+        );
+    const after = operationDeadline === undefined
+      ? await handle.stat()
+      : await operationDeadline.run(
+          () => handle.stat(),
+          "authenticated web operation deadline",
+        );
+    if (
+      before.dev !== after.dev
+      || before.ino !== after.ino
+      || before.size !== after.size
+      || before.mtimeMs !== after.mtimeMs
+      || before.ctimeMs !== after.ctimeMs
+      || bytes.byteLength !== before.size
+    ) throw new Error("LinkedIn video changed while it was materialized");
+    const brand = bytes.subarray(8, 12).toString("ascii");
+    if (
+      bytes.byteLength < 12
+      || bytes.subarray(4, 8).toString("ascii") !== "ftyp"
+      || !/^[A-Za-z0-9 ]{3,4}$/u.test(brand)
+      || brand.trim() === "qt"
+    ) throw new Error("LinkedIn video must be an ISO-BMFF MP4 fixture");
+    return Object.freeze({
+      bytes: new Uint8Array(bytes),
+    });
+  } finally {
+    await handle.close();
+  }
+}
+
 async function createLinkedInPostTransport(
   auth: GhostgetAuth,
   timeoutMs: number,
@@ -1381,19 +1475,32 @@ async function readLinkedInWebAcceptedPostTargetPresenceInternal(
   entityUrn: string;
   mediaUrn: string | null;
 }>> {
-  if (
-    recipe.site !== "linkedin"
-    || recipe.action !== "posts.publish"
-    || recipe.contractVersion !== 3
-  ) throw new Error("LinkedIn accepted post readback supports only posts.publish@3");
+  const isPostPublish = recipe.action === "posts.publish" && recipe.contractVersion === 3;
+  const isMediaPublish = recipe.action === "media.publish" && recipe.contractVersion === 1;
+  if (recipe.site !== "linkedin" || (!isPostPublish && !isMediaPublish)) {
+    throw new Error("LinkedIn accepted post readback supports only posts.publish@3 or media.publish@1");
+  }
   if (input.media_title !== undefined || input.link_url !== undefined) {
-    throw new Error("LinkedIn reviewed post publishing supports text or one PNG image only");
+    throw new Error("LinkedIn reviewed post publishing supports text plus one reviewed media attachment only");
   }
   const target = parseLinkedInAcceptedPostTarget(acceptedIdentifier);
   const body = linkedInPostText(input.body);
   const visibility = linkedInPostVisibility(input.visibility);
-  const media = linkedInPostFileInput(input.media);
-  const altText = linkedInPostAltText(input.alt_text, media !== null);
+  const media = isMediaPublish
+    ? linkedInVideoFileInput(input.media)
+    : linkedInPostFileInput(input.media);
+  const altText = isMediaPublish
+    ? null
+    : linkedInPostAltText(input.alt_text, media !== null);
+  if (isMediaPublish && input.alt_text !== undefined) {
+    throw new Error("LinkedIn media.publish readback does not bind alt_text");
+  }
+  if (isMediaPublish && target.mediaUrn === null) {
+    throw new Error("LinkedIn accepted video target omitted its media URN");
+  }
+  const mediaTitle = isMediaPublish
+    ? linkedInPostMediaTitle(input.title)
+    : null;
   if ((media !== null) !== (target.mediaUrn !== null)) {
     throw new Error("LinkedIn accepted post target did not bind the confirmed media input");
   }
@@ -1408,6 +1515,8 @@ async function readLinkedInWebAcceptedPostTargetPresenceInternal(
     const variables = buildLinkedInPostCreateVariables({
       altText,
       body,
+      mediaCategory: isMediaPublish ? "VIDEO" : "IMAGE",
+      mediaTitle,
       mediaUrn: target.mediaUrn,
       visibility,
     });
@@ -1418,6 +1527,7 @@ async function readLinkedInWebAcceptedPostTargetPresenceInternal(
         variables,
         target.mediaUrn,
         target.entityUrn,
+        isMediaPublish ? "VIDEO" : "IMAGE",
       ),
       { body, mediaUrn: target.mediaUrn, profileUrn },
     );
@@ -1771,6 +1881,140 @@ async function executeLinkedInPostPublish(
       error: started > verified
         ? `LinkedIn may have accepted the post but exact member, text, media, and permalink readback was not verified; failure stage: ${publicFailureStage}; reconcile before retrying`
         : `LinkedIn post publishing failed before public post submission; failure stage: ${publicFailureStage}; retry with a fresh confirmed plan`,
+    };
+  } finally {
+    await transport?.close();
+  }
+}
+
+async function executeLinkedInMediaPublish(
+  recipe: WebSessionRecipe,
+  input: OperationInput,
+  auth: GhostgetAuth,
+  options: LinkedInWebExecutionOptions,
+): Promise<WebSessionExecution> {
+  if (
+    recipe.site !== "linkedin"
+    || recipe.action !== "media.publish"
+    || recipe.contractVersion !== 1
+  ) throw new Error("LinkedIn media publishing supports only media.publish@1");
+  if (
+    input.alt_text !== undefined
+    || input.media_title !== undefined
+    || input.link_url !== undefined
+  ) {
+    throw new Error("LinkedIn reviewed media publishing supports body, visibility, one MP4, and an optional title only");
+  }
+  const body = linkedInPostText(input.body);
+  const visibility = linkedInPostVisibility(input.visibility);
+  const media = linkedInVideoFileInput(input.media);
+  const mediaTitle = linkedInPostMediaTitle(input.title);
+  const video = await materializeLinkedInPostVideo(
+    media,
+    options.fileResolver,
+    options.operationDeadline,
+  );
+  let started = 0;
+  let verified = 0;
+  let transport: LinkedInPostBrowserTransport | null = null;
+  let projection: ReturnType<typeof normalizeLinkedInPostProjection> | null = null;
+  let failureStage = "opening the contained post transport";
+  try {
+    transport = await createLinkedInPostTransport(auth, recipe.timeoutMs, options);
+    failureStage = "current-member binding";
+    const identity = identityFromMeResponse(await transport.currentIdentityResponse());
+    const profileUrn = requireBoundLinkedInIdentity(identity, auth);
+    const expectedSubject = webSessionAuthSubject(auth);
+    if (expectedSubject === null || expectedSubject !== identity.subject) {
+      throw new Error("LinkedIn current member no longer matches the bound auth subject");
+    }
+    failureStage = "video preparation";
+    // Page staging and VIDEO_SHARING upload can leave an orphaned private
+    // provider asset, but neither can publish a feed post. Keep the durable
+    // public-post dispatch boundary immediately in front of createPost so a
+    // preparatory failure remains safely retryable.
+    const mediaUrn = await transport.uploadVideo(expectedSubject, video.bytes);
+    const variables = buildLinkedInPostCreateVariables({
+      altText: null,
+      body,
+      mediaCategory: "VIDEO",
+      mediaTitle,
+      mediaUrn,
+      visibility,
+    });
+    failureStage = "public post dispatch admission";
+    await options.beforeDispatch?.(
+      articleDispatchEvent("media.publish", 1, 1, started, verified),
+    );
+    started = 1;
+    failureStage = "post create response";
+    const entityUrn = await transport.createPost(
+      expectedSubject,
+      profileUrn,
+      variables,
+      mediaUrn,
+      "VIDEO",
+    );
+    failureStage = "accepted target retention";
+    await options.afterProviderAcceptedMutationTarget?.({
+      id: "media.publish",
+      index: 1,
+      target: {
+        schemaVersion: 1,
+        identifier: canonicalJson({ entityUrn, mediaUrn }),
+      },
+    });
+    failureStage = "independent post readback";
+    projection = normalizeLinkedInPostProjection(
+      await transport.readPost(
+        expectedSubject,
+        profileUrn,
+        variables,
+        mediaUrn,
+        entityUrn,
+        "VIDEO",
+      ),
+      { body, mediaUrn, profileUrn },
+    );
+    verified = 1;
+    failureStage = "dispatch verification";
+    await options.afterDispatchVerified?.(
+      articleDispatchEvent("media.publish", 1, 1, started, verified),
+    );
+    return {
+      status: "succeeded",
+      output: Object.freeze({
+        provider: "linkedin",
+        operation: "media.publish",
+        post: Object.freeze({
+          entityUrn: projection.entityUrn,
+          url: projection.url,
+        }),
+        visibility,
+        video: Object.freeze({
+          mediaType: "video/mp4",
+          title: mediaTitle,
+        }),
+      }),
+      finalUrl: projection.url,
+      dispatchStarted: true,
+      dispatch: { planned: 1, started, verified },
+    };
+  } catch (error) {
+    const publicFailureStage = error instanceof LinkedInPostImagePreparationError
+      ? error.stage
+      : error instanceof LinkedInPostCreateResponseError
+        ? error.stage
+        : failureStage;
+    return {
+      status: started > verified ? "indeterminate" : "failed",
+      output: null,
+      finalUrl: projection?.url ?? null,
+      dispatchStarted: started > 0,
+      dispatch: { planned: 1, started, verified },
+      error: started > verified
+        ? `LinkedIn may have accepted the video post but exact member, text, media, and permalink readback was not verified; failure stage: ${publicFailureStage}; reconcile before retrying`
+        : `LinkedIn video publishing failed before public post submission; failure stage: ${publicFailureStage}; retry with a fresh confirmed plan`,
     };
   } finally {
     await transport?.close();
@@ -2769,6 +3013,27 @@ export async function executeLinkedInWebOperation(
     return startWebSessionCleanupTrackedOperation(
       options.registerCleanupBarrier,
       (publishCleanupResource) => executeLinkedInPostPublish(
+        recipe,
+        input,
+        auth,
+        {
+          ...options,
+          ...(publishCleanupResource === undefined
+            ? {}
+            : { publishCleanupResource }),
+        },
+      ),
+      browserCleanupBarrier,
+    );
+  }
+  if (
+    recipe.site === "linkedin"
+    && recipe.contractVersion === 1
+    && recipe.action === "media.publish"
+  ) {
+    return startWebSessionCleanupTrackedOperation(
+      options.registerCleanupBarrier,
+      (publishCleanupResource) => executeLinkedInMediaPublish(
         recipe,
         input,
         auth,

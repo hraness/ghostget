@@ -190,6 +190,7 @@ describe("Substack internal-web operation registry", () => {
       "comments.read",
       "content.delete",
       "feeds.read",
+      "media.publish",
       "media.read",
       "messaging.list",
       "organizations.read",
@@ -488,6 +489,36 @@ describe("Substack account and response projection", () => {
       nextCursor: "next",
     }, "notes", 10) as { readonly items: readonly unknown[] };
     expect(notes.items).toHaveLength(1);
+
+    const mixed = normalizeSubstackFeedResponse({
+      items: [
+        {
+          entity_key: `c-${NOTE_ID}`,
+          type: "comment",
+          comment: comment(NOTE_ID, { post_id: null, publication_id: null }),
+          post: null,
+          publication: null,
+          canReply: true,
+        },
+        {
+          type: "userSuggestions",
+          userSuggestions: [{ id: 1 }],
+        },
+        {
+          entity_key: "cp-639ca31b-be79-43a2-b145-fc5f727eea21",
+          type: "chat",
+          community_post: { id: 123 },
+          publication: null,
+        },
+      ],
+    }, "notes", 10) as { readonly items: readonly { readonly type: string | null; readonly comment: unknown; readonly post: unknown }[] };
+    expect(mixed.items).toHaveLength(3);
+    expect(mixed.items[1]).toMatchObject({ type: "userSuggestions", comment: null, post: null });
+    expect(mixed.items[2]).toMatchObject({ entityKey: "cp-639ca31b-be79-43a2-b145-fc5f727eea21", type: "chat", comment: null, post: null });
+
+    expect(() => normalizeSubstackFeedResponse({
+      items: [{ entity_key: `c-${NOTE_ID}`, type: "comment" }],
+    }, "notes", 10)).toThrow("omitted both Note and article entities");
 
     const articleList = normalizeSubstackFeedResponse({
       posts: [post()],

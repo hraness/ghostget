@@ -29,6 +29,7 @@ import {
   MAX_PRIVATE_STATE_BATCH_FILE_BYTES,
   createPrivateJsonIfAbsent,
   ensurePrivateStateDirectory,
+  isStateHelperArtifactName,
   listPrivateStateDirectory,
   readPrivateStateChildFilesBatched,
   readPrivateStateFileBytesIfPresent,
@@ -92,13 +93,6 @@ const immutableManifestNamePattern = /^manifest--([a-f0-9]{32})\.json$/u;
 const immutableChunkNamePattern = /^chunk--([a-f0-9]{32})--([0-9]{3})\.json$/u;
 const queryDirectoryNamePattern = /^[a-f0-9]{64}$/u;
 const authIdPattern = /^[a-z][a-z0-9-]{0,47}$/u;
-const stateHelperArtifactNamePatterns = Object.freeze([
-  /^\.io-write-[1-9][0-9]{0,9}-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.tmp$/u,
-  /^\.io-mutation-[a-f0-9]{64}-(?:waiting|candidate|held)-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.lock$/u,
-  /^\.io-mutation-stage-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}-[1-9][0-9]{0,9}\.tmp$/u,
-  /^\.io-remove-file-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.quarantine$/u,
-  /^\.io-remove(?:-tree)?-[1-9][0-9]{0,9}-[1-9][0-9]{0,15}-[0-9a-f]{12}4[0-9a-f]{3}[89ab][0-9a-f]{15}\.quarantine$/u,
-]);
 
 type ProjectionKey = {
   readonly id: string;
@@ -2287,9 +2281,7 @@ function readRealmQueryUsage(
     identity,
     { recoverOrphanedMutationClaims: true },
   );
-  const busy = entries.some((entry) =>
-    stateHelperArtifactNamePatterns.some((pattern) =>
-      pattern.test(entry.name)));
+  const busy = entries.some((entry) => isStateHelperArtifactName(entry.name));
   if (
     entries.length > MAX_QUERY_DIRECTORY_ENTRIES
     || entries.some((entry) => entry.kind !== "file")
@@ -3015,11 +3007,7 @@ function reclaimAfterDurableRepair(
     directoryIdentity,
     { recoverOrphanedMutationClaims: true },
   );
-  if (
-    entries.some((entry) =>
-      stateHelperArtifactNamePatterns.some((pattern) =>
-        pattern.test(entry.name)))
-  ) {
+  if (entries.some((entry) => isStateHelperArtifactName(entry.name))) {
     throw new Error(
       "read projection repaired durably but an in-flight state-helper artifact prevents reclamation",
     );

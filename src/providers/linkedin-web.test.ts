@@ -43,7 +43,6 @@ import {
   linkedInOrganizationTarget,
   linkedInParentCommentTarget,
   linkedInPersonalProfileTarget,
-  linkedInPostReadbackUrl,
   linkedInWebFolderCategory,
   normalizeLinkedInCommentsProjection,
   normalizeLinkedInGraphqlEnvelope,
@@ -111,6 +110,7 @@ describe("LinkedIn internal-web operation registry", () => {
       "comments.read",
       "contacts.read",
       "feeds.read",
+      "media.publish",
       "organizations.read",
       "posts.publish",
       "profiles.read",
@@ -120,7 +120,7 @@ describe("LinkedIn internal-web operation registry", () => {
       const contract = LINKEDIN_WEB_OPERATIONS[operation];
       expect(contract.state).toBe(observed.has(operation) ? "observed" : "capture-required");
       expect(contract.requests).toHaveLength(
-        operation === "posts.publish" ? 5
+        operation === "posts.publish" || operation === "media.publish" ? 5
           : operation === "contacts.read" ? 3
             : operation === "comments.create"
               || operation === "replies.create" ? 2
@@ -135,8 +135,10 @@ describe("LinkedIn internal-web operation registry", () => {
     expect(LINKEDIN_WEB_OPERATIONS["articles.draft.save"].risk).toBe("R2");
     expect(LINKEDIN_WEB_OPERATIONS["articles.draft.save"].evidence).toBe("live-har");
     expect(LINKEDIN_WEB_OPERATIONS["posts.publish"].evidence).toBe("first-party-bundle");
+    expect(LINKEDIN_WEB_OPERATIONS["media.publish"].evidence).toBe("live-har");
     for (const operation of [
       "messaging.send",
+      "media.publish",
       "posts.publish",
       "posts.repost",
       "posts.quote",
@@ -391,7 +393,6 @@ describe("LinkedIn native post contract", () => {
       post: {
         allowedCommentersScope: "ALL",
         commentary: {
-          $type: "com.linkedin.voyager.dash.deco.common.text.TextViewModelV2",
           attributesV2: [],
           text: body,
         },
@@ -422,16 +423,7 @@ describe("LinkedIn native post contract", () => {
     expect("altText" in ((withoutAlt.post as { media: object }).media)).toBeFalse();
   });
 
-  test("builds an exact registered readback and rejects projection drift", () => {
-    const url = linkedInPostReadbackUrl(entityUrn);
-    expect(url.pathname).toBe("/voyager/api/graphql");
-    expect(url.searchParams.get("includeWebMetadata")).toBe("true");
-    expect(url.searchParams.get("queryId")).toBe(
-      "voyagerFeedDashUpdates.00f9ed72d35c2a949114759b829f9886",
-    );
-    expect(url.searchParams.get("variables")).toBe(
-      `(moduleKey:feed-item:desktop,urnOrNss:${entityUrn})`,
-    );
+  test("rejects projection drift from the independent permalink readback", () => {
     const projection = {
       actorMatched: true,
       entityMatched: true,

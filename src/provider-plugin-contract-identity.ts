@@ -440,11 +440,14 @@ const identities = Object.freeze({
   "substack-web": {
     schemaVersion: 1,
     pluginVersion: "1.7.0",
-    implementationSha256: "1ff335a9f8d2f4d071dfa0c197bd2fcf7d5c59884e815db230a357891e02080f",
+    implementationSha256: "9c4d5aeae3f09242cf4c656f1b7eb5eacfed9c06e30e5786e0c8c3adff84638d",
     legacyCurrentReadImplementationSha256: [],
+    // The 0.18.x line shipped 1ff335a9 before media.publish was observed;
+    // retain it as a predecessor reader for exactly the routes it owned.
     // 1.5.0 read every route below plus subscribers.export@2, whose paging,
     // cursor, and completeness semantics changed in place before any release.
     legacyDistributionReadImplementationSha256: [
+      "1ff335a9f8d2f4d071dfa0c197bd2fcf7d5c59884e815db230a357891e02080f",
       "62507025edf4836d122027832fc2f49d04e6331487c40e10dbe5f8a1fa6ae797",
       "7e12bbfffb9629b9195b98fc42394d6c5163ae3e2efa8063a1086ff1cc3dde1b",
       "58438f60cf9b2d2db9363cb7dece0c6ca56e60c2178fe4bcbd60c844fc8893ba",

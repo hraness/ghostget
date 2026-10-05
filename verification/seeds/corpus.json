@@ -58,6 +58,17 @@
         }
       ]
     },
+    "state-crash-harness/session-secrets-boundary": {
+      "file": "src/state-crash-harness.test.ts",
+      "entries": [
+        {
+          "kind": "counterexample",
+          "seed": -84709046,
+          "origin": "Local full-gate unit shard shrank two crashed session removals whose orphaned state-helper mutation-claim lock counted as encrypted state, wedging the keyless store.",
+          "regression": "an orphaned state-helper claim does not wedge a keyless session store"
+        }
+      ]
+    },
     "verification-claims/guideline-additions": {
       "file": "scripts/verification-claims.test.ts",
       "entries": [

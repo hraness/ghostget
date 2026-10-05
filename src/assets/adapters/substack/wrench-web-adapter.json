@@ -175,7 +175,7 @@
       }
     },
     "media.publish": {
-      "description": "Capture-required contract reservation: publish one confirmed Substack Note with one MP4 only after exact upload initialization, byte transfer, processing, viewer binding, public Note creation, returned-entity attachment binding, and independent exact-Note readback are reviewed; this is not article or newsletter publication.",
+      "description": "Observed contract: publish one confirmed Substack Note with one exact MP4 after reviewed upload initialization, ordered presigned byte transfer, transcode and processing binding, viewer-bound video attachment, durable accepted-Note targeting, and an independent exact Note readback.",
       "risk": "R3",
       "sideEffect": "Uploads one video and publishes one externally visible Substack Note with the exact confirmed body.",
       "idempotency": "local-at-most-once",

@@ -2361,6 +2361,488 @@ describe("Substack authenticated internal API runtime", () => {
     )).rejects.toThrow("canonical JSON");
   });
 
+  test("publishes one MP4 Note through the reviewed upload lifecycle and verifies readback", async () => {
+    const root = mkdtempSync(join(tmpdir(), "wrench-substack-video-publish-"));
+    const videoPath = join(root, "fixture.mp4");
+    const bytes = mp4Fixture();
+    writeFileSync(videoPath, bytes, { mode: 0o600 });
+    const mediaUploadId = "33333333-3333-4333-8333-333333333333";
+    const multipartUploadId = "multipart-upload-bound-id";
+    const signedUrl = new URL(
+      `https://substack-video.s3-accelerate.amazonaws.com/video_upload/user/${USER_ID}/${mediaUploadId}/original`,
+    );
+    signedUrl.searchParams.set("partNumber", "1");
+    signedUrl.searchParams.set("uploadId", multipartUploadId);
+    signedUrl.searchParams.set("X-Amz-Algorithm", "AWS4-HMAC-SHA256");
+    signedUrl.searchParams.set("X-Amz-Date", "20261005T000000Z");
+    signedUrl.searchParams.set("X-Amz-Expires", "900");
+    signedUrl.searchParams.set("X-Amz-Signature", "a".repeat(64));
+    signedUrl.searchParams.set("X-Amz-SignedHeaders", "host");
+    signedUrl.searchParams.set("x-id", "PutObject");
+    const rawPuts: { url: URL; body: Uint8Array }[] = [];
+    const calls: CapturedRequest[] = [];
+    const dispatches: string[] = [];
+    const targets: string[] = [];
+    try {
+      const result = await executeSubstackWebOperation(
+        recipe("media.publish"),
+        { body: NOTE_BODY, media: { kind: "file", reference: "fixture" } },
+        boundAuth,
+        {
+          fileResolver: () => Promise.resolve([videoPath]),
+          beforeDispatch: (event) => {
+            dispatches.push(`before:${event.id}:${event.progress.started}`);
+            return Promise.resolve();
+          },
+          afterProviderAcceptedMutationTarget: (event) => {
+            targets.push(event.target.identifier);
+            return Promise.resolve();
+          },
+          afterDispatchVerified: (event) => {
+            dispatches.push(`after:${event.id}:${event.progress.verified}`);
+            return Promise.resolve();
+          },
+          dependencies: {
+            ...dependencies(calls, (request) => {
+              const bootstrap = bootstrapResponse(request);
+              if (bootstrap !== null) return bootstrap;
+              if (
+                request.method === "POST"
+                && request.url.pathname === "/api/v1/video/upload"
+              ) {
+                expect(request.url.searchParams.get("filetype")).toBe("video/mp4");
+                expect(request.url.searchParams.get("fileSize"))
+                  .toBe(String(bytes.byteLength));
+                return jsonResponse({
+                  mediaUpload: {
+                    id: mediaUploadId,
+                    multipart_upload_id: multipartUploadId,
+                    state: "created",
+                    media_type: "video",
+                    is_mux: true,
+                    user_id: USER_ID,
+                    primary_file_size: bytes.byteLength,
+                    publication_id: null,
+                    post_id: null,
+                    name: "wrench-video.mp4",
+                    parts: [],
+                  },
+                  multipartUploadId,
+                  multipartUploadUrls: [signedUrl.href],
+                });
+              }
+              if (
+                request.method === "POST"
+                && request.url.pathname === `/api/v1/video/upload/${mediaUploadId}/transcode`
+              ) {
+                const transcode = JSON.parse(request.body ?? "null") as {
+                  multipart_upload_etags?: readonly string[];
+                  multipart_upload_id?: string;
+                } | null;
+                expect(transcode?.multipart_upload_id).toBe(multipartUploadId);
+                expect(transcode?.multipart_upload_etags).toEqual(['"etag-one"']);
+                return jsonResponse({
+                  mediaUpload: { id: mediaUploadId, state: "uploaded" },
+                });
+              }
+              if (
+                request.method === "GET"
+                && request.url.pathname === `/api/v1/video/upload/${mediaUploadId}`
+              ) {
+                return jsonResponse({ id: mediaUploadId, state: "transcoded" });
+              }
+              if (
+                request.method === "POST"
+                && request.url.pathname === "/api/v1/comment/attachment"
+              ) {
+                expect(JSON.parse(request.body ?? "null")).toEqual({
+                  type: "video",
+                  mediaUploadId,
+                });
+                return jsonResponse({
+                  comment_id: null,
+                  id: ATTACHMENT_UUID,
+                  media_upload_id: mediaUploadId,
+                  mediaUpload: { id: mediaUploadId, state: "transcoded" },
+                  type: "video",
+                  user_id: USER_ID,
+                });
+              }
+              if (
+                request.method === "POST"
+                && request.url.pathname === "/api/v1/comment/feed"
+              ) {
+                const create = JSON.parse(request.body ?? "null") as {
+                  attachmentIds?: readonly string[];
+                } | null;
+                expect(create?.attachmentIds).toEqual([ATTACHMENT_UUID]);
+                return jsonResponse({
+                  ...(createdNote("unused") as Record<string, unknown>),
+                  attachments: [{
+                    id: ATTACHMENT_UUID,
+                    type: "video",
+                    media_upload_id: mediaUploadId,
+                  }],
+                });
+              }
+              if (
+                request.method === "GET"
+                && request.url.pathname === `/api/v1/reader/comment/${CREATED_NOTE_ID}`
+              ) {
+                const readback = noteReadback("unused") as {
+                  readonly item: Readonly<Record<string, unknown>> & {
+                    readonly comment: Readonly<Record<string, unknown>>;
+                  };
+                };
+                return jsonResponse({
+                  item: {
+                    ...readback.item,
+                    comment: {
+                      ...readback.item.comment,
+                      attachments: [{
+                        id: ATTACHMENT_UUID,
+                        type: "video",
+                        media_upload_id: mediaUploadId,
+                        mediaUpload: {
+                          id: mediaUploadId,
+                          state: "transcoded",
+                          duration: 12.345,
+                          width: 640,
+                          height: 360,
+                        },
+                      }],
+                    },
+                  },
+                });
+              }
+              throw new Error(`unexpected ${request.method} ${request.url.pathname}`);
+            }),
+            videoUploadFetch: (request) => {
+              rawPuts.push({ url: request.url, body: request.body });
+              return Promise.resolve({ status: 200, etag: '"etag-one"' });
+            },
+            sleep: () => Promise.resolve(),
+          },
+        },
+      );
+      expect(rawPuts.map((put) => [put.url.href, put.body.byteLength])).toEqual([
+        [signedUrl.href, bytes.byteLength],
+      ]);
+      expect(new Uint8Array(rawPuts[0]!.body)).toEqual(new Uint8Array(bytes));
+      expect(dispatches).toEqual([
+        "before:media.publish:0",
+        "after:media.publish:1",
+      ]);
+      expect(result.status).toBe("succeeded");
+      expect(result.dispatch).toEqual({ planned: 1, started: 1, verified: 1 });
+      expect(result.finalUrl).toBe(
+        `https://substack.com/@wrench-reader/note/c-${CREATED_NOTE_ID}`,
+      );
+      expect(targets).toEqual([canonicalJson({
+        noteId: CREATED_NOTE_ID,
+        attachment: {
+          id: ATTACHMENT_UUID,
+          mediaUploadId,
+          durationSeconds: 12.345,
+          height: 360,
+          width: 640,
+          mediaType: "video/mp4",
+        },
+      })]);
+      expect(calls.map((call) => [call.method, call.url.pathname])).toEqual([
+        ["GET", "/api/v1/am_i_logged_in"],
+        ["GET", "/"],
+        ["GET", "/api/v1/am_i_logged_in"],
+        ["GET", "/"],
+        ["POST", "/api/v1/video/upload"],
+        ["POST", `/api/v1/video/upload/${mediaUploadId}/transcode`],
+        ["GET", `/api/v1/video/upload/${mediaUploadId}`],
+        ["POST", "/api/v1/comment/attachment"],
+        ["POST", "/api/v1/comment/feed"],
+        ["GET", `/api/v1/reader/comment/${CREATED_NOTE_ID}`],
+      ]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("fails a video Note before dispatch when the signed URL leaves the upload origin", async () => {
+    const root = mkdtempSync(join(tmpdir(), "wrench-substack-video-origin-"));
+    const videoPath = join(root, "fixture.mp4");
+    writeFileSync(videoPath, mp4Fixture(), { mode: 0o600 });
+    const calls: CapturedRequest[] = [];
+    const puts: unknown[] = [];
+    try {
+      const result = await executeSubstackWebOperation(
+        recipe("media.publish"),
+        { body: NOTE_BODY, media: { kind: "file", reference: "fixture" } },
+        boundAuth,
+        {
+          fileResolver: () => Promise.resolve([videoPath]),
+          beforeDispatch: () => {
+            throw new Error("dispatch fence must not run");
+          },
+          dependencies: {
+            ...dependencies(calls, (request) => {
+              const bootstrap = bootstrapResponse(request);
+              if (bootstrap !== null) return bootstrap;
+              if (
+                request.method === "POST"
+                && request.url.pathname === "/api/v1/video/upload"
+              ) {
+                const escaped = new URL(
+                  `https://example.invalid/video_upload/user/${USER_ID}/33333333-3333-4333-8333-333333333333/original`,
+                );
+                escaped.searchParams.set("partNumber", "1");
+                escaped.searchParams.set("uploadId", "multipart-id");
+                escaped.searchParams.set("X-Amz-Algorithm", "AWS4-HMAC-SHA256");
+                escaped.searchParams.set("X-Amz-Date", "20261005T000000Z");
+                escaped.searchParams.set("X-Amz-Expires", "900");
+                escaped.searchParams.set("X-Amz-Signature", "a".repeat(64));
+                escaped.searchParams.set("X-Amz-SignedHeaders", "host");
+                escaped.searchParams.set("x-id", "PutObject");
+                return jsonResponse({
+                  mediaUpload: {
+                    id: "33333333-3333-4333-8333-333333333333",
+                    multipart_upload_id: "multipart-id",
+                    state: "created",
+                    media_type: "video",
+                    is_mux: true,
+                    user_id: USER_ID,
+                    primary_file_size: mp4Fixture().byteLength,
+                    publication_id: null,
+                    post_id: null,
+                    name: "wrench-video.mp4",
+                  },
+                  multipartUploadId: "multipart-id",
+                  multipartUploadUrls: [escaped.href],
+                });
+              }
+              throw new Error(`unexpected ${request.method} ${request.url.pathname}`);
+            }),
+            videoUploadFetch: () => {
+              puts.push(1);
+              return Promise.resolve({ status: 200, etag: '"etag-one"' });
+            },
+            sleep: () => Promise.resolve(),
+          },
+        },
+      );
+      expect(result.status).toBe("failed");
+      expect(result.dispatchStarted).toBe(false);
+      expect(result.dispatch).toEqual({ planned: 1, started: 0, verified: 0 });
+      expect(result.error).toContain("video-upload-init");
+      expect(puts.length).toBe(0);
+      expect(calls.map((call) => call.url.pathname)).not.toContain(
+        "/api/v1/comment/feed",
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("fails a video Note before dispatch when a part PUT returns a weak ETag", async () => {
+    const root = mkdtempSync(join(tmpdir(), "wrench-substack-video-etag-"));
+    const videoPath = join(root, "fixture.mp4");
+    const bytes = mp4Fixture();
+    writeFileSync(videoPath, bytes, { mode: 0o600 });
+    const mediaUploadId = "33333333-3333-4333-8333-333333333333";
+    const signedUrl = new URL(
+      `https://substack-video.s3-accelerate.amazonaws.com/video_upload/user/${USER_ID}/${mediaUploadId}/original`,
+    );
+    signedUrl.searchParams.set("partNumber", "1");
+    signedUrl.searchParams.set("uploadId", "multipart-id");
+    signedUrl.searchParams.set("X-Amz-Algorithm", "AWS4-HMAC-SHA256");
+    signedUrl.searchParams.set("X-Amz-Date", "20261005T000000Z");
+    signedUrl.searchParams.set("X-Amz-Expires", "900");
+    signedUrl.searchParams.set("X-Amz-Signature", "a".repeat(64));
+    signedUrl.searchParams.set("X-Amz-SignedHeaders", "host");
+    signedUrl.searchParams.set("x-id", "PutObject");
+    try {
+      const result = await executeSubstackWebOperation(
+        recipe("media.publish"),
+        { body: NOTE_BODY, media: { kind: "file", reference: "fixture" } },
+        boundAuth,
+        {
+          fileResolver: () => Promise.resolve([videoPath]),
+          dependencies: {
+            ...dependencies([], (request) => {
+              const bootstrap = bootstrapResponse(request);
+              if (bootstrap !== null) return bootstrap;
+              if (
+                request.method === "POST"
+                && request.url.pathname === "/api/v1/video/upload"
+              ) {
+                return jsonResponse({
+                  mediaUpload: {
+                    id: mediaUploadId,
+                    multipart_upload_id: "multipart-id",
+                    state: "created",
+                    media_type: "video",
+                    is_mux: true,
+                    user_id: USER_ID,
+                    primary_file_size: bytes.byteLength,
+                    publication_id: null,
+                    post_id: null,
+                    name: "wrench-video.mp4",
+                  },
+                  multipartUploadId: "multipart-id",
+                  multipartUploadUrls: [signedUrl.href],
+                });
+              }
+              throw new Error(`unexpected ${request.method} ${request.url.pathname}`);
+            }),
+            videoUploadFetch: () =>
+              Promise.resolve({ status: 200, etag: 'W/"weak"' }),
+            sleep: () => Promise.resolve(),
+          },
+        },
+      );
+      expect(result.status).toBe("failed");
+      expect(result.dispatchStarted).toBe(false);
+      expect(result.error).toContain("video-part-transfer");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("fails a video Note before dispatch when processing ends in a terminal state", async () => {
+    const root = mkdtempSync(join(tmpdir(), "wrench-substack-video-status-"));
+    const videoPath = join(root, "fixture.mp4");
+    const bytes = mp4Fixture();
+    writeFileSync(videoPath, bytes, { mode: 0o600 });
+    const mediaUploadId = "33333333-3333-4333-8333-333333333333";
+    const signedUrl = new URL(
+      `https://substack-video.s3-accelerate.amazonaws.com/video_upload/user/${USER_ID}/${mediaUploadId}/original`,
+    );
+    signedUrl.searchParams.set("partNumber", "1");
+    signedUrl.searchParams.set("uploadId", "multipart-id");
+    signedUrl.searchParams.set("X-Amz-Algorithm", "AWS4-HMAC-SHA256");
+    signedUrl.searchParams.set("X-Amz-Date", "20261005T000000Z");
+    signedUrl.searchParams.set("X-Amz-Expires", "900");
+    signedUrl.searchParams.set("X-Amz-Signature", "a".repeat(64));
+    signedUrl.searchParams.set("X-Amz-SignedHeaders", "host");
+    signedUrl.searchParams.set("x-id", "PutObject");
+    try {
+      const result = await executeSubstackWebOperation(
+        recipe("media.publish"),
+        { body: NOTE_BODY, media: { kind: "file", reference: "fixture" } },
+        boundAuth,
+        {
+          fileResolver: () => Promise.resolve([videoPath]),
+          dependencies: {
+            ...dependencies([], (request) => {
+              const bootstrap = bootstrapResponse(request);
+              if (bootstrap !== null) return bootstrap;
+              if (
+                request.method === "POST"
+                && request.url.pathname === "/api/v1/video/upload"
+              ) {
+                return jsonResponse({
+                  mediaUpload: {
+                    id: mediaUploadId,
+                    multipart_upload_id: "multipart-id",
+                    state: "created",
+                    media_type: "video",
+                    is_mux: true,
+                    user_id: USER_ID,
+                    primary_file_size: bytes.byteLength,
+                    publication_id: null,
+                    post_id: null,
+                    name: "wrench-video.mp4",
+                  },
+                  multipartUploadId: "multipart-id",
+                  multipartUploadUrls: [signedUrl.href],
+                });
+              }
+              if (
+                request.method === "POST"
+                && request.url.pathname === `/api/v1/video/upload/${mediaUploadId}/transcode`
+              ) {
+                return jsonResponse({
+                  mediaUpload: { id: mediaUploadId, state: "uploaded" },
+                });
+              }
+              if (
+                request.method === "GET"
+                && request.url.pathname === `/api/v1/video/upload/${mediaUploadId}`
+              ) {
+                return jsonResponse({ id: mediaUploadId, state: "error" });
+              }
+              throw new Error(`unexpected ${request.method} ${request.url.pathname}`);
+            }),
+            videoUploadFetch: () =>
+              Promise.resolve({ status: 200, etag: '"etag-one"' }),
+            sleep: () => Promise.resolve(),
+          },
+        },
+      );
+      expect(result.status).toBe("failed");
+      expect(result.dispatchStarted).toBe(false);
+      expect(result.error).toContain("video-processing");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("reads only the exact accepted video Note target for later presence reconciliation", async () => {
+    const calls: CapturedRequest[] = [];
+    const mediaUploadId = "33333333-3333-4333-8333-333333333333";
+    const acceptedIdentifier = canonicalJson({
+      noteId: CREATED_NOTE_ID,
+      attachment: {
+        id: ATTACHMENT_UUID,
+        mediaUploadId,
+        durationSeconds: 12.345,
+        height: 360,
+        width: 640,
+        mediaType: "video/mp4",
+      },
+    });
+    const readback = noteReadback("unused") as {
+      readonly item: Readonly<Record<string, unknown>> & {
+        readonly comment: Readonly<Record<string, unknown>>;
+      };
+    };
+    expect(await readSubstackWebAcceptedNoteTargetPresence(
+      recipe("media.publish"),
+      { body: NOTE_BODY, media: { kind: "file", reference: "fixture" } },
+      boundAuth,
+      acceptedIdentifier,
+      {
+        dependencies: dependencies(calls, (request) => {
+          const bootstrap = bootstrapResponse(request);
+          if (bootstrap !== null) return bootstrap;
+          if (
+            request.method === "GET"
+            && request.url.pathname === `/api/v1/reader/comment/${CREATED_NOTE_ID}`
+          ) {
+            return jsonResponse({
+              item: {
+                ...readback.item,
+                comment: {
+                  ...readback.item.comment,
+                  attachments: [{
+                    id: ATTACHMENT_UUID,
+                    type: "video",
+                    media_upload_id: mediaUploadId,
+                    mediaUpload: { id: mediaUploadId, state: "transcoded" },
+                  }],
+                },
+              },
+            });
+          }
+          throw new Error(`unexpected ${request.method} ${request.url.pathname}`);
+        }),
+      },
+    )).toEqual({ present: true, noteId: CREATED_NOTE_ID });
+    expect(calls.map((call) => [call.method, call.url.pathname])).toEqual([
+      ["GET", "/api/v1/am_i_logged_in"],
+      ["GET", "/"],
+      ["GET", `/api/v1/reader/comment/${CREATED_NOTE_ID}`],
+    ]);
+  });
+
   test("rejects capture-required operations before cookies or network are touched", () => {
     for (const action of [
       "messaging.read",
@@ -2368,7 +2850,6 @@ describe("Substack authenticated internal API runtime", () => {
       "content.save",
       "messaging.send",
       "articles.publish",
-      "media.publish",
     ] as const) {
       let acquisitions = 0;
       expect(executeSubstackWebOperation(

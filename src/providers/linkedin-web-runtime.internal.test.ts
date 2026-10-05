@@ -401,6 +401,24 @@ function postRecipe(): WebSessionRecipe {
   };
 }
 
+function mediaRecipe(): WebSessionRecipe {
+  return {
+    site: "linkedin",
+    action: "media.publish",
+    contractVersion: 1,
+    timeoutMs: 1_000,
+    maxOutputBytes: 2 * 1024 * 1024,
+  };
+}
+
+function mp4Fixture(): Buffer {
+  const bytes = Buffer.alloc(75_000);
+  bytes.writeUInt32BE(24, 0);
+  bytes.write("ftyp", 4, "ascii");
+  bytes.write("mp42", 8, "ascii");
+  return bytes;
+}
+
 function pngFixture(width: number, height: number): Buffer {
   const bytes = Buffer.alloc(24);
   Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(bytes, 0);
@@ -2882,6 +2900,7 @@ describe("LinkedIn authenticated internal-API runtime", () => {
           expect(bytes).toEqual(new Uint8Array(imageBytes));
           return Promise.resolve(mediaUrn);
         },
+        uploadVideo: () => Promise.reject(new Error("image plan must not upload video")),
         createPost: (subject, profileUrn, variables, receivedMediaUrn) => {
           events.push("create");
           expect(subject).toBe(MEMBER_URN);
@@ -2991,6 +3010,163 @@ describe("LinkedIn authenticated internal-API runtime", () => {
     }
   });
 
+  test("uploads one plan-bound MP4 and publishes a VIDEO post through media.publish", async () => {
+    const root = mkdtempSync(join(tmpdir(), "wrench-linkedin-video-"));
+    chmodSync(root, 0o700);
+    const videoPath = join(root, "fixture.mp4");
+    const videoBytes = mp4Fixture();
+    writeFileSync(videoPath, videoBytes, { mode: 0o600 });
+    const body = "shipping with captioned video";
+    const title = "Launch clip";
+    const mediaUrn = "urn:li:fsd_video:C4D22AQExactVideo";
+    const entityUrn = "urn:li:fsd_share:urn:li:ugcPost:7512923399980044289";
+    const finalUrl = "https://www.linkedin.com/feed/update/urn:li:ugcPost:7512923399980044289/";
+    const events: string[] = [];
+    try {
+      const transport: LinkedInPostBrowserTransport = {
+        currentIdentityResponse: () => {
+          events.push("identity");
+          return Promise.resolve(currentIdentityResponse());
+        },
+        uploadImage: () => Promise.reject(new Error("video plan must not upload image")),
+        uploadVideo: (subject, bytes) => {
+          events.push("upload");
+          expect(subject).toBe(MEMBER_URN);
+          expect(bytes).toEqual(new Uint8Array(videoBytes));
+          return Promise.resolve(mediaUrn);
+        },
+        createPost: (subject, profileUrn, variables, receivedMediaUrn, mediaCategory) => {
+          events.push("create");
+          expect(subject).toBe(MEMBER_URN);
+          expect(profileUrn).toBe(ARTICLE_PROFILE_URN);
+          expect(receivedMediaUrn).toBe(mediaUrn);
+          expect(mediaCategory).toBe("VIDEO");
+          expect(variables).toMatchObject({
+            post: {
+              commentary: { text: body },
+              intendedShareLifeCycleState: "PUBLISHED",
+              media: { category: "VIDEO", mediaUrn, title },
+              visibilityDataUnion: { visibilityType: "ANYONE" },
+            },
+          });
+          expect(
+            (variables.post as { media?: { altText?: unknown } }).media?.altText,
+          ).toBeUndefined();
+          return Promise.resolve(entityUrn);
+        },
+        readPost: (subject, profileUrn, _variables, receivedMediaUrn, receivedEntityUrn, mediaCategory) => {
+          events.push("readback");
+          expect(subject).toBe(MEMBER_URN);
+          expect(profileUrn).toBe(ARTICLE_PROFILE_URN);
+          expect(receivedMediaUrn).toBe(mediaUrn);
+          expect(receivedEntityUrn).toBe(entityUrn);
+          expect(mediaCategory).toBe("VIDEO");
+          return Promise.resolve({
+            actorMatched: true,
+            entityMatched: true,
+            entityUrn,
+            lifecycle: "PUBLISHED",
+            mediaMatched: true,
+            mediaUrn,
+            textMatched: true,
+            url: finalUrl,
+          });
+        },
+        close: () => {
+          events.push("close");
+          return Promise.resolve();
+        },
+      };
+      const result = await executeLinkedInWebOperation(
+        mediaRecipe(),
+        {
+          body,
+          media: { kind: "file", reference: "fixture" },
+          title,
+          visibility: "public",
+        },
+        linkedinAuth,
+        {
+          fileResolver: (files) => {
+            expect(files).toEqual([{ kind: "file", reference: "fixture" }]);
+            return Promise.resolve([videoPath]);
+          },
+          dependencies: {
+            createPostBrowserTransport: () => Promise.resolve(transport),
+          },
+          afterProviderAcceptedMutationTarget: (event) => {
+            expect(event).toEqual({
+              id: "media.publish",
+              index: 1,
+              target: {
+                schemaVersion: 1,
+                identifier: canonicalJson({ entityUrn, mediaUrn }),
+              },
+            });
+            events.push("accepted");
+            return Promise.resolve();
+          },
+        },
+      );
+      expect(result).toMatchObject({
+        status: "succeeded",
+        output: {
+          provider: "linkedin",
+          operation: "media.publish",
+          post: { entityUrn, url: finalUrl },
+          visibility: "public",
+          video: { mediaType: "video/mp4", title },
+        },
+        finalUrl,
+        dispatchStarted: true,
+        dispatch: { planned: 1, started: 1, verified: 1 },
+      });
+      expect(events).toEqual([
+        "identity",
+        "upload",
+        "create",
+        "accepted",
+        "readback",
+        "close",
+      ]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("rejects non-MP4 video bytes before any transport is opened", async () => {
+    const root = mkdtempSync(join(tmpdir(), "wrench-linkedin-video-"));
+    chmodSync(root, 0o700);
+    const videoPath = join(root, "fixture.mp4");
+    const bytes = Buffer.alloc(80_000);
+    bytes.write("IHDR", 12, "ascii");
+    writeFileSync(videoPath, bytes, { mode: 0o600 });
+    let transports = 0;
+    try {
+      await expect(executeLinkedInWebOperation(
+        mediaRecipe(),
+        {
+          body: "rejects a renamed PNG",
+          media: { kind: "file", reference: "fixture" },
+          visibility: "public",
+        },
+        linkedinAuth,
+        {
+          fileResolver: () => Promise.resolve([videoPath]),
+          dependencies: {
+            createPostBrowserTransport: () => {
+              transports += 1;
+              return Promise.reject(new Error("must not open a transport"));
+            },
+          },
+        },
+      )).rejects.toThrow("ISO-BMFF MP4");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+    expect(transports).toBe(0);
+  });
+
   test("keeps a preparatory upload failure before public-post admission", async () => {
     const root = mkdtempSync(join(tmpdir(), "wrench-linkedin-upload-failure-"));
     chmodSync(root, 0o700);
@@ -3006,6 +3182,7 @@ describe("LinkedIn authenticated internal-API runtime", () => {
           uploads += 1;
           return Promise.reject(new Error("uncertain upload result"));
         },
+        uploadVideo: () => Promise.reject(new Error("image plan must not upload video")),
         createPost: () => {
           creates += 1;
           return Promise.reject(new Error("must not create after upload failure"));
@@ -3063,6 +3240,7 @@ describe("LinkedIn authenticated internal-API runtime", () => {
           uploads += 1;
           return Promise.resolve("urn:li:digitalmediaAsset:C4D22AQPreparedImage");
         },
+        uploadVideo: () => Promise.reject(new Error("image plan must not upload video")),
         createPost: () => {
           creates += 1;
           return Promise.reject(new LinkedInPostCreateResponseError(
@@ -3122,6 +3300,7 @@ describe("LinkedIn authenticated internal-API runtime", () => {
         uploads += 1;
         return Promise.reject(new Error("accepted-target read must not upload"));
       },
+      uploadVideo: () => Promise.reject(new Error("image plan must not upload video")),
       createPost: () => {
         creates += 1;
         return Promise.reject(new Error("accepted-target read must not create"));
@@ -3201,6 +3380,7 @@ describe("LinkedIn authenticated internal-API runtime", () => {
         uploads += 1;
         return Promise.reject(new Error("must not upload"));
       },
+      uploadVideo: () => Promise.reject(new Error("image plan must not upload video")),
       createPost: () => Promise.reject(new Error("must not create")),
       readPost: () => Promise.reject(new Error("must not read")),
       close: () => Promise.resolve(),

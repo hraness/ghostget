@@ -107,10 +107,8 @@ export const SUBSTACK_WEB_OPERATIONS = Object.freeze({
   "media.read": observedRead(
     "bounded cover, podcast, video-upload, API audio-item, and exact same-publication inline audio metadata projected from an exact entitled article response",
   ),
-  "media.publish": captureRequired(
-    "R3",
-    "first-party-bundle",
-    "Note video upload initialization, byte transfer, processing, viewer binding, returned attachment, and exact public Note readback need an authorized fixture",
+  "media.publish": observedWrite(
+    "authorized Note composer capture proving MP4 upload initialization, ordered presigned byte transfer with returned ETags, transcode and processing polling, viewer-bound video attachment, exact public create payload, durable accepted-Note targeting, and independent exact Note readback",
   ),
   "messaging.list": observedRead(
     "acknowledgement-free inbox listing for all, people, and unread tabs",
@@ -1833,6 +1831,25 @@ function projectedAttachment(value: unknown, label: string): unknown {
     imageUrl: exactHttpsUrl(source.imageUrl ?? source.image_url, `${label}.imageUrl`),
     videoUrl: exactHttpsUrl(source.videoUrl ?? source.video_url, `${label}.videoUrl`),
     audioUrl: exactHttpsUrl(source.audioUrl ?? source.audio_url, `${label}.audioUrl`),
+    mediaUploadId: optionalString(
+      source.media_upload_id ?? source.mediaUploadId,
+      `${label}.mediaUploadId`,
+      256,
+    ),
+    mediaUpload: isRecord(source.mediaUpload)
+      ? Object.freeze({
+          id: optionalString(
+            record(source.mediaUpload, `${label}.mediaUpload`).id,
+            `${label}.mediaUpload.id`,
+            256,
+          ),
+          state: optionalString(
+            record(source.mediaUpload, `${label}.mediaUpload`).state,
+            `${label}.mediaUpload.state`,
+            128,
+          ),
+        })
+      : null,
     altText: optionalString(source.altText ?? source.alt_text, `${label}.altText`, 4_096),
     width: optionalFiniteNumber(source.width ?? source.imageWidth, `${label}.width`),
     height: optionalFiniteNumber(source.height ?? source.imageHeight, `${label}.height`),
@@ -1895,10 +1912,15 @@ export function normalizeSubstackFeedResponse(
           ? null
           : projectedPost(entry.post, `Substack reader feed items[${index}].post`, false);
         if (comment === null && post === null) {
-          throw new Error("Substack reader feed item omitted both Note and article entities");
+          // Non-content units (userSuggestions, chat/community posts) carry
+          // neither entity; keep them as typed items so the page stays exact.
+          const type = optionalString(entry.type, `Substack reader feed items[${index}].type`, 128);
+          if (type !== "userSuggestions" && type !== "chat") {
+            throw new Error("Substack reader feed item omitted both Note and article entities");
+          }
         }
         return Object.freeze({
-          entityKey: boundedString(entry.entity_key, `Substack reader feed items[${index}].entity_key`, 512),
+          entityKey: optionalString(entry.entity_key, `Substack reader feed items[${index}].entity_key`, 512),
           type: boundedString(entry.type, `Substack reader feed items[${index}].type`, 128),
           comment,
           post,
