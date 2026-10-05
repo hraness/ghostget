@@ -2474,7 +2474,7 @@
 // bytes and 24,462,212 unpacked bytes; archive SHA-256
 // 60297eb24c9df4f79ac5ac4bd0f1ff0d633c624cf063c78f9381d3c3aba8d74f. Retain the
 // reviewed allowances: 24,462,212 + 353 + 65 = 24,462,630.
-// The 0.18.80 release updates website documentation, the WebMCP page, and
+// The 0.18.81 release updates website documentation, the WebMCP page, and
 // release pins with the new changelog section. Two clean npm 11.19.0 packs on
 // Node 24.20.0 (zlib 1.3.2.1-motley-42c2f19) with --ignore-scripts on
 // darwin arm64 were byte-identical at 638 files/entries, 12,242,525 packed
@@ -2482,7 +2482,7 @@
 // 020221914b707564361aa79102783a91ce341dc2b823040d8e864a03a09c4f55. Retain the
 // reviewed allowances: 24,491,239 + 353 + 65 = 24,491,657.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "0.18.80 website documentation and WebMCP rename over the reviewed 0.18.79 release",
+  scope: "0.18.81 website documentation and WebMCP rename over the reviewed 0.18.79 release",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   nodeVersion: "24.20.0",
