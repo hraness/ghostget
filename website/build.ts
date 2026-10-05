@@ -202,6 +202,14 @@ export const PUBLIC_PAGES = [
     title: WHATSAPP_PAGE_METADATA.title,
   },
   {
+    canonicalPath: "/docs/how-to/connect-gmail/",
+    description:
+      "Create a Google OAuth desktop client, sign in once, and let your agent list and read Gmail threads and contacts through three read-only GhostGet actions.",
+    outputFile: "docs/how-to/connect-gmail/index.html",
+    sourceFile: "docs-how-to-connect-gmail.html",
+    title: "Connect Gmail to your agent through GhostGet",
+  },
+  {
     canonicalPath: "/docs/how-to/use-webmcp-sites/",
     description:
       "Search the WebMCP Registry, read one site's tool schema, and call its read-only tools through GhostGet's bundled webmcp adapter, with no account or API key.",

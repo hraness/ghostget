@@ -171,6 +171,7 @@ export const WHATSAPP_PAGE_METADATA = Object.freeze({
  * surface anchors into the capability reference. */
 const PROVIDER_GUIDE_PATHS: Readonly<Record<string, string>> = {
   beeper: "/docs/how-to/connect-beeper/",
+  gmail: "/docs/how-to/connect-gmail/",
   whatsapp: "/docs/how-to/export-whatsapp/",
 };
 

@@ -61,7 +61,7 @@
 
         <section aria-labelledby="requirements">
           <h2 id="requirements">What you need</h2>
-          <p>A macOS or Linux computer, a terminal, and <a href="https://bun.sh/docs/installation">Bun 1.3.14</a>. Check it with <code>bun --version</code>. GhostGet is free and MIT licensed. You can use it directly or with an agent that can run commands, such as Codex, Claude Code, or Cursor.</p>
+          <p>A macOS or Linux computer, a terminal, and <a href="https://bun.sh/docs/installation">Bun 1.3.14</a>. Check it with <code>bun --version</code>. GhostGet is free and MIT licensed. You can use it directly or with an agent that can run commands, such as Codex, Claude Code, or Cursor; <a href="#agents">give that agent network access</a> first.</p>
         </section>
 
         <section aria-labelledby="install">
@@ -84,6 +84,46 @@
           <p>Add the optional Agent Skill to teach a compatible agent the commands and supported workflows:</p>
           <div class="command-panel"><pre><code>{{GHOSTGET_SKILL_INSTALL_COMMAND}}</code></pre></div>
           <p>With Bun, use <code>{{GHOSTGET_SKILL_INSTALL_COMMAND_BUNX}}</code>. Start a new agent session, then ask: “Use GhostGet to read https://example.com and summarize it.” The skill supplies instructions; the CLI you installed supplies the executable.</p>
+        </section>
+
+        <section aria-labelledby="agents">
+          <h2 id="agents">Run GhostGet from Codex, Claude Code, or Cursor</h2>
+          <p>Your agent runs GhostGet as a terminal command, so the agent’s sandbox and command permissions decide whether a read reaches the web. Every page read needs network access. The Beeper actions also connect to Beeper Desktop at <code>127.0.0.1</code> on your computer.</p>
+          <h3 id="agents-codex">Codex</h3>
+          <p>Codex runs commands in a sandbox, and its default <code>workspace-write</code> mode has no network access. A read there fails with an error that includes <code>http: could not resolve example.com</code>. To turn on network access for one session, start Codex with this option:</p>
+          <div class="command-panel"><pre><code>codex -c 'sandbox_workspace_write.network_access=true'</code></pre></div>
+          <p>To keep it on, add a permission profile to <code>~/.codex/config.toml</code>. Permission profiles are a beta Codex feature.</p>
+          <div class="command-panel"><pre><code>default_permissions = "ghostget"
+
+[permissions.ghostget]
+extends = ":workspace"
+
+[permissions.ghostget.network]
+enabled = true</code></pre></div>
+          <p>Leave Codex’s network proxy, <code>features.network_proxy</code>, turned off. GhostGet looks up and checks each site’s address itself and doesn’t use proxy settings, so behind the proxy its reads fail with the same <code>could not resolve</code> error. Without the proxy, commands under this profile can also reach <code>127.0.0.1</code>, where Beeper Desktop listens.</p>
+          <p>Codex reads either a permission profile or the older <code>sandbox_mode</code> and <code>[sandbox_workspace_write]</code> settings, not both. If <code>network_access = true</code> in <code>config.toml</code> changes nothing, look for a <code>default_permissions</code> line and turn on network access in that profile instead.</p>
+          <p>To leave network access off for other commands, let only <code>ghostget read</code> run outside the sandbox without asking. Add this rule to <code>~/.codex/rules/default.rules</code>; rules are an experimental Codex feature:</p>
+          <div class="command-panel"><pre><code>prefix_rule(pattern = ["ghostget", "read"], decision = "allow")</code></pre></div>
+          <p>Check how Codex applies the rule with <code>codex execpolicy check --pretty --rules ~/.codex/rules/default.rules -- ghostget read https://example.com</code>. Codex’s <a href="https://learn.chatgpt.com/docs/agent-approvals-security">approvals and security guide</a>, <a href="https://learn.chatgpt.com/docs/permissions">permission profiles reference</a>, and <a href="https://learn.chatgpt.com/docs/agent-configuration/rules">rules guide</a> cover these settings.</p>
+          <p class="review-note">Status on October 4, 2026: each Codex setting above was tried with Codex CLI 0.160.0 by running <code>ghostget read https://example.com --mode http</code> under <code>codex sandbox</code>.</p>
+          <h3 id="agents-claude-code">Claude Code</h3>
+          <p>In Manual mode, Claude Code asks before it runs a shell command outside its built-in read-only set. Choose “Yes, and don’t ask again” to save the rule for the repository, or allow GhostGet reads for every project in <code>~/.claude/settings.json</code>:</p>
+          <div class="command-panel"><pre><code>{
+  "permissions": {
+    "allow": ["Bash(ghostget read *)"]
+  }
+}</code></pre></div>
+          <p>Claude Code’s sandbox is off unless you turn it on with <code>/sandbox</code>. With it on, commands reach the network only through Claude Code’s proxy, which GhostGet doesn’t use, so its reads can’t reach the web. List GhostGet in <code>excludedCommands</code> so it runs outside the sandbox, where the permission prompts above still apply:</p>
+          <div class="command-panel"><pre><code>{
+  "sandbox": {
+    "excludedCommands": ["ghostget *"]
+  }
+}</code></pre></div>
+          <p>See Claude Code’s <a href="https://code.claude.com/docs/en/permissions">permissions</a> and <a href="https://code.claude.com/docs/en/sandboxing">sandboxing</a> guides for the rule syntax.</p>
+          <p class="review-note">Status on October 4, 2026: these settings follow Anthropic’s permissions and sandboxing guides. GhostGet was not run inside Claude Code with them.</p>
+          <h3 id="agents-cursor">Cursor</h3>
+          <p>Cursor’s Run Mode, in Settings › Agents › Approvals &amp; Execution, decides which agent commands run without asking and which run in Cursor’s sandbox. A sandboxed command reaches only the domains your network mode and <code>sandbox.json</code> allow, and the sandbox blocks private addresses such as <code>127.0.0.1</code> by default. In Auto-review mode, commands on your allowlist run outside the sandbox without asking, so add <code>ghostget</code> to it. Cursor’s <a href="https://cursor.com/docs/agent/security/run-modes">Run Modes guide</a> and <a href="https://cursor.com/docs/reference/sandbox">sandbox.json reference</a> cover the allowlist and network settings.</p>
+          <p class="review-note">Status on October 4, 2026: these settings follow Cursor’s Run Modes guide and sandbox.json reference. GhostGet was not run inside Cursor with them.</p>
         </section>
 
         <section aria-labelledby="cli-updates">
@@ -109,7 +149,7 @@ ghostget search "Example Domain" --root ./ghostget-notes --mode exact</code></pr
 ghostget capabilities
 ghostget status</code></pre></div>
           <p><code>capabilities</code> lists installed adapters. Add an adapter ID, such as <code>ghostget capabilities gmail</code>, to see its operations and required inputs. Add <code>--json</code> when your agent needs the complete contracts.</p>
-          <p>On macOS, <code>ghostget tui</code> and <code>ghostget connections</code> can connect X, LinkedIn, and Reddit browser sessions. Other providers and Linux account setup use the CLI instructions in the <a href="/docs/reference/provider-capabilities/">provider directory</a>, including the focused guides for <a href="/docs/how-to/connect-beeper/">Beeper</a> and <a href="/docs/how-to/export-whatsapp/">WhatsApp</a>. Some providers need their own local tool or OAuth client. Installing GhostGet does not connect any account automatically.</p>
+          <p>On macOS, <code>ghostget tui</code> and <code>ghostget connections</code> can connect X, LinkedIn, and Reddit browser sessions. Other providers and Linux account setup use the CLI instructions in the <a href="/docs/reference/provider-capabilities/">provider directory</a>, including the focused guides for <a href="/docs/how-to/connect-beeper/">Beeper</a>, <a href="/docs/how-to/export-whatsapp/">WhatsApp</a>, and <a href="/docs/how-to/connect-gmail/">Gmail</a>. Some providers need their own local tool or OAuth client. Installing GhostGet does not connect any account automatically.</p>
           <p><code>ghostget status</code> shows accounts, pending approvals and saved outputs; add <code>--json</code> for your agent. See the <a href="{{GHOSTGET_REPOSITORY}}/blob/{{GHOSTGET_RELEASE}}/docs/controls.md">control guide</a> for the control owner, approvals, and credential import.</p>
           <p>For keyboard controls, run <code>ghostget tui</code>. Press Tab to change sections, Enter to open actions, and <code>?</code> for help. No Rust compiler or separate TUI install is needed.</p>
           <details class="demo-transcript"><summary>Understand capability status</summary><p><code>ghostget capabilities --json</code> lists the actions installed on this machine. An action marked <code>observed</code> has a reviewed definition, but it still needs a connected account and the right local setup before it can run. An action marked <code>capture-required</code> can’t run until its definition is reviewed. The <code>messaging.automation.*</code> entries are permissions for the owner messaging host; you can’t run them with <code>invoke</code> or <code>confirm</code>.</p></details>
@@ -120,7 +160,7 @@ ghostget status</code></pre></div>
           <div class="command-panel"><pre><code>ghostget doctor
 ghostget plugin doctor --json</code></pre></div>
           <p>Doctor reports capture, media, provider setup, and durable recovery. It can also finish safe recovery of interrupted work. Install only the dependencies needed by your chosen workflow. Missing media tools or unconnected providers do not prevent a plain public-page read, and the overall provider-readiness result can be false on a fresh installation.</p>
-          <p>For an account error, check that the intended account is connected and the requested action is listed. For a capture error, try a public page first. Keep indeterminate writes for reconciliation; do not repeat a send because its response was lost.</p>
+          <p>For an account error, check that the intended account is connected and the requested action is listed. For a capture error, try a public page first. If a read works in your terminal but fails with <code>could not resolve</code> when your agent runs it, <a href="#agents">give the agent’s sandbox network access</a>. Keep indeterminate writes for reconciliation; do not repeat a send because its response was lost.</p>
         </section>
 
         <section id="demo" aria-labelledby="first-capture-demo">

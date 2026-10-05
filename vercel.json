@@ -377,6 +377,16 @@
       "permanent": true
     },
     {
+      "source": "/docs/how-to/connect-gmail",
+      "destination": "/docs/how-to/connect-gmail/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/how-to/connect-gmail/index.html",
+      "destination": "/docs/how-to/connect-gmail/",
+      "permanent": true
+    },
+    {
       "source": "/docs/how-to/use-webmcp-sites",
       "destination": "/docs/how-to/use-webmcp-sites/",
       "permanent": true
