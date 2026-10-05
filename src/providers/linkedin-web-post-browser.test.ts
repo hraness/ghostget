@@ -355,7 +355,7 @@ describe("LinkedIn native post contained-browser transport", () => {
     const permalinkHtml = [
       `<html><body>`,
       `"entityUrn":"urn:li:activity:${activityId}"`,
-      `"commentary":{"text":"${postText.replace(/&/u, "&amp;")}"}`,
+      `"commentary":{"text":"${postText.replace(/&/gu, "&amp;").replace(/</gu, "&lt;").replace(/>/gu, "&gt;").replace(/"/gu, "&quot;").replace(/'/gu, "&#39;")}"}`,
       `href="https://www.linkedin.com/in/hraness/"`,
       `<span>Ben Guo</span>`,
       mediaUrn,
