@@ -2474,25 +2474,23 @@
 // bytes and 24,462,212 unpacked bytes; archive SHA-256
 // 60297eb24c9df4f79ac5ac4bd0f1ff0d633c624cf063c78f9381d3c3aba8d74f. Retain the
 // reviewed allowances: 24,462,212 + 353 + 65 = 24,462,630.
-// The invoke --execute change adds the authorized-publication path, its
-// parser, runtime, permission, control, help, skill, and claim updates over
-// the 0.18.79 Lightpanda source. Two byte-identical npm 11.19.0 packs on
-// Node 24.20.0 (zlib 1.3.2.1-motley-42c2f19) --ignore-scripts on darwin
-// arm64 measured 638 entries, 12,243,896 packed bytes and 24,496,392
-// unpacked bytes; archive SHA-256
-// 34f3e4e878099d75486902d1076f5c1c447bdb75faf3871b5fe3397a23b70e1c. Retain the
-// reviewed allowances: 12,243,896 + 12,387 + 4,096 = 12,260,379 packed;
-// 24,496,392 + 353 + 65 = 24,496,810 unpacked.
+// The 0.18.80 release updates website documentation, the WebMCP page, and
+// release pins with the new changelog section. Two clean npm 11.19.0 packs on
+// Node 24.20.0 (zlib 1.3.2.1-motley-42c2f19) with --ignore-scripts on
+// darwin arm64 were byte-identical at 638 files/entries, 12,242,525 packed
+// bytes and 24,491,239 unpacked bytes; archive SHA-256
+// 020221914b707564361aa79102783a91ce341dc2b823040d8e864a03a09c4f55. Retain the
+// reviewed allowances: 24,491,239 + 353 + 65 = 24,491,657.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "0.18.79 invoke --execute authorized publication over the Lightpanda release",
+  scope: "0.18.80 website documentation and WebMCP rename over the reviewed 0.18.79 release",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   nodeVersion: "24.20.0",
   zlibVersion: "1.3.2.1-motley-42c2f19",
   platform: "darwin-arm64",
-  archiveSha256: "34f3e4e878099d75486902d1076f5c1c447bdb75faf3871b5fe3397a23b70e1c",
-  packedBytes: 12_243_896,
-  unpackedBytes: 24_496_392,
+  archiveSha256: "020221914b707564361aa79102783a91ce341dc2b823040d8e864a03a09c4f55",
+  packedBytes: 12_242_525,
+  unpackedBytes: 24_491_239,
   entryCount: 638,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
