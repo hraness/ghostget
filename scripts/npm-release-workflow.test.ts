@@ -1430,7 +1430,7 @@ describe("npm publication contract", () => {
     expect(budget).toContain("785b8fa60c329d7ac46bc8fcf4d959b5fa9d96455bba9e7cdea63f6a3827c4f6");
     expect(Object.isFrozen(repairPackageMeasurement)).toBeTrue();
     expect(repairPackageMeasurement).toMatchObject({
-      scope: "0.18.79 semantic-first Lightpanda capture over the reviewed 0.18.78 release",
+      scope: "0.18.80 semantic-first Lightpanda capture over the reviewed 0.18.78 release",
       npmVersion: "11.19.0", nodeVersion: "24.20.0", zlibVersion: "1.2.12",
       archiveSha256: "95377ea749283077fc1e886b6bcf40cf0a10d060aa640ddb4bf02cce5c3ac32e",
       packedBytes: 12_230_572, unpackedBytes: 24_490_679, entryCount: 638,

@@ -7,6 +7,13 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.80
+
+Preserve the temporary-root proof in isolated profile cloning.
+
+- Pass the parent `TMPDIR` explicitly to the isolated profile-clone helper so stale socket proof checks the correct directory.
+- Keep every existing process, socket, profile identity, and destination identity guard; do not inherit the ambient environment.
+
 ## 0.18.79
 
 Use a provisioned Lightpanda 1.0.0 for automatic public single-page text capture, with Chromium for rendering and connected accounts.

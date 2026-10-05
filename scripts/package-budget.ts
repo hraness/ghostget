@@ -2475,7 +2475,7 @@
 // 60297eb24c9df4f79ac5ac4bd0f1ff0d633c624cf063c78f9381d3c3aba8d74f. Retain the
 // reviewed allowances: 24,462,212 + 353 + 65 = 24,462,630.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "0.18.79 semantic-first Lightpanda capture over the reviewed 0.18.78 release",
+  scope: "0.18.80 profile-clone temporary-root proof over the reviewed 0.18.79 release",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   nodeVersion: "24.20.0",
