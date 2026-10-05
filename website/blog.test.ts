@@ -52,8 +52,14 @@ describe("GhostGet blog admission", () => {
     for (const post of BLOG_POSTS) {
       expect(post.admission.href).toBe(blogPostPath(post.slug));
       expect(post.admission.drafting).toBe("ai");
-      expect(post.admission.review?.reviewerType).toBe("ai");
-      expect(post.admission.humanReview).toBeNull();
+      expect(["ai", "human-editor"]).toContain(post.admission.review!.reviewerType);
+      // A recorded human review names a person; it never stands in for an AI review.
+      if (post.admission.humanReview !== null) expect(["author", "human-editor", "subject-expert"]).toContain(post.admission.humanReview.reviewerType);
+      if (post.admission.review?.reviewerType === "human-editor") {
+        expect(post.admission.humanReview?.reviewer).toBe(post.admission.review.reviewer);
+        expect(post.admission.humanReview?.reviewerType).toBe(post.admission.review.reviewerType);
+        expect(post.admission.humanReview?.reviewedOn).toBe(post.admission.review.reviewedOn);
+      }
       if (post.admission.lifecycle === "indexable") {
         expect(articleAdmissionPasses(post.admission.scores)).toBe(true);
       }
@@ -61,13 +67,24 @@ describe("GhostGet blog admission", () => {
     expect(new Set(BLOG_POSTS.map((post) => post.slug)).size).toBe(BLOG_POSTS.length);
   });
 
-  test("an AI review is disclosed as AI and never called human", () => {
+  test("names a human editor as human and an AI review as AI, never the reverse", () => {
     for (const post of BLOG_POSTS) {
+      const review = post.admission.review!;
       const sentence = articleProvenanceSentence(articleProvenanceFromAdmission(post.admission));
-      expect(sentence).toBe(`Drafted with AI and reviewed by ${post.admission.review?.reviewer}.`);
-      expect(sentence).toMatch(/\bAI\b/u);
-      expect(sentence).not.toMatch(/human/iu);
+      if (review.reviewerType === "human-editor") {
+        expect(sentence).toBe(`Drafted with AI and reviewed by ${review.reviewer}, a human editor.`);
+      } else {
+        expect(sentence).toBe(`Drafted with AI and reviewed by ${review.reviewer}.`);
+        expect(sentence).toMatch(/\bAI\b/u);
+        expect(sentence).not.toMatch(/human/iu);
+      }
     }
+    const admission = BLOG_POSTS[0]!.admission;
+    const aiReview = { reviewer: "Codex editorial review (AI)", reviewerType: "ai", reviewedOn: "2026-10-04" } as const;
+    // An AI review may not call itself human, and humanReview may not record an AI reviewer.
+    expect(() => assertArticleAdmissions([{ ...admission, review: { ...aiReview, reviewer: "Codex human review (AI)" } }])).toThrow();
+    expect(() => assertArticleAdmissions([{ ...admission, review: aiReview, humanReview: aiReview }])).toThrow();
+    expect(() => assertArticleAdmissions([{ ...admission, review: aiReview }])).not.toThrow();
   });
 
   test("every post body renders with the Hraness byline, provenance note, sources, and the article image", async () => {

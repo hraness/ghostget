@@ -182,7 +182,7 @@ export const PUBLIC_PAGES = [
   {
     canonicalPath: "/docs/reference/provider-capabilities/",
     description:
-      "See which provider actions GhostGet supports in the current release and how each service connects.",
+      "See which services and actions GhostGet supports in the current release, how each service connects, and how to check what your installation can run.",
     outputFile: "docs/reference/provider-capabilities/index.html",
     sourceFile: "docs-reference-provider-capabilities.html",
     title: "Provider support in GhostGet",
@@ -284,7 +284,7 @@ export const PUBLIC_PAGES = [
   {
     canonicalPath: "/compare/",
     description:
-      "Choose a page reader, browser tool, or account integration around the work the agent needs to do.",
+      "An agent may need the text of a page, a browser it controls, or an action in an account. Compare the tools built for each job.",
     outputFile: "compare/index.html",
     sourceFile: "compare-index.html",
     title: "How agents reach the web",
