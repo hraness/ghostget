@@ -55,7 +55,7 @@
           <p class="eyebrow">How-to guide · Gmail adapter · {{GHOSTGET_RELEASE}}</p>
           <h1>Connect Gmail with your own Google OAuth client</h1>
           <p class="answer-lede">GhostGet’s Gmail adapter lists and reads your mail threads and contacts through Google’s Gmail and People APIs. You create the Google OAuth client and sign in once from your terminal. Your agent then calls three read-only actions with the account name you chose. GhostGet can’t send, draft, label, or delete mail.</p>
-          <p class="review-note">This guide describes {{GHOSTGET_RELEASE}}. Status on October 4, 2026: the Google Cloud console steps match Google’s <a href="https://developers.google.com/workspace/guides/configure-oauth-consent">consent screen guide</a> and <a href="https://developers.google.com/workspace/gmail/api/quickstart/python">Gmail API quickstart</a>, and the sign-in was not run with a Google account for this guide. Run <code>ghostget capabilities gmail --json</code> for the actions installed on your computer.</p>
+          <p class="review-note">This guide describes {{GHOSTGET_RELEASE}}. Status on October 4, 2026: the Google Cloud console steps match Google’s <a href="https://developers.google.com/workspace/guides/configure-oauth-consent">consent screen guide</a> and <a href="https://developers.google.com/workspace/gmail/api/quickstart/python">Gmail API quickstart</a>, the Claude connector details match Anthropic’s connector article and Claude Code’s MCP guide, and the sign-in was not run with a Google account for this guide. Run <code>ghostget capabilities gmail --json</code> for the actions installed on your computer.</p>
         </header>
 
         <section aria-labelledby="choose">
@@ -104,7 +104,7 @@ ghostget auth login gmail-main --client-file /absolute/path/client_secret.json</
           <p>While your app’s publishing status is Testing, <a href="https://support.google.com/cloud/answer/15549945">Google ends each authorization seven days after consent</a>. To keep the connection, choose Publish app under Google Auth platform › Audience, then sign in again with <code>--force</code>:</p>
           <div class="command-panel"><pre><code>ghostget auth login gmail-main --client-file /absolute/path/client_secret.json --force</code></pre></div>
           <p>A published app that asks for <code>gmail.readonly</code> shows Google’s unverified-app screen until Google verifies it. Google <a href="https://developers.google.com/identity/protocols/oauth2/production-readiness/restricted-scope-verification">doesn’t require verification</a> for personal use, when you are the only user or your users are a few people you know.</p>
-          <p>Google sets an end date on the credential itself only when you <a href="https://developers.google.com/identity/protocols/oauth2/native-app">grant time-based access</a>. When it does, GhostGet prints that date after sign-in.</p>
+          <p>If Google gives the credential an end date, GhostGet prints that date after sign-in, with a reminder to publish the app and sign in again with <code>--force</code>.</p>
         </section>
 
         <section aria-labelledby="check">
@@ -122,8 +122,8 @@ ghostget gmail messaging.list --auth gmail-main \
             <li><code>Google OAuth client document contains unsupported field web</code>: the file belongs to a Web application client. Create a Desktop app client and download its JSON file.</li>
             <li><code>Google authorization timed out before consent completed</code>: approve access within 10 minutes, then run <code>ghostget auth login</code> again.</li>
             <li><code>Google did not issue a refresh token; revoke the prior app grant and repeat login</code>: remove the app from your Google Account’s <a href="https://support.google.com/accounts/answer/13533235">third-party connections</a>, then sign in again.</li>
-            <li><code>the managed Google refresh credential expired; run ghostget auth login again</code>: the end date GhostGet printed at sign-in has passed. Sign in again with <code>--force</code>.</li>
-            <li><code>official provider returned HTTP 400 for POST /token</code>: Google refused to renew access, which its token endpoint reports as <code>invalid_grant</code>. An app in Testing reaches this seven days after consent. Google’s <a href="https://developers.google.com/identity/protocols/oauth2#expiration">other reasons</a> include removing the app’s access, changing your Google password while the app holds a Gmail scope, and six months without use. Publish the app if it’s still in Testing, then sign in again with <code>--force</code>.</li>
+            <li><code>the managed Google refresh credential expired; run ghostget auth login again</code>: the end date GhostGet printed at sign-in has passed. Publish the app if it’s still in Testing, then sign in again with <code>--force</code>.</li>
+            <li><code>official provider returned HTTP 400 for POST /token</code>: Google refused to renew access, which its token endpoint reports as <code>invalid_grant</code>. Google’s <a href="https://developers.google.com/identity/protocols/oauth2#expiration">reasons</a> include the seven-day limit for an app in Testing, removing the app’s access, changing your Google password while the app holds a Gmail scope, and six months without use. Publish the app if it’s still in Testing, then sign in again with <code>--force</code>.</li>
           </ul>
         </section>
 

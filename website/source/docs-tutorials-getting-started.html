@@ -61,7 +61,7 @@
 
         <section aria-labelledby="requirements">
           <h2 id="requirements">What you need</h2>
-          <p>A macOS or Linux computer, a terminal, and <a href="https://bun.sh/docs/installation">Bun 1.3.14</a>. Check it with <code>bun --version</code>. GhostGet is free and MIT licensed. You can use it directly or with an agent that can run commands, such as Codex, Claude Code, or Cursor; <a href="#agents">give that agent network access</a> first.</p>
+          <p>A macOS or Linux computer, a terminal, and <a href="https://bun.sh/docs/installation">Bun 1.3.14</a>. Check it with <code>bun --version</code>. GhostGet is free and MIT licensed. You can use it directly or with an agent that can run commands, such as Codex, Claude Code, or Cursor, after you <a href="#agents">check the agent’s network settings</a>.</p>
         </section>
 
         <section aria-labelledby="install">
@@ -102,10 +102,10 @@ extends = ":workspace"
 enabled = true</code></pre></div>
           <p>Leave Codex’s network proxy, <code>features.network_proxy</code>, turned off. GhostGet looks up and checks each site’s address itself and doesn’t use proxy settings, so behind the proxy its reads fail with the same <code>could not resolve</code> error. Without the proxy, commands under this profile can also reach <code>127.0.0.1</code>, where Beeper Desktop listens.</p>
           <p>Codex reads either a permission profile or the older <code>sandbox_mode</code> and <code>[sandbox_workspace_write]</code> settings, not both. If <code>network_access = true</code> in <code>config.toml</code> changes nothing, look for a <code>default_permissions</code> line and turn on network access in that profile instead.</p>
-          <p>To leave network access off for other commands, let only <code>ghostget read</code> run outside the sandbox without asking. Add this rule to <code>~/.codex/rules/default.rules</code>; rules are an experimental Codex feature:</p>
+          <p>To leave network access off for other commands, let only <code>ghostget read</code> run outside the sandbox without asking. Add this rule to <code>~/.codex/rules/default.rules</code>, then restart Codex; rules are an experimental Codex feature:</p>
           <div class="command-panel"><pre><code>prefix_rule(pattern = ["ghostget", "read"], decision = "allow")</code></pre></div>
           <p>Check how Codex applies the rule with <code>codex execpolicy check --pretty --rules ~/.codex/rules/default.rules -- ghostget read https://example.com</code>. Codex’s <a href="https://learn.chatgpt.com/docs/agent-approvals-security">approvals and security guide</a>, <a href="https://learn.chatgpt.com/docs/permissions">permission profiles reference</a>, and <a href="https://learn.chatgpt.com/docs/agent-configuration/rules">rules guide</a> cover these settings.</p>
-          <p class="review-note">Status on October 4, 2026: each Codex setting above was tried with Codex CLI 0.160.0 by running <code>ghostget read https://example.com --mode http</code> under <code>codex sandbox</code>.</p>
+          <p class="review-note">Status on October 4, 2026: with Codex CLI 0.160.0, the sandbox and network settings above were tried by running <code>ghostget read https://example.com --mode http</code> and a request to <code>127.0.0.1</code> under <code>codex sandbox</code>, and the rule was checked with <code>codex execpolicy check</code>. GhostGet was not run from a Codex agent session.</p>
           <h3 id="agents-claude-code">Claude Code</h3>
           <p>In Manual mode, Claude Code asks before it runs a shell command outside its built-in read-only set. Choose “Yes, and don’t ask again” to save the rule for the repository, or allow GhostGet reads for every project in <code>~/.claude/settings.json</code>:</p>
           <div class="command-panel"><pre><code>{
@@ -113,7 +113,7 @@ enabled = true</code></pre></div>
     "allow": ["Bash(ghostget read *)"]
   }
 }</code></pre></div>
-          <p>Claude Code’s sandbox is off unless you turn it on with <code>/sandbox</code>. With it on, commands reach the network only through Claude Code’s proxy, which GhostGet doesn’t use, so its reads can’t reach the web. List GhostGet in <code>excludedCommands</code> so it runs outside the sandbox, where the permission prompts above still apply:</p>
+          <p>Claude Code’s sandbox is off by default; <code>/sandbox</code> or the <code>sandbox.enabled</code> setting turns it on. With it on, commands reach the network only through Claude Code’s proxy, which GhostGet doesn’t use, so its reads can’t reach the web. List GhostGet in <code>excludedCommands</code> so it runs outside the sandbox, where the permission prompts above still apply:</p>
           <div class="command-panel"><pre><code>{
   "sandbox": {
     "excludedCommands": ["ghostget *"]
