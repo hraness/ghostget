@@ -359,7 +359,7 @@ describe("npm publication contract", () => {
         (MAX_UNPACKED_BYTES + MAX_PACKED_ENTRIES * 1_023 + 1_024) / 512,
       ) * 512,
     );
-    expect(MAX_PACKAGE_TAR_BYTES).toBe(25_182_208);
+    expect(MAX_PACKAGE_TAR_BYTES).toBe(25_012_736);
     expect(MAX_PACKAGE_TAR_BYTES % 512).toBe(0);
     expect(artifact).toContain("maxOutputLength: MAX_PACKAGE_TAR_BYTES");
     expect(artifact).not.toContain("const maximumTarBytes");
@@ -569,10 +569,10 @@ describe("npm publication contract", () => {
     expect(budget).toContain("785b8fa60c329d7ac46bc8fcf4d959b5fa9d96455bba9e7cdea63f6a3827c4f6");
     expect(Object.isFrozen(repairPackageMeasurement)).toBeTrue();
     expect(repairPackageMeasurement).toMatchObject({
-      scope: "0.18.84 auto-default engine selection over the engine-aware release",
-      npmVersion: "11.19.0", nodeVersion: "24.20.0", zlibVersion: "1.2.12",
-      archiveSha256: "a212c8c3050c1f9509a3725e40b0e9d20dfb8913b3c669f729e79a88adcacfea",
-      packedBytes: 12_238_781, unpackedBytes: 24_527_832, entryCount: 638,
+      scope: "0.18.85 Beeper SDK pin extraction",
+      npmVersion: "11.19.0", nodeVersion: "24.20.0", zlibVersion: "1.3.2.1-motley-42c2f19",
+      archiveSha256: "acad4b6558e011503df7c42662a461efbb77f6291d024776951e369b36671588",
+      packedBytes: 12_220_202, unpackedBytes: 24_357_529, entryCount: 639,
       packedPlatformProjection: 12_387, packedPortabilityAllowance: 4_096,
       payloadPlatformProjection: 353, payloadAllowance: 65,
     });
@@ -588,8 +588,8 @@ describe("npm publication contract", () => {
     expect(budget).toContain("24,024,705 + 353 + 65 = 24,025,123 unpacked");
     expect(budget).toContain("12,152,562 + 12,387 + 4,096 = 12,169,045 packed");
     expect(budget).toContain("24,093,786 + 353 + 65 = 24,094,204 unpacked");
-    expect(MAX_PACKED_BYTES).toBe(12_255_264);
-    expect(MAX_PACKED_BYTES).toBe(12_238_781 + 12_387 + 4_096);
+    expect(MAX_PACKED_BYTES).toBe(12_236_685);
+    expect(MAX_PACKED_BYTES).toBe(12_220_202 + 12_387 + 4_096);
     expect(budget).toContain("aa127b3193c9bb3b0cb5deece5927be60ccb7111a50169320d322ffdeaa13f39");
     expect(budget).toContain("0c331bab3ab3df69a108e18f5f29845b0db90c281cbd6455c0d90fa0b24081e2");
     expect(budget).toContain("873cad8139fda303e2d19c6afd61cf549cf9b4d1d76b2a1d6d632a6afe6bd0d1");
@@ -684,8 +684,8 @@ describe("npm publication contract", () => {
     expect(budget).toContain("11,696,091 + 4,096 = 11,700,187");
     expect(budget).toContain("35449445752 attempt 1, package job 105913938839");
     expect(budget).toContain("exactly 596 files");
-    expect(MAX_PACKED_ENTRIES).toBe(638);
-    expect(MAX_PACKED_FILES).toBe(638);
+    expect(MAX_PACKED_ENTRIES).toBe(639);
+    expect(MAX_PACKED_FILES).toBe(639);
     expect(budget).toContain("Ghostget 0.18.6 same-boot setup-cleanup candidate over main edbe567");
     expect(budget).toContain("11,656,173");
     expect(budget).toContain("22,513,450 payload bytes across exactly 557 files");
@@ -710,7 +710,7 @@ describe("npm publication contract", () => {
     expect(budget).toContain("47684b3e2eb5cf3ed07fbb520aade8c7251d993f75262fbf1af627d9081a1a5f");
     expect(budget).toContain("23,688,277 + 353 + 65 = 23,688,695");
     expect(budget).toContain("23,759,283 + 353 + 65 = 23,759,701");
-    expect(MAX_UNPACKED_BYTES).toBe(24_528_250);
+    expect(MAX_UNPACKED_BYTES).toBe(24_357_947);
     expect(budget).toContain("23,037,873 + 65 = 23,037,938");
     expect(budget).toContain("f9f3ab38a682690ceaa2699a7309997512030f0fa500a9dc29dcd108123dc41f");
     expect(budget).toContain("23,038,557 + 65 = 23,038,622");
@@ -743,7 +743,7 @@ describe("npm publication contract", () => {
     expect(budget).toContain("01875f12ab73a49d6c7d6bf520dc3d318db816addee2fa7981889f35c958cf7c");
     expect(budget).toContain("b12909f08f7c19460ced56e30619f4860a1183f4b0106170c07837dae577a937");
     expect(budget).toContain("0b212ac291218528dcf979370110a36f10850e046ca90a536057d9a44e807d1d");
-    expect(MAX_UNPACKED_BYTES).toBe(24_527_832 + 353 + 65);
+    expect(MAX_UNPACKED_BYTES).toBe(24_357_529 + 353 + 65);
     expect(budget).toContain("22,794,052 + 65 = 22,794,117");
     expect(budget).toContain("c482efe748f880e3717727d6d39fd92a68953e6eea766642b329ba47ae772d80");
     expect(budget).toContain("22,759,423 + 65 = 22,759,488");
@@ -777,10 +777,10 @@ describe("npm publication contract", () => {
       expect(Object.isFrozen(range)).toBe(true);
     }
     expect(packageArtifactBudget).toEqual({
-      entryCount: { min: 638, max: 638 },
-      fileCount: { min: 638, max: 638 },
-      packedBytes: { min: 1_600_000, max: 12_255_264 },
-      unpackedBytes: { min: 9_000_000, max: 24_528_250 },
+      entryCount: { min: 639, max: 639 },
+      fileCount: { min: 639, max: 639 },
+      packedBytes: { min: 1_600_000, max: 12_236_685 },
+      unpackedBytes: { min: 9_000_000, max: 24_357_947 },
     });
   });
 
