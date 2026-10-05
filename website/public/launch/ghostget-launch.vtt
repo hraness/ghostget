@@ -1,0 +1,28 @@
+WEBVTT
+
+act-1
+00:00:00.250 --> 00:00:04.950
+A signed-in browser lets your agent click anything you can.
+
+act-2
+00:00:05.250 --> 00:00:08.950
+GhostGet
+wget for the ghost in the machine.
+
+act-3
+00:00:09.250 --> 00:00:13.350
+Your agent reads the page, not the HTML.
+
+act-4
+00:00:13.650 --> 00:00:18.248
+Each read comes back as Markdown with its source.
+
+act-5
+00:00:18.548 --> 00:00:22.788
+Nothing goes out until you say so.
+
+end
+00:00:23.138 --> 00:00:29.100
+Ask your agent: “Install GhostGet from ghostget.com”
+Free and MIT licensed · macOS and Linux · Latest release: v0.18.78
+ghostget.com
