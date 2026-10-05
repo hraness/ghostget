@@ -1430,7 +1430,7 @@ describe("npm publication contract", () => {
     expect(budget).toContain("785b8fa60c329d7ac46bc8fcf4d959b5fa9d96455bba9e7cdea63f6a3827c4f6");
     expect(Object.isFrozen(repairPackageMeasurement)).toBeTrue();
     expect(repairPackageMeasurement).toMatchObject({
-      scope: "0.18.80 website documentation and WebMCP rename over the reviewed 0.18.79 release",
+      scope: "0.18.81 website documentation and WebMCP rename over the reviewed 0.18.79 release",
       npmVersion: "11.19.0", nodeVersion: "24.20.0", zlibVersion: "1.3.2.1-motley-42c2f19",
       archiveSha256: "020221914b707564361aa79102783a91ce341dc2b823040d8e864a03a09c4f55",
       packedBytes: 12_242_525, unpackedBytes: 24_491_239, entryCount: 638,

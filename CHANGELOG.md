@@ -7,7 +7,7 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
-## 0.18.80
+## 0.18.81
 
 Document running GhostGet from Claude Code, Codex, and Cursor, connecting Gmail, and the renamed WebMCP interface.
 
