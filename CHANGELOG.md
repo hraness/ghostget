@@ -21,7 +21,7 @@ without a per-post confirmation command.
 - Reviewed interactive batches keep the existing preview and `confirm` flow;
   the agent skill documents when each applies.
 
-## 0.18.80
+## 0.18.81
 
 Document running GhostGet from Claude Code, Codex, and Cursor, connecting Gmail, and the renamed WebMCP interface.
 

@@ -2474,32 +2474,23 @@
 // bytes and 24,462,212 unpacked bytes; archive SHA-256
 // 60297eb24c9df4f79ac5ac4bd0f1ff0d633c624cf063c78f9381d3c3aba8d74f. Retain the
 // reviewed allowances: 24,462,212 + 353 + 65 = 24,462,630.
-// The 0.18.80 release updates website documentation, the WebMCP page, and
+// The 0.18.81 release updates website documentation, the WebMCP page, and
 // release pins with the new changelog section. Two clean npm 11.19.0 packs on
 // Node 24.20.0 (zlib 1.3.2.1-motley-42c2f19) with --ignore-scripts on
 // darwin arm64 were byte-identical at 638 files/entries, 12,242,525 packed
 // bytes and 24,491,239 unpacked bytes; archive SHA-256
 // 020221914b707564361aa79102783a91ce341dc2b823040d8e864a03a09c4f55. Retain the
 // reviewed allowances: 24,491,239 + 353 + 65 = 24,491,657.
-// The invoke --execute change adds the authorized-publication path, its
-// parser, runtime, permission, control, help, skill, and claim updates over
-// the merged 0.18.80 source. Two byte-identical npm 11.19.0 packs on
-// Node 24.20.0 (zlib 1.3.2.1-motley-42c2f19) --ignore-scripts on darwin
-// arm64 measured 638 entries, 12,244,058 packed bytes and 24,496,819
-// unpacked bytes; archive SHA-256
-// 46ec4638fa9a2f30c92617c17c3209f1666a88c5c82c0268ac71ac34a0b778e8. Retain the
-// reviewed allowances: 12,244,058 + 12,387 + 4,096 = 12,260,541 packed;
-// 24,496,819 + 353 + 65 = 24,497,237 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "0.18.80 invoke --execute authorized publication over the documentation and WebMCP release",
+  scope: "0.18.81 website documentation and WebMCP rename over the reviewed 0.18.79 release",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   nodeVersion: "24.20.0",
   zlibVersion: "1.3.2.1-motley-42c2f19",
   platform: "darwin-arm64",
-  archiveSha256: "46ec4638fa9a2f30c92617c17c3209f1666a88c5c82c0268ac71ac34a0b778e8",
-  packedBytes: 12_244_058,
-  unpackedBytes: 24_496_819,
+  archiveSha256: "020221914b707564361aa79102783a91ce341dc2b823040d8e864a03a09c4f55",
+  packedBytes: 12_242_525,
+  unpackedBytes: 24_491_239,
   entryCount: 638,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
