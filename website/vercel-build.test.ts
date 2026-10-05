@@ -6,10 +6,6 @@ import {
   VERCEL_PRODUCTION_BRANCH,
   WRENCH_VERCEL_BUILD_MARKER,
 } from "./vercel-build";
-import {
-  serializeProductionReleaseMarker,
-  type ProductionReleaseMarker,
-} from "./production-release-marker.mjs";
 
 const releaseBoundEnvironment = Object.freeze({
   VERCEL: "1",
@@ -23,40 +19,18 @@ const productionEnvironment = Object.freeze({
   VERCEL_GIT_COMMIT_SHA: sourceSha,
   VERCEL_URL: "ghostget-release123-hraness.vercel.app",
 });
-const verifiedIdentity = Object.freeze({
-  name: "@hraness/ghostget" as const,
-  sourceSha,
-  tag: "v0.17.0" as const,
-  version: "0.17.0",
-});
 
 describe("Vercel website build admission", () => {
-  test("verifies the release before a production build", async () => {
+  test("builds production directly from the main branch", async () => {
     const calls: string[] = [];
-    let marker: ProductionReleaseMarker | undefined;
-    await runVercelWebsiteBuild(
-      productionEnvironment,
-      {
-        build: async () => { calls.push("build"); },
-        publishProductionMarker: async (value) => {
-          calls.push("marker");
-          marker = value;
-        },
-        verifyProduction: async () => {
-          calls.push("verify");
-          return verifiedIdentity;
-        },
-      },
-    );
-    expect(calls).toEqual(["verify", "build", "marker"]);
-    expect(serializeProductionReleaseMarker(marker)).toBe(
-      `{"schemaVersion":"wrench-production-release-v1","name":"@hraness/ghostget","repository":"hraness/ghostget","tag":"v0.17.0","version":"0.17.0","sourceSha":"${sourceSha}","deploymentUrl":"https://ghostget-release123-hraness.vercel.app"}\n`,
-    );
-    expect(new TextEncoder().encode(serializeProductionReleaseMarker(marker)).byteLength)
-      .toBeLessThanOrEqual(1_024);
+    await runVercelWebsiteBuild(productionEnvironment, {
+      build: async () => { calls.push("build"); },
+    });
+    expect(calls).toEqual(["build"]);
+    expect(parseVercelDeploymentEnvironment(productionEnvironment)).toBe("production");
   });
 
-  test("keeps previews and local builds independent of external release state", async () => {
+  test("keeps previews and local builds independently buildable", async () => {
     for (const environment of [
       {},
       {
@@ -67,21 +41,13 @@ describe("Vercel website build admission", () => {
       {
         ...releaseBoundEnvironment,
         VERCEL_ENV: "preview",
-        VERCEL_GIT_COMMIT_REF: "main",
+        VERCEL_GIT_COMMIT_REF: "topic-branch",
       },
     ] as const) {
       const calls: string[] = [];
-      await runVercelWebsiteBuild(
-        environment,
-        {
-          build: async () => { calls.push("build"); },
-          publishProductionMarker: async () => { calls.push("marker"); },
-          verifyProduction: async () => {
-            calls.push("verify");
-            return verifiedIdentity;
-          },
-        },
-      );
+      await runVercelWebsiteBuild(environment, {
+        build: async () => { calls.push("build"); },
+      });
       expect(calls).toEqual(["build"]);
     }
     expect(parseVercelDeploymentEnvironment({})).toBe("local");
@@ -103,7 +69,7 @@ describe("Vercel website build admission", () => {
         {
           VERCEL: "1",
           VERCEL_ENV: "preview",
-          VERCEL_GIT_COMMIT_REF: "main",
+          VERCEL_GIT_COMMIT_REF: "topic-branch",
           WRENCH_VERCEL_BUILD: "release-bound-v2",
         },
         "WRENCH_VERCEL_BUILD must equal release-bound-v1",
@@ -112,7 +78,7 @@ describe("Vercel website build admission", () => {
         {
           VERCEL: "true",
           VERCEL_ENV: "preview",
-          VERCEL_GIT_COMMIT_REF: "main",
+          VERCEL_GIT_COMMIT_REF: "topic-branch",
           WRENCH_VERCEL_BUILD: WRENCH_VERCEL_BUILD_MARKER,
         },
         "VERCEL must equal 1",
@@ -129,9 +95,9 @@ describe("Vercel website build admission", () => {
         {
           ...releaseBoundEnvironment,
           VERCEL_ENV: "production",
-          VERCEL_GIT_COMMIT_REF: "main",
+          VERCEL_GIT_COMMIT_REF: "topic-branch",
         },
-        "Vercel production must build website-production",
+        "Vercel production must build main",
       ],
       [
         {
@@ -139,7 +105,7 @@ describe("Vercel website build admission", () => {
           VERCEL_ENV: "preview",
           VERCEL_GIT_COMMIT_REF: VERCEL_PRODUCTION_BRANCH,
         },
-        "website-production must be classified as a production deployment",
+        "main must be classified as a production deployment",
       ],
       [
         {
@@ -154,102 +120,19 @@ describe("Vercel website build admission", () => {
       const calls: string[] = [];
       await expect(runVercelWebsiteBuild(environment, {
         build: async () => { calls.push("build"); },
-        publishProductionMarker: async () => { calls.push("marker"); },
-        verifyProduction: async () => {
-          calls.push("verify");
-          return verifiedIdentity;
-        },
       })).rejects.toThrow(expected);
       expect(calls).toEqual([]);
     }
   });
 
-  test("fails closed for a production build from main", async () => {
-    for (const environment of [
-      {
-        ...releaseBoundEnvironment,
-        VERCEL_ENV: "production",
-        VERCEL_GIT_COMMIT_REF: "main",
-        VERCEL_GIT_COMMIT_SHA: sourceSha,
-        VERCEL_URL: "ghostget-release123-hraness.vercel.app",
-      },
-    ] as const) {
-      const calls: string[] = [];
-      await expect(runVercelWebsiteBuild(environment, {
-        build: async () => { calls.push("build"); },
-        publishProductionMarker: async () => { calls.push("marker"); },
-        verifyProduction: async () => {
-          calls.push("verify");
-          return verifiedIdentity;
-        },
-      })).rejects.toThrow("Vercel production must build website-production");
-      expect(calls).toEqual([]);
-    }
-  });
-
-  test("does not build when production verification fails", async () => {
-    let built = false;
-    await expect(runVercelWebsiteBuild(
-      productionEnvironment,
-      {
-        build: async () => { built = true; },
-        publishProductionMarker: async () => { built = true; },
-        verifyProduction: async () => { throw new Error("release mismatch"); },
-      },
-    )).rejects.toThrow("release mismatch");
-    expect(built).toBe(false);
-  });
-
-  test("fails before building for missing, malformed, or contradictory production identity", async () => {
-    for (const [environment, identity, expected] of [
-      [
-        { ...productionEnvironment, VERCEL_GIT_COMMIT_SHA: undefined },
-        verifiedIdentity,
-        "VERCEL_GIT_COMMIT_SHA must be one lowercase 40-hex commit",
-      ],
-      [
-        { ...productionEnvironment, VERCEL_GIT_COMMIT_SHA: "A".repeat(40) },
-        verifiedIdentity,
-        "VERCEL_GIT_COMMIT_SHA must be one lowercase 40-hex commit",
-      ],
-      [
-        { ...productionEnvironment, VERCEL_URL: "ghostget.com" },
-        verifiedIdentity,
-        "VERCEL_URL must be one exact Ghostget production deployment host",
-      ],
-      [
-        productionEnvironment,
-        { ...verifiedIdentity, sourceSha: "3".repeat(40) },
-        "does not equal the verifier-proven production HEAD",
-      ],
-    ] as const) {
-      const calls: string[] = [];
-      await expect(runVercelWebsiteBuild(environment, {
-        build: async () => { calls.push("build"); },
-        publishProductionMarker: async () => { calls.push("marker"); },
-        verifyProduction: async () => {
-          calls.push("verify");
-          return identity;
-        },
-      })).rejects.toThrow(expected);
-      expect(calls).not.toContain("build");
-      expect(calls).not.toContain("marker");
-    }
-  });
-
-  test("does not publish a marker when the production build fails", async () => {
+  test("propagates a production build failure", async () => {
     const calls: string[] = [];
     await expect(runVercelWebsiteBuild(productionEnvironment, {
       build: async () => {
         calls.push("build");
         throw new Error("build failed");
       },
-      publishProductionMarker: async () => { calls.push("marker"); },
-      verifyProduction: async () => {
-        calls.push("verify");
-        return verifiedIdentity;
-      },
     })).rejects.toThrow("build failed");
-    expect(calls).toEqual(["verify", "build"]);
+    expect(calls).toEqual(["build"]);
   });
 });

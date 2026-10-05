@@ -391,9 +391,9 @@ describe("complete local and release check composition", () => {
       "bun test --no-orphans --timeout 45000 --max-concurrency 1"
       + " ./scripts/release-ref-authority.test.ts ./scripts/npm-release-workflow.test.ts"
       + " ./scripts/github-release-artifact.test.ts ./scripts/ci-pr-gate.test.ts"
-      // The release publisher, census, Latest, token-revocation, and npm rerun models.
+      // The release publisher, census, Latest, and npm rerun models.
       + " ./scripts/release-provider-outcome.test.ts ./scripts/github-release-publish-model.test.ts"
-      + " ./scripts/release-app-token-revocation.test.ts ./scripts/npm-publish-model.test.ts",
+      + " ./scripts/npm-publish-model.test.ts",
     );
   });
 
@@ -558,9 +558,9 @@ describe("npm-release environment scan", () => {
       source: "jobs:\n  test:\n    environment: npm-release\n",
     }])).toEqual(["ci.yml job test references npm-release"]);
     expect(npmReleaseViolations([owner, {
-      file: "website-production.yml",
+      file: "nightly.yml",
       source: "jobs:\n  call:\n    uses: ./.github/workflows/x.yml\n    with:\n      target: npm-release\n",
-    }])).toEqual(["website-production.yml mentions npm-release 1 time(s) outside a job environment"]);
+    }])).toEqual(["nightly.yml mentions npm-release 1 time(s) outside a job environment"]);
     expect(npmReleaseViolations([owner, {
       file: "ci.yml",
       source: "jobs:\n  test:\n    environment: NPM-Release\n",
@@ -581,14 +581,14 @@ describe("npm-release environment scan", () => {
       "NPM-Release",
       { name: "Npm-Release" },
       "production-ref-writer-key",
-      { name: "website-production" },
+      { name: "production" },
     );
     const jobs = fc.dictionary(
       fc.constantFrom("publish_npm", "publish", "verify", "attest", "promote"),
       fc.record({ environment }, { requiredKeys: [] }),
     );
     const workflows = fc.dictionary(
-      fc.constantFrom("release.yml", "ci.yml", "website-production.yml", "nightly.yml"),
+      fc.constantFrom("release.yml", "ci.yml", "auto-tag.yml", "nightly.yml"),
       jobs,
       { minKeys: 1 },
     );
@@ -612,7 +612,7 @@ describe("npm-release environment scan", () => {
 });
 
 describe("AGENTS.md control-plane ruleset readback", () => {
-  test("names all four live tag rulesets and both production branch rulesets", async () => {
+  test("names all four live tag rulesets", async () => {
     const agents = await readFile(agentsUrl, "utf8");
     const readback = agents.split("\n").find((line) => line.startsWith("- At setup, after any control change, and during drift recovery"));
     expect(readback).toBeDefined();
@@ -621,7 +621,7 @@ describe("AGENTS.md control-plane ruleset readback", () => {
     for (const pattern of ["`refs/tags/v*`", "`refs/tags/desktop-v*-macos-arm64`"]) {
       expect(readback).toContain(pattern);
     }
-    for (const id of ["22311815", "19989752", "22960902", "22960911", "21832074", "21887484"]) {
+    for (const id of ["22311815", "19989752", "22960902", "22960911"]) {
       expect(readback).toContain(`\`${id}\``);
     }
   });

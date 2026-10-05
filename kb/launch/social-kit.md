@@ -247,8 +247,8 @@ Topics: Developer Tools, Artificial Intelligence, Open Source
 - wikiRatio: 9.7 times. Computed from the Measured table
 - measuredOn: September 22, 2026. website/source/index.html, Measured table summary
 - serviceCount: 21. website/provider-presentation.ts createProviderDirectory().providerCount
-- claimsNotVerified: 19. verification/claims.json, status not-verified
-- claimsTotal: 248. verification/claims.json, every claim
-- claimsEvidenced: 229. verification/claims.json, status evidenced
-- claimsConfigReadback: 15. verification/claims.json, layer configuration-readback
+- claimsNotVerified: 13. verification/claims.json, status not-verified
+- claimsTotal: 211. verification/claims.json, every claim
+- claimsEvidenced: 198. verification/claims.json, status evidenced
+- claimsConfigReadback: 9. verification/claims.json, layer configuration-readback
 - status: Latest release: v0.18.84. package.json version

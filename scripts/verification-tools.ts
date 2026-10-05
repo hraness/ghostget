@@ -1651,13 +1651,12 @@ const MAX_QUINT_SHARD_COUNT = 16;
 const DEFAULT_QUINT_MODEL_WEIGHT = 60;
 
 // Wall seconds one model took in the CI profile on GitHub-hosted ubuntu-latest
-// (run 36028981199; promotion.qnt from run 36511561912): typecheck, seeded
+// (run 36028981199): typecheck, seeded
 // simulations, the Apalache check of every invariant and mutant, and its ITF
 // replay test. Used only to pack shards; every model still runs exactly once.
 // A model without a reading takes the default weight until its first CI log.
 const MEASURED_QUINT_MODEL_WEIGHTS = Object.freeze({
   "release.qnt": 330,
-  "promotion.qnt": 300,
   "state-claim.qnt": 170,
   "media.qnt": 155,
   "path-claim.qnt": 140,

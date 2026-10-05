@@ -26,16 +26,16 @@ export const LAUNCH_MEASURED_READS = Object.freeze([
 export const LAUNCH_SERVICE_COUNT = 21 as const;
 
 /** Claims in verification/claims.json that name no automated check. */
-export const LAUNCH_CLAIMS_NOT_VERIFIED = 19 as const;
+export const LAUNCH_CLAIMS_NOT_VERIFIED = 13 as const;
 
 /** Every claim in verification/claims.json. */
-export const LAUNCH_CLAIMS_TOTAL = 248 as const;
+export const LAUNCH_CLAIMS_TOTAL = 211 as const;
 
 /** Claims in verification/claims.json with status evidenced. */
-export const LAUNCH_CLAIMS_EVIDENCED = 229 as const;
+export const LAUNCH_CLAIMS_EVIDENCED = 198 as const;
 
 /** Claims in verification/claims.json whose layer is configuration-readback: repository and hosting settings an administrator reads back. */
-export const LAUNCH_CLAIMS_CONFIG_READBACK = 15 as const;
+export const LAUNCH_CLAIMS_CONFIG_READBACK = 9 as const;
 
 function bytes(value: number): string {
   return `${value.toLocaleString("en-US")} bytes`;
