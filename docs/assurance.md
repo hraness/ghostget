@@ -8,7 +8,7 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 248 claims: 229 evidenced, 0 planned, and 19 not verified. It maps 93 guidelines from 5 guides; 70 list claims and 23 are exempt.
+The register holds 250 claims: 229 evidenced, 0 planned, and 21 not verified. It maps 95 guidelines from 5 guides; 72 list claims and 23 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
@@ -19,7 +19,7 @@ The register holds 248 claims: 229 evidenced, 0 planned, and 19 not verified. It
 | Lean proof with differential test | 8 | 0 | 0 |
 | differential oracle | 4 | 0 | 0 |
 | configuration readback | 0 | 0 | 15 |
-| none | 0 | 0 | 4 |
+| none | 0 | 0 | 6 |
 
 ## What is not verified
 
@@ -54,6 +54,8 @@ Every claim below also lists its own not-verified scope.
 - `vercel-project-config`: Vercel project `prj_TZbDZ38ABPan158IqnczgsuTu6Ue` under team `team_UAd1iD2XogJlbFg4h14mRaPM` is linked to GitHub repository 1316443113 with `link.productionBranch=website-production`, `autoExposeSystemEnvs=true`, and persistent `autoAssignCustomDomains=true`; main and pull requests deploy only previews. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
 - `control-drift-freezes-production`: Any detected control-plane drift (rulesets, App bypass, App permissions, installation selection, writer environment) leaves production unchanged until the controls are requalified by fresh administrator readback. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift. Drift is detected only at setup, after control changes, and during recovery, not on each routine promotion.
 - `website-informational-only`: `website/` explains and documents Ghostget and contains no agent runtime, authenticated product surface, or browser-based substitute for the CLI and SDK. No automated check inspects `website/` for authenticated surfaces, credential handling, or runtime features; review alone enforces this boundary.
+- `kb-search-frozen-local-command`: The KB search aliases use the executable from the frozen Wordcell runtime graph for local exact candidates and selected source passages, retain that immutable pin, and do not add a query-time package runner or a second KB-only version. No automated check executes the KB aliases under the frozen install or attests the selected executable and its query or network behaviour. This record does not attest the external Wordcell implementation or its installation on a contributor machine.
+- `kb-search-reviewed-confidential-use`: Maintainers read matched Markdown and linked sources before relying on results, keep confidential searches local, require separate approval for a hosted vault/query, and do not infer hosted reranking from a successful search exit. No automated check establishes operator source review or authorization for a particular confidential vault and query. This review performs no hosted reranking and makes no provider-usage or privacy qualification claim.
 
 ### Exempt guidelines
 
@@ -110,7 +112,7 @@ Each claim holds only while its listed assumptions hold.
 
 | Assumption | Statement | Claims |
 | --- | --- | ---: |
-| `bun-runtime` | Bun and JavaScriptCore execute the sources and the test runner as specified. | 8 |
+| `bun-runtime` | Bun and JavaScriptCore execute the sources and the test runner as specified. | 9 |
 | `filesystem-atomic-rename` | Same-volume rename and link are atomic. | 33 |
 | `filesystem-durability` | Data and directory entries that were fsynced persist across a crash or power loss. | 32 |
 | `same-user-trusted` | Processes running as the same operating-system user are trusted; file modes and owner-only sockets separate users. | 34 |
@@ -2434,6 +2436,34 @@ Malformed, unsafe, or contended repair storage never changes the original operat
 - Evidence: `src/contract-repair-inbox.test.ts`
 - Assumptions: `filesystem-atomic-rename`
 - Not verified: Only the enumerated example cases are checked.
+
+### `repository-maintenance` (2 claims)
+
+#### `kb-search-frozen-local-command`
+
+The KB search aliases use the executable from the frozen Wordcell runtime graph for local exact candidates and selected source passages, retain that immutable pin, and do not add a query-time package runner or a second KB-only version.
+
+- Not verified.
+- Source: `AGENTS.md`: “Both use the Wordcell executable installed by the frozen runtime dependency, with local exact candidates and selected source passages.”
+- Evidence: `package.json`, `bun.lock`
+- Assumptions: `bun-runtime`
+- Not verified:
+  - No automated check executes the KB aliases under the frozen install or attests the selected executable and its query or network behaviour.
+  - This record does not attest the external Wordcell implementation or its installation on a contributor machine.
+
+#### `kb-search-reviewed-confidential-use`
+
+Maintainers read matched Markdown and linked sources before relying on results, keep confidential searches local, require separate approval for a hosted vault/query, and do not infer hosted reranking from a successful search exit.
+
+- Not verified.
+- Source: `AGENTS.md`: “Read the matched Markdown and linked sources before relying on a result.”
+- Also covers: `AGENTS.md`: “Keep private notes and confidential queries local; hosted reranking requires a separate approved vault and query.”
+- Also covers: `AGENTS.md`: “A successful search exit does not establish that hosted reranking ran.”
+- Evidence: none
+- Assumptions: none beyond the register-wide scope
+- Not verified:
+  - No automated check establishes operator source review or authorization for a particular confidential vault and query.
+  - This review performs no hosted reranking and makes no provider-usage or privacy qualification claim.
 
 ### `runtime` (4 claims)
 

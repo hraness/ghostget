@@ -976,6 +976,22 @@
       "anchor": "Use product names",
       "digest": "0549aa77a44f2dc46d4dfcba85087a549461e179348f24479fe3767a260db887",
       "exempt": "Public-copy naming rule; it states no safety or integrity property."
+    },
+    {
+      "guide": "AGENTS.md",
+      "anchor": "Search from the repository root with `bun run kb:search \"query\" --json` or `bun run kb:search:local \"query\" --json`.",
+      "digest": "3c296a03bf8b7c2416d473bfb7008db74f54ebcbb8f71317fcb6e77c8a6a4f22",
+      "claims": [
+        "kb-search-frozen-local-command"
+      ]
+    },
+    {
+      "guide": "AGENTS.md",
+      "anchor": "Read the matched Markdown and linked sources before relying on a result.",
+      "digest": "85f98d37ebf2b254f0112f61a89b85b7e6286ff2a46102d30a8b7c062eaeace1",
+      "claims": [
+        "kb-search-reviewed-confidential-use"
+      ]
     }
   ],
   "claims": [
@@ -7336,6 +7352,55 @@
         "Two runs that race past their scans may both refuse at the recheck; neither dispatches, and each is retried after the other settles. No progress law is checked.",
         "The fence model has two locators, one subject, three runs, 5,000 simulated samples of up to 12 steps, and Apalache to length 8; the replay drives the subject scan and recheck through the pure fence cores and a five-trace file-backed cover, not the `confirmInvocation` program, which the listed example tests cover.",
         "A succeeded run under another locator neither fences nor replays across locators, by design."
+      ]
+    },
+    {
+      "id": "kb-search-frozen-local-command",
+      "statement": "The KB search aliases use the executable from the frozen Wordcell runtime graph for local exact candidates and selected source passages, retain that immutable pin, and do not add a query-time package runner or a second KB-only version.",
+      "area": "repository-maintenance",
+      "source": {
+        "path": "AGENTS.md",
+        "quote": "Both use the Wordcell executable installed by the frozen runtime dependency, with local exact candidates and selected source passages."
+      },
+      "layer": "not-verified",
+      "status": "not-verified",
+      "evidence": [
+        "package.json",
+        "bun.lock"
+      ],
+      "assumptions": [
+        "bun-runtime"
+      ],
+      "notVerified": [
+        "No automated check executes the KB aliases under the frozen install or attests the selected executable and its query or network behaviour.",
+        "This record does not attest the external Wordcell implementation or its installation on a contributor machine."
+      ]
+    },
+    {
+      "id": "kb-search-reviewed-confidential-use",
+      "statement": "Maintainers read matched Markdown and linked sources before relying on results, keep confidential searches local, require separate approval for a hosted vault/query, and do not infer hosted reranking from a successful search exit.",
+      "area": "repository-maintenance",
+      "source": {
+        "path": "AGENTS.md",
+        "quote": "Read the matched Markdown and linked sources before relying on a result."
+      },
+      "alsoQuotes": [
+        {
+          "path": "AGENTS.md",
+          "quote": "Keep private notes and confidential queries local; hosted reranking requires a separate approved vault and query."
+        },
+        {
+          "path": "AGENTS.md",
+          "quote": "A successful search exit does not establish that hosted reranking ran."
+        }
+      ],
+      "layer": "not-verified",
+      "status": "not-verified",
+      "evidence": [],
+      "assumptions": [],
+      "notVerified": [
+        "No automated check establishes operator source review or authorization for a particular confidential vault and query.",
+        "This review performs no hosted reranking and makes no provider-usage or privacy qualification claim."
       ]
     }
   ]
