@@ -41,6 +41,12 @@ import type {
 import { localBrowserCdpUrl } from "./derivation-file-chooser";
 import { DOM_ACTION_TRANSPORT_DISABLED_MESSAGE } from "./transport-policy";
 import {
+  createLightpandaDependencies,
+  LightpandaCompatibilityError,
+  resolveLightpandaExecutable,
+  type BrowserEngineSelection,
+} from "./lightpanda-browser";
+import {
   captureProcessOwnerIdentity,
   processOwnerStatus,
   type ProcessOwnerIdentity,
@@ -128,6 +134,8 @@ export type BrowserSessionDependencies = {
   readonly removePrivateArtifact: BrowserPrivateArtifactRemover;
   /** Internal seam for deterministic cleanup quiescence and deletion reproof. */
   readonly cleanupLifecycle: AgentBrowserLifecycleDependencies;
+  /** Owned Lightpanda serve lifecycle used when the session engine resolves to Lightpanda. */
+  readonly createLightpandaDependencies: typeof createLightpandaDependencies;
 };
 
 /** Provider-neutral borrowed operation budget used by browser bootstraps. */
@@ -172,6 +180,21 @@ export type CreateBrowserSessionOptions = {
       root: BrowserCleanupResourceRoot,
     ) => void;
   };
+  /**
+   * Engine selection for the contained session. "auto" is the default: it
+   * resolves to Lightpanda only for a headless session whose auth realm yields
+   * explicit cookies and when a Lightpanda 1.0.0 binary is provisioned, and a
+   * pre-navigation Lightpanda protocol-compatibility failure retries once on
+   * Chromium inside the same call; when cleanup publication is configured, the
+   * compat probe runs on unpublished throwaway roots first so a retry never
+   * has to register a second durable identity. "lightpanda" requires the same
+   * eligibility and fails closed. "chrome" pins the Chromium lane for
+   * transports whose commands Lightpanda has not been qualified to serve.
+   * Every other failure propagates.
+   */
+  readonly engine?: BrowserEngineSelection;
+  /** Environment source for executable resolution and process isolation. */
+  readonly environment?: Readonly<Record<string, string | undefined>>;
   readonly dependencies?: Partial<BrowserSessionDependencies>;
 };
 
@@ -1977,6 +2000,49 @@ function parseAgentBrowserSessionState(
   });
 }
 
+/**
+ * Engine-agnostic quiescence read for unbound launch-intent proofs. The strict
+ * session parser rejects an active non-Chrome runtime outright, but a
+ * CDP-attached Lightpanda session keeps reporting active until its owned serve
+ * child is reaped — quiescence only needs the exact active flag and the
+ * session/socket identity pins.
+ */
+function parseAgentBrowserSessionQuiescence(
+  value: unknown,
+  resource: BrowserCleanupResourceIdentity,
+): "active" | "inactive" {
+  const root = unwrapAgentBrowserIdentityResult(
+    value,
+    "agent-browser session result",
+  );
+  const data = browserIdentityRecord(root.data, "agent-browser session data");
+  browserIdentityExactKeys(data, [
+    "active",
+    "namespace",
+    "pid",
+    "runtime",
+    "runtimeError",
+    "session",
+    "socketDir",
+    "version",
+  ], "agent-browser session data");
+  if (
+    root.success !== true
+    || data.namespace !== null
+    || data.runtimeError !== null
+    || data.session !== resource.session
+    || data.socketDir !== resource.socketDirectory
+  ) throw new Error("agent-browser session identity changed");
+  if (data.active === true) return "active";
+  if (
+    data.active === false
+    && data.pid === null
+    && data.runtime === null
+    && data.version === null
+  ) return "inactive";
+  throw new Error("agent-browser inactive session changed shape");
+}
+
 function parseAgentBrowserCdpControl(
   value: unknown,
 ): {
@@ -2149,11 +2215,11 @@ export async function proveLaunchIntentAgentBrowserCleanupResourceQuiescent(
   const lifecycle = browserLifecycleCommandContext(resource, dependencies);
   assertBrowserCleanupResourceRootsMatch(resource);
   for (let read = 0; read < 2; read += 1) {
-    const inactive = parseAgentBrowserSessionState(
+    const quiescence = parseAgentBrowserSessionQuiescence(
       await lifecycle.inspectSession(),
       resource,
     );
-    if (inactive.state !== "inactive") {
+    if (quiescence !== "inactive") {
       throw new Error(read === 0
         ? "browser cleanup launch-intent session remained active"
         : "browser cleanup launch-intent session quiescence changed");
@@ -3000,6 +3066,8 @@ const BROWSER_CLEANUP_PROOF_SETTLING_MESSAGES: ReadonlySet<string> = new Set([
   "browser cleanup daemon quiescence is unproved",
   "browser cleanup endpoint refusal is unproved",
   "browser cleanup endpoint remained available",
+  "browser cleanup launch-intent session quiescence changed",
+  "browser cleanup launch-intent session remained active",
   "browser cleanup pinned owner is not quiescent",
   "browser cleanup pinned owner quiescence changed",
   "browser cleanup post-close convergence deadline expired",
@@ -3099,6 +3167,7 @@ export async function convergeBrowserCleanupResourceProof(
         }
         retryable = true;
       }
+      if (dependencies.commandSignal?.aborted === true) retryable = false;
       if (!retryable) throw error;
       lastSettlingFailure = error;
       if (attempts >= maximumAttempts || now() >= deadline) throw error;
@@ -3266,7 +3335,7 @@ export async function reproveBrowserCleanupAfterArtifactsRemoval(
     assertBrowserDeletionBoundaryRoots(resource);
     const runner = dependencies.runCommand ?? runCommand;
     const environment = isolatedEnvironment(resource.socketDirectory);
-    const inspectSession = async (): Promise<AgentBrowserSessionState> => {
+    const inspectSession = async (): Promise<"active" | "inactive"> => {
       let result: CommandResult;
       try {
         result = await runner([
@@ -3302,15 +3371,19 @@ export async function reproveBrowserCleanupAfterArtifactsRemoval(
       } catch {
         throw new Error("browser cleanup session inspection changed shape");
       }
-      return parseAgentBrowserSessionState(parsed, resource);
+      if (resource.phase === "launch-intent") {
+        return parseAgentBrowserSessionQuiescence(parsed, resource);
+      }
+      const state = parseAgentBrowserSessionState(parsed, resource);
+      return state.state;
     };
     const first = await inspectSession();
-    if (first.state !== "inactive") {
+    if (first !== "inactive") {
       throw new Error("browser cleanup session remained active");
     }
     assertBrowserDeletionBoundaryRoots(resource);
     const second = await inspectSession();
-    if (second.state !== "inactive") {
+    if (second !== "inactive") {
       throw new Error("browser cleanup session quiescence changed");
     }
     assertBrowserDeletionBoundaryRoots(resource);
@@ -3385,6 +3458,10 @@ const BROWSER_CLOSE_TEARDOWN_TIMEOUT_MS = 17_500;
 // 30-second cleanup join.
 const BROWSER_POST_CLOSE_CONVERGENCE_TIMEOUT_MS = 10_000;
 const BROWSER_RESOURCE_TEARDOWN_TIMEOUT_MS = 2_000;
+// The owned Lightpanda serve child's own close bound is ~4s (1s SIGTERM-to-
+// SIGKILL grace plus a 3s exit wait); the generic 2s resource teardown bound
+// would report a healthy reap as unsettled.
+const LIGHTPANDA_SERVE_TEARDOWN_TIMEOUT_MS = 6_000;
 const BROWSER_ACTIVE_BATCH_SETTLEMENT_TIMEOUT_MS = 2_500;
 
 function guardBrowserSetup(deadline: BrowserOperationDeadline | undefined): void {
@@ -3465,10 +3542,395 @@ function cleanupFailureCause(
   );
 }
 
+/**
+ * An auth realm can drive a Lightpanda session only when it yields explicit
+ * cookies for the contained context. Chrome-profile state and storage-state
+ * files have no Lightpanda equivalent.
+ */
+function browserSessionYieldsCookies(auth: GhostgetAuth): boolean {
+  return auth.kind === "cookie-source"
+    || auth.kind === "cookies-file"
+    || (auth.kind === "browser-profile"
+      && auth.cookieSource !== undefined
+      && auth.storageState === undefined);
+}
+
+/**
+ * Resolve the requested engine selection to a concrete lane. Headless-only
+ * Lightpanda can serve only a session that yields explicit cookies and never
+ * requests a headed browser; anything else resolves to Chromium.
+ */
+export function selectBrowserSessionEngine(
+  auth: GhostgetAuth,
+  selection: BrowserEngineSelection,
+  headed: boolean,
+  environment: Readonly<Record<string, string | undefined>>,
+): "chrome" | "lightpanda" {
+  if (selection !== "auto" && selection !== "chrome" && selection !== "lightpanda") {
+    throw new Error("browser session engine must be auto, chrome, or lightpanda");
+  }
+  const eligible = browserSessionYieldsCookies(auth) && !headed;
+  if (selection === "lightpanda" && !browserSessionYieldsCookies(auth)) {
+    throw new Error(
+      "Lightpanda browser sessions require an auth realm that yields explicit cookies",
+    );
+  }
+  if (selection === "lightpanda" && headed) {
+    throw new Error("Lightpanda browser sessions cannot run headed");
+  }
+  // The Chrome lane never launches Lightpanda — resolving the executable here
+  // would let a stale LIGHTPANDA_PATH break unrelated Chromium sessions.
+  const executable = selection !== "chrome" && eligible
+    ? resolveLightpandaExecutable(environment)
+    : null;
+  if (selection === "lightpanda" && executable === null) {
+    throw new Error(
+      "Lightpanda browser sessions require GHOSTGET_LIGHTPANDA_PATH or LIGHTPANDA_PATH pointing to Lightpanda 1.0.0",
+    );
+  }
+  if (selection === "auto") {
+    return eligible && executable !== null ? "lightpanda" : "chrome";
+  }
+  return selection;
+}
+
+/**
+ * Prove the exact pre-navigation command surface on unpublished throwaway
+ * roots. Once a session's durable `prepared` resource is published, the cleanup
+ * registrar accepts only an identical or monotonic extension — a Chromium retry
+ * under a fresh identity can never land. An incompatible Lightpanda driver must
+ * therefore resolve `auto` to Chromium here, before any durable identity
+ * exists. Any non-compat failure still aborts the session outright.
+ */
+async function preflightLightpandaBrowserSession(
+  manifest: GhostgetManifest,
+  options: CreateBrowserSessionOptions,
+  sessionEnvironment: Readonly<Record<string, string | undefined>>,
+): Promise<void> {
+  const operationDeadline = options.operationDeadline;
+  const runBrowserCommand = options.dependencies?.runCommand ?? runCommand;
+  const createNetworkProxy = options.dependencies?.startNetworkProxy ?? startNetworkProxy;
+  const createLightpanda = options.dependencies?.createLightpandaDependencies
+    ?? createLightpandaDependencies;
+  const removePrivateArtifact = options.dependencies?.removePrivateArtifact
+    ?? ((path: string): void => rmSync(path, { recursive: true, force: true }));
+  const executable = resolveLightpandaExecutable(sessionEnvironment);
+  if (executable === null) {
+    // Engine selection already proved a provisioned binary; a resolution drift
+    // between selection and preflight is not a protocol incompatibility.
+    throw new Error("Lightpanda browser executable is no longer available");
+  }
+  const firstOrigin = manifest.origins[0];
+  if (firstOrigin === undefined) {
+    throw new Error("contained browser session requires one reviewed origin");
+  }
+  const session = `io-${process.pid}-${crypto.randomUUID().slice(0, 12)}`;
+  const directory = mkdtempSync(join(tmpdir(), "io-browser-"));
+  let socketDirectory: string;
+  try {
+    socketDirectory = mkdtempSync(join("/tmp", "io-ab-"));
+  } catch (error) {
+    try {
+      removePrivateArtifact(directory);
+    } catch {
+      // The socket-root failure is the diagnostic; a removal failure does not
+      // mask it.
+    }
+    throw error;
+  }
+  const configPath = join(directory, "agent-browser.json");
+  const policyPath = join(directory, "action-policy.json");
+  let networkProxy: LocalNetworkProxy | null = null;
+  // Mirrors the contained-session path: a deadline abort can leave the proxy
+  // creation promise resolving after the setup step rejected, so the pending
+  // promise is tracked and closed late in teardown.
+  const networkProxyCreation: {
+    pending: Promise<LocalNetworkProxy> | null;
+  } = { pending: null };
+  let lightpanda: ReturnType<typeof createLightpandaDependencies> | null = null;
+  let probeError: unknown = null;
+  try {
+    chmodSync(directory, 0o700);
+    chmodSync(socketDirectory, 0o700);
+    writeFileSync(configPath, "{}\n", { mode: 0o600, flag: "wx" });
+    writeFileSync(policyPath, `${JSON.stringify({
+      default: "deny",
+      allow: runtimeBrowserPolicyActions,
+    })}\n`, { mode: 0o600, flag: "wx" });
+    const environment = isolatedEnvironment(socketDirectory, sessionEnvironment);
+    networkProxy = await runBrowserSetupStep(
+      operationDeadline,
+      () => {
+        const creation = createNetworkProxy({
+          allowPrivateNetwork: false,
+          timeoutMs: remainingBrowserSetupTime(options.timeoutMs, operationDeadline),
+          maxTransferredBytes: 1024 * 1024,
+        });
+        networkProxyCreation.pending = creation;
+        return creation;
+      },
+    );
+    networkProxyCreation.pending = null;
+    const proxy = networkProxy;
+    const globalArguments = [
+      "--config",
+      configPath,
+      "--session",
+      session,
+      "--content-boundaries",
+      "--max-output",
+      String(options.maxOutputBytes),
+      "--action-policy",
+      policyPath,
+      "--proxy",
+      proxy.url,
+    ];
+    const dependencies = createLightpanda(executable, Number.POSITIVE_INFINITY);
+    lightpanda = dependencies;
+    const commandOptions = {
+      cwd: directory,
+      environment,
+      timeoutMs: remainingBrowserSetupTime(options.timeoutMs, operationDeadline),
+      maxOutputBytes: options.maxOutputBytes,
+    };
+    await runBrowserSetupStep(
+      operationDeadline,
+      () => dependencies.runBatch!(
+        globalArguments,
+        [["open", "about:blank"]],
+        commandOptions,
+      ),
+    );
+    // Exercise one cookie import through the same stdin batch channel the
+    // session seeds with.
+    await runBrowserSetupStep(
+      operationDeadline,
+      () => dependencies.runBatch!(
+        globalArguments,
+        browserCookieCommands(
+          [{
+            name: "ghostget-lightpanda-preflight",
+            value: "1",
+            domain: new URL(firstOrigin).hostname,
+            hostOnly: true,
+            path: "/",
+            secure: true,
+            httpOnly: true,
+            sameSite: "Lax",
+            expires: 0,
+          }],
+          new URL(firstOrigin),
+        ),
+        commandOptions,
+      ),
+    );
+    await runBrowserSetupStep(
+      operationDeadline,
+      () => dependencies.run!(globalArguments, ["close"], {
+        ...commandOptions,
+        timeoutMs: Math.min(
+          commandOptions.timeoutMs,
+          BROWSER_CLOSE_TEARDOWN_TIMEOUT_MS,
+        ),
+      }),
+    );
+  } catch (error) {
+    probeError = error;
+  }
+  const failures: unknown[] = [];
+  if (networkProxyCreation.pending !== null) {
+    const closeLateProxy = networkProxyCreation.pending.then(
+      (proxy) => proxy.close(),
+      () => undefined,
+    );
+    if (!await teardownCompletesWithin(
+      closeLateProxy,
+      BROWSER_RESOURCE_TEARDOWN_TIMEOUT_MS,
+    )) {
+      failures.push(
+        new Error("Lightpanda preflight proxy creation did not settle safely"),
+      );
+    }
+    networkProxyCreation.pending = null;
+  }
+  if (lightpanda !== null) {
+    const dependencies = lightpanda;
+    if (!await teardownCompletesWithin(
+      Promise.resolve().then(() => dependencies.close()),
+      LIGHTPANDA_SERVE_TEARDOWN_TIMEOUT_MS,
+    )) {
+      failures.push(
+        new Error("Lightpanda preflight browser process did not settle safely"),
+      );
+    }
+  }
+  if (networkProxy !== null) {
+    const proxy = networkProxy;
+    if (await teardownCompletesWithin(
+      Promise.resolve().then(() => proxy.close()),
+      BROWSER_RESOURCE_TEARDOWN_TIMEOUT_MS,
+    )) {
+      networkProxy = null;
+    } else {
+      failures.push(new Error("Lightpanda preflight proxy did not settle safely"));
+    }
+  }
+  let quiescenceError: LightpandaCompatibilityError | null = null;
+  if (probeError === null && lightpanda !== null && failures.length === 0) {
+    // The published cleanup path requires the daemon to observe the closed CDP
+    // session inactive after the owned serve child is reaped; prove the same
+    // convergence on the throwaway identity, under the same bounded proof the
+    // real cleanup uses. A probe failure already decided the outcome, so the
+    // proof only runs after a fully successful probe.
+    let launchIntentResource: BrowserCleanupResourceIdentityV2 | null = null;
+    try {
+      const preparedResource = browserCleanupResourceIdentity({
+        recoveryHandle: browserRecoveryHandle({
+          session,
+          configPath,
+          socketDirectory,
+          artifactsDirectory: directory,
+        }),
+        session,
+        socketDirectory,
+        artifactsDirectory: directory,
+      });
+      const launchIntent = parseBrowserCleanupResourceIdentity({
+        ...preparedResource,
+        phase: "launch-intent",
+        control: null,
+      });
+      if (launchIntent.kind === "agent-browser-session-v2") {
+        launchIntentResource = launchIntent;
+      } else {
+        throw new Error("browser cleanup launch intent is malformed");
+      }
+    } catch (error) {
+      // A root-identity or recovery-handle fault is a local filesystem
+      // condition Chromium shares, not a Lightpanda incompatibility.
+      failures.push(error);
+    }
+    if (launchIntentResource !== null) {
+      const resource = launchIntentResource;
+      try {
+        await runBrowserSetupStep(
+          operationDeadline,
+          () => convergeBrowserCleanupResourceProof(
+            resource,
+            "full-roots",
+            {
+              ...options.dependencies?.cleanupLifecycle,
+              runCommand: runBrowserCommand,
+              ...(operationDeadline === undefined
+                ? {}
+                : { commandSignal: operationDeadline.signal }),
+              commandTimeoutMs: () => Math.max(
+                1,
+                Math.min(
+                  options.dependencies?.cleanupLifecycle?.commandTimeoutMs?.()
+                    ?? 10_000,
+                  operationDeadline === undefined
+                    ? 10_000
+                    : Math.max(1, Math.floor(operationDeadline.remainingTimeMs())),
+                ),
+              ),
+            },
+          ),
+        );
+      } catch (error) {
+        // A daemon that cannot prove the closed session inactive inside the
+        // bounded convergence window cannot satisfy Lightpanda's cleanup
+        // contract anywhere, while Chromium does not depend on that state:
+        // classify it as protocol incompatibility so `auto` resolves to
+        // Chromium. Identity, boundary, and malformed-output faults are not
+        // settling conditions and stay fail-closed.
+        if (
+          error instanceof AgentBrowserPostCloseTransitionStillSettlingError
+          || error instanceof AgentBrowserCleanupOwnerStillLiveError
+          || error instanceof AgentBrowserLifecycleCommandUnavailableError
+          || (
+            error instanceof Error
+            && BROWSER_CLEANUP_PROOF_SETTLING_MESSAGES.has(error.message)
+          )
+        ) {
+          quiescenceError = new LightpandaCompatibilityError(
+            true,
+            "Lightpanda session could not be proved inactive after close",
+          );
+        } else {
+          failures.push(error);
+        }
+      }
+    }
+  }
+  if (failures.length === 0 && quiescenceError === null) {
+    const removalFailures = removePrivateArtifacts(
+      [socketDirectory, directory],
+      removePrivateArtifact,
+    );
+    if (removalFailures.length > 0) failures.push(...removalFailures);
+  }
+  if (failures.length === 0) {
+    // Quiescence stayed unproved, so the throwaway roots are preserved rather
+    // than deleted; the bare compat error still reaches the Chromium retry.
+    if (quiescenceError !== null) throw quiescenceError;
+    if (probeError !== null) throw probeError;
+    return;
+  }
+  failures.push(new Error("Lightpanda preflight private roots were preserved"));
+  throw new AggregateError(
+    probeError === null ? failures : [probeError, ...failures],
+    "Lightpanda session preflight could not be verified",
+  );
+}
+
 export async function createBrowserSession(
   manifest: GhostgetManifest,
   auth: GhostgetAuth,
   options: CreateBrowserSessionOptions,
+): Promise<BrowserSession> {
+  const environment = options.environment ?? process.env;
+  const selection = options.engine ?? "auto";
+  const engine = selectBrowserSessionEngine(auth, selection, options.headed, environment);
+  if (engine !== "lightpanda") {
+    return createContainedBrowserSession(manifest, auth, options, "chrome", environment);
+  }
+  if (selection === "auto" && options.publishCleanupResource !== undefined) {
+    // The first published resource pins this session's durable cleanup
+    // identity; a post-publish Chromium retry could never register under a
+    // fresh one. Resolve `auto` incompatibility before publication.
+    try {
+      await preflightLightpandaBrowserSession(manifest, options, environment);
+    } catch (error) {
+      if (
+        error instanceof LightpandaCompatibilityError
+        && error.beforeNavigation
+      ) {
+        return createContainedBrowserSession(manifest, auth, options, "chrome", environment);
+      }
+      throw error;
+    }
+  }
+  try {
+    return await createContainedBrowserSession(manifest, auth, options, "lightpanda", environment);
+  } catch (error) {
+    if (
+      selection === "auto"
+      && error instanceof LightpandaCompatibilityError
+      && error.beforeNavigation
+    ) {
+      return createContainedBrowserSession(manifest, auth, options, "chrome", environment);
+    }
+    throw error;
+  }
+}
+
+async function createContainedBrowserSession(
+  manifest: GhostgetManifest,
+  auth: GhostgetAuth,
+  options: CreateBrowserSessionOptions,
+  engine: "chrome" | "lightpanda",
+  sessionEnvironment: Readonly<Record<string, string | undefined>>,
 ): Promise<BrowserSession> {
   if (process.platform === "win32") {
     throw new Error(
@@ -3480,6 +3942,8 @@ export async function createBrowserSession(
   const runBrowserCommand = options.dependencies?.runCommand ?? runCommand;
   const createNetworkProxy = options.dependencies?.startNetworkProxy ?? startNetworkProxy;
   const readCookies = options.dependencies?.acquireCookieRecords ?? acquireCookieRecords;
+  const createLightpanda = options.dependencies?.createLightpandaDependencies
+    ?? createLightpandaDependencies;
   const removePrivateArtifact = options.dependencies?.removePrivateArtifact
     ?? ((path: string): void => rmSync(path, { recursive: true, force: true }));
   guardBrowserSetup(operationDeadline);
@@ -3543,13 +4007,17 @@ export async function createBrowserSession(
       String(options.maxOutputBytes),
       "--action-policy",
       policyPath,
-      ...(auth.kind === "browser-profile" && auth.browserExecutable !== undefined
-        ? ["--executable-path", auth.browserExecutable]
-        : []),
-      ...(options.headed ? ["--headed"] : []),
     );
-    if (auth.kind !== "browser-profile") {
-      globalArguments.push("--allowed-domains", manifest.browserDomains.join(","));
+    if (engine === "chrome") {
+      globalArguments.push(
+        ...(auth.kind === "browser-profile" && auth.browserExecutable !== undefined
+          ? ["--executable-path", auth.browserExecutable]
+          : []),
+        ...(options.headed ? ["--headed"] : []),
+      );
+      if (auth.kind !== "browser-profile") {
+        globalArguments.push("--allowed-domains", manifest.browserDomains.join(","));
+      }
     }
     guardBrowserSetup(operationDeadline);
     chmodSync(directory, 0o700);
@@ -3577,7 +4045,7 @@ export async function createBrowserSession(
     ?? failInitialization(new Error("browser socket directory was not initialized"));
   let environment: Readonly<Record<string, string>>;
   try {
-    environment = isolatedEnvironment(initializedSocketDirectory);
+    environment = isolatedEnvironment(initializedSocketDirectory, sessionEnvironment);
   } catch (error) {
     failInitialization(error);
   }
@@ -3623,6 +4091,7 @@ export async function createBrowserSession(
     cleanupResourceIdentity = next;
   };
   let networkProxy: LocalNetworkProxy | null = null;
+  let lightpanda: ReturnType<typeof createLightpandaDependencies> | null = null;
   const networkProxyCreation: {
     pending: Promise<LocalNetworkProxy> | null;
   } = { pending: null };
@@ -3651,6 +4120,25 @@ export async function createBrowserSession(
       operationDeadline,
       () => {
         const batch = (async (): Promise<readonly JsonRecord[]> => {
+          if (lightpanda !== null) {
+            const records: JsonRecord[] = [];
+            for (const command of commands) {
+              const data = await lightpanda.run!(
+                globalArguments,
+                command,
+                {
+                  cwd: directory,
+                  environment,
+                  timeoutMs: remainingBrowserSetupTime(timeoutMs, operationDeadline),
+                  maxOutputBytes,
+                },
+              );
+              const record: JsonRecord = { success: true, data };
+              browserResultData(record);
+              records.push(record);
+            }
+            return records;
+          }
           const result = await runBrowserCommand(
             [...agentBrowserCommand(), ...globalArguments, "batch", "--bail", "--json"],
             {
@@ -3703,6 +4191,25 @@ export async function createBrowserSession(
       }
       let closeFailure: unknown;
       try {
+        if (lightpanda !== null) {
+          await lightpanda.run!(
+            globalArguments,
+            ["close"],
+            {
+              cwd: directory,
+              environment,
+              timeoutMs: 15_000,
+              maxOutputBytes: 1024 * 1024,
+            },
+          );
+          // The driver closed its CDP session; reap the owned serve child so
+          // the acknowledged close also proves the browser process is gone.
+          // A reap failure leaves the close open so the launch-intent
+          // quiescence recovery below can still prove the session.
+          await lightpanda.close();
+          closeDisposition = "acknowledged";
+          return;
+        }
         const result = await runBrowserCommand(
           [...agentBrowserCommand(), ...globalArguments, "close", "--json"],
           { cwd: directory, environment, timeoutMs: 15_000, maxOutputBytes: 1024 * 1024 },
@@ -3720,21 +4227,57 @@ export async function createBrowserSession(
       if (
         resource === null
         || resource.kind !== "agent-browser-session-v2"
-        || resource.phase !== "controlled"
+        || (
+          resource.phase !== "controlled"
+          && !(
+            resource.phase === "launch-intent"
+            && resource.control === null
+            && lightpanda !== null
+          )
+        )
       ) throw closeFailure;
       try {
-        await provePinnedAgentBrowserCleanupResourceQuiescentWithoutEffects(
-          resource,
-          {
-            ...options.dependencies?.cleanupLifecycle,
-            runCommand: runBrowserCommand,
-          },
-        );
+        if (resource.phase === "controlled") {
+          await provePinnedAgentBrowserCleanupResourceQuiescentWithoutEffects(
+            resource,
+            {
+              ...options.dependencies?.cleanupLifecycle,
+              runCommand: runBrowserCommand,
+            },
+          );
+        } else {
+          // A failed close command does not strand a CDP-attached Lightpanda
+          // session: reaping the owned serve child still lets the daemon
+          // observe the session inactive, which the unbound launch-intent
+          // quiescence proof accepts.
+          if (lightpanda !== null) {
+            try {
+              await lightpanda.close();
+            } catch {
+              // The reaping failure surfaces through the quiescence proof's
+              // continued-active observation below.
+            }
+          }
+          await convergeBrowserCleanupResourceProof(
+            resource,
+            "full-roots",
+            {
+              ...options.dependencies?.cleanupLifecycle,
+              runCommand: runBrowserCommand,
+            },
+          );
+        }
       } catch (quiescenceFailure) {
         if (
           quiescenceFailure instanceof AgentBrowserCleanupOwnerStillLiveError
           || quiescenceFailure
             instanceof AgentBrowserLifecycleCommandUnavailableError
+          || (
+            quiescenceFailure instanceof Error
+            && BROWSER_CLEANUP_PROOF_SETTLING_MESSAGES.has(
+              quiescenceFailure.message,
+            )
+          )
         ) {
           closeRecoveryDisposition = "retry-after-close-attempt";
         }
@@ -3772,20 +4315,41 @@ export async function createBrowserSession(
         if (
           resource === null
           || resource.kind !== "agent-browser-session-v2"
-          || resource.phase !== "controlled"
+          || (
+            resource.phase !== "controlled"
+            && !(
+              resource.phase === "launch-intent"
+              && resource.control === null
+              && lightpanda !== null
+            )
+          )
         ) {
           failures.push(new Error(
             "browser cleanup resource identity is unavailable for close convergence",
           ));
         } else {
           try {
-            await recoverPinnedAgentBrowserCleanupResourceAfterCloseAttempt(
-              resource,
-              {
-                ...options.dependencies?.cleanupLifecycle,
-                runCommand: runBrowserCommand,
-              },
-            );
+            if (resource.phase === "controlled") {
+              await recoverPinnedAgentBrowserCleanupResourceAfterCloseAttempt(
+                resource,
+                {
+                  ...options.dependencies?.cleanupLifecycle,
+                  runCommand: runBrowserCommand,
+                },
+              );
+            } else {
+              // An unbound Lightpanda launch-intent resource converges once
+              // the daemon reports the session inactive after close and the
+              // owned serve-child reap above.
+              await convergeBrowserCleanupResourceProof(
+                resource,
+                "full-roots",
+                {
+                  ...options.dependencies?.cleanupLifecycle,
+                  runCommand: runBrowserCommand,
+                },
+              );
+            }
             closeDisposition = "independently-proved-quiescent";
           } catch (error) {
             failures.push(error);
@@ -3805,6 +4369,18 @@ export async function createBrowserSession(
         resourcesQuiescent = false;
         failures.push(
           new Error("browser network proxy cleanup did not settle safely"),
+        );
+      }
+    }
+    if (lightpanda !== null) {
+      const dependencies = lightpanda;
+      if (!await teardownCompletesWithin(
+        Promise.resolve().then(() => dependencies.close()),
+        LIGHTPANDA_SERVE_TEARDOWN_TIMEOUT_MS,
+      )) {
+        resourcesQuiescent = false;
+        failures.push(
+          new Error("Lightpanda browser process cleanup did not settle safely"),
         );
       }
     }
@@ -3901,10 +4477,22 @@ export async function createBrowserSession(
   };
   try {
     guardBrowserSetup(operationDeadline);
+    if (engine === "lightpanda") {
+      const executable = resolveLightpandaExecutable(sessionEnvironment);
+      if (executable === null) {
+        throw new Error("Lightpanda executable is no longer provisioned");
+      }
+      // The owned serve child starts lazily on the first driver command. Its
+      // absolute deadline is a per-command concern only; each runBatch call
+      // already carries the caller's operation budget, so no separate session
+      // horizon is enforced here.
+      lightpanda = createLightpanda(executable, Number.POSITIVE_INFINITY);
+    }
     // A configured storage-state file seeds the contained context instead of
     // cloning the profile: agent-browser cannot combine --profile with --state,
     // and page storage in profile mode is off the record anyway.
-    const sourceProfile = auth.kind === "browser-profile" && auth.storageState === undefined
+    const sourceProfile = engine === "chrome"
+      && auth.kind === "browser-profile" && auth.storageState === undefined
       ? profilePath(auth.profile)
       : null;
     if (sourceProfile !== null) {
@@ -3913,11 +4501,17 @@ export async function createBrowserSession(
       guardBrowserSetup(operationDeadline);
       globalArguments.push("--profile", clonedProfile.userDataPath);
       selectedProfileDirectory = clonedProfile.profileDirectory ?? null;
-    } else if (auth.kind === "browser-profile" && auth.storageState === undefined) {
+    } else if (
+      engine === "chrome"
+      && auth.kind === "browser-profile" && auth.storageState === undefined
+    ) {
       guardBrowserSetup(operationDeadline);
       globalArguments.push("--profile", auth.profile);
     }
-    if (auth.kind === "browser-profile" && auth.storageState !== undefined) {
+    if (
+      engine === "chrome"
+      && auth.kind === "browser-profile" && auth.storageState !== undefined
+    ) {
       globalArguments.push("--state", auth.storageState);
     }
     networkProxy = await runBrowserSetupStep(operationDeadline, () => {
@@ -3931,13 +4525,17 @@ export async function createBrowserSession(
     });
     networkProxyCreation.pending = null;
     guardBrowserSetup(operationDeadline);
-    const proxyArguments = ownedBrowserProxyArguments(
-      networkProxy.url,
-      selectedProfileDirectory ?? undefined,
-    );
+    const proxyArguments = engine === "lightpanda"
+      // Lightpanda takes a plain proxy URL; Chromium needs the profile-aware
+      // launch-argument form.
+      ? ["--proxy", networkProxy.url]
+      : ownedBrowserProxyArguments(
+          networkProxy.url,
+          selectedProfileDirectory ?? undefined,
+        );
     guardBrowserSetup(operationDeadline);
     globalArguments.push(...proxyArguments);
-    const launchUrl = auth.kind === "browser-profile"
+    const launchUrl = engine === "lightpanda" || auth.kind === "browser-profile"
       ? "about:blank"
       : manifest.origins[0];
     if (launchUrl === undefined) throw new Error("contained browser session requires one reviewed origin");
@@ -3961,7 +4559,12 @@ export async function createBrowserSession(
       remainingBrowserSetupTime(options.timeoutMs, operationDeadline),
       options.maxOutputBytes,
     );
-    if (options.publishCleanupResource !== undefined) {
+    // A CDP-attached Lightpanda session has no daemon-launched browser to
+    // witness: `session info` reports engine "lightpanda" and
+    // browserLaunched false, which the Chrome control witness cannot bind.
+    // The resource stays at launch-intent; its post-close quiescence is proved
+    // by the unbound launch-intent proof once the owned serve child is reaped.
+    if (engine === "chrome" && options.publishCleanupResource !== undefined) {
       guardBrowserSetup(operationDeadline);
       const pinnedCleanupResource = await runBrowserSetupStep(
         operationDeadline,
@@ -4013,8 +4616,47 @@ export async function createBrowserSession(
         guardBrowserSetup(operationDeadline);
         const cookieCommands = browserCookieCommands(cookieResult.cookies, target);
         guardBrowserSetup(operationDeadline);
+        if (lightpanda !== null) {
+          // Keep cookie values out of process argv: the Lightpanda driver
+          // accepts the whole batch on stdin, matching the Chromium lane's
+          // stdin seeding.
+          const dependencies = lightpanda;
+          await runBrowserSetupStep(
+            operationDeadline,
+            () => dependencies.runBatch!(
+              globalArguments,
+              cookieCommands,
+              {
+                cwd: directory,
+                environment,
+                timeoutMs: remainingBrowserSetupTime(
+                  options.timeoutMs,
+                  operationDeadline,
+                ),
+                maxOutputBytes: options.maxOutputBytes,
+              },
+            ),
+          );
+        } else {
+          await runBatch(
+            cookieCommands,
+            remainingBrowserSetupTime(options.timeoutMs, operationDeadline),
+            options.maxOutputBytes,
+          );
+        }
+      }
+      if (engine === "lightpanda") {
+        // Cookie imports ran on about:blank. Establish first-party context on
+        // the origin's realm page rather than its root: heavyweight signed-in
+        // landing pages can challenge a fresh automated session before any
+        // in-page request runs.
+        const firstOrigin = manifest.origins[0];
+        if (firstOrigin === undefined) {
+          throw new Error("contained browser session requires one reviewed origin");
+        }
+        const realmUrl = new URL("/robots.txt", firstOrigin).href;
         await runBatch(
-          cookieCommands,
+          [["open", realmUrl]],
           remainingBrowserSetupTime(options.timeoutMs, operationDeadline),
           options.maxOutputBytes,
         );
@@ -4087,6 +4729,18 @@ export async function createBrowserSession(
         resourcesQuiescent = false;
         cleanupFailures.push(
           new Error("browser network proxy could not be closed safely"),
+        );
+      }
+    }
+    if (lightpanda !== null) {
+      const dependencies = lightpanda;
+      if (!await teardownCompletesWithin(
+        Promise.resolve().then(() => dependencies.close()),
+        LIGHTPANDA_SERVE_TEARDOWN_TIMEOUT_MS,
+      )) {
+        resourcesQuiescent = false;
+        cleanupFailures.push(
+          new Error("Lightpanda browser process could not be closed safely"),
         );
       }
     }

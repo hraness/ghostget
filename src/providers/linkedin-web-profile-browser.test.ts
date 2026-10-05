@@ -1808,6 +1808,47 @@ describe("LinkedIn profile stats contained-browser transport", () => {
     await nonExact.close();
   });
 
+  test("does not consume the initial-batch rewrite on a stdin-free lifecycle command", async () => {
+    let capturedOptions: CreateBrowserSessionOptions | null = null;
+    const calls: { readonly stdin: string | undefined }[] = [];
+    const session: BrowserSession = {
+      runBatch: () => Promise.resolve([{ success: true, result: {} }]),
+      close: () => Promise.resolve(),
+      cleanup: () => Promise.resolve(),
+    };
+    const transport = await createLinkedInProfileBrowserTransport(cookieSourceAuth, {
+      timeoutMs: 1_000,
+      maxOutputBytes: 2 * 1024 * 1024,
+      dependencies: {
+        createBrowserSession: (_manifest, _auth, options) => {
+          capturedOptions = options;
+          return Promise.resolve(session);
+        },
+        runCommand: (_command, options) => {
+          calls.push({ stdin: options.stdin });
+          return Promise.resolve({ exitCode: 0, stderr: "", stdout: "{}" });
+        },
+      },
+    });
+    const run = (capturedOptions as unknown as CreateBrowserSessionOptions)
+      .dependencies?.runCommand;
+    if (run === undefined) throw new Error("missing LinkedIn command wrapper");
+    const baseOptions = Object.freeze({
+      cwd: "/tmp/linkedin-profile-browser-test",
+      environment: Object.freeze({}),
+      timeoutMs: 1_000,
+      maxOutputBytes: 1_024,
+    });
+    await run(["agent-browser", "session", "info"], baseOptions);
+    await run(["agent-browser", "batch", "--bail", "--json"], {
+      ...baseOptions,
+      stdin: '[["open","https://www.linkedin.com"]]',
+    });
+    expect(calls[0]?.stdin).toBeUndefined();
+    expect(calls[1]?.stdin).toBe('[["open","https://www.linkedin.com/robots.txt"]]');
+    await transport.close();
+  });
+
   test("retries only the cookie-source root and never the browser-profile blank navigation", async () => {
     let capturedOptions: CreateBrowserSessionOptions | null = null;
     let commandCalls = 0;

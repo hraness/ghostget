@@ -7,13 +7,38 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
-Remove the `ghostget tui` keyboard control panel and publish observed,
-subject-bound `posts.publish` and `media.publish` operations without a
-per-post confirmation command.
+Remove the `ghostget tui` keyboard control panel.
 
 - `ghostget status` and `ghostget status --json` remain the review surface
   for accounts, approvals, permissions, saved outputs, and next steps;
-  `ghostget control serve` still runs the shared control owner headless.
+  `ghostget control serve` still runs the shared control owner headless,
+  and `ghostget menubar` still covers retirement, doctor and uninstall.
+- Control verbs share one owner per state home; `ghostget tui` is now an
+  unknown command and the packed archive ships three fewer sources.
+
+## 0.18.84
+
+Prefer a provisioned Lightpanda by default for every headless cookie-yielding contained browser session.
+
+- `createBrowserSession` defaults its engine selection to `"auto"`: Lightpanda serves sessions whose auth realm yields explicit cookies and that do not request a headed browser, while Chromium remains the resolution for headed sessions, non-cookie realms, and unprovisioned environments. The `auto`-only preflight and Chromium fallback now key on the resolved selection, so an omitted engine receives the same bounded recovery as an explicit one.
+- The LinkedIn profile transport computes its headed request from the resolved engine: Lightpanda sessions run headless while the Chromium lane keeps its headed anti-bot behavior, including contact reads, which stay pinned to Chromium for their live network-request observation.
+- The LinkedIn revision bootstrap pins `"chrome"` because it reads live `network requests` bindings Lightpanda has not been qualified to serve; the headed article, comment, post, feed, search, Instagram, and X mutation transports resolve to Chromium through the headless-only eligibility gate.
+- Live qualification: an authenticated `x.com` session through the shipped path rendered the logged-in `hraness` timeline (server-bound identity in the hydrated payload) where an anonymous control was redirected to onboarding, in ~2–3 s per full session lifecycle versus ~1 s on a neutral target against Chromium's ~4.6 s; a re-authenticated LinkedIn profile funnel returned the identity, profile, and connections reads through the same path with complete cleanup journals.
+
+## 0.18.83
+
+Prefer a provisioned Lightpanda for LinkedIn profile reads while Chromium stays authoritative for the remaining transports.
+
+- `createBrowserSession` accepts a browser-engine selection: `"auto"` resolves to Lightpanda only for cookie-yielding realms with a provisioned binary, `"chrome"` keeps the existing lane, and `"lightpanda"` requires both eligibility and provisioning.
+- The LinkedIn profile transport defaults to `"auto"` for its qualified reads — identity, personal stats, connections, and organizations — and keeps cookie values out of process arguments by seeding through the driver's stdin batch.
+- Chromium fallback is limited to a recognized Lightpanda protocol incompatibility raised before navigation inside the original deadline; provider rejections, authentication failures, and cleanup failures never fall back.
+- Contact reads stay on Chromium because their overlay harvests live `network requests` bindings, which Lightpanda has not been proven to report. Article, comment, post, feed, search, and every other provider read also keep the unqualified Chromium default.
+
+## 0.18.82
+
+Publish observed, subject-bound `posts.publish` and `media.publish` operations
+without a per-post confirmation command.
+
 - `ghostget invoke <adapter> <op> --execute` records the same exact immutable
   plan and durable single-dispatch lifecycle as preview-then-confirm, under the
   same account permission fence: managed Ask or Deny refuses without an

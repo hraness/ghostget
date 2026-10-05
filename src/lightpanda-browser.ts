@@ -133,9 +133,15 @@ export function selectBrowserEngine(
 }
 
 export class LightpandaCompatibilityError extends Error {
-  constructor(readonly beforeNavigation = false) {
-    super("Lightpanda does not implement the required browser protocol method");
+  readonly beforeNavigation: boolean;
+
+  constructor(
+    beforeNavigation = false,
+    message = "Lightpanda does not implement the required browser protocol method",
+  ) {
+    super(message);
     this.name = "LightpandaCompatibilityError";
+    this.beforeNavigation = beforeNavigation;
   }
 }
 
@@ -373,7 +379,7 @@ export function createLightpandaDependencies(
       if (proxy === undefined) throw new Error("Lightpanda proxy is missing");
       const port = await freeLoopbackPort();
       server = Bun.spawn([executable, ...lightpandaServeArguments(port, proxy)], {
-        cwd: options.cwd, env: { ...Object.fromEntries(Object.entries(options.environment).filter(([key]) => !/^(?:(?:https?|all|no)_proxy$|LIGHTPANDA_)/i.test(key))), LIGHTPANDA_DISABLE_TELEMETRY: "1" }, stdin: "ignore", stdout: "ignore", stderr: "ignore",
+        cwd: options.cwd, env: { ...Object.fromEntries(Object.entries(options.environment).filter(([key]) => !/^(?:(?:https?|all|no)_proxy$|LIGHTPANDA_|GHOSTGET_LIGHTPANDA_)/i.test(key))), LIGHTPANDA_DISABLE_TELEMETRY: "1" }, stdin: "ignore", stdout: "ignore", stderr: "ignore",
       });
       process.once("exit", onParentExit);
       const cdpUrl = `ws://127.0.0.1:${port}/`;
@@ -422,7 +428,7 @@ export function createLightpandaDependencies(
     commands: readonly (readonly string[])[],
     options: CommandOptions,
   ): Promise<void> => {
-    if (preflightFailure !== undefined) throw preflightFailure;
+    if (preflightFailure !== undefined && commands.some(command => command[0] !== "close")) throw preflightFailure;
     if (commands.some(command => command[0] === "open" && command[1] !== "about:blank")) navigationStarted = true;
     const result = await run(
       [...agentBrowserCommand(), ...lightpandaGlobalArguments(globalArguments, await endpoint(globalArguments, remainingOptions(options))), "batch", "--bail", "--json"],

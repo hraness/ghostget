@@ -3,15 +3,13 @@
  * production release validators.
  *
  * Quint writes seeded traces of Release run attempts, re-runs, publication,
- * promotion, and the canonical download. The provider state each trace state
+ * and the canonical download. The provider state each trace state
  * holds becomes the input of the production validator that reads it:
  *
  * - a publish job's handoff is a real five-file release directory, built from
  *   one `bun pm pack` of this checkout, that `verifyPublicationHandoff` checks
  *   against a `gh attestation verify` stub serving exactly the attestations the
  *   model says exist;
- * - website promotion is `resolveReleaseAuthority` over a read-only API stub
- *   serving the synthetic run, its attempt job inventories, and the Release;
  * - the canonical download is `verifyCanonicalReleaseRun` over a `gh api` stub
  *   serving the same inventories.
  *
@@ -39,8 +37,6 @@ import { inspectPackageArtifact } from "./package-artifact.js";
 import {
   CANONICAL_RELEASE_JOBS,
   exactReleaseWorkflowRun,
-  releaseSourceReceipt,
-  resolveReleaseAuthority,
 } from "./release-provider-outcome.mjs";
 import {
   itfOption,
@@ -54,7 +50,6 @@ import {
 } from "./verification-itf.js";
 import { quintModel, quintTraceCache } from "./verification-replay.js";
 import { REPOSITORY_ROOT } from "./verification-tools.js";
-import { releaseBody } from "../website/release-notes.mjs";
 
 
 const MODEL_FILE = "release.qnt";
@@ -62,11 +57,11 @@ const MAX_ATTEMPTS = 3;
 const RUN = 88001;
 const FOREIGN_RUN = 88002;
 const STATE_VARIABLES = [
-  "artifactOf", "attested", "draftAttempt", "handoff", "handoffAttempt", "handoffRun", "jobs", "latest",
-  "promotionBlocked", "refusedExact", "relAttempt", "relState", "verdict", "verdictPath",
+  "artifactOf", "attested", "draftAttempt", "downloadBlocked", "handoff", "handoffAttempt", "handoffRun", "jobs", "latest",
+  "refusedExact", "relAttempt", "relState", "verdict", "verdictPath",
 ];
 const TRACE_VARIABLES = [...STATE_VARIABLES, "mbt::actionTaken", "mbt::nondetPicks"].sort();
-const PICKS = ["failAt", "kind", "mode", "source", "sourceRoll"];
+const PICKS = ["failAt", "kind", "source", "sourceRoll"];
 const SOURCE_SHA = "2".repeat(40);
 const WORKFLOW_SHA = "4".repeat(40);
 const RELEASE_OWNER = Object.freeze({ id: 894119, login: "0thernet", type: "User" });
@@ -90,7 +85,7 @@ type ModelSnapshot = Readonly<{
   verdict: string;
   verdictPath: string;
   refusedExact: boolean;
-  promotionBlocked: boolean;
+  downloadBlocked: boolean;
 }>;
 
 /**
@@ -168,7 +163,7 @@ function modelState(state: ItfState): ModelSnapshot {
     verdict: str("verdict"),
     verdictPath: str("verdictPath"),
     refusedExact: bool("refusedExact"),
-    promotionBlocked: bool("promotionBlocked"),
+    downloadBlocked: bool("downloadBlocked"),
   };
 }
 
@@ -183,12 +178,12 @@ function invariantHolds(name: string, state: ModelSnapshot): boolean {
           || (state.handoffRun === RUN && state.attested.has(coordinate(state.handoffRun, state.handoffAttempt))))
         && (state.relState !== "published"
           || (state.relAttempt >= 1 && state.relAttempt <= state.latest && state.attested.has(coordinate(RUN, state.relAttempt))));
-    case "promotionSound":
+    case "downloadSound":
       return state.verdict !== "admitted"
         || (state.relState === "published" && Array.from({ length: MAX_ATTEMPTS + 1 }, (_, attempt) => attempt)
           .some((attempt) => attempt >= state.relAttempt && attempt <= state.latest && jobsSucceeded(state, attempt, 4)));
     case "exactHandoffPublishes": return !state.refusedExact;
-    case "promotionNotBlocked": return !state.promotionBlocked;
+    case "downloadNotBlocked": return !state.downloadBlocked;
     default: throw new Error(`unknown invariant ${name}`);
   }
 }
@@ -400,66 +395,6 @@ function attemptJobs(state: ModelSnapshot, attempt: number): Json {
   return { jobs, total_count: jobs.length };
 }
 
-function publishedRelease(f: Fixture, state: ModelSnapshot): Json {
-  const receipt = releaseSourceReceipt({ repository: GITHUB_RELEASE_REPOSITORY, verifiedSha: SOURCE_SHA,
-    verifiedTag: f.tag, workflowRunId: String(RUN) });
-  const files = new Map(f.files(RUN, state.relAttempt));
-  files.set("provenance.jsonl", Buffer.from(`${JSON.stringify({ run: RUN, attempt: state.relAttempt })}\n`));
-  const assets = releaseAssetNames(f.tag).map((name, index) => ({
-    browser_download_url: `https://github.com/${GITHUB_RELEASE_REPOSITORY}/releases/download/${f.tag}/${name}`,
-    digest: `sha256:${f.digest(files.get(name)!)}`, id: 20 + index, name, size: files.get(name)!.byteLength, state: "uploaded",
-    url: `https://api.github.com/repos/${GITHUB_RELEASE_REPOSITORY}/releases/assets/${String(20 + index)}`,
-  }));
-  return {
-    assets, author: { id: 41898282, login: "github-actions[bot]", type: "Bot" },
-    body: releaseBody("Ghostget reads one more source.\n\n## Changes\n\n- Read one more source.",
-      `${receipt}\n\nghostget-release-attempt-v1 run_attempt=${String(state.relAttempt)}`),
-    draft: false, id: 10, immutable: true, name: `Ghostget ${f.tag}`, prerelease: false,
-    published_at: "2026-09-23T00:00:00Z", tag_name: f.tag, target_commitish: SOURCE_SHA,
-  };
-}
-
-/** `resolveReleaseAuthority` over a read-only API stub serving the model's provider state. */
-async function productionPromotion(state: ModelSnapshot, mode: string, defect: Defect): Promise<string | null> {
-  const f = await fixture();
-  const repository = `/repos/${GITHUB_RELEASE_REPOSITORY}`;
-  const runPath = `${repository}/actions/runs/${String(RUN)}`;
-  const release = publishedRelease(f, state);
-  const responses = new Map<string, unknown>([
-    [repository, { default_branch: "main" }],
-    [`${repository}/git/ref/heads/main`, { object: { sha: WORKFLOW_SHA, type: "commit" }, ref: "refs/heads/main" }],
-    [`${repository}/commits/${encodeURIComponent(`refs/tags/${f.tag}`)}`, { sha: SOURCE_SHA }],
-    [`${repository}/releases/tags/${f.tag}`, release],
-    [`${repository}/releases/latest`, release],
-    [runPath, attemptRun(f, state, state.latest)],
-  ]);
-  for (let attempt = 1; attempt <= state.latest; attempt += 1) {
-    responses.set(`${runPath}/attempts/${String(attempt)}`, attemptRun(f, state, attempt));
-    responses.set(`${runPath}/attempts/${String(attempt)}/jobs?per_page=100`, attemptJobs(state, attempt));
-  }
-  const api = {
-    get: async (endpoint: string): Promise<unknown> => {
-      const attempt = /\/attempts\/([1-9][0-9]*)$/u.exec(endpoint);
-      if (defect === "recovery-ignores-intermediate-attempt" && attempt !== null && intermediateAttempt(state, Number(attempt[1]))) {
-        throw new Error(PRE_D15_REFUSAL);
-      }
-      if (!responses.has(endpoint)) throw new StubMiss(`unexpected GET ${endpoint}`);
-      return structuredClone(responses.get(endpoint));
-    },
-  };
-  const trigger = mode === "automatic"
-    ? { eventName: "workflow_run", requestedReleaseWorkflowRunId: String(RUN), requestedReleaseWorkflowRunAttempt: String(state.latest) }
-    : { eventName: "workflow_dispatch" };
-  try {
-    await resolveReleaseAuthority({ api, defaultBranch: "main", recoveryWorkflowSha: WORKFLOW_SHA,
-      repository: GITHUB_RELEASE_REPOSITORY, verifiedSha: SOURCE_SHA, verifiedTag: f.tag, ...trigger });
-    return null;
-  } catch (error) {
-    if (error instanceof StubMiss) throw error;
-    return error instanceof Error ? error.message : String(error);
-  }
-}
-
 /** `verifyCanonicalReleaseRun` over a `gh api` stub serving the model's run and inventories. */
 async function productionDownload(state: ModelSnapshot, defect: Defect): Promise<string | null> {
   const f = await fixture();
@@ -519,10 +454,6 @@ async function replay(trace: ItfTrace, defect: Defect = "none"): Promise<void> {
           after.attested.has(coordinate(after.handoffRun, after.handoffAttempt)), defect);
         expected = after.handoff;
         break;
-      case "promote":
-        refusal = await productionPromotion(after, pick(step, "mode", state.index), defect);
-        expected = after.verdict;
-        break;
       case "download":
         refusal = await productionDownload(after, defect);
         expected = after.verdict;
@@ -560,7 +491,7 @@ const intermediatePublished = (state: ModelSnapshot): boolean =>
 function coverageKey(trace: ItfTrace, position: number): string | null {
   const state = trace.states[position]!;
   const after = modelState(state);
-  const { action, picks } = recordedStep(state);
+  const { action } = recordedStep(state);
   switch (action) {
     case "startAttempt": {
       if (after.handoff === "none") return null;
@@ -569,15 +500,6 @@ function coverageKey(trace: ItfTrace, position: number): string | null {
           : after.handoffAttempt < after.latest ? "an earlier attempt" : "this attempt";
       const signed = after.attested.has(coordinate(after.handoffRun, after.handoffAttempt)) ? "attested" : "unattested";
       return `handoff(${source}, ${signed}, ${after.handoff})`;
-    }
-    case "promote": {
-      const mode = itfString(picks.get("mode")!, "mode");
-      const latestSucceeded = after.jobs[after.latest]!.every((conclusion) => conclusion === "success");
-      const route = latestSucceeded ? "latest succeeded"
-        : jobsSucceeded(after, after.latest, 4) ? "latest proved four"
-          : after.relAttempt < after.latest && jobsSucceeded(after, after.relAttempt, 4) ? "receipt proved four"
-            : intermediatePublished(after) ? "intermediate proved four" : "unproven";
-      return `promote(${mode}, ${route}, ${after.verdict})`;
     }
     case "download": {
       const m = after.relAttempt;
@@ -621,16 +543,6 @@ describe("release.qnt ITF replay", () => {
       "handoff(another run, attested, refused)",
       "handoff(this attempt, attested, admitted)",
       "handoff(this attempt, unattested, refused)",
-      "promote(automatic, intermediate proved four, refused)",
-      "promote(automatic, latest proved four, refused)",
-      "promote(automatic, latest succeeded, admitted)",
-      "promote(automatic, receipt proved four, refused)",
-      "promote(automatic, unproven, refused)",
-      "promote(manual, intermediate proved four, admitted)",
-      "promote(manual, latest proved four, admitted)",
-      "promote(manual, latest succeeded, admitted)",
-      "promote(manual, receipt proved four, admitted)",
-      "promote(manual, unproven, refused)",
     ]);
   });
 
@@ -640,7 +552,7 @@ describe("release.qnt ITF replay", () => {
     ["download-ignores-later-attempt",
       /^state \d+: download production refused \(Release workflow run jobs Publish immutable GitHub Release job did not succeed in the receipt attempt\), the model admitted$/u],
     ["recovery-ignores-intermediate-attempt",
-      /^state \d+: (?:promote|download) production refused \(pre-D15 recovery reads no intermediate attempt\), the model admitted$/u],
+      /^state \d+: download production refused \(pre-D15 recovery reads no intermediate attempt\), the model admitted$/u],
   ] as const) {
     test(`production validators with the seeded ${defect} defect diverge from the model traces`, async () => {
       const model = await releaseModel();
@@ -656,11 +568,10 @@ describe("release.qnt ITF replay", () => {
 
   for (const [step, invariant, pattern] of [
     ["stepD7", "exactHandoffPublishes", /^state \d+: startAttempt production admitted, the model refused$/u],
-    ["stepD8", "promotionNotBlocked", /^state \d+: promote production admitted, the model refused$/u],
-    ["stepD15", "promotionNotBlocked", /^state \d+: (?:promote|download) production admitted, the model refused$/u],
+    ["stepD15", "downloadNotBlocked", /^state \d+: download production admitted, the model refused$/u],
     ["stepUnbound", "publishedBytesAttested",
       /^state \d+: startAttempt production refused \(Bounded read-only GitHub artifact verification failed\), the model admitted$/u],
-    ["stepEarlyDownload", "promotionSound",
+    ["stepEarlyDownload", "downloadSound",
       /^state \d+: download production refused \((?:Release workflow run current attempt jobs .+ job did not succeed in the current attempt(?:, and no intermediate attempt proved the four canonical jobs)?|Release workflow run publication was not completed by a later attempt of the same run)\), the model admitted$/u],
   ] as const) {
     test(`the production validators refuse exactly the ${step} verdicts that break ${invariant}`, async () => {
@@ -703,7 +614,7 @@ describe("release.qnt ITF replay", () => {
       verdict: "none",
       verdictPath: "",
       refusedExact: false,
-      promotionBlocked: false,
+      downloadBlocked: false,
       "mbt::actionTaken": action,
       "mbt::nondetPicks": picks,
     });
@@ -711,7 +622,7 @@ describe("release.qnt ITF replay", () => {
       vars: TRACE_VARIABLES,
       states: [
         state(0, "init", Object.fromEntries(PICKS.map((name) => [name, none]))),
-        state(1, action, { failAt: some("auth"), kind, mode: some("manual"), source: some("carried"), sourceRoll: some(int(1)) }),
+        state(1, action, { failAt: some("auth"), kind, source: some("carried"), sourceRoll: some(int(1)) }),
       ],
     }));
     expect(await divergence(trace("startAttempt", some("first")))).toBeNull();

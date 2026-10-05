@@ -2483,34 +2483,43 @@
 // reviewed allowances: 24,491,239 + 353 + 65 = 24,491,657.
 // The invoke --execute change adds the authorized-publication path, its
 // parser, runtime, permission, control, help, skill, and claim updates over
-// the merged 0.18.81 source. Two byte-identical npm 11.19.0 packs on
-// Node 24.20.0 (zlib 1.3.2.1-motley-42c2f19) --ignore-scripts on darwin
-// arm64 measured 638 entries, 12,244,061 packed bytes and 24,496,819
-// unpacked bytes; archive SHA-256
-// f77184ece90823e7b0dc024be46aa7dc50cc19e6a95ab0974dd7198980017e6c. Retain the
-// reviewed allowances: 12,244,061 + 12,387 + 4,096 = 12,260,544 packed;
-// 24,496,819 + 353 + 65 = 24,497,237 unpacked.
-// The control-TUI removal over that candidate drops src/control/tui.ts,
+// the merged 0.18.81 source; the 0.18.82 release bump carries it. Two
+// byte-identical npm 11.19.0 packs on Node 24.20.0
+// (zlib 1.3.2.1-motley-42c2f19) --ignore-scripts on darwin arm64 measured
+// 638 entries, 12,244,064 packed bytes and 24,496,816 unpacked bytes;
+// archive SHA-256
+// 59451cd8ec83a409969d46785f3400c09507c8b6e3d2aff03294537a50191b50. Retain the
+// reviewed allowances: 12,244,064 + 12,387 + 4,096 = 12,260,547 packed;
+// 24,496,816 + 353 + 65 = 24,497,234 unpacked.
+// The 0.18.84 release makes "auto" the contained-session engine default with
+// headless-only Lightpanda eligibility over the reviewed 0.18.83 release.
+// Two clean npm 11.19.0 packs on Node 24.20.0 (zlib 1.2.12) with
+// --ignore-scripts on darwin arm64 were byte-identical at 638
+// files/entries, 12,238,781 packed bytes and 24,527,832 unpacked bytes;
+// archive SHA-256
+// a212c8c3050c1f9509a3725e40b0e9d20dfb8913b3c669f729e79a88adcacfea. Retain the
+// reviewed allowances: 12,238,781 + 12,387 + 4,096 = 12,255,264 packed;
+// 24,527,832 + 353 + 65 = 24,528,250 unpacked.
+// The control-TUI removal over that release drops src/control/tui.ts,
 // tui-model.ts and tui-terminal.ts from the shipped control sources, moves
 // the status fixtures under src/control/__fixtures__/status/, and keeps
 // `ghostget status`/`status --json` as the snapshot surface. Two
-// byte-identical npm 11.19.0 packs on Node 24.20.0
-// (zlib 1.3.2.1-motley-42c2f19) --ignore-scripts on darwin arm64 measured
-// 635 entries, 12,216,104 packed bytes and 24,436,508 unpacked bytes;
-// archive SHA-256
-// 3f5bb90e64d7cde2d77071ff7f3b6a71a25d8a7422c79f78333d2199f9a6741b. Retain the
-// reviewed allowances: 12,216,104 + 12,387 + 4,096 = 12,232,587 packed;
-// 24,436,508 + 353 + 65 = 24,436,926 unpacked.
+// byte-identical npm 11.19.0 packs on Node 24.20.0 (zlib 1.2.12) with
+// --ignore-scripts on darwin arm64 measured 635 entries, 12,223,530
+// packed bytes and 24,467,333 unpacked bytes; archive SHA-256
+// e8a4071d49e73287131ee2425aaaab03f3a458cb60a70a0943ddd103c97c9565. Retain the
+// reviewed allowances: 12,223,530 + 12,387 + 4,096 = 12,240,013 packed;
+// 24,467,333 + 353 + 65 = 24,467,751 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "unreleased control-TUI removal over the 0.18.81 invoke --execute authorized publication",
+  scope: "unreleased control-TUI removal over the 0.18.84 auto-default engine release",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   nodeVersion: "24.20.0",
-  zlibVersion: "1.3.2.1-motley-42c2f19",
+  zlibVersion: "1.2.12",
   platform: "darwin-arm64",
-  archiveSha256: "3f5bb90e64d7cde2d77071ff7f3b6a71a25d8a7422c79f78333d2199f9a6741b",
-  packedBytes: 12_216_104,
-  unpackedBytes: 24_436_508,
+  archiveSha256: "e8a4071d49e73287131ee2425aaaab03f3a458cb60a70a0943ddd103c97c9565",
+  packedBytes: 12_223_530,
+  unpackedBytes: 24_467_333,
   entryCount: 635,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

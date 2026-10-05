@@ -1387,6 +1387,43 @@ describe("LinkedIn authenticated internal-API runtime", () => {
     ]);
   });
 
+  test("forwards an explicit engine and leaves the qualified funnel unset for the transport default", async () => {
+    const transport: LinkedInProfileBrowserTransport = {
+      currentIdentityResponse: () => Promise.resolve(currentIdentityResponse()),
+      readProfileHtml: () => Promise.resolve(
+        '<a href="/mynetwork/network-manager/people-follow/followers"><span>7,553</span> followers</a>',
+      ),
+      readConnectionsHtml: () => Promise.resolve(
+        "<h1><span>4,877</span> connections</h1><button>Sort by:</button><label>Search with filters</label>",
+      ),
+      readContactInfoJson: () => Promise.reject(new Error("stats read crossed Contact-info")),
+      readContactNavigationText: () => Promise.reject(new Error("crossed Contact-info navigation")),
+      readContactOverlayText: () => Promise.reject(new Error("crossed Contact-info overlay")),
+      readOrganizationHtml: () => Promise.reject(new Error("stats read crossed company page")),
+      close: () => Promise.resolve(),
+    };
+    const observed: (string | undefined)[] = [];
+    for (const engine of ["chrome", "lightpanda", undefined] as const) {
+      const result = await executeLinkedInWebOperation(personalProfileRecipe(), {
+        profile_url: "https://www.linkedin.com/in/0thernet",
+      }, linkedinBrowserProfileAuth, {
+        ...(engine === undefined ? {} : { engine }),
+        dependencies: {
+          acquireCookies: () => Promise.reject(new Error("stats read exported cookies")),
+          fetch: () => Promise.reject(new Error("stats read used direct fetch")),
+          createProfileBrowserTransport: (_auth, options) => {
+            observed.push(options.engine);
+            return Promise.resolve(transport);
+          },
+        },
+      });
+      expect(result.status).toBe("succeeded");
+    }
+    // Explicit choices pass straight through; an unset option leaves the
+    // transport's own qualified default (auto) in charge.
+    expect(observed).toEqual(["chrome", "lightpanda", undefined]);
+  });
+
   test.each([302, 401, 403])("company reads retain native identity-%i browser fallback", async (status) => {
     const directCalls: CapturedRequest[] = [];
     const browserCalls: string[] = [];
@@ -4513,6 +4550,37 @@ describe("LinkedIn contacts.read runtime", () => {
       },
     });
     expect(browserCalls).toEqual(["identity", "profile", "close"]);
+  });
+
+  test("pins Contact reads to Chromium unless an explicit engine overrides", async () => {
+    const observed: (string | undefined)[] = [];
+    const transport: LinkedInProfileBrowserTransport = {
+      currentIdentityResponse: () => Promise.resolve(currentIdentityResponse()),
+      readProfileHtml: () => Promise.resolve(firstDegreeContactHtml()),
+      readConnectionsHtml: () => Promise.reject(new Error("contacts.read crossed connections")),
+      readContactInfoJson: () => Promise.reject(new Error("absent navigation fetched GraphQL")),
+      readContactNavigationText: () => Promise.resolve(OVERLAY_CONTACT_FLIGHT),
+      readContactOverlayText: () => Promise.reject(new Error("absent navigation fetched vanity overlay")),
+      readOrganizationHtml: () => Promise.reject(new Error("contacts.read crossed company")),
+      close: () => Promise.resolve(),
+    };
+    for (const engine of [undefined, "lightpanda"] as const) {
+      await executeLinkedInWebOperation(contactInfoRecipe(), {
+        profile_url: "https://www.linkedin.com/in/example/",
+      }, linkedinBrowserProfileAuth, {
+        ...(engine === undefined ? {} : { engine }),
+        dependencies: {
+          now: () => Date.parse("2026-09-08T18:00:00.000Z"),
+          createProfileBrowserTransport: (_auth, options) => {
+            observed.push(options.engine);
+            return Promise.resolve(transport);
+          },
+        },
+      });
+    }
+    // `network requests` observation is unqualified on Lightpanda, so the
+    // contact overlay's RSC harvest keeps Chromium unless the caller insists.
+    expect(observed).toEqual(["chrome", "lightpanda"]);
   });
 });
 

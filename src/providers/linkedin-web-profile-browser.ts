@@ -6,11 +6,13 @@ import {
   browserResultData,
   createBrowserSession,
   runCommand,
+  selectBrowserSessionEngine,
   type BrowserSession,
   type CommandResult,
   type CreateBrowserSessionOptions,
 } from "../browser";
 import type { GhostgetManifest } from "../model";
+import type { BrowserEngineSelection } from "../lightpanda-browser";
 import {
   assertLinkedInContactInfoRequest,
   buildLinkedInProfileContactDetailsNavigationPostPath,
@@ -715,7 +717,7 @@ function linkedInProfileBrowserCommandRunner(
     const executionOptions = rewroteInitialRoot || rewroteInitialBlank
       ? { ...options, stdin: LINKEDIN_INITIAL_REALM_BATCH }
       : options;
-    initialBatchPending = false;
+    if (options.stdin !== undefined) initialBatchPending = false;
     const first = await execute(command, executionOptions);
     if (
       !rewroteInitialRoot
@@ -784,6 +786,13 @@ export async function createLinkedInProfileBrowserTransport(
     readonly operationDeadline?: WebSessionOperationDeadline;
     readonly publishCleanupResource?: WebSessionCleanupResourcePublisher;
     readonly dependencies?: Partial<LinkedInProfileBrowserDependencies>;
+    /**
+     * Engine for the contained read session. "auto" (the default) resolves to
+     * Lightpanda only for cookie-yielding realms when a provisioned binary
+     * exists, with compatibility-only fallback before navigation; "chrome"
+     * preserves the existing lane unconditionally.
+     */
+    readonly engine?: BrowserEngineSelection;
   },
 ): Promise<LinkedInProfileBrowserTransport> {
   if (
@@ -795,10 +804,20 @@ export async function createLinkedInProfileBrowserTransport(
     ?? createBrowserSession;
   const browserOutputBytes = encodedBodyBound(options.maxOutputBytes)
     + BROWSER_ENVELOPE_BYTES;
+  const engineSelection = options.engine ?? "auto";
+  // A headed window exists only on Chromium: resolve the engine for a
+  // headless-capable request first so `auto` still reaches Lightpanda and an
+  // actual Chromium lane keeps its headed anti-bot behavior.
+  const resolvedEngine = selectBrowserSessionEngine(
+    auth,
+    engineSelection,
+    false,
+    process.env,
+  );
   const sessionOptions: CreateBrowserSessionOptions = {
     allowCodeOwnedEvaluation: true,
     allowCodeOwnedNetworkObservation: true,
-    headed: true,
+    headed: resolvedEngine === "chrome",
     maxOutputBytes: browserOutputBytes,
     timeoutMs: options.timeoutMs,
     dependencies: {
@@ -814,6 +833,9 @@ export async function createLinkedInProfileBrowserTransport(
     ...(options.publishCleanupResource === undefined
       ? {}
       : { publishCleanupResource: options.publishCleanupResource }),
+    // Lightpanda-first is the qualified default for this read transport; an
+    // explicit "chrome" still pins the Chromium lane for callers that need it.
+    engine: options.engine ?? "auto",
   };
   let session: BrowserSession;
   try {

@@ -85,27 +85,241 @@ Qualification, bounded to read-only evidence:
   `linkedin-main`). No session material was copied to disk, no provider
   writes were issued, and the auth realms were verified unchanged
   afterward. See Result for the outcome.
+- **Live X qualification (post-v0.18.83, shipped integrated path):**
+  `createBrowserSession` + `cookie-source` auth `x-main` (Chrome),
+  `engine: "lightpanda"`, publisher-enabled, repeated three times:
+  `x.com/home` stayed at `/home` with server-rendered
+  `"screen_name":"hraness"` and `"rest_id":"1695180519640633575"` in a
+  ~360 KB hydrated timeline. The same manifest with a cookie file
+  holding no X credentials was server-side redirected to
+  `x.com/i/jf/onboarding/…?mode=login` (43 KB shell, no identity) —
+  the login-flow difference proves server-side auth acceptance, not
+  just local seeding. End-to-end session lifecycle: ~2.1–3.0 s total
+  (create ~0.7–0.8 s, `x.com/home` nav ~1.1–1.8 s, eval ~40–70 ms,
+  close ~45–65 ms) with the full durable cleanup journal
+  (prepared → launch-intent → quiescent → artifacts → socket →
+  roots removed) on every leg. On a neutral `example.com` manifest,
+  Lightpanda completed the identical session lifecycle in 1,039 ms vs
+  contained Chromium's 4,604 ms (~4.4× faster, dominated by session
+  creation: 626 ms vs 4,021 ms). Separately observed: X's edge
+  currently HTTP-rejects the contained headless Chromium on every
+  tested path (root, `/home`, `/robots.txt`) regardless of cookies —
+  not a Lightpanda regression, but it means no on-X Chromium timing
+  baseline is currently obtainable.
+
+## Engine-aware contained sessions and the LinkedIn default
+
+The follow-on integration adds a `BrowserEngineSelection`
+(`"chrome" | "lightpanda" | "auto"`) option to `createBrowserSession`,
+reusing the full custody contract — artifact roots, socket directory,
+task-owned proxy, cleanup journal, stdin cookie seeding, operation
+deadlines, and recovery handles — rather than a parallel session path.
+`"auto"` resolves to Lightpanda only when the auth realm yields explicit
+cookies (`cookie-source`, `cookies-file`, or `browser-profile` with an
+attached `cookieSource` and no `storageState`) **and** a validated
+Lightpanda 1.0.0 binary is provisioned; everything else resolves to
+Chromium. Automatic fallback to Chromium fires only on a recognized
+`LightpandaCompatibilityError` raised before navigation, within the
+original deadline. Provider rejections such as a LinkedIn 401 never
+fall back.
+
+Lightpanda global arguments keep `--config`, `--session`,
+`--content-boundaries`, `--max-output`, `--action-policy`, and the plain
+task-owned `--proxy` URL; Chromium-only flags (`--profile`, `--state`,
+`--headed`, `--executable-path`, `--allowed-domains`, launch `--args`)
+stay off. Cookies seed through the driver's stdin batch so values never
+enter `argv`. First-party context after import opens the reviewed
+origin's `/robots.txt` (the same realm page Chromium uses pre-cookie)
+rather than a signed-in root that redirects to `/feed` and can
+challenge a fresh automated session.
+
+`createLinkedInProfileBrowserTransport` threads `engine` through
+`LinkedInWebExecutionOptions` and defaults to `"auto"`, making
+Lightpanda-first the default for its qualified funnel: identity probe,
+personal-profile stats, connections, and organization reads. Contact
+reads pin Chromium at their call site: the overlay harvests live
+`network requests` bindings, and Lightpanda's well-formed empty response
+has not been proven to report in-flight requests. Article, comment,
+post, feed, and search transports keep the unqualified Chromium
+default. An explicit `engine: "chrome"` pins the old lane.
+
+### Live qualification evidence for the LinkedIn lane
+
+- Adapter probe (`browser-profile` + live `cookieSource`): two
+  consecutive green runs on real auth — exact same-account subject from
+  `/voyager/api/me`, 915,578-byte profile HTML, 857,941-byte connections
+  HTML, stable session, healthy containment, complete cleanup, both auth
+  realms byte-identical.
+- Integrated `createBrowserSession` run: `auto` resolved to Lightpanda,
+  launched, seeded cookies via stdin batch, opened `/robots.txt`,
+  closed, and preserved the realm. The identity read returned
+  `provider-response-401`.
+- Discriminator: with the **same** freshly acquired cookie snapshot,
+  a plain HTTP `GET /feed/` returned a 302 authwall bounce while
+  Lightpanda returned the same 401 — and the previously-green adapter
+  then reproduced the same 401. The Chrome session itself had become
+  invalid in the interval; all session-path 401s are dead-auth noise,
+  not an engine or integration defect. No engine makes a dead session
+  succeed.
+- `network requests` returned a well-formed empty list in Lightpanda,
+  but whether it reports in-flight requests is unproven — the contact
+  overlay's request-binding harvest stays on Chromium until observed.
+  Synthetic fixtures covered cookie import fidelity.
+- **Re-authenticated provider-200 (integrated path, post-v0.18.83):**
+  `createLinkedInProfileBrowserTransport` with `engine: "auto"` and a
+  publisher resolved to Lightpanda and returned the real voyager
+  identity (`plainId:75145295`, bound subject
+  `urn:li:fsd_profile:75145295`), 1,072,858-byte `/in/me/` profile
+  HTML, and 857,951-byte connections HTML — session create ~1.6 s,
+  identity ~0.3 s, profile ~0.8 s, connections ~0.8 s, with the full
+  durable cleanup journal. Both auth snapshots were byte-identical
+  afterward. The integrated LinkedIn funnel is qualified on live auth.
+
+### Cleanup admission under a durable publisher
+
+An independent review found the first integration could not survive the
+production authenticated-read path: cleanup admission publishes a durable
+resource identity, and the live control-witness binder requires
+`engine: "chrome"` plus `browserLaunched: true`. A CDP-attached Lightpanda
+session reports `engine: "lightpanda"` and `browserLaunched: false`, so it
+could never bind. The remediation:
+
+- The control-witness bind is now engine-gated (`chrome` only). Lightpanda
+  sessions publish `prepared` then `launch-intent` and stay unbound.
+- Launch-intent quiescence is engine-agnostic: it checks the daemon's
+  exact `active` flag and session/socket identity pins, so an
+  active-while-settling Lightpanda session retries inside the bounded
+  convergence window instead of hard-failing the strict Chrome parser.
+- `auto` with a publisher runs a throwaway preflight before the durable
+  `prepared` publish — spawn, `open about:blank`, one stdin cookie import,
+  `close`, serve-child reap, and a daemon-observed `inactive` check on
+  unpublished roots. A protocol incompatibility resolves to Chromium
+  before any durable identity exists; a post-publish compat failure can
+  never register a second identity and fails closed.
+- Executable resolution is gated on the selected engine, so a stale
+  `LIGHTPANDA_PATH` cannot break unrelated Chromium sessions.
+
+A live run through `createBrowserSession` under a publisher against the
+real driver and a cookies-file realm completed `prepared` →
+`launch-intent` publication, `journal-quiescent`, and both root-removal
+journal entries, with every private root deleted. A second live run with
+no provisioning env resolved `auto` to Chromium, confirming the graceful
+degradation leg.
+
+A second review round hardened the preflight itself:
+
+- The inactivity proof now runs only after a fully successful probe —
+  a probe failure already decided the outcome, and running it could wrap
+  the compat error in an `AggregateError` the `instanceof` fallback check
+  cannot see. Quiescence proof uses the production
+  `convergeBrowserCleanupResourceProof` (10s bounded window, settling
+  retries, exact identity pins) instead of an ad-hoc 2s poll, with inner
+  command timeouts clamped to the remaining operation deadline.
+- A daemon that can never prove the closed session inactive is now
+  classified as a protocol incompatibility — settling-class failures
+  become a bare `LightpandaCompatibilityError` so `auto` still resolves
+  to Chromium, while the unproven throwaway roots are preserved rather
+  than deleted. Identity, boundary, and malformed-output faults stay
+  fail-closed.
+- Proxy creation is tracked through `networkProxyCreation.pending` and
+  closed late in teardown, mirroring the contained-session path, so a
+  deadline abort cannot leak a live loopback listener.
+- The owned serve-child reap uses a dedicated 6s bound because
+  `lightpanda.close()`'s own worst case (~1s SIGKILL grace + 3s exit
+  wait) exceeds the generic 2s resource-teardown bound.
+- `close()` sets `acknowledged` only after the reap succeeds, so a reap
+  failure stays open and retryable through the launch-intent recovery
+  instead of being masked.
+
+A third review round verified every remediation in code and found one
+remaining minor defect, now fixed: the LinkedIn transport's one-shot
+`initialBatchPending` rewrite flag was consumed by any command,
+including stdin-free lifecycle invokes such as the preflight's
+quiescence `session info` probe. A Chromium fallback after that probe
+would have navigated to the signed-in root directly instead of warming
+the realm page first. The flag now clears only when an invocation
+carries a stdin batch.
+
+Note: cookie replay into a contained browser is not novel risk — the
+Chromium lane already seeds the same acquired cookies for
+`browser-profile + cookieSource` auths. The session invalidation window
+overlapped other signed-in-browser lane work, so attribution to the
+Lightpanda reads is not supported by the evidence.
+
+## The "auto" default (v0.18.84)
+
+After the live X and LinkedIn proofs, the contained-session engine
+default became `"auto"`: every headless session whose realm yields
+explicit cookies resolves to a provisioned Lightpanda, and Chromium
+remains the resolution for everything else. Eligibility adds the
+`!headed` gate — a headed session is definitionally a Chromium session,
+since headed windows exist only for anti-bot evasion on that lane. The
+preflight and bounded-fallback conditions now key on the resolved
+selection rather than the raw option, so an omitted `engine` receives
+the same unpublished-preflight protection as an explicit `"auto"`.
+
+- The LinkedIn profile transport computes `headed` from the resolved
+  engine (`resolvedEngine === "chrome"`), keeping Chrome's headed
+  anti-bot behavior on the Chromium lane while Lightpanda runs headless.
+- `linkedin-web-bootstrap` pins `"chrome"`: it issues `network
+  requests` commands (live revision discovery) on a `headed: false`
+  session, the only headed:false transport with an unqualified command
+  stream.
+- Headed transports — X transaction bootstrap, Instagram profile,
+  LinkedIn article/comment/post/feed/search — resolve to Chromium
+  through the headed gate alone, keeping the anti-bot property they
+  declared `headed: true` for.
+- Bluesky's storage bootstrap requires `browser-profile` auth (no
+  cookie source on the constructed `storageAuth`), so `auto` resolves
+  it to Chromium without a pin.
+- Provider-agnostic callers with no `engine` option (messaging
+  automation excluded — it owns a different session factory) get the
+  same default: unprovisioned environments change nothing, and the
+  pin convention is one line at the call site when a transport's
+  command stream is unqualified.
 
 ## Result
 
 - Delivered and verified: Lightpanda-first public semantic capture in
   Ghostget `v0.18.79` and Direct `v0.7.29`, released, mirrored
   byte-exact on npm, and promoted to production.
-- LinkedIn authenticated Lightpanda read: **qualified for the identity
-  read only.** One `/voyager/api/me` probe through the isolated
-  Lightpanda session returned the exact same-account subject bound to
-  `linkedin-main` (`subjectMatches: true`), with imported cookies,
-  healthy containment, complete cleanup, and both auth realms
-  byte-identical afterward. This contradicts the adapter note's earlier
-  finding for that realm: a bound `cookie-source` handoff is accepted
-  where whole-profile reuse is impossible. One read is not provider-wide
-  qualification — profile, connections, and RSC contact reads each
-  still need per-operation evidence before a Lightpanda transport can
-  be offered.
+- LinkedIn authenticated Lightpanda reads shipped in `v0.18.83`
+  (PR #560, merge `0137e55b`, immutable GitHub Release with the
+  five-file contract, npm `0.18.83` admitted): **qualified for
+  identity, personal stats, connections, and organization reads.**
+  Live adapter evidence covered identity, profile HTML, and
+  connections HTML on real auth; unit tests cover engine selection,
+  fallback, custody, and seeding. The profile transport defaults to
+  `"auto"` — Lightpanda first for cookie-yielding realms with a
+  provisioned binary, Chromium otherwise. Contact reads stay on
+  Chromium pending live network-request-observation evidence. This
+  contradicts the adapter note's earlier finding for that realm: a
+  bound `cookie-source` handoff is accepted where whole-profile reuse
+  is impossible.
+- Live gap closed post-release: after re-authentication, the
+  integrated `createLinkedInProfileBrowserTransport` with
+  `engine: "auto"` and a publisher resolved to Lightpanda and returned
+  the real voyager identity (`plainId:75145295`), 1,072,858-byte
+  profile HTML, and 857,951-byte connections HTML with the complete
+  durable cleanup journal and byte-identical auth snapshots.
+  `engine: "chrome"` remains the documented escape lane.
+- `"auto"` is the contained-session engine default in `v0.18.84`
+  (PR #563, merge `ded6b05c`, immutable GitHub Release with the
+  five-file contract, npm `0.18.84` admitted): every headless
+  cookie-yielding session resolves to a provisioned Lightpanda;
+  headed, profile-backed/storage-state, non-cookie, and unprovisioned
+  sessions resolve to Chromium. Live X evidence proved the generic
+  auth path independently of LinkedIn — authenticated `x.com/home`
+  stayed signed in as `hraness` (`rest_id 1695180519640633575`) while
+  an anonymous control was server-redirected to onboarding.
 - Chromium remains mandatory for visual evidence, attached or
-  profile-backed sessions, connected accounts, and every authenticated
-  provider read by default. Lightpanda authentication stays disabled
-  unless a per-provider qualification like the one above passes.
+  profile-backed sessions, connected accounts, and the unqualified
+  LinkedIn transports (article, comment, post, feed, search), the
+  headed mutation/anti-bot lanes, and every headed request — the
+  headless-only eligibility gate keeps those on Chromium without
+  per-call-site pins. X's edge currently rejects the contained
+  headless Chrome entirely, so no Chrome-vs-Lightpanda X benchmark
+  exists; Lightpanda is the only contained engine that reaches it.
 
 ## Durable memory
 
@@ -123,3 +337,30 @@ Qualification, bounded to read-only evidence:
   non-HTTP(S) target allowed, and batch `--allowed-domains` filtering
   is not wired for the Lightpanda global arguments — the task-owned
   proxy enforces containment instead.
+- When an authenticated read fails, prove the session is alive before
+  suspecting the engine: replay the same acquired cookies over plain
+  HTTP. Identical rejection across transports means dead auth, not an
+  engine defect — and three consecutive session-path 401s cost real
+  qualification time before this was checked.
+- Post-cookie first-party context should be a cheap realm page
+  (`/robots.txt`), never a signed-in root: heavyweight landings can
+  challenge fresh automated sessions before any in-page request runs.
+- A CDP-attached browser has no daemon-launched process for the
+  controlled cleanup witness — `session info` reports
+  `browserLaunched: false` and a non-Chrome engine even while its owned
+  serve child runs. Quiescence must be proven at the launch-intent
+  phase from daemon-observed inactivity after close plus serve-child
+  reap, and an `auto` selection with a publisher must preflight
+  compatibility before the durable identity exists, because a retry's
+  fresh identity can never register afterward.
+- Keep executable resolution gated on the selected engine: validating an
+  unrelated engine's environment lets a stale `LIGHTPANDA_PATH` break
+  Chromium sessions that never asked for it.
+- A one-shot command wrapper that keys on batch stdin must clear its
+  armed flag only when a batch actually arrives: stdin-free lifecycle
+  invokes (`session info`, preflight probes) otherwise consume the
+  rewrite before the navigation it protects.
+- On the Lightpanda lane, `session.runBatch` puts each command on
+  process argv while the Chromium lane sends one stdin payload — cookie
+  values must always take the `dependencies.runBatch` stdin channel, and
+  future callers must not seed cookies through `session.runBatch`.
