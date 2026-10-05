@@ -6,6 +6,7 @@ import {
   browserResultData,
   createBrowserSession,
   runCommand,
+  selectBrowserSessionEngine,
   type BrowserSession,
   type CommandResult,
   type CreateBrowserSessionOptions,
@@ -803,10 +804,20 @@ export async function createLinkedInProfileBrowserTransport(
     ?? createBrowserSession;
   const browserOutputBytes = encodedBodyBound(options.maxOutputBytes)
     + BROWSER_ENVELOPE_BYTES;
+  const engineSelection = options.engine ?? "auto";
+  // A headed window exists only on Chromium: resolve the engine for a
+  // headless-capable request first so `auto` still reaches Lightpanda and an
+  // actual Chromium lane keeps its headed anti-bot behavior.
+  const resolvedEngine = selectBrowserSessionEngine(
+    auth,
+    engineSelection,
+    false,
+    process.env,
+  );
   const sessionOptions: CreateBrowserSessionOptions = {
     allowCodeOwnedEvaluation: true,
     allowCodeOwnedNetworkObservation: true,
-    headed: true,
+    headed: resolvedEngine === "chrome",
     maxOutputBytes: browserOutputBytes,
     timeoutMs: options.timeoutMs,
     dependencies: {

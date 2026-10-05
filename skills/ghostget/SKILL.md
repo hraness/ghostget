@@ -138,14 +138,17 @@ replayed. Explicit Lightpanda selection, security denials, identity failures,
 and cleanup failures never trigger that retry. Existing
 HTTP and typed provider routes are unchanged.
 
-Authenticated browser sessions take the same engine choice internally. The
-LinkedIn profile read transport (identity, personal stats, connections, and
-organization reads) prefers a provisioned Lightpanda for cookie-yielding
-account realms, imports session cookies through the driver's input channel,
-and still selects Chromium for profile-backed, storage-state, and other
-non-cookie realms or when no binary is provisioned. Contact reads keep
-Chromium while their live network-request observation remains unqualified,
-as does every other authenticated provider flow.
+Authenticated browser sessions take the same engine choice internally, with
+`auto` as the default: a provisioned Lightpanda serves headless sessions whose
+account realm yields explicit cookies, and Chromium stays authoritative for
+headed sessions, profile-backed or storage-state realms, and any other
+non-cookie realm or unprovisioned environment. Imported session cookies
+reach both engines through the driver's input channel rather than process
+arguments. Contact reads, the LinkedIn bootstrap, and the other
+article/comment/post/feed transports keep Chromium while their live
+network-request observation remains unqualified, as do the headed LinkedIn
+search, Instagram, and X mutation transports while their headed requirement
+stands.
 
 ## Author a portable provider
 

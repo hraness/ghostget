@@ -103,6 +103,9 @@ export async function resolveLinkedInMessengerConversationsQueryId(
     timeoutMs,
     maxOutputBytes: 8 * 1024 * 1024,
     allowCodeOwnedNetworkObservation: true,
+    // Revision discovery reads live network-request observations, a command
+    // surface Lightpanda has not been qualified to serve: pin Chromium.
+    engine: "chrome",
   });
   let operationError: unknown;
   let queryId: string | undefined;
