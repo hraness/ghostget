@@ -7,6 +7,8 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.82
+
 Publish observed, subject-bound `posts.publish` and `media.publish` operations
 without a per-post confirmation command.
 

@@ -250,12 +250,12 @@ delivery proceeds through a new source-qualified version.
 
 ## Install the canonical release
 
-These commands require the matching published immutable v0.18.81 release.
+These commands require the matching published immutable v0.18.82 release.
 
 For the CLI:
 
 ```sh
-bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.81/hraness-ghostget-0.18.81.tgz
+bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.82/hraness-ghostget-0.18.82.tgz
 ghostget --version
 ghostget doctor --json
 ```
