@@ -202,7 +202,7 @@ export async function adminRequest(environment: ControlEnvironment, request: Con
   });
 }
 
-/** A `HelperClient` over the admin socket, so the TUI and verbs share one port. */
+/** A `HelperClient` over the admin socket, so the verbs share one port. */
 export function adminClient(environment: ControlEnvironment): HelperClient {
   return { request: (request, timeoutMs) => adminRequest(environment, request, timeoutMs), close: () => undefined };
 }

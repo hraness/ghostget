@@ -7,9 +7,13 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
-Publish observed, subject-bound `posts.publish` and `media.publish` operations
-without a per-post confirmation command.
+Remove the `ghostget tui` keyboard control panel and publish observed,
+subject-bound `posts.publish` and `media.publish` operations without a
+per-post confirmation command.
 
+- `ghostget status` and `ghostget status --json` remain the review surface
+  for accounts, approvals, permissions, saved outputs, and next steps;
+  `ghostget control serve` still runs the shared control owner headless.
 - `ghostget invoke <adapter> <op> --execute` records the same exact immutable
   plan and durable single-dispatch lifecycle as preview-then-confirm, under the
   same account permission fence: managed Ask or Deny refuses without an

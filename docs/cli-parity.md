@@ -40,7 +40,7 @@ changes. Inputs that only tighten run without asking:
 
 | Menu item | Command |
 | --- | --- |
-| Status line, accounts, approvals count, sign-ins | `ghostget status` (also `ghostget tui --snapshot`) |
+| Status line, accounts, approvals count, sign-ins | `ghostget status` |
 | Refresh | Run `ghostget status` again |
 | Choose account / Public scope | `--account <id>` on `status` and `permissions list`; omit it for public scope |
 | Copy account id | `ghostget auth list --json` |
@@ -65,9 +65,6 @@ changes. Inputs that only tighten run without asking:
 | Open at login | `ghostget control install` (asks you); the old menu bar login item is moved aside |
 | Copy diagnostics | `ghostget doctor` |
 
-The TUI (`ghostget tui`) keeps its keyboard views and reuses a running owner.
-`ghostget tui --snapshot` prints one frame and exits; agents get the
-`ghostget.status/1` JSON envelope from it, and `--json` forces that. People
-get text wrapped to the terminal width, or to `--width <40-200>` columns. The
-13 former menu bar states are committed as goldens at 40, 80 and 120 columns
-in `src/control/__fixtures__/tui/<state>.tui-<width>.txt`.
+Agents get the `ghostget.status/1` JSON envelope from `ghostget status
+--json`; people get the same facts as text. The 13 former menu bar states are
+committed as goldens in `src/control/__fixtures__/status/<state>.{json,txt}`.

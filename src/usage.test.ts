@@ -157,7 +157,7 @@ describe("ghostget help", () => {
   });
 
   test("commands that own their help are delegated, not intercepted", () => {
-    for (const command of ["menubar", "tui", "vault", "web", "interface", "media", "url-metadata"]) {
+    for (const command of ["menubar", "vault", "web", "interface", "media", "url-metadata"]) {
       expect(ghostgetHelpRequest([command, "--help"]), command).toBeNull();
       expect(ghostgetHelpRequest(["help", command]), command).toEqual({
         kind: "delegate",

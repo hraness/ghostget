@@ -2490,17 +2490,28 @@
 // f77184ece90823e7b0dc024be46aa7dc50cc19e6a95ab0974dd7198980017e6c. Retain the
 // reviewed allowances: 12,244,061 + 12,387 + 4,096 = 12,260,544 packed;
 // 24,496,819 + 353 + 65 = 24,497,237 unpacked.
+// The control-TUI removal over that candidate drops src/control/tui.ts,
+// tui-model.ts and tui-terminal.ts from the shipped control sources, moves
+// the status fixtures under src/control/__fixtures__/status/, and keeps
+// `ghostget status`/`status --json` as the snapshot surface. Two
+// byte-identical npm 11.19.0 packs on Node 24.20.0
+// (zlib 1.3.2.1-motley-42c2f19) --ignore-scripts on darwin arm64 measured
+// 635 entries, 12,216,104 packed bytes and 24,436,508 unpacked bytes;
+// archive SHA-256
+// 3f5bb90e64d7cde2d77071ff7f3b6a71a25d8a7422c79f78333d2199f9a6741b. Retain the
+// reviewed allowances: 12,216,104 + 12,387 + 4,096 = 12,232,587 packed;
+// 24,436,508 + 353 + 65 = 24,436,926 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "0.18.81 invoke --execute authorized publication over the documentation and WebMCP release",
+  scope: "unreleased control-TUI removal over the 0.18.81 invoke --execute authorized publication",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   nodeVersion: "24.20.0",
   zlibVersion: "1.3.2.1-motley-42c2f19",
   platform: "darwin-arm64",
-  archiveSha256: "f77184ece90823e7b0dc024be46aa7dc50cc19e6a95ab0974dd7198980017e6c",
-  packedBytes: 12_244_061,
-  unpackedBytes: 24_496_819,
-  entryCount: 638,
+  archiveSha256: "3f5bb90e64d7cde2d77071ff7f3b6a71a25d8a7422c79f78333d2199f9a6741b",
+  packedBytes: 12_216_104,
+  unpackedBytes: 24_436_508,
+  entryCount: 635,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,

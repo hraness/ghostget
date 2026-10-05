@@ -2,7 +2,7 @@ import { lstatSync, readdirSync, type BigIntStats } from "node:fs";
 import { join } from "node:path";
 
 /** Bounded, read-only view of the product outputs directory shared by
- * `ghostget status`, `ghostget outputs` and the TUI. */
+ * `ghostget status` and `ghostget outputs`. */
 const OUTPUTS_LIMIT = 12;
 const OUTPUTS_SCAN_BOUND = 512;
 export interface OutputEntry {

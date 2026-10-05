@@ -98,7 +98,7 @@ test("GhostGet fixes the release source and actual entrypoint without creating p
 
 test("inspection and nested clients suppress incidental updates", () => {
   const environment = isolatedEnvironment();
-  for (const args of [["status"], ["capabilities"], ["doctor"], ["operator", "doctor", "--json"], ["support", "offer", "--json"], ["commands", "--json"], ["control", "serve"], ["control", "stop"], ["tui", "--snapshot"], ["plugin", "list"], ["plugin", "show", "x-official"], ["invoke", "x", "read", "--cache-only"], ["invoke", "x", "read", "--projection-identity-only"]]) {
+  for (const args of [["status"], ["capabilities"], ["doctor"], ["operator", "doctor", "--json"], ["support", "offer", "--json"], ["commands", "--json"], ["control", "serve"], ["control", "stop"], ["plugin", "list"], ["plugin", "show", "x-official"], ["invoke", "x", "read", "--cache-only"], ["invoke", "x", "read", "--projection-identity-only"]]) {
     expect(ghostgetUpdateOptions(args, 0, environment).suppressAutomatic).toBeTrue();
   }
   for (const depth of [1, 8, null]) expect(ghostgetUpdateOptions(["read", "https://example.com"], depth, environment).nested).toBeTrue();

@@ -589,9 +589,9 @@
     {
       "guide": "AGENTS.md",
       "anchor": "No writes on read",
-      "digest": "60e82065129c0dcb3faa5540e64502ec93039b6de2c966216817c54aeeccfedd",
+      "digest": "d1f4378b520cad5e805d26732e50db810ccc23f20b6f4f16bc686901e4ade26b",
       "claims": [
-        "tui-snapshot-read-only",
+        "control-snapshot-read-only",
         "no-writes-on-read-paths",
         "read-path-auth-check-read-only",
         "read-path-preparation-read-only",
@@ -678,14 +678,12 @@
     {
       "guide": "src/control/AGENTS.md",
       "anchor": "`protocol.ts` is the",
-      "digest": "eb8d556f3a5ff6948cdeaeb60f60d15a3659908c7b42d38d657d64938f0317eb",
+      "digest": "ca26cb600bcc417a564b87cd4570101fa068b47e74aa9a2e286722c4789a3a8a",
       "claims": [
         "agent-channel-cannot-escalate",
         "control-protocol-bounded-reject-drift",
         "control-single-helper-owner",
-        "control-verbs-human-gated",
-        "tui-input-cannot-bypass-review",
-        "tui-restores-terminal-state"
+        "control-verbs-human-gated"
       ]
     },
     {
@@ -1435,46 +1433,6 @@
       ]
     },
     {
-      "id": "tui-input-cannot-bypass-review",
-      "statement": "Terminal input, including pasted or unbracketed bursts, cannot issue confirmation or approval without the complete account and exact revision/digest review being displayed.",
-      "area": "control",
-      "source": {
-        "path": "src/control/AGENTS.md",
-        "quote": "Terminal input, including pasted text, must never bypass that review."
-      },
-      "layer": "example",
-      "status": "evidenced",
-      "evidence": [
-        "src/control/tui.test.ts"
-      ],
-      "assumptions": [
-        "same-user-trusted"
-      ],
-      "notVerified": [
-        "Only the enumerated example cases are checked."
-      ]
-    },
-    {
-      "id": "tui-restores-terminal-state",
-      "statement": "The TUI restores terminal state (raw mode, cursor, alternate screen) before waiting for helper cancellation and custody settlement, including on failure and signals.",
-      "area": "control",
-      "source": {
-        "path": "src/control/AGENTS.md",
-        "quote": "Restore terminal state before waiting for helper cancellation and custody settlement."
-      },
-      "layer": "example",
-      "status": "evidenced",
-      "evidence": [
-        "src/control/tui.test.ts"
-      ],
-      "assumptions": [
-        "same-user-trusted"
-      ],
-      "notVerified": [
-        "Only the enumerated example cases are checked."
-      ]
-    },
-    {
       "id": "managed-policy-corrupt-denies",
       "statement": "Once operation permissions are enabled, a missing or corrupt policy denies access and never falls back to unmanaged behaviour.",
       "area": "control",
@@ -1561,11 +1519,11 @@
     },
     {
       "id": "control-single-helper-owner",
-      "statement": "The control verbs and TUI share exactly one helper owner per state home; a second controller does not acquire custody.",
+      "statement": "The control verbs share exactly one helper owner per state home; a second controller does not acquire custody.",
       "area": "control",
       "source": {
         "path": "src/control/AGENTS.md",
-        "quote": "The control verbs and TUI share one helper owner per state home."
+        "quote": "The control verbs share one helper owner per state home."
       },
       "layer": "stateful-model",
       "status": "evidenced",
@@ -1573,8 +1531,7 @@
         "src/control/helper.ts",
         "src/control/helper-owner.property.test.ts",
         "src/control/helper-client.test.ts",
-        "src/control/helper-lifecycle.test.ts",
-        "src/control/tui.test.ts"
+        "src/control/helper-lifecycle.test.ts"
       ],
       "assumptions": [
         "same-user-trusted",
@@ -1583,7 +1540,7 @@
       "notVerified": [
         "The model drives the production owner record (`inspectControlOwner` and `commitControlOwner`) in one process. Process liveness is a fake that the model controls, so `processOwnerStatus`'s own inspection of real processes is outside it; its tests are in `src/process-identity.test.ts`.",
         "Contenders interleave only between inspection and commit. That two separate processes cannot both win the create-if-absent or compare-and-swap write rests on the storage layer's exclusive create and locked replace, under the filesystem-durability assumption.",
-        "That the menu and the TUI reach the one helper through its socket, rather than starting their own, rests on the listed example tests only.",
+        "That controllers reach the one helper through its socket, rather than starting their own, rests on the listed example tests only.",
         "The model samples its schedules: CI runs 30 schedules of up to 20 commands over three contenders."
       ],
       "properties": [
@@ -3621,12 +3578,12 @@
       ]
     },
     {
-      "id": "tui-snapshot-read-only",
-      "statement": "The control snapshot that `ghostget status` and `ghostget tui --snapshot` read, and its account and permission listings, take no admission and create no state; auth incarnations are created only by account saves, the control-service startup backfill, and admitted execution paths.",
+      "id": "control-snapshot-read-only",
+      "statement": "The control snapshot that `ghostget status` reads, and its account and permission listings, take no admission and create no state; auth incarnations are created only by account saves, the control-service startup backfill, and admitted execution paths.",
       "area": "storage",
       "source": {
         "path": "AGENTS.md",
-        "quote": "The control snapshot that `ghostget status` and `ghostget tui --snapshot` read, and its account and permission listings, take no admission and create no state; account saves, the control-service startup backfill, and admitted execution paths create auth incarnations."
+        "quote": "The control snapshot that `ghostget status` reads, and its account and permission listings, take no admission and create no state; account saves, the control-service startup backfill, and admitted execution paths create auth incarnations."
       },
       "layer": "property",
       "status": "evidenced",

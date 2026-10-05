@@ -22,7 +22,7 @@ declare offline.access; Ghostget proves the refresh token during import and
 renews the access token itself as it nears expiry. --expires-at is only for a
 non-renewable import that declares its own expiry.
 An existing Ghostget account requires --replace and an unchanged account revision.
-The TUI and control owner may stay open; the import binds the exact account revision.
+The control owner may stay open; the import binds the exact account revision.
 This is a token importer, not a general password manager or a Markdown vault.
 `;
 
@@ -58,7 +58,7 @@ export type VaultCommandDependencies = {
 
 /** The import runs the credential ceremony directly against private state: exact
  * account revision, staged token file, and conditional publication. It takes no
- * controller lock, so the TUI and control owner can keep running. Only import metadata
+ * controller lock, so the control owner can keep running. Only import metadata
  * crosses private stdio; secret resolution stays in the credential helper. */
 export async function runVaultCommand(
   args: readonly string[],

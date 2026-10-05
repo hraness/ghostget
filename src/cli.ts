@@ -255,11 +255,6 @@ export async function runGhostgetCliProcess(
     return;
   }
   try {
-    if (rawArguments[0] === "tui") {
-      const { runTuiCommand } = await import("./control/tui");
-      process.exitCode = await runTuiCommand(rawArguments, process.env, resolvedOutput);
-      return;
-    }
     if (rawArguments[0] === "vault") {
       const { runVaultCommand } = await import("./control/vault-cli");
       process.exitCode = await runVaultCommand(rawArguments, process.env, resolvedOutput);

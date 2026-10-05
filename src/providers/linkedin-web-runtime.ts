@@ -758,7 +758,7 @@ export async function probeLinkedInWebSubject(
 }
 
 /** The Voyager identity probe resolves the public profile slug beside the
- * member URN subject, so menus and the TUI can name the account instead of
+ * member URN subject, so the CLI can name the account instead of
  * printing the numeric member ID. */
 export async function probeLinkedInWebIdentity(
   auth: GhostgetAuth,

@@ -1,12 +1,12 @@
-import { renderSnapshot, type View } from "@hraness/desktop-foundation/tui";
+import { stripVTControlCharacters } from "node:util";
 import type { BrowserChoice } from "./browser-choices";
 import type { OutputsView } from "./outputs";
 import type { ControlSnapshot } from "./protocol";
 
 /**
- * One read-only status model shared by `ghostget status`, `ghostget tui
- * --snapshot` and `ghostget tui --json`. It carries every state the retired
- * retired menu bar showed, so an agent or a person sees the same facts in text or JSON.
+ * One read-only status model behind `ghostget status` (text or `--json`).
+ * It carries every state the retired menu bar showed, so an agent or a
+ * person sees the same facts in text or JSON.
  * Nothing here performs an action; each row names the verb that does.
  */
 export const STATUS_SCHEMA = "ghostget.status/1";
@@ -86,7 +86,7 @@ const CONTROL_ERRORS: Readonly<Record<string, readonly [string, string]>> = {
   KEYCHAIN_DENIED: ["macOS didn't allow the keychain request", "Try again and choose Always Allow when macOS asks"],
   KEYCHAIN_UNAVAILABLE: ["Couldn't read the keychain", "Unlock your login keychain, then try again"],
   FDA_DENIED: ["Safari needs Full Disk Access", "Turn it on in System Settings > Privacy & Security > Full Disk Access"],
-  APPROVAL_REQUIRES_FULL_REVIEW: ["This request is too long to review here", "ghostget tui"],
+  APPROVAL_REQUIRES_FULL_REVIEW: ["This request is too long to review here", "ghostget approvals list"],
   REVISION_CONFLICT: ["Settings changed somewhere else", "ghostget status"],
   STALE_REVISION: ["Settings changed somewhere else", "ghostget status"],
 };
@@ -189,8 +189,15 @@ function size(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-/** The status views, in order. `nowMs` only affects relative times. */
-export function statusViews(nowMs: number): readonly View<GhostgetStatus>[] {
+/** One titled section of the status text. */
+interface StatusSection {
+  readonly id: string;
+  readonly title: string;
+  readonly render: (status: GhostgetStatus) => readonly string[];
+}
+
+/** The status sections, in order. `nowMs` only affects relative times. */
+export function statusViews(nowMs: number): readonly StatusSection[] {
   return [
     { id: "overview", title: "Ghostget", render: (s) => [
       `${s.headline}${s.version === null ? "" : ` · v${s.version}`}`,
@@ -223,7 +230,27 @@ export function statusViews(nowMs: number): readonly View<GhostgetStatus>[] {
   ];
 }
 
-/** Plain text for `ghostget status` and `ghostget tui --snapshot`. */
+/** Removes escape sequences and control characters so product data cannot drive the terminal. */
+function clean(text: string): string {
+  return stripVTControlCharacters(String(text)).replace(/[\x00-\x1f\x7f-\x9f]/g, " ");
+}
+
+const graphemes = new Intl.Segmenter("en", { granularity: "grapheme" });
+
+/** Cuts `text` to at most `width` terminal columns without splitting a grapheme. */
+function fit(text: string, width: number): string {
+  let out = "", used = 0;
+  for (const { segment } of graphemes.segment(clean(text))) {
+    const segmentWidth = Bun.stringWidth(segment);
+    if (used + segmentWidth > Math.max(0, width)) break;
+    out += segment; used += segmentWidth;
+  }
+  return out;
+}
+
+/** Plain text for `ghostget status`: every section under a `== title ==` heading. */
 export function renderStatus(status: GhostgetStatus, width: number, nowMs: number = Date.now()): string {
-  return renderSnapshot(statusViews(nowMs), status, width);
+  return statusViews(nowMs)
+    .map((section) => `== ${clean(section.title)} ==\n${section.render(status).map((line) => `${fit(line, width).trimEnd()}\n`).join("")}`)
+    .join("\n");
 }

@@ -62,7 +62,6 @@ Run actions
 
 Control GhostGet
   ghostget status                     Accounts, approvals and saved outputs
-  ghostget tui                        Open the keyboard control panel
   ghostget control serve|stop         Run the control owner without a window
   ghostget approvals|permissions|connections
                                       Every control action as a command
@@ -453,7 +452,6 @@ Telemetry
 
 const advancedHelp = `GhostGet advanced commands
 
-  ghostget tui --snapshot            Print the control panel as plain text
   ghostget vault --help              Import an X token from 1Password
   ghostget web request <https-url>   Fetch public text through your web rules
   ghostget interface list|export|import
@@ -466,8 +464,8 @@ const advancedHelp = `GhostGet advanced commands
   ghostget runs show|reconcile       Inspect or settle one run
   ghostget operator doctor           Same as ghostget doctor
 
-The TUI uses a running control owner (ghostget control serve) when there
-is one. Setup guide: https://ghostget.com/getting-started
+Control verbs use a running control owner (ghostget control serve) when
+there is one. Setup guide: https://ghostget.com/getting-started
 `;
 
 type HelpTopic =
@@ -545,7 +543,6 @@ const HELP_TOPICS: Readonly<Record<string, HelpTopic>> = {
   advanced: { advanced: advancedHelp },
   help: { text: ghostgetUsage },
   menubar: { delegate: "menubar" },
-  tui: { delegate: "tui" },
   status: { delegate: "status" },
   approvals: { delegate: "approvals" },
   activity: { delegate: "activity" },
@@ -569,7 +566,7 @@ const HELP_TOPICS: Readonly<Record<string, HelpTopic>> = {
 
 /** Commands whose own parser already prints help on stdout and exits 0. */
 const SELF_HELP_COMMANDS = new Set([
-  "menubar", "tui", "vault", "web", "interface", "url-metadata",
+  "menubar", "vault", "web", "interface", "url-metadata",
   "media", "archive", "audio", "video", "transcript", "verify", "transcriber",
 ]);
 

@@ -1038,7 +1038,7 @@ export async function probeXWebSubject(
 }
 
 /** The Viewer probe resolves the screen name beside the numeric subject, so
- * menus and the TUI can show "@name" instead of the raw X account ID. */
+ * the CLI can show "@name" instead of the raw X account ID. */
 export async function probeXWebIdentity(
   auth: GhostgetAuth,
   options: {
