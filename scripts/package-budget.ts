@@ -2500,17 +2500,24 @@
 // a212c8c3050c1f9509a3725e40b0e9d20dfb8913b3c669f729e79a88adcacfea. Retain the
 // reviewed allowances: 12,238,781 + 12,387 + 4,096 = 12,255,264 packed;
 // 24,527,832 + 353 + 65 = 24,528,250 unpacked.
+// The 0.18.85 Beeper SDK pin extraction keeps the provider contract bytes
+// unchanged while removing provider initialization from the client import.
+// Two npm 11.19.0 packs on Node 24.20.0 (zlib 1.3.2.1-motley-42c2f19)
+// with --ignore-scripts on darwin arm64 were byte-identical: 639 entries,
+// 12,220,202 packed bytes and 24,357,529 payload bytes; SHA-256
+// acad4b6558e011503df7c42662a461efbb77f6291d024776951e369b36671588.
+// Retain the existing platform projections and portability allowances.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "0.18.84 auto-default engine selection over the engine-aware release",
+  scope: "0.18.85 Beeper SDK pin extraction",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   nodeVersion: "24.20.0",
-  zlibVersion: "1.2.12",
+  zlibVersion: "1.3.2.1-motley-42c2f19",
   platform: "darwin-arm64",
-  archiveSha256: "a212c8c3050c1f9509a3725e40b0e9d20dfb8913b3c669f729e79a88adcacfea",
-  packedBytes: 12_238_781,
-  unpackedBytes: 24_527_832,
-  entryCount: 638,
+  archiveSha256: "acad4b6558e011503df7c42662a461efbb77f6291d024776951e369b36671588",
+  packedBytes: 12_220_202,
+  unpackedBytes: 24_357_529,
+  entryCount: 639,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,

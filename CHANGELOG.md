@@ -7,6 +7,13 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.85
+
+Import the Beeper SDK without initializing the provider command definitions.
+
+- The SDK reads the same immutable CLI identity from a small shared module, preserving its existing exports, parser behavior, and provider contract hashes.
+- Refresh CI test-file weights from measured execution times while retaining every test and the existing eight runners.
+
 ## 0.18.84
 
 Prefer a provisioned Lightpanda by default for every headless cookie-yielding contained browser session.
