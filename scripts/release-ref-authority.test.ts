@@ -9,6 +9,7 @@ import {
   type GitCommandRunner,
   parseGovernedRemoteSnapshot,
   parseRemoteTagSnapshot,
+  verifyReleasePublicationAuthority,
   verifyReleaseRefAuthority,
 } from "./release-ref-authority";
 
@@ -319,6 +320,60 @@ describe("Ghostget release ref authority", () => {
     },
   );
 
+  test.each([
+    ["publication-prewrite", "v1.0.0", "not-a-sha", "0".repeat(40), "one exact release commit"],
+    ["publication-postwrite", "v1.0.0", "0".repeat(40), "not-a-sha", "one authenticated main commit"],
+  ])(
+    "rejects malformed publication authority coordinates before remote inspection (%s)",
+    (...rest) => {
+      const arguments_ = rest.slice(0, 4) as [string, string, string, string];
+      const result = spawnSync("node", [
+        "--experimental-strip-types", join(import.meta.dir, "release-ref-authority.ts"),
+        ...arguments_,
+      ], {
+        encoding: "utf8",
+        env: {
+          PATH: process.env.PATH ?? "",
+          GITHUB_REPOSITORY: "hraness/ghostget",
+          DEFAULT_BRANCH: "main",
+        },
+        stdio: ["ignore", "pipe", "pipe"],
+        maxBuffer: 64 * 1_024,
+        timeout: 10_000,
+      });
+      expect(result.error).toBeUndefined();
+      expect(result.status).toBe(1);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toContain(`Publication authority requires ${rest[4]}`);
+    },
+  );
+
+  test.each([
+    ["publication-prewrite", "v1.0.0"],
+    ["publication-postwrite", "v1.0.0", "0".repeat(40)],
+  ])(
+    "rejects incomplete publication authority arguments (%s)",
+    (...arguments_) => {
+      const result = spawnSync("node", [
+        "--experimental-strip-types", join(import.meta.dir, "release-ref-authority.ts"),
+        ...arguments_,
+      ], {
+        encoding: "utf8",
+        env: {
+          PATH: process.env.PATH ?? "",
+          GITHUB_REPOSITORY: "hraness/ghostget",
+          DEFAULT_BRANCH: "main",
+        },
+        stdio: ["ignore", "pipe", "pipe"],
+        maxBuffer: 64 * 1_024,
+        timeout: 10_000,
+      });
+      expect(result.error).toBeUndefined();
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("Usage: release-ref-authority.ts release TAG");
+    },
+  );
+
   test("accepts one lightweight release tag below protected current main", () => {
     const input = fixture();
     checkoutRelease(input);
@@ -450,4 +505,121 @@ describe("Ghostget release ref authority", () => {
     },
   );
 
+});
+
+describe("Ghostget release publication authority", () => {
+  test("binds two combined advertisements immediately before publication and cleans up", () => {
+    const input = fixture();
+    checkoutSha(input, input.releaseSha);
+    const { calls, runner } = runnerFor(input);
+    expect(verifyReleasePublicationAuthority({
+      expectedMainSha: input.mainSha,
+      expectedReleaseSha: input.releaseSha,
+      phase: "prewrite",
+      requestedTag: "v1.0.0",
+      runner,
+      workingDirectory: input.work,
+    })).toEqual({ mainSha: input.mainSha, sha: input.releaseSha, tag: "v1.0.0" });
+    expect(calls.filter((call) => call[0] === "ls-remote")).toEqual([
+      ["ls-remote", "--sort=refname", "--refs", repositoryUrl, "refs/heads/main", "refs/tags/v*"],
+      ["ls-remote", "--sort=refname", "--refs", repositoryUrl, "refs/heads/main", "refs/tags/v*"],
+    ]);
+    const fetch = calls.find((call) => call[0] === "fetch") ?? [];
+    expect(fetch).toContain("--no-write-fetch-head");
+    expect(fetch).toContain("refs/heads/main:refs/ghostget-release/publication-main");
+    const diff = calls.find((call) => call[0] === "diff") ?? [];
+    expect(diff).toContain("refs/ghostget-release/publication-main");
+    expect(text(input.work, ["for-each-ref", "--format=%(refname)"])).toBe("");
+
+    const second = runnerFor(input);
+    expect(verifyReleasePublicationAuthority({
+      expectedMainSha: input.mainSha,
+      expectedReleaseSha: input.releaseSha,
+      phase: "postwrite",
+      requestedTag: "v1.0.0",
+      runner: second.runner,
+      workingDirectory: input.work,
+    })).toEqual({ mainSha: input.mainSha, sha: input.releaseSha, tag: "v1.0.0" });
+    expect(text(input.work, ["for-each-ref", "--format=%(refname)"])).toBe("");
+  });
+
+  test("rejects an annotated request and a changed terminal advertisement", () => {
+    const rejectedInput = fixture({ requestedTagKind: "annotated" });
+    checkoutSha(rejectedInput, rejectedInput.releaseSha);
+    expect(() => verifyReleasePublicationAuthority({
+      expectedMainSha: rejectedInput.mainSha,
+      expectedReleaseSha: rejectedInput.releaseSha,
+      phase: "prewrite",
+      requestedTag: "v1.0.0",
+      runner: runnerFor(rejectedInput).runner,
+      workingDirectory: rejectedInput.work,
+    })).toThrow();
+
+    const input = fixture();
+    checkoutSha(input, input.releaseSha);
+    let reads = 0;
+    const drift = runnerFor(input, {
+      mutateResult: (arguments_, _invocation, result) => {
+        if (arguments_[0] === "ls-remote" && arguments_.at(-1) === "refs/tags/v*") {
+          reads += 1;
+          if (reads === 2) {
+            return Object.freeze({
+              ...result,
+              stdout: new TextEncoder().encode(
+                new TextDecoder().decode(result.stdout).replace(input.mainSha, "8".repeat(40)),
+              ),
+            });
+          }
+        }
+        return result;
+      },
+    });
+    expect(() => verifyReleasePublicationAuthority({
+      expectedMainSha: input.mainSha,
+      expectedReleaseSha: input.releaseSha,
+      phase: "prewrite",
+      requestedTag: "v1.0.0",
+      runner: drift.runner,
+      workingDirectory: input.work,
+    })).toThrow("changed at the publication boundary");
+  });
+
+  test("treats a higher raw tag as incomplete in both publication phases", () => {
+    const supersededRawTag = fixture({ higherTagKind: "lightweight" });
+    checkoutSha(supersededRawTag, supersededRawTag.releaseSha);
+    for (const phase of ["prewrite", "postwrite"] as const) {
+      expect(verifyReleasePublicationAuthority({
+        expectedMainSha: supersededRawTag.mainSha,
+        expectedReleaseSha: supersededRawTag.releaseSha,
+        phase,
+        requestedTag: "v1.0.0",
+        runner: runnerFor(supersededRawTag).runner,
+        workingDirectory: supersededRawTag.work,
+      })).toEqual({
+        mainSha: supersededRawTag.mainSha,
+        sha: supersededRawTag.releaseSha,
+        tag: "v1.0.0",
+      });
+    }
+  });
+
+  for (const phase of ["prewrite", "postwrite"] as const) {
+    test(`rejects release-control drift at ${phase}`, () => {
+      for (const driftOptions of [
+        { workflowDrift: true },
+        { releaseControlDrift: true },
+      ] as const) {
+        const releaseControlDrift = fixture(driftOptions);
+        checkoutSha(releaseControlDrift, releaseControlDrift.releaseSha);
+        expect(() => verifyReleasePublicationAuthority({
+          expectedMainSha: releaseControlDrift.mainSha,
+          expectedReleaseSha: releaseControlDrift.releaseSha,
+          phase,
+          requestedTag: "v1.0.0",
+          runner: runnerFor(releaseControlDrift).runner,
+          workingDirectory: releaseControlDrift.work,
+        })).toThrow("different release-control definitions");
+      }
+    });
+  }
 });

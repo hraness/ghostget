@@ -2518,16 +2518,24 @@
 // 78df7ff4f1934aeef092ad55cdbfcb8c8b5d6cf3543561044653afe14d95766d. Retain the
 // reviewed allowances: 12,231,057 + 12,387 + 4,096 = 12,247,540 packed;
 // 24,414,834 + 353 + 65 = 24,415,252 unpacked.
+// The 0.18.87 release restores the release-publication authority modes the
+// canonical GitHub Release publisher invokes. Two clean npm 11.19.0 packs on
+// Node 24.20.0 (zlib 1.3.2.1-motley-42c2f19) with --ignore-scripts on darwin
+// arm64 were byte-identical at 639 files/entries, 12,231,242 packed bytes
+// and 24,415,392 unpacked bytes; archive SHA-256
+// 753ffbeb39d4606f252d299c971fa32ae06c8927b8a4037fb72f349a5c527c9f. Retain the
+// reviewed allowances: 12,231,242 + 12,387 + 4,096 = 12,247,725 packed;
+// 24,415,392 + 353 + 65 = 24,415,810 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "0.18.86 media.publish video lanes and create-response binding repairs",
+  scope: "0.18.87 release-publication authority repair",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   nodeVersion: "24.20.0",
   zlibVersion: "1.3.2.1-motley-42c2f19",
   platform: "darwin-arm64",
-  archiveSha256: "78df7ff4f1934aeef092ad55cdbfcb8c8b5d6cf3543561044653afe14d95766d",
-  packedBytes: 12_231_057,
-  unpackedBytes: 24_414_834,
+  archiveSha256: "753ffbeb39d4606f252d299c971fa32ae06c8927b8a4037fb72f349a5c527c9f",
+  packedBytes: 12_231_242,
+  unpackedBytes: 24_415_392,
   entryCount: 639,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

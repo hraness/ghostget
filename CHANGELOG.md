@@ -7,6 +7,13 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.87
+
+Restore the release-publication authority modes the GitHub Release publisher invokes.
+
+- `release-ref-authority.ts` accepts `publication-prewrite` and `publication-postwrite` again: each verifies the governed refs exactly as `release` does, then binds the caller's expected release commit and authenticated main commit before emitting the receipt. This repairs the immutable Release step that failed after the promotion-lattice retirement removed the modes.
+- v0.18.86 was tagged but never published; this release contains its changes verbatim.
+
 ## 0.18.86
 
 Publish MP4 video on LinkedIn, Threads, and Substack and repair the post-create response bindings on four providers.
