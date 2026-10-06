@@ -2151,7 +2151,7 @@ describe("ghostget.com static site", () => {
     const details = socialImageSiteDetails(socialSite, SOCIAL_IMAGE_HOME_PAGE);
     const fit = socialImageFit(details);
     expect(fit.layout).toBe("product");
-    expect(fit.headline.lines).toEqual(["Your agent gets the result", "without clicking around."]);
+    expect(fit.headline.lines).toEqual(["Faster browsing", "for agents"]);
     expect(fit.headline.reduced).toBe(false);
     expect(fit.description?.lines.join(" ")).toBe(SOCIAL_IMAGE_DESCRIPTION);
     expect(fit.description?.cut).toBe("none");
