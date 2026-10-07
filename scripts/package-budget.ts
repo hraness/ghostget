@@ -2539,15 +2539,15 @@
 // canonical Release must independently measure and admit their exact
 // archives.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "0.18.88 Threads and Reddit reply contracts",
+  scope: "0.18.89 Substack subscriber export chain bound",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.16.0",
   nodeVersion: "24.18.1",
   zlibVersion: "1.3.1-e00f703",
   platform: "darwin-arm64",
   archiveSha256: "c58ba69ec2efb7c034aa926dd5bc5918e5e2f1f88c055fe6bb6c147816d00a26",
-  packedBytes: 12_238_950,
-  unpackedBytes: 24_484_455,
+  packedBytes: 12_239_649,
+  unpackedBytes: 24_486_962,
   entryCount: 641,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
