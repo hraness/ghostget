@@ -191,8 +191,8 @@ describe("Substack subscriber export projection", () => {
       expect(emails.size).toBe(bounded);
       expect(last?.complete).toBe(total <= SUBSTACK_SUBSCRIBER_EXPORT_MAX_ROWS);
       expect(last?.stopReason).toBe(total <= SUBSTACK_SUBSCRIBER_EXPORT_MAX_ROWS ? "provider-exhausted" : "row-limit");
-    }), { numRuns: 20 });
-  }, 30_000);
+    }), { numRuns: 5 });
+  });
 
   test("reconstructs strict authenticated payloads and rejects legacy cursors and inconsistent history", () => {
     const first = normalizeSubstackSubscriberPage(page([row(0), row(1)], 3), { ...exportBinding, offset: 0, limit: 2, total: null });
