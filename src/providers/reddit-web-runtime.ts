@@ -1372,7 +1372,11 @@ async function executeContentDelete(
     readonly dependencies?: RedditWebRuntimeDependencies;
   },
 ): Promise<WebSessionExecution> {
-  const postId = redditPostId(stringInput(input, "post_id", 40), "input.post_id");
+  const targetId = redditFullname(stringInput(input, "post_id", 40), "input.post_id", ["t1", "t3"]);
+  if (targetId.startsWith("t1_")) {
+    return executeCommentDelete(client, recipe, input, auth, options, targetId);
+  }
+  const postId = redditPostId(targetId, "input.post_id");
   const expectedTitle = stringInput(input, "expected_title", 280);
   const viewer = await requireBoundViewer(client, auth);
   const before = await readDeletionPresence(client, recipe, postId);
@@ -1456,6 +1460,107 @@ async function executeContentDelete(
       error: started > 0
         ? "Reddit may have deleted the exact post, but absence was not verified; reconcile before retrying"
         : "Reddit delete dispatch failed before submission",
+    };
+  }
+}
+
+async function executeCommentDelete(
+  client: WebSessionClient,
+  recipe: WebSessionRecipe,
+  input: OperationInput,
+  auth: GhostgetAuth,
+  options: {
+    readonly beforeDispatch?: (event: WebSessionDispatchEvent) => Promise<void>;
+    readonly afterDispatchVerified?: (event: WebSessionDispatchEvent) => Promise<void>;
+    readonly dependencies?: RedditWebRuntimeDependencies;
+  },
+  commentId: string,
+): Promise<WebSessionExecution> {
+  const expectedBody = stringInput(input, "expected_title", 2_000);
+  const viewer = await requireBoundViewer(client, auth);
+  const finalUrl = `${REDDIT_ORIGIN}/api/info.json`;
+  const gone = (readback: Awaited<ReturnType<typeof readCommentReadback>>) =>
+    !readback.present || readback.author === "[deleted]";
+  const assertTarget = (readback: Awaited<ReturnType<typeof readCommentReadback>>) => {
+    if (!readback.present) return;
+    if (readback.author !== viewer.username) {
+      throw new Error("Reddit comment delete target was not authored by the bound viewer");
+    }
+    if (readback.body !== expectedBody) {
+      throw new Error("Reddit comment delete target body changed after confirmation");
+    }
+  };
+  const noOp = (): WebSessionExecution => ({
+    status: "succeeded",
+    output: Object.freeze({ postId: commentId, deleted: true, noOp: true }),
+    finalUrl,
+    noOp: true,
+    dispatchStarted: false,
+    dispatch: { planned: 1, started: 0, verified: 0 },
+  });
+  const before = await readCommentReadback(client, commentId, recipe.maxOutputBytes);
+  if (gone(before)) return noOp();
+  assertTarget(before);
+  let started = 0;
+  let verified = 0;
+  try {
+    const rebound = await currentViewer(client);
+    assertBoundViewer(auth, rebound);
+    if (rebound.id !== viewer.id) throw new Error("Reddit viewer changed during delete preparation");
+    const fresh = await readCommentReadback(client, commentId, recipe.maxOutputBytes);
+    if (gone(fresh)) return noOp();
+    assertTarget(fresh);
+    const url = new URL("/api/del", REDDIT_ORIGIN);
+    const form = new URLSearchParams();
+    form.set("id", commentId);
+    form.set("uh", rebound.modhash);
+    const body = form.toString();
+    authorizeRedditWebRequest({
+      operation: "content.delete",
+      url,
+      method: "POST",
+      body,
+      targetId: commentId,
+    });
+    await options.beforeDispatch?.(dispatchEvent(recipe.action, 0, 0));
+    started = 1;
+    assertRedditMutationSuccess(await client.requestJson({
+      url,
+      method: "POST",
+      headers: exactMutationHeaders(),
+      body,
+      expectedStatuses: [200],
+      expectedContentTypes: ["application/json"],
+      maxBytes: 512 * 1024,
+    }));
+    const sleep = options.dependencies?.sleep
+      ?? ((milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds)));
+    let after = await readCommentReadback(client, commentId, recipe.maxOutputBytes);
+    for (const delay of [500, 1_000, 2_000] as const) {
+      if (gone(after)) break;
+      await sleep(delay);
+      after = await readCommentReadback(client, commentId, recipe.maxOutputBytes);
+    }
+    if (!gone(after)) throw new Error("Reddit exact delete readback still returned the authored comment");
+    verified = 1;
+    await options.afterDispatchVerified?.(dispatchEvent(recipe.action, 1, 1));
+    return {
+      status: "succeeded",
+      output: Object.freeze({ postId: commentId, deleted: true, noOp: false }),
+      finalUrl,
+      dispatchStarted: true,
+      dispatch: { planned: 1, started, verified },
+    };
+  } catch {
+    return {
+      status: started > 0 ? "indeterminate" : "failed",
+      output: null,
+      finalUrl,
+      dispatchStarted: started > 0,
+      dispatch: { planned: 1, started, verified },
+      error: started > 0
+        ? "Reddit may have deleted the exact comment, but absence was not verified; reconcile before retrying"
+        : "Reddit comment delete dispatch failed before submission",
     };
   }
 }

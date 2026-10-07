@@ -418,6 +418,7 @@ const REDDIT_WEB_OPERATIONS = operationPolicies("reddit", [
   "replies.create",
 ], {
   "comments.create": 2,
+  "content.delete": 2,
   "media.read": 2,
   "media.publish": 8,
   "replies.create": 2,
@@ -731,7 +732,7 @@ const reddit = {
   "comments.create": contract("reddit", "comments.create", REDDIT_WEB_OPERATIONS["comments.create"].risk, REDDIT_WEB_OPERATIONS["comments.create"].state, REDDIT_WEB_OPERATIONS["comments.create"].reason, 2),
   "comments.read": contract("reddit", "comments.read", REDDIT_WEB_OPERATIONS["comments.read"].risk, REDDIT_WEB_OPERATIONS["comments.read"].state, REDDIT_WEB_OPERATIONS["comments.read"].reason),
   "communities.membership.set": contract("reddit", "communities.membership.set", REDDIT_WEB_OPERATIONS["communities.membership.set"].risk, REDDIT_WEB_OPERATIONS["communities.membership.set"].state, REDDIT_WEB_OPERATIONS["communities.membership.set"].reason),
-  "content.delete": contract("reddit", "content.delete", REDDIT_WEB_OPERATIONS["content.delete"].risk, REDDIT_WEB_OPERATIONS["content.delete"].state, REDDIT_WEB_OPERATIONS["content.delete"].reason),
+  "content.delete": contract("reddit", "content.delete", REDDIT_WEB_OPERATIONS["content.delete"].risk, REDDIT_WEB_OPERATIONS["content.delete"].state, REDDIT_WEB_OPERATIONS["content.delete"].reason, 2),
   "content.edit": contract("reddit", "content.edit", REDDIT_WEB_OPERATIONS["content.edit"].risk, REDDIT_WEB_OPERATIONS["content.edit"].state, REDDIT_WEB_OPERATIONS["content.edit"].reason),
   "content.save": contract("reddit", "content.save", REDDIT_WEB_OPERATIONS["content.save"].risk, REDDIT_WEB_OPERATIONS["content.save"].state, REDDIT_WEB_OPERATIONS["content.save"].reason),
   "feeds.read": contract("reddit", "feeds.read", REDDIT_WEB_OPERATIONS["feeds.read"].risk, REDDIT_WEB_OPERATIONS["feeds.read"].state, REDDIT_WEB_OPERATIONS["feeds.read"].reason),

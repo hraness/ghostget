@@ -1,6 +1,6 @@
 {
   "name": "@hraness/ghostget",
-  "version": "0.18.88",
+  "version": "0.18.89",
   "description": "GhostGet gives your AI agent named web actions: read a page, archive one media item, or use a connected account, without credentials or a browser to steer.",
   "license": "MIT",
   "type": "module",
@@ -197,6 +197,7 @@
     "src/assets/adapters/reddit/wrench-web-adapter.v1.11.0.json",
     "src/assets/adapters/reddit/wrench-web-adapter.v1.12.0.json",
     "src/assets/adapters/reddit/wrench-web-adapter.v1.13.0.json",
+    "src/assets/adapters/reddit/wrench-web-adapter.v1.14.0.json",
     "src/assets/adapters/substack/wrench-web-adapter.json",
     "src/assets/adapters/substack/wrench-web-adapter.v1.0.0.json",
     "src/assets/adapters/substack/wrench-web-adapter.v1.1.0.json",

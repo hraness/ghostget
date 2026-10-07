@@ -2533,22 +2533,34 @@
 // npm 11.16.0 packs on Node 24.18.1 (zlib 1.3.1-e00f703) with --ignore-scripts on
 // darwin arm64 were byte-identical at 641 files/entries, 12,238,950 packed
 // bytes and 24,484,455 unpacked bytes; archive SHA-256
-// c58ba69ec2efb7c034aa926dd5bc5918e5e2f1f88c055fe6bb6c147816d00a26. Retain the
+// fdefa056187b51e22ba78c1bc42123cdafc0e870dc4a1844b373da9328625b3e. Retain the
 // reviewed allowances: 12,238,950 + 12,387 + 4,096 = 12,255,433 packed;
 // 24,484,455 + 353 + 65 = 24,484,873 unpacked. Current source CI and
 // canonical Release must independently measure and admit their exact
 // archives.
+// The 0.18.89 release lets Reddit content.delete@2 remove an exact authored
+// comment as well as a post: the Reddit contract code, the retained 1.14.0
+// adapter snapshot, and the rebuilt dist bundles add one packed source file
+// over the 641-entry inventory. Two clean npm 11.16.0 packs on Node 24.18.1
+// (zlib 1.3.1-e00f703) with --ignore-scripts on darwin arm64 were
+// byte-identical at 642 files/entries, 12,242,489 packed bytes and
+// 24,517,791 unpacked bytes; archive SHA-256
+// fdefa056187b51e22ba78c1bc42123cdafc0e870dc4a1844b373da9328625b3e. Retain the
+// reviewed allowances: 12,242,489 + 12,387 + 4,096 = 12,258,972 packed;
+// 24,517,791 + 353 + 65 = 24,518,209 unpacked. Current source CI and
+// canonical Release must independently measure and admit their exact
+// archives.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "0.18.88 Threads and Reddit reply contracts",
+  scope: "0.18.89 Reddit comment delete",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.16.0",
   nodeVersion: "24.18.1",
   zlibVersion: "1.3.1-e00f703",
   platform: "darwin-arm64",
-  archiveSha256: "c58ba69ec2efb7c034aa926dd5bc5918e5e2f1f88c055fe6bb6c147816d00a26",
-  packedBytes: 12_238_950,
-  unpackedBytes: 24_484_455,
-  entryCount: 641,
+  archiveSha256: "fdefa056187b51e22ba78c1bc42123cdafc0e870dc4a1844b373da9328625b3e",
+  packedBytes: 12_242_489,
+  unpackedBytes: 24_517_791,
+  entryCount: 642,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,

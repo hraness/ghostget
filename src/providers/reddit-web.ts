@@ -732,7 +732,7 @@ export function authorizeRedditWebRequest(
       throw new Error("Reddit delete request changed its reviewed exchange");
     }
     exactNames(form, ["id", "uh"], [], "Reddit delete form");
-    const target = redditPostId(input.targetId, "Reddit delete target");
+    const target = redditFullname(input.targetId, "Reddit delete target", ["t1", "t3"]);
     if (form.get("id") !== target) throw new Error("Reddit delete form did not bind its target");
     boundedString(form.get("uh"), "Reddit delete modhash", 256);
     return finish();

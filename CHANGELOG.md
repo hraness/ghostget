@@ -7,6 +7,13 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.89
+
+Delete your own Reddit comments, not just posts.
+
+- `reddit-web` `content.delete@2` accepts an exact `t1_` comment as well as a `t3_` post. A comment is deleted only after a pre-read binds its author to the signed-in account and its body to the confirmed text, then verified gone by an independent `/api/info` readback.
+- The shipped `content.delete@1` (posts only) is archived as inert historical identity.
+
 ## 0.18.88
 
 Publish Threads replies and Reddit comments and replies through observed contracts.
