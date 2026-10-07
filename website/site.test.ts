@@ -1053,7 +1053,6 @@ describe("ghostget.com static site", () => {
     const frameDenyHeaders = vercel.headers.find((rule: { source: string }) =>
       rule.source === "/((?!preview/$).*)");
     expect(frameDenyHeaders?.headers).toEqual([
-      { key: "X-Frame-Options", value: "DENY" },
       {
         key: "Content-Security-Policy",
         value: "form-action 'self' https://account.hraness.com; frame-src 'self'; script-src 'self' 'unsafe-inline'",
@@ -1077,14 +1076,12 @@ describe("ghostget.com static site", () => {
     expect(previewHeaders?.headers).toEqual([
       {
         key: "Content-Security-Policy",
-        value: "default-src 'none'; img-src 'self'; style-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors https://hraness.com https://www.hraness.com",
+        value: "default-src 'none'; img-src 'self'; style-src 'self'; base-uri 'none'; form-action 'none'",
       },
       { key: "X-Robots-Tag", value: "noindex, nofollow" },
     ]);
     expect(vercel.headers.filter((rule: { headers: Array<{ key: string }> }) =>
-      rule.headers.some((header) => header.key === "X-Frame-Options"))).toEqual([
-      frameDenyHeaders,
-    ]);
+      rule.headers.some((header) => header.key === "X-Frame-Options"))).toEqual([]);
     expect(vercel.headers.filter((rule: { headers: Array<{ key: string }> }) =>
       rule.headers.some((header) => header.key === "Content-Security-Policy"))).toEqual([
       frameDenyHeaders,
