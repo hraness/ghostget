@@ -268,6 +268,24 @@ describe("authenticated opaque cursor tokens", () => {
     expect(openError.message).not.toContain(oversizedToken);
   });
 
+  test("lets a scope raise its own token ceiling without loosening the default", () => {
+    const testState = state();
+    const payload = "x".repeat(12_000);
+    expect(() => sealCursorToken(scope, authId, authHash, payload, testState.environment))
+      .toThrow("cursor-token payload exceeds its size bound");
+    const options = { maxTokenCharacters: 32_768 };
+    const token = sealCursorToken(scope, authId, authHash, payload, testState.environment, options);
+    expect(token.length).toBeGreaterThan(8192);
+    expect(token.length).toBeLessThanOrEqual(32_768);
+    expect(openCursorToken(scope, authId, authHash, token, testState.environment, options)).toBe(payload);
+    expect(() => openCursorToken(scope, authId, authHash, token, testState.environment))
+      .toThrow("cursor token is malformed");
+    for (const maxTokenCharacters of [8191, 65_537, 1.5]) {
+      expect(() => sealCursorToken(scope, authId, authHash, "x", testState.environment, { maxTokenCharacters }))
+        .toThrow("cursor-token size ceiling is outside its allowed range");
+    }
+  });
+
   test("rejects malformed and noncanonical base64url without echoing input", () => {
     const testState = state();
     const malformed = [

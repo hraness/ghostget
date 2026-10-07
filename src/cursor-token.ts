@@ -23,11 +23,38 @@ const KEY_BYTES = 32;
 const IV_BYTES = 12;
 const AUTH_TAG_BYTES = 16;
 const MAX_KEY_FILE_BYTES = 128;
-const MAX_TOKEN_CHARACTERS = 8192;
-const MAX_ENVELOPE_BYTES = Math.floor(
-  ((MAX_TOKEN_CHARACTERS - TOKEN_PREFIX.length) * 3) / 4,
-);
-const MAX_PLAINTEXT_BYTES = MAX_ENVELOPE_BYTES - IV_BYTES - AUTH_TAG_BYTES;
+const DEFAULT_MAX_TOKEN_CHARACTERS = 8192;
+const LARGEST_MAX_TOKEN_CHARACTERS = 65_536;
+
+/**
+ * Size bounds derived from one token-character ceiling. A scope that must carry
+ * a larger sealed payload names its own ceiling on both seal and open; every
+ * other scope keeps the default.
+ */
+export type CursorTokenOptions = Readonly<{ maxTokenCharacters?: number }>;
+
+type CursorTokenLimits = Readonly<{
+  tokenCharacters: number;
+  envelopeBytes: number;
+  plaintextBytes: number;
+}>;
+
+function cursorTokenLimits(options: CursorTokenOptions | undefined): CursorTokenLimits {
+  const requested = options?.maxTokenCharacters ?? DEFAULT_MAX_TOKEN_CHARACTERS;
+  if (
+    !Number.isSafeInteger(requested)
+    || requested < DEFAULT_MAX_TOKEN_CHARACTERS
+    || requested > LARGEST_MAX_TOKEN_CHARACTERS
+  ) {
+    throw new Error("cursor-token size ceiling is outside its allowed range");
+  }
+  const envelopeBytes = Math.floor(((requested - TOKEN_PREFIX.length) * 3) / 4);
+  return Object.freeze({
+    tokenCharacters: requested,
+    envelopeBytes,
+    plaintextBytes: envelopeBytes - IV_BYTES - AUTH_TAG_BYTES,
+  });
+}
 
 type Environment = Readonly<Record<string, string | undefined>>;
 
@@ -112,7 +139,7 @@ function additionalData(
   );
 }
 
-function canonicalPayload(payload: unknown): Buffer {
+function canonicalPayload(payload: unknown, limits: CursorTokenLimits): Buffer {
   let encoded: string;
   try {
     encoded = canonicalJson(payload);
@@ -120,20 +147,20 @@ function canonicalPayload(payload: unknown): Buffer {
     throw new Error("cursor-token payload must be JSON-compatible");
   }
   const bytes = Buffer.from(encoded, "utf8");
-  if (bytes.byteLength > MAX_PLAINTEXT_BYTES) {
+  if (bytes.byteLength > limits.plaintextBytes) {
     throw new Error("cursor-token payload exceeds its size bound");
   }
   return bytes;
 }
 
-function decodeEnvelope(token: string): {
+function decodeEnvelope(token: string, limits: CursorTokenLimits): {
   readonly ciphertext: Buffer;
   readonly iv: Buffer;
   readonly tag: Buffer;
 } {
   if (
     typeof token !== "string"
-    || token.length > MAX_TOKEN_CHARACTERS
+    || token.length > limits.tokenCharacters
     || !token.startsWith(TOKEN_PREFIX)
   ) {
     throw invalidToken("is malformed");
@@ -151,7 +178,7 @@ function decodeEnvelope(token: string): {
   if (
     envelope.toString("base64url") !== encoded
     || envelope.byteLength <= IV_BYTES + AUTH_TAG_BYTES
-    || envelope.byteLength > MAX_ENVELOPE_BYTES
+    || envelope.byteLength > limits.envelopeBytes
   ) {
     throw invalidToken("is malformed");
   }
@@ -168,9 +195,11 @@ export function sealCursorToken(
   authHash: string,
   payload: unknown,
   environment: Environment = process.env,
+  options?: CursorTokenOptions,
 ): string {
   validateCoordinates(scope, authId, authHash);
-  const plaintext = canonicalPayload(payload);
+  const limits = cursorTokenLimits(options);
+  const plaintext = canonicalPayload(payload, limits);
   const iv = randomBytes(IV_BYTES);
   const cipher = createCipheriv(
     "aes-256-gcm",
@@ -181,7 +210,7 @@ export function sealCursorToken(
   const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
   const envelope = Buffer.concat([iv, ciphertext, cipher.getAuthTag()]);
   const token = `${TOKEN_PREFIX}${envelope.toString("base64url")}`;
-  if (token.length > MAX_TOKEN_CHARACTERS) {
+  if (token.length > limits.tokenCharacters) {
     throw new Error("cursor-token payload exceeds its size bound");
   }
   return token;
@@ -193,9 +222,11 @@ export function openCursorToken(
   authHash: string,
   token: string,
   environment: Environment = process.env,
+  options?: CursorTokenOptions,
 ): unknown {
   validateCoordinates(scope, authId, authHash);
-  const { ciphertext, iv, tag } = decodeEnvelope(token);
+  const limits = cursorTokenLimits(options);
+  const { ciphertext, iv, tag } = decodeEnvelope(token, limits);
   let plaintext: Buffer;
   try {
     const decipher = createDecipheriv(
@@ -212,7 +243,7 @@ export function openCursorToken(
   } catch {
     throw invalidToken("authentication failed");
   }
-  if (plaintext.byteLength > MAX_PLAINTEXT_BYTES) {
+  if (plaintext.byteLength > limits.plaintextBytes) {
     throw invalidToken("is malformed");
   }
   let text: string;

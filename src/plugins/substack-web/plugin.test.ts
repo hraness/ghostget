@@ -38,7 +38,7 @@ describe("Substack web provider plugin", () => {
     const archived = exports.find((operation) => operation.contractVersion === 1);
     expect(current?.input.required).toEqual(["publication", "limit"]);
     expect(current?.input.properties.limit).toMatchObject({ minimum: 1, maximum: 100 });
-    expect(current?.input.properties.cursor).toMatchObject({ maxLength: 8192 });
+    expect(current?.input.properties.cursor).toMatchObject({ maxLength: 32768 });
     expect(archived?.input.properties.limit).toMatchObject({ minimum: 1, maximum: 500 });
     expect(archived?.input.properties.cursor).toMatchObject({ maxLength: 64 });
     const imports = binding.operations.filter((operation) => operation.name === "subscribers.import");
