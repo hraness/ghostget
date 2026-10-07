@@ -1386,10 +1386,31 @@ function threadsTextPostAppInfo(body: string): string {
   });
 }
 
+function threadsReplyAppInfo(body: string, parentId: string): string {
+  return JSON.stringify({
+    community_flair_id: null,
+    entry_point: "create_reply",
+    excluded_inline_media_ids: "[]",
+    fediverse_composer_enabled: true,
+    is_genai_invocation_post: false,
+    is_reply_approval_enabled: false,
+    is_spoiler_media: false,
+    link_attachment_url: null,
+    link_preview_default_render_style: null,
+    quoted_post_id: null,
+    reply_control: 0,
+    reply_id: parentId,
+    text_with_entities: { entities: [], text: body },
+  });
+}
+
 async function createThreadsPost(
   client: WebSessionClient,
   viewer: BoundMetaViewer,
-  prepared: Extract<PreparedMetaRead, { readonly kind: "threads-post" | "threads-video" }>,
+  prepared: Extract<
+    PreparedMetaRead,
+    { readonly kind: "threads-post" | "threads-video" | "threads-reply" }
+  >,
   uploaded: ThreadsUploadedMedia | null,
   config: ThreadsRequestConfig,
   uploadId: string,
@@ -1401,12 +1422,31 @@ async function createThreadsPost(
   const csrfToken = webSessionCookie(client.cookies, "csrftoken");
   const webSessionId = threadsWebSessionId(uploadId);
   const form = new URLSearchParams();
+  if (prepared.kind === "threads-reply") {
+    // Observed 2026-10-07: the web composer posts replies to
+    // configure_text_only_post with the parent in text_post_app_info.reply_id
+    // and barcelona_source_reply_id; the optional chain/music/cross-share
+    // fields are sent empty.
+    for (const name of [
+      "async_publish", "chain_id", "chain_index", "chain_length", "cross_share_info",
+      "custom_accessibility_caption", "gen_ai_detection_method", "internal_features",
+      "is_meta_only_post", "is_paid_partnership", "music_params",
+    ]) form.set(name, "");
+    form.set("is_upload_type_override_allowed", "1");
+    form.set("publish_mode", "text_post");
+    form.set("barcelona_source_reply_id", prepared.parentId);
+  }
   form.set("audience", prepared.audience);
   form.set("caption", prepared.body);
   form.set("creator_geo_gating_info", JSON.stringify({ whitelist_country_codes: [] }));
-  form.set("is_threads", "true");
+  if (prepared.kind !== "threads-reply") form.set("is_threads", "true");
   form.set("should_include_permalink", "true");
-  form.set("text_post_app_info", threadsTextPostAppInfo(prepared.body));
+  form.set(
+    "text_post_app_info",
+    prepared.kind === "threads-reply"
+      ? threadsReplyAppInfo(prepared.body, prepared.parentId)
+      : threadsTextPostAppInfo(prepared.body),
+  );
   form.set("upload_id", uploadId);
   form.set("web_session_id", webSessionId);
   form.set(
@@ -1421,7 +1461,12 @@ async function createThreadsPost(
     // post, so the identical form may be retried a bounded number of times.
     // Every other status or body stays fail-closed.
     const createRequest = () => client.requestJsonResponse({
-      url: new URL("/api/v1/media/configure_text_post_app_feed/", ORIGINS.threads),
+      url: new URL(
+        prepared.kind === "threads-reply"
+          ? "/api/v1/media/configure_text_only_post/"
+          : "/api/v1/media/configure_text_post_app_feed/",
+        ORIGINS.threads,
+      ),
       method: "POST",
       headers: threadsApiHeaders(
         client,
@@ -1474,6 +1519,108 @@ function metaDispatchEvent(
   verified: number,
 ): WebSessionDispatchEvent {
   return { id, index: 1, progress: { planned: 1, started, verified } };
+}
+
+async function executeThreadsReply(
+  client: WebSessionClient,
+  viewer: BoundMetaViewer,
+  prepared: Extract<PreparedMetaRead, { readonly kind: "threads-reply" }>,
+  options: {
+    readonly operationDeadline?: WebSessionOperationDeadline;
+    readonly beforeDispatch?: (event: WebSessionDispatchEvent) => Promise<void>;
+    readonly afterProviderAcceptedMutationTarget?: (
+      event: WebSessionProviderAcceptedMutationTargetEvent,
+    ) => Promise<void>;
+    readonly afterDispatchVerified?: (event: WebSessionDispatchEvent) => Promise<void>;
+    readonly now: () => number;
+    readonly sleep: (milliseconds: number) => Promise<void>;
+  },
+): Promise<WebSessionExecution> {
+  const uploadId = threadsUploadId(options.now);
+  let started = 0;
+  let verified = 0;
+  let created: ThreadsCreatedPost | null = null;
+  let failureStage = "reply create admission";
+  try {
+    const dispatchViewer = await currentViewer("threads", client);
+    if (dispatchViewer.subject !== viewer.subject) {
+      throw new Error("Threads current viewer changed before the reply dispatch");
+    }
+    const config = threadsRequestConfig(dispatchViewer.rootHtml);
+    await options.beforeDispatch?.(metaDispatchEvent("replies.create", started, verified));
+    started = 1;
+    failureStage = "reply create response";
+    created = await createThreadsPost(
+      client,
+      dispatchViewer,
+      prepared,
+      null,
+      config,
+      uploadId,
+      {
+        ...(options.operationDeadline === undefined
+          ? {}
+          : { operationDeadline: options.operationDeadline }),
+        sleep: options.sleep,
+      },
+    );
+    failureStage = "accepted target retention";
+    await options.afterProviderAcceptedMutationTarget?.({
+      id: "replies.create",
+      index: 1,
+      target: {
+        schemaVersion: 1,
+        identifier: canonicalJson({
+          code: created.locator.code,
+          id: created.locator.id,
+          url: created.locator.url,
+        }),
+      },
+    });
+    failureStage = "permalink readback";
+    const readbackHtml = await client.requestText({
+      url: new URL(created.locator.url),
+      method: "GET",
+      headers: htmlHeaders(ORIGINS.threads),
+      expectedContentTypes: ["text/html"],
+      maxBytes: MAX_BOOTSTRAP_BYTES,
+    });
+    const post = normalizeThreadsPostHtml(
+      readbackHtml,
+      dispatchViewer.id,
+      created.locator.id,
+      created.locator.code,
+      created.locator.url,
+      prepared.body,
+      null,
+    );
+    if (post.image !== null) {
+      throw new Error("Threads reply readback introduced an unconfirmed image");
+    }
+    verified = 1;
+    await options.afterDispatchVerified?.(metaDispatchEvent("replies.create", started, verified));
+    return {
+      status: "succeeded",
+      output: Object.freeze({ post, parent_post_id: prepared.parentId }),
+      finalUrl: created.locator.url,
+      dispatchStarted: true,
+      dispatch: { planned: 1, started, verified },
+    };
+  } catch (error) {
+    const publicFailureStage = failureStage === "reply create response"
+      ? `${failureStage} (${error instanceof ThreadsCreateResponseError ? error.category : "unexpected"})`
+      : failureStage;
+    return {
+      status: started > 0 ? "indeterminate" : "failed",
+      output: null,
+      finalUrl: created?.locator.url ?? `${ORIGINS.threads}/`,
+      dispatchStarted: started > 0,
+      dispatch: { planned: 1, started, verified },
+      error: started > 0
+        ? `Threads may have accepted the reply but exact actor, ID, code, text, and permalink readback was not verified; failure stage: ${publicFailureStage}; reconcile before retrying`
+        : "Threads reply create failed before submission; retry with a fresh confirmed plan",
+    };
+  }
 }
 
 async function executeThreadsPost(
@@ -2375,6 +2522,12 @@ type PreparedMetaRead =
     readonly media: FileInputValue;
   }
   | {
+    readonly kind: "threads-reply";
+    readonly audience: "default";
+    readonly body: string;
+    readonly parentId: string;
+  }
+  | {
     readonly kind: "facebook-feed";
     readonly limit: number;
   }
@@ -2502,6 +2655,26 @@ function prepareMetaRead(
       ...(input.attachment === undefined ? {} : { attachment: fileInput(input.attachment) }),
       audience: audience as "default",
       body,
+    });
+  }
+  if (recipe.site === "threads" && recipe.action === "replies.create") {
+    requireExactInputKeys(input, ["body", "post_id"]);
+    const body = input.body;
+    if (
+      typeof body !== "string"
+      || body.length < 1
+      || body.length > 450
+      || /[\0\r]/u.test(body)
+    ) throw new Error("input.body must be 1 to 450 bounded UTF-16 code units");
+    const parentId = input.post_id;
+    if (typeof parentId !== "string" || !/^[0-9]{1,32}$/u.test(parentId)) {
+      throw new Error("input.post_id must be one exact numeric Threads post ID");
+    }
+    return Object.freeze({
+      kind: "threads-reply",
+      audience: "default" as const,
+      body,
+      parentId,
     });
   }
   if (recipe.site === "threads" && recipe.action === "media.publish") {
@@ -3168,7 +3341,11 @@ async function executeMetaWebOperationInternal(
     throw new Error(`${recipe.site} authenticated web operation ${recipe.action} is capture-required: ${contract.reason}`);
   }
   const isThreadsMutation = recipe.site === "threads"
-    && (recipe.action === "posts.publish" || recipe.action === "media.publish");
+    && (
+      recipe.action === "posts.publish"
+      || recipe.action === "media.publish"
+      || recipe.action === "replies.create"
+    );
   const isInstagramMutation = recipe.site === "instagram"
     && recipe.action === "content.delete";
   if (
@@ -3379,6 +3556,27 @@ async function executeMetaWebOperationInternal(
   if (prepared.kind === "threads-post") {
     return executeThreadsPost(client, viewer, prepared, {
       ...(options.fileResolver === undefined ? {} : { fileResolver: options.fileResolver }),
+      ...(options.operationDeadline === undefined
+        ? {}
+        : { operationDeadline: options.operationDeadline }),
+      ...(options.beforeDispatch === undefined
+        ? {}
+        : { beforeDispatch: options.beforeDispatch }),
+      ...(options.afterProviderAcceptedMutationTarget === undefined
+        ? {}
+        : {
+            afterProviderAcceptedMutationTarget:
+              options.afterProviderAcceptedMutationTarget,
+          }),
+      ...(options.afterDispatchVerified === undefined
+        ? {}
+        : { afterDispatchVerified: options.afterDispatchVerified }),
+      now: options.dependencies?.now ?? Date.now,
+      sleep: options.dependencies?.sleep ?? defaultSleep,
+    });
+  }
+  if (prepared.kind === "threads-reply") {
+    return executeThreadsReply(client, viewer, prepared, {
       ...(options.operationDeadline === undefined
         ? {}
         : { operationDeadline: options.operationDeadline }),

@@ -479,7 +479,7 @@ describe("Meta consumer-web policy", () => {
       .toEqual(instagramV17Manifest.operations["profiles.read"]);
     expect(instagramV15Manifest.version).toBe("1.5.0");
     expect(instagramV1Manifest.version).toBe("1.0.0");
-    expect(threadsManifest.version).toBe("1.9.0");
+    expect(threadsManifest.version).toBe("1.10.0");
     expect(threadsV1Manifest.version).toBe("1.0.0");
 
     for (const [site, operation, current, prior] of affected) {

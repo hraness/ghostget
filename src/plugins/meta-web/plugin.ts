@@ -9,6 +9,7 @@ import {
 } from "../../provider-plugin-builtins";
 import archivedInstagramWebManifestV1_3 from "../../assets/adapters/instagram/wrench-web-adapter.v1.3.0.json";
 import archivedInstagramWebManifestV1_5 from "../../assets/adapters/instagram/wrench-web-adapter.v1.5.0.json";
+import archivedThreadsWebManifestV1_9 from "../../assets/adapters/threads/wrench-web-adapter.v1.9.0.json";
 import type { OperationInput } from "../../model";
 import {
   planWebSessionContractDispatches,
@@ -119,7 +120,7 @@ const historicalVersions = Object.freeze({
 
 const contractSemanticIdentities = Object.freeze({
   instagram: "3d2aac4e12ce927b14f45070df5844cace039bf039dfeee9fcb67061c45ce30e",
-  threads: "04b95f200d512ef150043986fea9a106a401c5b7a2ba501cd454983edcacb00a",
+  threads: "d930dad8215876ff012e01d472f032890cf0f842f4a76bbc240cc703429a7b1f",
   facebook: "f4724c9619794070da784d03fdaef5889cc4f3d237f9f402e9d5a53f7c156184",
   "facebook-page": "0a13cbe416286efe003ecf9c28fefcbd45c5d1f3b62a94936d9278ad8e488ada",
   "facebook-group": "30717a546b60658ecc2e199a14babb4fa2b46afd1e8d9113044a1b7afda3d376",
@@ -193,6 +194,20 @@ const archivedInstagramContentDeleteV1 = reviewedArchivedWebSessionContract(
       "exact authored-video pre-read, actor/caption/kind binding, deletion response, and independent exact-target absence require an authorized fixture",
   },
 );
+const archivedThreadsRepliesCreateV1 = reviewedArchivedWebSessionContract(
+  archivedThreadsWebManifestV1_9,
+  {
+    adapterId: "threads-web",
+    adapterVersion: "1.9.0",
+    site: "threads",
+    operation: "replies.create",
+    contractVersion: 1,
+    risk: "R3",
+    state: "capture-required",
+    implementation:
+      "Capture-required contract reservation: the exact actor, audience, attachment transport, dispatch response, and independent publication readback require an authorized fixture.",
+  },
+);
 const archivedInstagramOperations = Object.freeze([
   ...archivedInstagramMediaPublishOperations,
   archivedInstagramOperation(archivedInstagramContentDeleteV1),
@@ -260,6 +275,7 @@ export const metaWebPlugin = defineProviderPlugin({
         return operation;
       }),
       ...(site === "instagram" ? archivedInstagramOperations : []),
+      ...(site === "threads" ? [archivedInstagramOperation(archivedThreadsRepliesCreateV1)] : []),
     ]),
     subject: {
       format: subjectFormats[site],
