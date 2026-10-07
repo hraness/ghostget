@@ -36,6 +36,8 @@ import {
   normalizeRedditMessageListing,
   normalizeRedditPostResponse,
   parseRedditAuthoredPostPresence,
+  parseRedditCommentCreateResponse,
+  parseRedditCommentReadback,
   parseRedditMediaLeaseResponse,
   parseRedditProfileContributionPage,
   parseRedditThingState,
@@ -1458,6 +1460,143 @@ async function executeContentDelete(
   }
 }
 
+function commentBodyInput(input: OperationInput): string {
+  const value = input.body;
+  if (
+    typeof value !== "string"
+    || value.length < 1
+    || value.length > 2_000
+    || /[\0\r]/u.test(value)
+    || value.trim() !== value
+  ) throw new Error("input.body must be a bounded string without surrounding whitespace");
+  return value;
+}
+
+async function readCommentReadback(
+  client: WebSessionClient,
+  commentId: string,
+  maximumBytes: number,
+) {
+  const url = new URL("/api/info.json", REDDIT_ORIGIN);
+  url.searchParams.set("id", commentId);
+  url.searchParams.set("raw_json", "1");
+  authorizeRedditWebRequest({
+    operation: "state.readback",
+    url,
+    method: "GET",
+    targetId: commentId,
+  });
+  return parseRedditCommentReadback(
+    await client.requestJson({
+      url,
+      method: "GET",
+      headers: exactReadHeaders(),
+      expectedStatuses: [200],
+      expectedContentTypes: ["application/json"],
+      maxBytes: Math.min(maximumBytes, MAX_READ_BYTES),
+    }),
+    commentId,
+  );
+}
+
+async function executeCommentCreate(
+  client: WebSessionClient,
+  recipe: WebSessionRecipe,
+  input: OperationInput,
+  auth: GhostgetAuth,
+  options: {
+    readonly beforeDispatch?: (event: WebSessionDispatchEvent) => Promise<void>;
+    readonly afterDispatchVerified?: (event: WebSessionDispatchEvent) => Promise<void>;
+    readonly dependencies?: RedditWebRuntimeDependencies;
+  },
+): Promise<WebSessionExecution> {
+  const replying = recipe.action === "replies.create";
+  const parentId = redditFullname(
+    stringInput(input, replying ? "parent_id" : "post_id", 40),
+    replying ? "input.parent_id" : "input.post_id",
+    replying ? ["t1"] : ["t3"],
+  );
+  const body = commentBodyInput(input);
+  const finalUrl = `${REDDIT_ORIGIN}/`;
+  let started = 0;
+  let verified = 0;
+  try {
+    const viewer = await requireBoundViewer(client, auth);
+    await readThingState(client, parentId, recipe.maxOutputBytes);
+    const rebound = await currentViewer(client);
+    assertBoundViewer(auth, rebound);
+    if (rebound.id !== viewer.id) throw new Error("Reddit viewer changed during comment preparation");
+    const url = new URL("/api/comment", REDDIT_ORIGIN);
+    const form = new URLSearchParams();
+    form.set("api_type", "json");
+    form.set("thing_id", parentId);
+    form.set("text", body);
+    form.set("uh", rebound.modhash);
+    const requestBody = form.toString();
+    authorizeRedditWebRequest({
+      operation: recipe.action as "comments.create" | "replies.create",
+      url,
+      method: "POST",
+      body: requestBody,
+      targetId: parentId,
+      text: body,
+    });
+    await options.beforeDispatch?.(dispatchEvent(recipe.action, 0, 0));
+    started = 1;
+    const commentId = parseRedditCommentCreateResponse(
+      await client.requestJson({
+        url,
+        method: "POST",
+        headers: exactMutationHeaders(),
+        body: requestBody,
+        expectedStatuses: [200],
+        expectedContentTypes: ["application/json"],
+        maxBytes: 512 * 1024,
+      }),
+      parentId,
+    );
+    const sleep = options.dependencies?.sleep
+      ?? ((milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds)));
+    let readback = await readCommentReadback(client, commentId, recipe.maxOutputBytes);
+    for (const delay of [500, 1_000, 2_000] as const) {
+      if (readback.present) break;
+      await sleep(delay);
+      readback = await readCommentReadback(client, commentId, recipe.maxOutputBytes);
+    }
+    if (
+      !readback.present
+      || readback.author !== rebound.username
+      || readback.parentId !== parentId
+      || readback.body !== body
+    ) throw new Error("Reddit exact comment readback did not bind actor, parent, and body");
+    verified = 1;
+    await options.afterDispatchVerified?.(dispatchEvent(recipe.action, 1, 1));
+    return {
+      status: "succeeded",
+      output: Object.freeze({
+        parentId,
+        commentId,
+        author: readback.author,
+        body: readback.body,
+      }),
+      finalUrl,
+      dispatchStarted: true,
+      dispatch: { planned: 1, started, verified },
+    };
+  } catch {
+    return {
+      status: started > 0 ? "indeterminate" : "failed",
+      output: null,
+      finalUrl,
+      dispatchStarted: started > 0,
+      dispatch: { planned: 1, started, verified },
+      error: started > 0
+        ? "Reddit may have published the exact comment, but actor, parent, and body readback was not verified; reconcile before retrying"
+        : "Reddit comment dispatch failed before submission",
+    };
+  }
+}
+
 function dispatchEvent(
   id: string,
   started: number,
@@ -1819,7 +1958,9 @@ export async function executeRedditWebOperation(
 ): Promise<WebSessionExecution> {
   const expectedContractVersion = recipe.action === "media.publish"
     ? 9
-    : recipe.action === "media.read" ? 2 : 1;
+    : recipe.action === "media.read"
+      || recipe.action === "comments.create"
+      || recipe.action === "replies.create" ? 2 : 1;
   if (
     recipe.site !== "reddit"
     || !isRedditOperation(recipe.action)
@@ -1853,6 +1994,9 @@ export async function executeRedditWebOperation(
   }
   if (recipe.action === "content.delete") {
     return executeContentDelete(client, recipe, input, auth, options);
+  }
+  if (recipe.action === "comments.create" || recipe.action === "replies.create") {
+    return executeCommentCreate(client, recipe, input, auth, options);
   }
   if (recipe.action === "reactions.set" || recipe.action === "content.save") {
     return executeDesiredState(client, recipe, input, auth, options);

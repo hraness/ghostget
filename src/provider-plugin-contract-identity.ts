@@ -419,8 +419,8 @@ const identities = Object.freeze({
   },
   "reddit-web": {
     schemaVersion: 1,
-    pluginVersion: "1.4.0",
-    implementationSha256: "468b6032e209bcf128279c891f40d2232d6147c3fc5e14abd39c65f919fd337e",
+    pluginVersion: "1.5.0",
+    implementationSha256: "6428693be4a7fa4b66c04f00e140d30d844e5467cc775f8f4fd6d168275c970c",
     legacyCurrentReadImplementationSha256: [],
     legacyDistributionReadImplementationSha256: [
       "64a4c1e78ce8565a50613f63ff605f0f57f488617ef31386b5ddce5e3db885c9",
@@ -430,6 +430,7 @@ const identities = Object.freeze({
       "16e4e48609c12d5ffdaf47e622764e06cc9b3381c6b8ceb2c9f773fa9d99bdd9",
       "91cc3364ab1ccba66bd2e099f64fcccc187fde94145a8bf1eaa14f0f5533f6d7",
       "646a29b320373f50ccdf9ae8b8b60d5147428f0f899a226480c2c5b009294d8a",
+      "468b6032e209bcf128279c891f40d2232d6147c3fc5e14abd39c65f919fd337e",
     ].map((implementationSha256) => ({
       implementationSha256,
       routes: REDDIT_1_3_BINDING_ROUTE_COORDINATES,

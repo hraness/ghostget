@@ -598,9 +598,9 @@ describe("provider plugin definition and registry", () => {
       {
         id: "reddit-web",
         surface: "reddit",
-        version: "1.4.0",
-        current: "468b6032e209bcf128279c891f40d2232d6147c3fc5e14abd39c65f919fd337e",
-        prior: "16e4e48609c12d5ffdaf47e622764e06cc9b3381c6b8ceb2c9f773fa9d99bdd9",
+        version: "1.5.0",
+        current: "6428693be4a7fa4b66c04f00e140d30d844e5467cc775f8f4fd6d168275c970c",
+        prior: "468b6032e209bcf128279c891f40d2232d6147c3fc5e14abd39c65f919fd337e",
         operation: "profiles.read",
         contractVersion: 1,
       },

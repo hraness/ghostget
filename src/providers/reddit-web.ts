@@ -137,15 +137,15 @@ export const REDDIT_WEB_OPERATIONS = Object.freeze({
     "R3",
     "exact authored-post pre-read, /api/del dispatch, and independent exact-target absence readback",
   ),
-  "comments.create": captureRequired(
+  "comments.create": observed(
     "write",
     "R3",
-    "comment publication needs an authorized fixture and exact actor/root response binding",
+    "captured old-Reddit /api/comment form bound to the exact parent post fullname and body, strict created-comment response binding, and independent exact /api/info author, parent, and body readback",
   ),
-  "replies.create": captureRequired(
+  "replies.create": observed(
     "write",
     "R3",
-    "comment or legacy-message reply needs an authorized fixture and exact parent binding",
+    "the same /api/comment form bound to one exact t1_ comment parent with the same response binding and independent readback; legacy-message replies stay unsupported",
   ),
   "content.edit": captureRequired(
     "write",
@@ -398,7 +398,9 @@ export type RedditWebRequestOperation =
   | "media.publish"
   | "reactions.set"
   | "content.save"
-  | "content.delete";
+  | "content.delete"
+  | "comments.create"
+  | "replies.create";
 
 export type RedditWebRequestInput = {
   readonly operation: RedditWebRequestOperation;
@@ -700,6 +702,28 @@ export function authorizeRedditWebRequest(
     requireFixed(form, "video_poster_url", posterUrl.href, "Reddit video submit form");
     requireFixed(form, "validate_on_submit", "true", "Reddit video submit form");
     boundedString(form.get("uh"), "Reddit video submit modhash", 256);
+    return finish();
+  }
+
+  if (input.operation === "comments.create" || input.operation === "replies.create") {
+    if (method !== "POST" || url.pathname !== "/api/comment" || query.size !== 0) {
+      throw new Error("Reddit comment request changed its reviewed exchange");
+    }
+    exactNames(form, ["api_type", "text", "thing_id", "uh"], [], "Reddit comment form");
+    const parent = redditFullname(
+      input.targetId,
+      "Reddit comment parent",
+      input.operation === "comments.create" ? ["t3"] : ["t1"],
+    );
+    requireFixed(form, "api_type", "json", "Reddit comment form");
+    requireFixed(form, "thing_id", parent, "Reddit comment form");
+    requireFixed(
+      form,
+      "text",
+      boundedString(input.text, "Reddit comment body", 2_000),
+      "Reddit comment form",
+    );
+    boundedString(form.get("uh"), "Reddit comment modhash", 256);
     return finish();
   }
 
@@ -1593,6 +1617,66 @@ export function parseRedditThingState(
     id,
     liked: nullableBoolean(data.likes, "Reddit state thing.likes"),
     saved: boolean(data.saved, "Reddit state thing.saved"),
+  });
+}
+
+/**
+ * Bind the /api/comment response to the one created comment. The response
+ * carries no authority beyond the fullname; independent readback proves the
+ * actor, parent, and body.
+ */
+export function parseRedditCommentCreateResponse(
+  value: unknown,
+  expectedParentId: string,
+): string {
+  const root = record(value, "Reddit comment response");
+  const json = record(root.json, "Reddit comment response.json");
+  if (!Array.isArray(json.errors) || json.errors.length !== 0) {
+    throw new Error("Reddit comment response contained provider errors");
+  }
+  const data = record(json.data, "Reddit comment response.data");
+  if (!Array.isArray(data.things) || data.things.length !== 1) {
+    throw new Error("Reddit comment response must contain exactly one created comment");
+  }
+  const thing = record(data.things[0], "Reddit comment response.things[0]");
+  const created = thingData(thing, "t1", "Reddit comment response.things[0]");
+  const raw = created.name ?? created.id;
+  const text = boundedString(raw, "Reddit created comment ID", 40);
+  const id = /^[a-z0-9]{1,32}$/u.test(text) ? `t1_${text}` : text;
+  redditFullname(id, "Reddit created comment ID", ["t1"]);
+  if (created.parent !== undefined && created.parent !== expectedParentId) {
+    throw new Error("Reddit comment response changed its exact parent");
+  }
+  return id;
+}
+
+export type RedditCommentReadback =
+  | Readonly<{ present: false }>
+  | Readonly<{
+      present: true;
+      id: string;
+      author: string;
+      body: string;
+      parentId: string;
+    }>;
+
+export function parseRedditCommentReadback(
+  value: unknown,
+  expectedCommentId: string,
+): RedditCommentReadback {
+  const target = redditFullname(expectedCommentId, "Reddit comment readback target", ["t1"]);
+  const page = listing(value, "Reddit comment readback Listing", 1);
+  if (page.children.length === 0) return Object.freeze({ present: false });
+  if (page.children.length !== 1) throw new Error("Reddit comment readback returned multiple targets");
+  const data = thingData(page.children[0]!, "t1", "Reddit comment readback");
+  const id = redditFullname(data.name, "Reddit comment readback ID", ["t1"]);
+  if (id !== target) throw new Error("Reddit comment readback changed its exact target");
+  return Object.freeze({
+    present: true,
+    id,
+    author: boundedString(data.author, "Reddit comment readback author", 64),
+    body: boundedString(data.body, "Reddit comment readback body", 40_000, true),
+    parentId: redditFullname(data.parent_id, "Reddit comment readback parent", ["t1", "t3"]),
   });
 }
 

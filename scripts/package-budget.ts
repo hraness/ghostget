@@ -2526,17 +2526,29 @@
 // 753ffbeb39d4606f252d299c971fa32ae06c8927b8a4037fb72f349a5c527c9f. Retain the
 // reviewed allowances: 12,231,242 + 12,387 + 4,096 = 12,247,725 packed;
 // 24,415,392 + 353 + 65 = 24,415,810 unpacked.
+// The 0.18.88 release observes Threads replies.create and Reddit
+// comments.create/replies.create: the Threads and Reddit contract code, the
+// retained 1.9.0 and 1.13.0 adapter snapshots, and the rebuilt dist bundles
+// add two packed source files over the 639-entry inventory. Two clean
+// npm 11.16.0 packs on Node 24.18.1 (zlib 1.3.1-e00f703) with --ignore-scripts on
+// darwin arm64 were byte-identical at 641 files/entries, 12,238,950 packed
+// bytes and 24,484,455 unpacked bytes; archive SHA-256
+// c58ba69ec2efb7c034aa926dd5bc5918e5e2f1f88c055fe6bb6c147816d00a26. Retain the
+// reviewed allowances: 12,238,950 + 12,387 + 4,096 = 12,255,433 packed;
+// 24,484,455 + 353 + 65 = 24,484,873 unpacked. Current source CI and
+// canonical Release must independently measure and admit their exact
+// archives.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "0.18.87 release-publication authority repair",
+  scope: "0.18.88 Threads and Reddit reply contracts",
   command: "npm pack --ignore-scripts",
-  npmVersion: "11.19.0",
-  nodeVersion: "24.20.0",
-  zlibVersion: "1.3.2.1-motley-42c2f19",
+  npmVersion: "11.16.0",
+  nodeVersion: "24.18.1",
+  zlibVersion: "1.3.1-e00f703",
   platform: "darwin-arm64",
-  archiveSha256: "753ffbeb39d4606f252d299c971fa32ae06c8927b8a4037fb72f349a5c527c9f",
-  packedBytes: 12_231_242,
-  unpackedBytes: 24_415_392,
-  entryCount: 639,
+  archiveSha256: "c58ba69ec2efb7c034aa926dd5bc5918e5e2f1f88c055fe6bb6c147816d00a26",
+  packedBytes: 12_238_950,
+  unpackedBytes: 24_484_455,
+  entryCount: 641,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,

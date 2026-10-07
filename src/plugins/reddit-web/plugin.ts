@@ -15,6 +15,7 @@ import archivedRedditWebManifestV1_6 from "../../assets/adapters/reddit/wrench-w
 import archivedRedditWebManifestV1_7 from "../../assets/adapters/reddit/wrench-web-adapter.v1.7.0.json";
 import archivedRedditWebManifestV1_8 from "../../assets/adapters/reddit/wrench-web-adapter.v1.8.0.json";
 import archivedRedditWebManifestV1_9 from "../../assets/adapters/reddit/wrench-web-adapter.v1.9.0.json";
+import archivedRedditWebManifestV1_13 from "../../assets/adapters/reddit/wrench-web-adapter.v1.13.0.json";
 import archivedRedditWebMediaReadV1Manifest from "../../assets/adapters/reddit/wrench-web-adapter.v1.10.0.json";
 import type { OperationInput } from "../../model";
 import { isRedditFlairOperation, parseRedditFlairInput } from "./flair";
@@ -35,7 +36,7 @@ if (redditContracts === undefined) {
 
 const currentOperations = webSessionContractOperations(
   Object.values(redditContracts),
-  "468b6032e209bcf128279c891f40d2232d6147c3fc5e14abd39c65f919fd337e",
+  "6428693be4a7fa4b66c04f00e140d30d844e5467cc775f8f4fd6d168275c970c",
   {},
   {
     "messaging.list": {
@@ -382,6 +383,68 @@ const archivedMediaReadOperation = Object.freeze({
   validateInput: () => Object.freeze([]),
 });
 
+const archivedCommentsCreateV1Contract = reviewedArchivedWebSessionContract(
+  archivedRedditWebManifestV1_13,
+  {
+    adapterId: "reddit-web",
+    adapterVersion: "1.13.0",
+    site: "reddit",
+    operation: "comments.create",
+    contractVersion: 1,
+    risk: "R3",
+    state: "capture-required",
+    implementation:
+      "comment publication needs an authorized fixture and exact actor/root response binding",
+  },
+);
+
+const archivedCommentsCreateV1Operation = Object.freeze({
+  name: archivedCommentsCreateV1Contract.operation,
+  contractVersion: archivedCommentsCreateV1Contract.contractVersion,
+  risk: archivedCommentsCreateV1Contract.risk,
+  input: archivedCommentsCreateV1Contract.input,
+  sideEffect: archivedCommentsCreateV1Contract.sideEffect,
+  idempotency: archivedCommentsCreateV1Contract.idempotency,
+  dedupeWindowMs: archivedCommentsCreateV1Contract.dedupeWindowMs,
+  state: archivedCommentsCreateV1Contract.state,
+  dispatch: archivedCommentsCreateV1Contract.dispatch,
+  implementation: archivedCommentsCreateV1Contract.implementation,
+  planDispatches: (input: OperationInput) =>
+    planWebSessionContractDispatches(archivedCommentsCreateV1Contract, input),
+  validateInput: () => Object.freeze([]),
+});
+
+const archivedRepliesCreateV1Contract = reviewedArchivedWebSessionContract(
+  archivedRedditWebManifestV1_13,
+  {
+    adapterId: "reddit-web",
+    adapterVersion: "1.13.0",
+    site: "reddit",
+    operation: "replies.create",
+    contractVersion: 1,
+    risk: "R3",
+    state: "capture-required",
+    implementation:
+      "comment or legacy-message reply needs an authorized fixture and exact parent binding",
+  },
+);
+
+const archivedRepliesCreateV1Operation = Object.freeze({
+  name: archivedRepliesCreateV1Contract.operation,
+  contractVersion: archivedRepliesCreateV1Contract.contractVersion,
+  risk: archivedRepliesCreateV1Contract.risk,
+  input: archivedRepliesCreateV1Contract.input,
+  sideEffect: archivedRepliesCreateV1Contract.sideEffect,
+  idempotency: archivedRepliesCreateV1Contract.idempotency,
+  dedupeWindowMs: archivedRepliesCreateV1Contract.dedupeWindowMs,
+  state: archivedRepliesCreateV1Contract.state,
+  dispatch: archivedRepliesCreateV1Contract.dispatch,
+  implementation: archivedRepliesCreateV1Contract.implementation,
+  planDispatches: (input: OperationInput) =>
+    planWebSessionContractDispatches(archivedRepliesCreateV1Contract, input),
+  validateInput: () => Object.freeze([]),
+});
+
 const operations = Object.freeze([
   ...currentOperations,
   archivedMediaReadOperation,
@@ -393,12 +456,14 @@ const operations = Object.freeze([
   archivedMediaPublishOperationV6,
   archivedMediaPublishOperationV7,
   archivedMediaPublishOperationV8,
+  archivedCommentsCreateV1Operation,
+  archivedRepliesCreateV1Operation,
 ]);
 
 export const redditWebPlugin = defineProviderPlugin({
   apiVersion: 1,
   id: "reddit-web",
-  version: "1.4.0",
+  version: "1.5.0",
   displayName: "Reddit Authenticated Web",
   sourceKind: "built-in",
   implementationSources: webImplementationSources(import.meta.url, [

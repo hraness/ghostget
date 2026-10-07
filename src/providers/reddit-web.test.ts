@@ -11,6 +11,8 @@ import {
   normalizeRedditMessageListing,
   normalizeRedditPostResponse,
   parseRedditAuthoredPostPresence,
+  parseRedditCommentCreateResponse,
+  parseRedditCommentReadback,
   parseRedditMediaLeaseResponse,
   parseRedditProfileContributionPage,
   parseRedditThingState,
@@ -188,7 +190,11 @@ describe("Reddit internal-web operation registry", () => {
       expect(operation.webSession).toMatchObject({
         site: "reddit",
         action,
-        contractVersion: action === "media.publish" ? 9 : action === "media.read" ? 2 : 1,
+        contractVersion: action === "media.publish"
+          ? 9
+          : action === "media.read" || action === "comments.create" || action === "replies.create"
+            ? 2
+            : 1,
       });
       expect("browser" in operation).toBe(false);
       expect("provider" in operation).toBe(false);
@@ -204,6 +210,7 @@ describe("Reddit internal-web operation registry", () => {
         .map(([name]) => name)
         .sort(),
     ).toEqual([
+      "comments.create",
       "comments.read",
       "content.delete",
       "feeds.read",
@@ -215,14 +222,13 @@ describe("Reddit internal-web operation registry", () => {
       "messaging.read",
       "posts.read",
       "profiles.read",
+      "replies.create",
     ]);
     for (const operation of [
-      "comments.create",
       "content.edit",
       "messaging.send",
       "posts.publish",
       "posts.repost",
-      "replies.create",
     ] as const) {
       expect(REDDIT_WEB_OPERATIONS[operation].state).toBe("capture-required");
       expect(REDDIT_WEB_OPERATIONS[operation].risk).toBe("R3");
@@ -231,6 +237,102 @@ describe("Reddit internal-web operation registry", () => {
     expect(REDDIT_WEB_OPERATIONS["communities.membership.set"].state).toBe("capture-required");
     expect(REDDIT_WEB_OPERATIONS["content.save"].state).toBe("capture-required");
     expect(REDDIT_WEB_OPERATIONS["reactions.set"].state).toBe("capture-required");
+  });
+});
+
+describe("Reddit comment creation contract", () => {
+  const form = (thing: string, text: string) =>
+    new URLSearchParams({ api_type: "json", thing_id: thing, text, uh: "hash" }).toString();
+
+  test("authorizes only the exact /api/comment form for its parent kind", () => {
+    expect(authorizeRedditWebRequest({
+      operation: "comments.create",
+      url: "https://www.reddit.com/api/comment",
+      method: "POST",
+      body: form("t3_abc", "hello there"),
+      targetId: "t3_abc",
+      text: "hello there",
+    })).toMatchObject({ path: "/api/comment", formNames: ["api_type", "text", "thing_id", "uh"] });
+    expect(authorizeRedditWebRequest({
+      operation: "replies.create",
+      url: "https://www.reddit.com/api/comment",
+      method: "POST",
+      body: form("t1_def", "hello there"),
+      targetId: "t1_def",
+      text: "hello there",
+    })).toMatchObject({ path: "/api/comment" });
+    expect(() => authorizeRedditWebRequest({
+      operation: "comments.create",
+      url: "https://www.reddit.com/api/comment",
+      method: "POST",
+      body: form("t1_def", "hello there"),
+      targetId: "t1_def",
+      text: "hello there",
+    })).toThrow();
+    expect(() => authorizeRedditWebRequest({
+      operation: "replies.create",
+      url: "https://www.reddit.com/api/comment",
+      method: "POST",
+      body: form("t3_abc", "hello there"),
+      targetId: "t3_abc",
+      text: "hello there",
+    })).toThrow();
+    expect(() => authorizeRedditWebRequest({
+      operation: "comments.create",
+      url: "https://www.reddit.com/api/comment",
+      method: "POST",
+      body: form("t3_abc", "different"),
+      targetId: "t3_abc",
+      text: "hello there",
+    })).toThrow();
+    expect(() => authorizeRedditWebRequest({
+      operation: "comments.create",
+      url: "https://www.reddit.com/api/comment",
+      method: "POST",
+      body: `${form("t3_abc", "hello there")}&extra=1`,
+      targetId: "t3_abc",
+      text: "hello there",
+    })).toThrow();
+  });
+
+  test("binds the created comment response to exactly one t1 thing", () => {
+    const ok = (data: Record<string, unknown>) => ({
+      json: { errors: [], data: { things: [{ kind: "t1", data }] } },
+    });
+    expect(parseRedditCommentCreateResponse(ok({ name: "t1_new1" }), "t3_abc")).toBe("t1_new1");
+    expect(parseRedditCommentCreateResponse(ok({ id: "new2" }), "t3_abc")).toBe("t1_new2");
+    expect(() => parseRedditCommentCreateResponse(ok({ name: "t1_new1", parent: "t3_other" }), "t3_abc")).toThrow();
+    expect(() => parseRedditCommentCreateResponse(
+      { json: { errors: [["RATELIMIT", "slow down", "ratelimit"]], data: { things: [] } } },
+      "t3_abc",
+    )).toThrow();
+    expect(() => parseRedditCommentCreateResponse(
+      { json: { errors: [], data: { things: [] } } },
+      "t3_abc",
+    )).toThrow();
+    expect(() => parseRedditCommentCreateResponse(
+      { json: { errors: [], data: { things: [{ kind: "t3", data: { name: "t3_x" } }] } } },
+      "t3_abc",
+    )).toThrow();
+  });
+
+  test("projects an exact comment readback and treats an empty listing as absent", () => {
+    const listing = (children: unknown[]) => ({ kind: "Listing", data: { children, after: null, before: null } });
+    expect(parseRedditCommentReadback(listing([]), "t1_new1")).toEqual({ present: false });
+    expect(parseRedditCommentReadback(listing([{
+      kind: "t1",
+      data: { name: "t1_new1", author: "viewer", body: "hello there", parent_id: "t3_abc" },
+    }]), "t1_new1")).toEqual({
+      present: true,
+      id: "t1_new1",
+      author: "viewer",
+      body: "hello there",
+      parentId: "t3_abc",
+    });
+    expect(() => parseRedditCommentReadback(listing([{
+      kind: "t1",
+      data: { name: "t1_other", author: "viewer", body: "x", parent_id: "t3_abc" },
+    }]), "t1_new1")).toThrow();
   });
 });
 

@@ -338,7 +338,11 @@ function recipe(action: WebSessionRecipe["action"]): WebSessionRecipe {
   return {
     site: "reddit",
     action,
-    contractVersion: action === "media.publish" ? 9 : action === "media.read" ? 2 : 1,
+    contractVersion: action === "media.publish"
+      ? 9
+      : action === "media.read" || action === "comments.create" || action === "replies.create"
+        ? 2
+        : 1,
     timeoutMs: 1_000,
     maxOutputBytes: 4 * 1024 * 1024,
   };
@@ -1023,6 +1027,140 @@ describe("Reddit authenticated internal API runtime", () => {
     expect(beforeDispatches).toBe(1);
     expect(verifiedDispatches).toBe(1);
     expect(calls.filter((call) => call.url.pathname === "/api/del")).toHaveLength(1);
+  });
+
+  test("publishes one exact comment and verifies actor, parent, and body", async () => {
+    const calls: CapturedRequest[] = [];
+    let commentReads = 0;
+    let beforeDispatches = 0;
+    let verifiedDispatches = 0;
+    const result = await executeRedditWebOperation(
+      recipe("comments.create"),
+      { post_id: POST_ID, body: "a short honest comment" },
+      redditAuth,
+      {
+        dependencies: {
+          ...dependencies(calls, (request) => {
+            if (request.url.pathname === "/api/me.json") return jsonResponse(viewerResponse());
+            if (request.url.pathname === "/api/info.json") {
+              if (request.url.searchParams.get("id") === POST_ID) {
+                return jsonResponse(listing([stateThing(POST_ID, null, false)]));
+              }
+              commentReads += 1;
+              return jsonResponse(commentReads < 2
+                ? listing([])
+                : listing([{
+                    kind: "t1",
+                    data: {
+                      name: "t1_newcomment",
+                      author: "wrench_viewer",
+                      body: "a short honest comment",
+                      parent_id: POST_ID,
+                    },
+                  }]));
+            }
+            if (request.url.pathname === "/api/comment") {
+              expect(request.method).toBe("POST");
+              expect(Object.fromEntries(new URLSearchParams(request.body as string))).toEqual({
+                api_type: "json",
+                thing_id: POST_ID,
+                text: "a short honest comment",
+                uh: FIRST_MODHASH,
+              });
+              return jsonResponse({
+                json: { errors: [], data: { things: [{ kind: "t1", data: { name: "t1_newcomment" } }] } },
+              });
+            }
+            throw new Error(`unexpected test request ${request.url.pathname}`);
+          }),
+          sleep: () => Promise.resolve(),
+        },
+        beforeDispatch: () => {
+          beforeDispatches += 1;
+          return Promise.resolve();
+        },
+        afterDispatchVerified: () => {
+          verifiedDispatches += 1;
+          return Promise.resolve();
+        },
+      },
+    );
+    expect(result).toMatchObject({
+      status: "succeeded",
+      output: {
+        parentId: POST_ID,
+        commentId: "t1_newcomment",
+        author: "wrench_viewer",
+        body: "a short honest comment",
+      },
+      dispatch: { planned: 1, started: 1, verified: 1 },
+    });
+    expect(beforeDispatches).toBe(1);
+    expect(verifiedDispatches).toBe(1);
+    expect(calls.filter((call) => call.url.pathname === "/api/comment")).toHaveLength(1);
+  });
+
+  test("reports an indeterminate comment when readback does not bind the body", async () => {
+    const calls: CapturedRequest[] = [];
+    const result = await executeRedditWebOperation(
+      recipe("replies.create"),
+      { parent_id: "t1_parent1", body: "intended text" },
+      redditAuth,
+      {
+        dependencies: {
+          ...dependencies(calls, (request) => {
+            if (request.url.pathname === "/api/me.json") return jsonResponse(viewerResponse());
+            if (request.url.pathname === "/api/info.json") {
+              if (request.url.searchParams.get("id") === "t1_parent1") {
+                return jsonResponse(listing([stateThing("t1_parent1", null, false)]));
+              }
+              return jsonResponse(listing([{
+                kind: "t1",
+                data: {
+                  name: "t1_newreply",
+                  author: "wrench_viewer",
+                  body: "something else",
+                  parent_id: "t1_parent1",
+                },
+              }]));
+            }
+            if (request.url.pathname === "/api/comment") {
+              return jsonResponse({
+                json: { errors: [], data: { things: [{ kind: "t1", data: { name: "t1_newreply" } }] } },
+              });
+            }
+            throw new Error(`unexpected test request ${request.url.pathname}`);
+          }),
+          sleep: () => Promise.resolve(),
+        },
+      },
+    );
+    expect(result).toMatchObject({
+      status: "indeterminate",
+      dispatchStarted: true,
+      dispatch: { planned: 1, started: 1, verified: 0 },
+    });
+  });
+
+  test("fails before dispatch when the parent cannot be read", async () => {
+    const calls: CapturedRequest[] = [];
+    const result = await executeRedditWebOperation(
+      recipe("comments.create"),
+      { post_id: POST_ID, body: "a short honest comment" },
+      redditAuth,
+      {
+        dependencies: {
+          ...dependencies(calls, (request) => {
+            if (request.url.pathname === "/api/me.json") return jsonResponse(viewerResponse());
+            if (request.url.pathname === "/api/info.json") return jsonResponse(listing([]));
+            throw new Error(`unexpected test request ${request.url.pathname}`);
+          }),
+          sleep: () => Promise.resolve(),
+        },
+      },
+    );
+    expect(result).toMatchObject({ status: "failed", dispatchStarted: false });
+    expect(calls.some((call) => call.url.pathname === "/api/comment")).toBe(false);
   });
 
   test("reconciles exact Reddit publish presence and delete absence without mutation", async () => {

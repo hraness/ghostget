@@ -7,6 +7,14 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.88
+
+Publish Threads replies and Reddit comments and replies through observed contracts.
+
+- `threads` `replies.create@2` observes one reply to an exact parent post: the `configure_text_only_post` reply form bound to the parent ID, a created-post response binding, and independent permalink readback of the bound actor and text. The adapter is 1.10.0.
+- `reddit-web` `comments.create@2` and `replies.create@2` observe the old-Reddit `/api/comment` form bound to an exact `t3_` post or `t1_` comment parent, a strict created-comment response binding, and independent `/api/info` readback of author, parent, and body. Legacy-message replies stay unsupported. The adapter is 1.14.0.
+- The reserved `replies.create@1` (Threads) and `comments.create@1` / `replies.create@1` (Reddit) contracts are archived as inert historical identity.
+
 ## 0.18.87
 
 Restore the release-publication authority modes the GitHub Release publisher invokes.

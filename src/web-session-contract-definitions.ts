@@ -724,7 +724,7 @@ const x = {
 
 const reddit = {
   ...Object.fromEntries(redditFlairContracts.map((definition) => [definition.operation, definition])),
-  "comments.create": contract("reddit", "comments.create", REDDIT_WEB_OPERATIONS["comments.create"].risk, REDDIT_WEB_OPERATIONS["comments.create"].state, REDDIT_WEB_OPERATIONS["comments.create"].reason),
+  "comments.create": contract("reddit", "comments.create", REDDIT_WEB_OPERATIONS["comments.create"].risk, REDDIT_WEB_OPERATIONS["comments.create"].state, REDDIT_WEB_OPERATIONS["comments.create"].reason, 2),
   "comments.read": contract("reddit", "comments.read", REDDIT_WEB_OPERATIONS["comments.read"].risk, REDDIT_WEB_OPERATIONS["comments.read"].state, REDDIT_WEB_OPERATIONS["comments.read"].reason),
   "communities.membership.set": contract("reddit", "communities.membership.set", REDDIT_WEB_OPERATIONS["communities.membership.set"].risk, REDDIT_WEB_OPERATIONS["communities.membership.set"].state, REDDIT_WEB_OPERATIONS["communities.membership.set"].reason),
   "content.delete": contract("reddit", "content.delete", REDDIT_WEB_OPERATIONS["content.delete"].risk, REDDIT_WEB_OPERATIONS["content.delete"].state, REDDIT_WEB_OPERATIONS["content.delete"].reason),
@@ -742,7 +742,7 @@ const reddit = {
   "profiles.read": contract("reddit", "profiles.read", REDDIT_WEB_OPERATIONS["profiles.read"].risk, REDDIT_WEB_OPERATIONS["profiles.read"].state, REDDIT_WEB_OPERATIONS["profiles.read"].reason),
   "reactions.set": contract("reddit", "reactions.set", REDDIT_WEB_OPERATIONS["reactions.set"].risk, REDDIT_WEB_OPERATIONS["reactions.set"].state, REDDIT_WEB_OPERATIONS["reactions.set"].reason),
   "relationships.follow.set": contract("reddit", "relationships.follow.set", REDDIT_WEB_OPERATIONS["relationships.follow.set"].risk, REDDIT_WEB_OPERATIONS["relationships.follow.set"].state, REDDIT_WEB_OPERATIONS["relationships.follow.set"].reason),
-  "replies.create": contract("reddit", "replies.create", REDDIT_WEB_OPERATIONS["replies.create"].risk, REDDIT_WEB_OPERATIONS["replies.create"].state, REDDIT_WEB_OPERATIONS["replies.create"].reason),
+  "replies.create": contract("reddit", "replies.create", REDDIT_WEB_OPERATIONS["replies.create"].risk, REDDIT_WEB_OPERATIONS["replies.create"].state, REDDIT_WEB_OPERATIONS["replies.create"].reason, 2),
 } as const satisfies Readonly<Partial<Record<SemanticOperationName, WebSessionContract>>>;
 
 const whatsapp = {
