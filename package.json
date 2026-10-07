@@ -747,6 +747,8 @@
   },
   "overrides": {
     "adm-zip": "0.6.1",
+    "fflate": "0.8.3",
+    "simple-git": "4.0.2",
     "@tobilu/qmd": "https://github.com/hraness/qmd/releases/download/v2.8.3-hraness.1/hraness-qmd-2.8.3-hraness.1.tgz"
   }
 }
