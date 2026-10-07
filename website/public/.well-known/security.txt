@@ -1,0 +1,5 @@
+Contact: https://github.com/hraness/ghostget/security/advisories/new
+Expires: 2027-10-07T00:00:00.000Z
+Preferred-Languages: en
+Canonical: https://ghostget.com/.well-known/security.txt
+Policy: https://github.com/hraness/ghostget/blob/main/SECURITY.md

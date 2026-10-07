@@ -1653,6 +1653,10 @@ export async function buildWebsite(
       join(publicRoot, file),
       join(outputRoot, file),
     )),
+    mkdir(join(outputRoot, ".well-known"), { recursive: true }).then(() => copyFile(
+      join(publicRoot, ".well-known/security.txt"),
+      join(outputRoot, ".well-known/security.txt"),
+    )),
     copyFile(
       join(publicRoot, "dc84ee4863539f2fff50ef5f0a164168.txt"),
       join(outputRoot, "dc84ee4863539f2fff50ef5f0a164168.txt"),
