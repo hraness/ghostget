@@ -221,6 +221,11 @@ export const META_WEB_OPERATIONS = Object.freeze({
       "reviewed live configure_text_post_app_feed create with optional single-PNG upload, exact minimal created-locator binding, durable response-bound post identity plus completed-upload dimensions when an image is supplied, and independent exact permalink actor/text and optional image readback",
       5,
     ),
+    "replies.create": observedMutation(
+      "R3",
+      "reviewed live configure_text_only_post text-only reply bound to the exact submitted parent post ID, exact viewer binding, exact created-locator and actor binding, durable response-bound post identity, and independent exact permalink actor/text readback",
+      2,
+    ),
     "media.publish": observedMutation(
       "R3",
       "reviewed live single-MP4 rupload_igvideo transfer with synchronous 200 completion, exact configure_text_post_app_feed actor and created-locator binding, durable response-bound post identity plus completed-upload dimensions, and independent exact permalink actor/text/video readback",
@@ -1949,6 +1954,19 @@ function threadsImage(
     || post.original_height !== undefined
     || post.image_versions2 !== undefined;
   if (!hasImageFields) return null;
+  // Observed 2026-10-07: a text-only reply (configure_text_only_post) is
+  // reported as media_type 19 with empty image fields and no carousel.
+  if (
+    post.media_type === 19
+    && (post.carousel_media === undefined || post.carousel_media === null
+      || (Array.isArray(post.carousel_media) && post.carousel_media.length === 0))
+    && (post.image_versions2 === undefined || post.image_versions2 === null
+      || (isRecord(post.image_versions2)
+        && (post.image_versions2.candidates === undefined
+          || post.image_versions2.candidates === null
+          || (Array.isArray(post.image_versions2.candidates)
+            && post.image_versions2.candidates.length === 0))))
+  ) return null;
   if (post.media_type !== 1) {
     throw new Error(`${label}.media_type must identify one reviewed image`);
   }

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 4,
   "id": "threads-web",
-  "version": "1.10.0",
+  "version": "1.9.0",
   "displayName": "Threads (Authenticated Internal API)",
   "surfaceId": "threads",
   "origins": [
@@ -605,35 +605,52 @@
       }
     },
     "replies.create": {
-      "description": "Publish one confirmed text-only Threads reply to one exact numeric parent post ID through the reviewed configure_text_only_post contract, then verify the exact actor, text, and permalink independently.",
+      "description": "Capture-required contract reservation: the exact actor, audience, attachment transport, dispatch response, and independent publication readback require an authorized fixture.",
       "risk": "R3",
-      "sideEffect": "Publishes one externally visible Threads reply with the exact confirmed text under the exact confirmed parent post.",
+      "sideEffect": "Changes remote threads state only after exact preview confirmation and reviewed dispatch.",
       "idempotency": "local-at-most-once",
       "dedupeWindowMs": 86400000,
       "input": {
         "properties": {
           "post_id": {
             "type": "string",
-            "description": "Exact numeric parent Threads post ID",
+            "description": "Exact Threads post ID",
             "minLength": 1,
-            "maxLength": 32
+            "maxLength": 80
+          },
+          "comment_id": {
+            "type": "string",
+            "description": "Exact parent comment ID",
+            "minLength": 1,
+            "maxLength": 256
           },
           "body": {
             "type": "string",
-            "description": "Exact reply body",
+            "description": "Reply body",
             "minLength": 1,
             "maxLength": 450
+          },
+          "attachment": {
+            "type": "file",
+            "description": "Optional exact reply attachment",
+            "maxBytes": 1073741824,
+            "mediaTypes": [
+              "image/*",
+              "video/*",
+              "image/gif"
+            ]
           }
         },
         "required": [
           "post_id",
+          "comment_id",
           "body"
         ]
       },
       "webSession": {
         "site": "threads",
         "action": "replies.create",
-        "contractVersion": 2,
+        "contractVersion": 1,
         "timeoutMs": 60000,
         "maxOutputBytes": 8388608
       }

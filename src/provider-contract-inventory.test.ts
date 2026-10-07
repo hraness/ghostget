@@ -4,25 +4,25 @@ import { pathToFileURL } from "node:url";
 import { describe, expect, test } from "bun:test";
 
 const predecessorDefaultInventorySha256 =
-  "250f23bb4ddbb36712a8a6c63e577b67ee70873d8c4d857425b3e1ab6d1a6ab0";
+  "879176c13b70689d98813285a584003974e7376b2821412eb0b85d81dfb67320";
 const predecessorLegacyInventorySha256 = [
-  "dae91740ee05d34b1911b58ed72da21124386e081c9535f90deaeb9202e7cf15",
-  "beaa0b64b0cafc4b731d17b58127545916142a7f4f2f99a1ee03b6b0d42a7de2",
-  "d9987c035f0af84b7710219d9b1fd0a3dbf1a1d825be501bb4f6df05e8147ef1",
-  "6eef4aad8c3f968323a0c350f5d47e6f828d0a258854de4a5f58ebc1f89d1d96",
-  "42a9305b3c39fba9db3173194e77d9784fb31cbe84711c69e449bfc3710ab28f",
-  "9aa1613307bd83142ebd44a67662fa710322d0e16e28e7123a0ef1f0b0c65abc",
-  "f9bdcbfb6c91b41dcf854084eaf4df735539a6336ad4493694f3497a90e28f0d",
-  "50486a32717db744ad431c4c4f12e6c85fb58bee98dfac00a861a6427aca9c51",
-  "24d36e66e7ed5e789c5c241387a111a64898947b992648422718282d5bbbd970",
-  "629d4eff2221796c0910559a3c518b35075d2cd274923895e1292c6491ed40f5",
-  "54b7a91a1cbf09403ccc761771722b2098128dcef5d65f80dd961f8330679ad5",
-  "270b5c7402ea3f3ec2ea722242da471c7434606c57dbf55f3ccc283ba90f0dbe",
-  "de3736679b42c786a14addac94fa1bec815b51999e3eac2469eb9428c61a803d",
-  "10e67fd19f6e7e2461e602594c42677855e271129b8d51bb670f76140f68d8ad",
-  "1ce3777afbb67877439f3620cab8c3244a046815bdd45460033ea73ea5117606",
-  "4bb4b3d77fe4b963476bdc9e93af48a286903089ed94a632df2e2e740e14954b",
-  "960160ad499c088b89718cfa9c32e3aac8e8a68e37ed3016f9d8faa2d4c080bd",
+  "987d6ed8a0c114445d08e730f0fd9ce76be89c9420a89d4e840e3d1e776e55ea",
+  "6fa0cdee77cb1307de684aefc16affd9b3e9567a504922ca3c1e7cbbb3732909",
+  "0f338e3f8c2d13255de2ae21a058146d279a9665d37ed76586050d1a294425f5",
+  "f5e68d1994e8ef67be427f31fd370e68329054230a12c963ff4653ebb3be7c1d",
+  "cb0906ee4e52d3ea2c378e02c27f3d20bdc9ca39884425146d5c9d45c900e3dd",
+  "36ab3e011c247f8e776550066c4e67ba08b3581d65e8c0e1e4e7f8ec64cdddb3",
+  "674185f902a76c0ec53f7490b71c94b745443027a2958ffbd766d12a931cb956",
+  "72a870350b206477e3ffb98555f93cf76aa43dbbc434c63f26e5bf2b9e94b8b6",
+  "907b2fad26cd927c4f9c7e8c5d1d436c338ec18708d52f0d307df04a67331dc9",
+  "b8928bbb6e52613010d2bd7b4b3df4a83d31e565bc5cb817b4ceb21761332b97",
+  "a80e18bfabd02d852bdb95b9b0744c1e844df15fe89223cc6993643f22373d2a",
+  "eb15a4ce2325507b7e04bb906db975e832f8e1e73ec1200dce93db64a8aa1220",
+  "4ee7f77da56cc82227d28e4c0c775b8517570cbcb846d13991eeddacf11d7f66",
+  "a5438454bf32acd5c1986006fae0e7cd3c9fab34d362b33794aa56a2bd7b8862",
+  "4c68f991249235150a5c81d0d4f67cacaf49de9a60127cbdbef21838e5e10ea7",
+  "06047e57795ba602804add8034875247d7abfce74538e092d3edc12f60a22951",
+  "caa90c716077d0563317c78d719a4f82ced934775373cebadddc917587bb4cdb",
   "4d61e63bd5980c7dcaf9fdff7409889dc305911dac238cfa7bf2218409167227",
   "c9a3c4bc07caee4cef22d0bdcd95074b68a00b24bc8550aacdf01ff24646bae9",
   "c10e8d8c5ca8c67efd34c3113a4d6b81b78bd37fbc3a02b883a0017c8b122401",
@@ -170,6 +170,8 @@ function isCurrentOnlyRow(row) {
     || (row[0] === "web-session-api" && row[1] === "clasificados")
     || (row[0] === "web-session-api" && row[1] === "github")
     || (row[0] === "web-session-api" && row[1] === "reddit" && row[2].startsWith("flair."))
+    || (row[0] === "web-session-api" && row[1] === "reddit" && row[3] === 2
+      && (row[2] === "comments.create" || row[2] === "replies.create"))
     || (row[0] === "web-session-api" && row[1] === "substack" && row[2].startsWith("subscribers."))
     || (row[0] === "web-session-api" && row[1] === "twitch")
     || (row[0] === "web-session-api" && row[1] === "webmcp")
@@ -194,7 +196,8 @@ for (const plugin of registry.list()) {
             operation.name,
             contractVersion,
           );
-          const isPredecessorReddit = binding.surfaceId === "reddit" && !operation.name.startsWith("flair.");
+          const isPredecessorReddit = binding.surfaceId === "reddit" && !operation.name.startsWith("flair.")
+            && !(contractVersion === 2 && (operation.name === "comments.create" || operation.name === "replies.create"));
           const isPredecessorSubstack = binding.surfaceId === "substack" && !operation.name.startsWith("subscribers.");
           const isPredecessorHackerNews = binding.surfaceId === "hacker-news";
           const legacyImplementations = isPredecessorReddit
@@ -372,10 +375,10 @@ describe("durable provider contract inventory", () => {
     ].map((nodeEnv) => inventoryForNodeEnv(nodeEnv)));
     for (const inventory of inventories) {
       expect(inventory).toEqual({
-        rows: 325,
+        rows: 326,
         sha256: predecessorDefaultInventorySha256,
-        currentOnlyRows: 87,
-        currentOnlySha256: "944efbe9059debc0b55cfe1cad9c793114e8f493cb74ba4ea7a3c9f1c68f4537",
+        currentOnlyRows: 89,
+        currentOnlySha256: "868176e8d2301268aa83aff5d91aa2af38cc0bf1bc468a2e41497863290e3e4e",
         automationRows: [
           ["linked-device", "whatsapp", "messaging.automation.read", 1],
           ["linked-device", "whatsapp", "messaging.automation.send.attachment", 1],
@@ -396,23 +399,23 @@ describe("durable provider contract inventory", () => {
           ["local-cli", "imessage", "messaging.automation.send.text", 1],
         ],
         legacyRows: [
-          325,
-          325,
-          325,
-          325,
-          325,
-          325,
-          325,
-          293,
-          293,
-          255,
-          255,
-          239,
-          214,
-          168,
-          147,
-          147,
-          147,
+          326,
+          326,
+          326,
+          326,
+          326,
+          326,
+          326,
+          294,
+          294,
+          256,
+          256,
+          240,
+          215,
+          169,
+          148,
+          148,
+          148,
           26,
           26,
           26,

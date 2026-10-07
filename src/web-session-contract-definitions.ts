@@ -405,6 +405,7 @@ const HACKER_NEWS_WEB_OPERATIONS = operationPolicies("hacker-news", [
   "replies.create",
 ]);
 const REDDIT_WEB_OPERATIONS = operationPolicies("reddit", [
+  "comments.create",
   "comments.read",
   "content.delete",
   "feeds.read",
@@ -414,9 +415,12 @@ const REDDIT_WEB_OPERATIONS = operationPolicies("reddit", [
   "messaging.read",
   "posts.read",
   "profiles.read",
+  "replies.create",
 ], {
+  "comments.create": 2,
   "media.read": 2,
   "media.publish": 8,
+  "replies.create": 2,
 });
 const BEEPER_LOCAL_OPERATIONS = operationPolicies("beeper", [
   "contacts.list",
@@ -494,9 +498,10 @@ const META_WEB_OPERATIONS = Object.freeze({
     "media.publish": 3,
     "messaging.list": 2,
   }),
-  threads: operationPolicies("threads", ["feeds.read", "media.publish", "posts.publish", "profiles.read"], {
+  threads: operationPolicies("threads", ["feeds.read", "media.publish", "posts.publish", "profiles.read", "replies.create"], {
     "feeds.read": 2,
     "media.publish": 1,
+    "replies.create": 2,
     "posts.publish": 5,
   }),
   facebook: operationPolicies("facebook", ["feeds.read"], {
@@ -723,7 +728,7 @@ const x = {
 
 const reddit = {
   ...Object.fromEntries(redditFlairContracts.map((definition) => [definition.operation, definition])),
-  "comments.create": contract("reddit", "comments.create", REDDIT_WEB_OPERATIONS["comments.create"].risk, REDDIT_WEB_OPERATIONS["comments.create"].state, REDDIT_WEB_OPERATIONS["comments.create"].reason),
+  "comments.create": contract("reddit", "comments.create", REDDIT_WEB_OPERATIONS["comments.create"].risk, REDDIT_WEB_OPERATIONS["comments.create"].state, REDDIT_WEB_OPERATIONS["comments.create"].reason, 2),
   "comments.read": contract("reddit", "comments.read", REDDIT_WEB_OPERATIONS["comments.read"].risk, REDDIT_WEB_OPERATIONS["comments.read"].state, REDDIT_WEB_OPERATIONS["comments.read"].reason),
   "communities.membership.set": contract("reddit", "communities.membership.set", REDDIT_WEB_OPERATIONS["communities.membership.set"].risk, REDDIT_WEB_OPERATIONS["communities.membership.set"].state, REDDIT_WEB_OPERATIONS["communities.membership.set"].reason),
   "content.delete": contract("reddit", "content.delete", REDDIT_WEB_OPERATIONS["content.delete"].risk, REDDIT_WEB_OPERATIONS["content.delete"].state, REDDIT_WEB_OPERATIONS["content.delete"].reason),
@@ -741,7 +746,7 @@ const reddit = {
   "profiles.read": contract("reddit", "profiles.read", REDDIT_WEB_OPERATIONS["profiles.read"].risk, REDDIT_WEB_OPERATIONS["profiles.read"].state, REDDIT_WEB_OPERATIONS["profiles.read"].reason),
   "reactions.set": contract("reddit", "reactions.set", REDDIT_WEB_OPERATIONS["reactions.set"].risk, REDDIT_WEB_OPERATIONS["reactions.set"].state, REDDIT_WEB_OPERATIONS["reactions.set"].reason),
   "relationships.follow.set": contract("reddit", "relationships.follow.set", REDDIT_WEB_OPERATIONS["relationships.follow.set"].risk, REDDIT_WEB_OPERATIONS["relationships.follow.set"].state, REDDIT_WEB_OPERATIONS["relationships.follow.set"].reason),
-  "replies.create": contract("reddit", "replies.create", REDDIT_WEB_OPERATIONS["replies.create"].risk, REDDIT_WEB_OPERATIONS["replies.create"].state, REDDIT_WEB_OPERATIONS["replies.create"].reason),
+  "replies.create": contract("reddit", "replies.create", REDDIT_WEB_OPERATIONS["replies.create"].risk, REDDIT_WEB_OPERATIONS["replies.create"].state, REDDIT_WEB_OPERATIONS["replies.create"].reason, 2),
 } as const satisfies Readonly<Partial<Record<SemanticOperationName, WebSessionContract>>>;
 
 const whatsapp = {

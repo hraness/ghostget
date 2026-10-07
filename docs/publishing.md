@@ -332,12 +332,12 @@ changes the immutable Release or its tag.
 
 ## Install the canonical release
 
-These commands require the matching published immutable v0.18.87 release.
+These commands require the matching published immutable v0.18.88 release.
 
 For the CLI:
 
 ```sh
-bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.87/hraness-ghostget-0.18.87.tgz
+bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.88/hraness-ghostget-0.18.88.tgz
 ghostget --version
 ghostget doctor --json
 ```
