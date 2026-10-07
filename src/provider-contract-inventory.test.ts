@@ -375,7 +375,7 @@ describe("durable provider contract inventory", () => {
         rows: 325,
         sha256: predecessorDefaultInventorySha256,
         currentOnlyRows: 87,
-        currentOnlySha256: "944efbe9059debc0b55cfe1cad9c793114e8f493cb74ba4ea7a3c9f1c68f4537",
+        currentOnlySha256: "52f958662d1cac5ccce0573b741ed35d194f066a6bbe72c5c6e989eb9048f528",
         automationRows: [
           ["linked-device", "whatsapp", "messaging.automation.read", 1],
           ["linked-device", "whatsapp", "messaging.automation.send.attachment", 1],

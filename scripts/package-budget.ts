@@ -2527,15 +2527,15 @@
 // reviewed allowances: 12,231,242 + 12,387 + 4,096 = 12,247,725 packed;
 // 24,415,392 + 353 + 65 = 24,415,810 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "0.18.87 release-publication authority repair",
+  scope: "0.18.88 Substack subscriber export chain bound",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   nodeVersion: "24.20.0",
   zlibVersion: "1.3.2.1-motley-42c2f19",
   platform: "darwin-arm64",
   archiveSha256: "753ffbeb39d4606f252d299c971fa32ae06c8927b8a4037fb72f349a5c527c9f",
-  packedBytes: 12_231_242,
-  unpackedBytes: 24_415_392,
+  packedBytes: 12_231_984,
+  unpackedBytes: 24_417_899,
   entryCount: 639,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

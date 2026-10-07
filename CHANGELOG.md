@@ -7,6 +7,12 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.88
+
+Let the Substack subscriber export return more than 500 rows.
+
+- The subscriber export cursor carries a fingerprint for every address already returned, and its 8,192-character cursor ceiling capped an export at about 500 rows. The cursor-token size limit is now set per feature: the default stays 8,192 and the Substack subscriber export uses 32,768, which raises the row bound to 2,000. The input check, adapter schema, contract digest and reviewed-identity pins follow.
+
 ## 0.18.87
 
 Restore the release-publication authority modes the GitHub Release publisher invokes.
