@@ -14,6 +14,10 @@ import {
   substackSubscriberImportOperationId,
   type SubstackWebRuntimeDependencies,
 } from "./substack-web-runtime";
+import {
+  SUBSTACK_SUBSCRIBER_CURSOR_MAX_TOKEN_CHARACTERS,
+  SUBSTACK_SUBSCRIBER_EXPORT_MAX_ROWS,
+} from "./substack-web";
 
 const USER_ID = 42;
 const PUBLICATION_ID = 7;
@@ -403,16 +407,18 @@ describe("Substack subscriber runtime", () => {
     const fixture = harness((request) => {
       const body = JSON.parse(request.body ?? "null") as { offset: number; limit: number };
       limits.push(body.limit);
-      return json({ count: 501, subscribers: Array.from({ length: body.limit }, (_, index) => subscriberRow(body.offset + index)) });
+      return json({ count: 2001, subscribers: Array.from({ length: body.limit }, (_, index) => subscriberRow(body.offset + index)) });
     });
-    const { pages } = await exportAll(fixture, 100);
+    const { pages } = await exportAll(fixture, 100, 40);
     for (const page of pages.slice(0, -1)) {
-      expect(page.nextCursor!.length).toBeLessThanOrEqual(8192);
+      expect(page.nextCursor!.length).toBeLessThanOrEqual(SUBSTACK_SUBSCRIBER_CURSOR_MAX_TOKEN_CHARACTERS);
       expect(page.nextCursor).not.toContain("reader");
     }
-    expect(pages.reduce((sum, page) => sum + page.subscribers.length, 0)).toBe(500);
+    expect(pages.reduce((sum, page) => sum + page.subscribers.length, 0)).toBe(SUBSTACK_SUBSCRIBER_EXPORT_MAX_ROWS);
     expect(pages.at(-1)).toMatchObject({ complete: false, continuationSupported: false, stopReason: "row-limit" });
-    expect(limits).toEqual([100, 100, 100, 100, 100, 50]);
+    expect(limits.slice(0, -1).every((limit) => limit === 100)).toBe(true);
+    expect(limits.at(-1)).toBeLessThanOrEqual(100);
+    expect(Math.max(...limits)).toBe(100);
   });
 
   test("requires matching author/admin ownership before every subscriber exchange", async () => {

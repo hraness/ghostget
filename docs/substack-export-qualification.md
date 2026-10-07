@@ -69,8 +69,10 @@ and a terminal provider page remain unqualified.
   import-status and import.
 - Export v2 returns at most 100 rows per request; the dashboard accepted 100
   and rejected 101. One continuation chain covers provider positions below
-  500, which keeps the sealed cursor's fingerprint set under the 8,192-byte
-  token bound and covers the qualified 373-row publication.
+  2,000, which keeps the sealed cursor's fingerprint set under the 32,768-
+  character export token ceiling and covers the qualified 373-row publication
+  with room to grow. The original 500-row bound was reached live at 546
+  subscribers.
 - AES-GCM cursors (payload schema 3) bind the operation, auth locator,
   viewer, publication origin and ID, first-page total, next provider offset,
   and sorted fingerprints of every address already returned.
@@ -83,7 +85,7 @@ and a terminal provider page remain unqualified.
 - The last page reports `complete: true`, `completeness.kind: "census"`, and
   `stopReason: "provider-exhausted"` only when the chain's unique addresses
   equal the reported total. An exhausted chain with any other count reports
-  `census-mismatch`, and the 500-row bound reports `row-limit`; both keep
+  `census-mismatch`, and the 2,000-row bound reports `row-limit`; both keep
   `complete: false`. A count match cannot detect an equal-count membership
   swap.
 - Export v1, import v1, and import-status v1 keep their original identities
