@@ -36,7 +36,7 @@ if (redditContracts === undefined) {
 
 const currentOperations = webSessionContractOperations(
   Object.values(redditContracts),
-  "6428693be4a7fa4b66c04f00e140d30d844e5467cc775f8f4fd6d168275c970c",
+  "f1057bfc12d2e077ae0c462637685ce99288429850cd9e730bdb2eea636afdc1",
   {},
   {
     "messaging.list": {

@@ -213,6 +213,7 @@ describe("single-process bundled adapter generation sync", () => {
       "reddit-web@1.10.0",
       "reddit-web@1.11.0",
       "reddit-web@1.12.0",
+      "reddit-web@1.13.0",
       "reddit-web@1.2.0",
       "reddit-web@1.3.0",
       "reddit-web@1.4.0",

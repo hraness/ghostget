@@ -420,7 +420,7 @@ const identities = Object.freeze({
   "reddit-web": {
     schemaVersion: 1,
     pluginVersion: "1.5.0",
-    implementationSha256: "6428693be4a7fa4b66c04f00e140d30d844e5467cc775f8f4fd6d168275c970c",
+    implementationSha256: "f1057bfc12d2e077ae0c462637685ce99288429850cd9e730bdb2eea636afdc1",
     legacyCurrentReadImplementationSha256: [],
     legacyDistributionReadImplementationSha256: [
       "64a4c1e78ce8565a50613f63ff605f0f57f488617ef31386b5ddce5e3db885c9",

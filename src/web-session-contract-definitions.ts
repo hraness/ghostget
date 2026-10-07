@@ -405,6 +405,7 @@ const HACKER_NEWS_WEB_OPERATIONS = operationPolicies("hacker-news", [
   "replies.create",
 ]);
 const REDDIT_WEB_OPERATIONS = operationPolicies("reddit", [
+  "comments.create",
   "comments.read",
   "content.delete",
   "feeds.read",
@@ -414,9 +415,12 @@ const REDDIT_WEB_OPERATIONS = operationPolicies("reddit", [
   "messaging.read",
   "posts.read",
   "profiles.read",
+  "replies.create",
 ], {
+  "comments.create": 2,
   "media.read": 2,
   "media.publish": 8,
+  "replies.create": 2,
 });
 const BEEPER_LOCAL_OPERATIONS = operationPolicies("beeper", [
   "contacts.list",
