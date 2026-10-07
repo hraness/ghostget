@@ -5,6 +5,8 @@ reporting for the Ghostget repository. Do not open a public issue containing
 credentials, authenticated traffic, private content, browser profiles, state
 directories, or provider account identifiers.
 
+If GitHub reporting is unavailable, email [hraness@pm.me](mailto:hraness@pm.me).
+
 Ghostget treats CLI input, URLs, manifests, packages, plugin messages, provider
 responses, browser output, files, durable state, and subprocess diagnostics as
 untrusted. Foreign values are strictly parsed and bounded. Sensitive values are

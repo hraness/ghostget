@@ -7,6 +7,7 @@ const root = join(import.meta.dir, "..");
 test("security.txt names the private reporting route and an unexpired date", async () => {
   const text = await readFile(join(root, "website/public/.well-known/security.txt"), "utf8");
   expect(text).toContain("Contact: https://github.com/hraness/ghostget/security/advisories/new");
+  expect(text).toContain("Contact: mailto:hraness@pm.me");
   expect(text).toContain("Canonical: https://ghostget.com/.well-known/security.txt");
   const expires = /^Expires: (.+)$/mu.exec(text)?.[1];
   expect(expires).toBeDefined();
