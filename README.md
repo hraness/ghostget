@@ -1,5 +1,15 @@
 # GhostGet
 
+> 👻 GhostGet is the web for your agent. It reads any page as Markdown, saves
+> media with SHA-256 records, and acts in your Gmail, Beeper, or X accounts
+> through named, reviewed operations. A measured article read costs about 3,800
+> tokens where the raw page carries 36,000. Your agent never sees a login, and
+> consequential writes wait for your confirmation.
+>
+> Ask your agent to set it up: https://ghostget.com
+>
+> — Ben Guo
+
 [![GhostGet: Named web actions for AI agents: read pages, save media, use connected accounts](https://ghostget.com/og.png)](https://ghostget.com)
 
 [![skills.sh](https://skills.sh/b/hraness/ghostget)](https://www.skills.sh/hraness/ghostget/ghostget)
