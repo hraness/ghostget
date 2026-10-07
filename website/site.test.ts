@@ -154,6 +154,18 @@ function lossyWebpDimensions(bytes: Uint8Array): Readonly<{ height: number; widt
 }
 
 describe("ghostget.com static site", () => {
+  test("sets the founder note directly below the home hero in Instrument Serif", async () => {
+    const [home, css] = await Promise.all([
+      readFile(join(websiteRoot, "source/index.html"), "utf8"),
+      readFile(join(websiteRoot, "source/styles.css"), "utf8"),
+    ]);
+    expect(home).toMatch(/<\/header>\s*<section aria-label="A note from the author" class="founder-note">/u);
+    expect(home).toContain("GhostGet is the web for your agent.");
+    expect(home).toContain('<a href="https://ghostget.com">ghostget.com</a>');
+    expect(css).toContain('"Instrument Serif"');
+    expect(css).not.toContain("Georgia");
+  });
+
   test("inlines the complete UI stylesheet after its layer declarations", () => {
     const imports = {
       "./tokens.css": ":root { --ui-foreground: CanvasText; }",
