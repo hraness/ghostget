@@ -47,6 +47,7 @@ import {
   requireSubstackSubscriberExportOwner,
   substackSubscriberImportRequestBody,
   substackSubscriberStatsRequestBody,
+  SUBSTACK_SUBSCRIBER_CURSOR_MAX_TOKEN_CHARACTERS,
   SUBSTACK_SUBSCRIBER_EXPORT_MAX_ROWS,
   type SubstackSubscriberCursor,
   type SubstackSubscriberExportPlan,
@@ -4386,6 +4387,7 @@ export async function executeSubstackSubscriberOperation(
       authHash,
       selected.plan.cursor,
       cursorEnvironment,
+      { maxTokenCharacters: SUBSTACK_SUBSCRIBER_CURSOR_MAX_TOKEN_CHARACTERS },
     ));
     if (webSessionAuthSubject(auth) !== `substack:${String(exportCursor.viewerId)}` || exportCursor.publicationOrigin !== `https://${selected.plan.publication}.substack.com`) {
       throw new Error("Substack subscriber cursor belongs to another publication or viewer");
@@ -4489,6 +4491,7 @@ export async function executeSubstackSubscriberOperation(
             authHash,
             page.nextCursor,
             cursorEnvironment,
+            { maxTokenCharacters: SUBSTACK_SUBSCRIBER_CURSOR_MAX_TOKEN_CHARACTERS },
           ),
         });
       } else {

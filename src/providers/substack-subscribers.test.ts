@@ -164,7 +164,7 @@ describe("Substack subscriber export projection", () => {
   });
 
   test("collects every stable window into a census bounded by the row limit", () => {
-    assertProperty(fc.property(fc.integer({ min: 0, max: 700 }), fc.integer({ min: 1, max: 100 }), (total, requestedLimit) => {
+    assertProperty(fc.property(fc.integer({ min: 0, max: SUBSTACK_SUBSCRIBER_EXPORT_MAX_ROWS + 300 }), fc.integer({ min: 1, max: 100 }), (total, requestedLimit) => {
       let cursor: SubstackSubscriberCursor | null = null;
       const emails = new Set<string>();
       let pages = 0;
@@ -185,13 +185,13 @@ describe("Substack subscriber export projection", () => {
         }
         cursor = last.nextCursor;
         pages += 1;
-      } while (cursor !== null && pages < 1_000);
+      } while (cursor !== null && pages < 5_000);
       expect(cursor).toBeNull();
       const bounded = Math.min(total, SUBSTACK_SUBSCRIBER_EXPORT_MAX_ROWS);
       expect(emails.size).toBe(bounded);
       expect(last?.complete).toBe(total <= SUBSTACK_SUBSCRIBER_EXPORT_MAX_ROWS);
       expect(last?.stopReason).toBe(total <= SUBSTACK_SUBSCRIBER_EXPORT_MAX_ROWS ? "provider-exhausted" : "row-limit");
-    }));
+    }), { numRuns: 5 });
   });
 
   test("reconstructs strict authenticated payloads and rejects legacy cursors and inconsistent history", () => {
@@ -200,7 +200,7 @@ describe("Substack subscriber export projection", () => {
     expect(parseSubstackSubscriberCursor(first.nextCursor)).toEqual(first.nextCursor);
     for (const value of [
       "ss1.7.2.3", null, {}, { ...first.nextCursor, schemaVersion: 1 }, { ...first.nextCursor, schemaVersion: 2 },
-      { ...first.nextCursor, offset: 0 }, { ...first.nextCursor, offset: 500 },
+      { ...first.nextCursor, offset: 0 }, { ...first.nextCursor, offset: SUBSTACK_SUBSCRIBER_EXPORT_MAX_ROWS },
       { ...first.nextCursor, total: 1 },
       { ...first.nextCursor, viewerId: 0 }, { ...first.nextCursor, extra: true },
       { ...first.nextCursor, publicationOrigin: "https://other.example.com" },

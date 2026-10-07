@@ -493,11 +493,18 @@ export function normalizeSubstackPublicationStatsResponse(
 /** Live 2026-09-27: the dashboard accepted 100 rows and rejected 101. */
 export const SUBSTACK_SUBSCRIBER_EXPORT_MAX_LIMIT = 100;
 /**
- * One continuation chain covers provider positions below 500. That bounds the
- * sealed cursor's fingerprint set and still covers the qualified publication's
- * 373-row census with room to grow.
+ * One continuation chain covers provider positions below 2,000. That bounds the
+ * sealed cursor's fingerprint set, which grows eight bytes per returned
+ * address, and covers the qualified publication's census with room to grow. A
+ * 500-row bound was reached live on 2026-10-07 at 546 subscribers.
  */
-export const SUBSTACK_SUBSCRIBER_EXPORT_MAX_ROWS = 500;
+export const SUBSTACK_SUBSCRIBER_EXPORT_MAX_ROWS = 2000;
+/** Sealed-cursor ceiling that fits a full fingerprint set for the row bound. */
+export const SUBSTACK_SUBSCRIBER_CURSOR_MAX_TOKEN_CHARACTERS = 32_768;
+const SUBSTACK_SUBSCRIBER_FINGERPRINT_BYTES = 8;
+const SUBSTACK_SUBSCRIBER_FINGERPRINTS_MAX_CHARACTERS = Math.ceil(
+  (SUBSTACK_SUBSCRIBER_EXPORT_MAX_ROWS * SUBSTACK_SUBSCRIBER_FINGERPRINT_BYTES * 4) / 3,
+);
 /**
  * Rows repeated at the start of the next page. The dashboard reorders rows that
  * share a signup instant between requests; a plain 100-row stride missed one
@@ -626,14 +633,14 @@ function subscriberFingerprint(email: string): string {
 }
 
 function subscriberFingerprints(value: unknown): readonly string[] {
-  if (typeof value !== "string" || value.length > 5_334 || /[^A-Za-z0-9_-]/u.test(value)) {
+  if (typeof value !== "string" || value.length > SUBSTACK_SUBSCRIBER_FINGERPRINTS_MAX_CHARACTERS || /[^A-Za-z0-9_-]/u.test(value)) {
     throw new Error("Substack subscriber cursor fingerprints are malformed");
   }
   const bytes = Buffer.from(value, "base64url");
   if (
     bytes.toString("base64url") !== value
-    || bytes.byteLength % 8 !== 0
-    || bytes.byteLength / 8 > SUBSTACK_SUBSCRIBER_EXPORT_MAX_ROWS
+    || bytes.byteLength % SUBSTACK_SUBSCRIBER_FINGERPRINT_BYTES !== 0
+    || bytes.byteLength / SUBSTACK_SUBSCRIBER_FINGERPRINT_BYTES > SUBSTACK_SUBSCRIBER_EXPORT_MAX_ROWS
   ) {
     throw new Error("Substack subscriber cursor fingerprints are malformed");
   }
@@ -699,7 +706,7 @@ export function prepareSubstackSubscriberExportInput(value: unknown): SubstackSu
     );
   }
   const cursor = input.cursor === undefined ? null : input.cursor;
-  if (cursor !== null && (typeof cursor !== "string" || cursor.length > 8192 || !/^smn1\.[A-Za-z0-9_-]+$/u.test(cursor))) {
+  if (cursor !== null && (typeof cursor !== "string" || cursor.length > SUBSTACK_SUBSCRIBER_CURSOR_MAX_TOKEN_CHARACTERS || !/^smn1\.[A-Za-z0-9_-]+$/u.test(cursor))) {
     throw new Error("input.cursor must be a Ghostget-issued subscriber export cursor");
   }
   if (input.cursor === null) throw new Error("input.cursor must be omitted for the first page");
@@ -1009,7 +1016,7 @@ export function normalizeSubstackSubscriberPage(
           reason: stopReason === "census-mismatch"
             ? "The provider was exhausted, but the chain's unique addresses did not equal the reported total; restart the export."
             : stopReason === "row-limit"
-              ? "The chain reached its 500-row bound before the provider total."
+              ? `The chain reached its ${String(SUBSTACK_SUBSCRIBER_EXPORT_MAX_ROWS)}-row bound before the provider total.`
               : "More pages remain; continue with nextCursor.",
         }),
     continuationSupported: nextCursor !== null,

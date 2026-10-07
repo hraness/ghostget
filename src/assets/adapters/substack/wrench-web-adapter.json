@@ -933,7 +933,7 @@
       }
     },
     "subscribers.export": {
-      "description": "Observed contract: read up to 100 subscribers of the selected viewer-owned Substack publication after an author/admin check, projected to email, subscription type, and subscribed time. An encrypted account- and publication-bound cursor overlaps pages by up to ten rows, returns only new addresses, and covers 500 rows. complete is true only when the last page's unique count equals total; stopReason names exhaustion, the row limit, or a census mismatch.",
+      "description": "Observed contract: read up to 100 subscribers of the selected viewer-owned Substack publication after an author/admin check, projected to email, subscription type, and subscribed time. An encrypted account- and publication-bound cursor overlaps pages by up to ten rows, returns only new addresses, and covers 2,000 rows. complete is true only when the last page's unique count equals total; stopReason names exhaustion, the row limit, or a census mismatch.",
       "risk": "R1",
       "sideEffect": "none",
       "idempotency": "none",
@@ -944,7 +944,7 @@
             "type": "string",
             "description": "Opaque encrypted cursor returned by the previous subscribers.export page; omit for the first page",
             "minLength": 1,
-            "maxLength": 8192
+            "maxLength": 32768
           },
           "limit": {
             "type": "number",

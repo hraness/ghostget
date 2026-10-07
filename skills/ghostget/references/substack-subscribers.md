@@ -37,7 +37,7 @@ printf '%s' '{"publication":"hraness","limit":100}' \
   `complete: true` and `stopReason: "provider-exhausted"` only when the
   chain returned exactly `total` unique addresses. Otherwise `complete` is
   `false` and `stopReason` is `"census-mismatch"` (start over) or
-  `"row-limit"` (one chain covers 500 rows, so larger lists can't be
+  `"row-limit"` (one chain covers 2,000 rows, so larger lists can't be
   exported completely yet). Intermediate pages have `complete: false` and
   `stopReason: null`.
 - A changed `total`, a repeated address within one page, a short page
