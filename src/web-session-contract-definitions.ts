@@ -833,7 +833,7 @@ const twitch = {
 } as const satisfies Readonly<Partial<Record<SemanticOperationName, WebSessionContract>>>;
 
 const youtube = {
-  "comments.create": contract("youtube", "comments.create", "R3", "capture-required", "current comment mutation, actor/target response binding, and an authorized live fixture remain required"),
+  "comments.create": contract("youtube", "comments.create", "R3", "observed", "top-level comment through the reviewed create_comment token bound to the exact video, with authoring-channel and body response binding", 2),
   "comments.read": contract("youtube", "comments.read", "R1", "observed", "current acknowledgement-free Innertube next/continuation requests with exact video binding"),
   "content.delete": contract("youtube", "content.delete", "R3", "capture-required", "cleanup only discarded the stalled incomplete Studio draft; no uploaded-video authored pre-read, accepted video/delete response, or exact-target absence readback was observed"),
   "content.edit": contract("youtube", "content.edit", "R3", "capture-required", "video, Community-post, and comment edit mutations require separate reviewed contracts"),

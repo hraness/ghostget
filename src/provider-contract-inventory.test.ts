@@ -172,7 +172,7 @@ function isCurrentOnlyRow(row) {
     || (row[0] === "web-session-api" && row[1] === "reddit" && row[2].startsWith("flair."))
     || (row[0] === "web-session-api" && row[1] === "reddit" && row[3] === 2
       && (row[2] === "comments.create" || row[2] === "replies.create" || row[2] === "content.delete"))
-    || (row[0] === "web-session-api" && row[1] === "youtube" && row[2] === "replies.create" && row[3] === 2)
+    || (row[0] === "web-session-api" && row[1] === "youtube" && (row[2] === "replies.create" || row[2] === "comments.create") && row[3] === 2)
     || (row[0] === "web-session-api" && row[1] === "substack" && row[2].startsWith("subscribers."))
     || (row[0] === "web-session-api" && row[1] === "twitch")
     || (row[0] === "web-session-api" && row[1] === "webmcp")
@@ -378,8 +378,8 @@ describe("durable provider contract inventory", () => {
       expect(inventory).toEqual({
         rows: 326,
         sha256: predecessorDefaultInventorySha256,
-        currentOnlyRows: 91,
-        currentOnlySha256: "2acd40878e1ff784edfcbd51f5cd4d8ed18a101653a2feebae4acb5cb84d97c3",
+        currentOnlyRows: 92,
+        currentOnlySha256: "1900030e376fa0c5e22e7847e5f0c764dce91c53a8760b874817b8f68b277c32",
         automationRows: [
           ["linked-device", "whatsapp", "messaging.automation.read", 1],
           ["linked-device", "whatsapp", "messaging.automation.send.attachment", 1],

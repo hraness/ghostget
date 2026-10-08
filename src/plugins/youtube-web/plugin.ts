@@ -51,6 +51,37 @@ const archivedRepliesCreateV1Operation = Object.freeze({
   validateInput: () => Object.freeze([]),
 });
 
+const archivedCommentsCreateV1Contract = reviewedArchivedWebSessionContract(
+  archivedYouTubeWebManifestV1_4,
+  {
+    adapterId: "youtube-web",
+    adapterVersion: "1.4.0",
+    site: "youtube",
+    operation: "comments.create",
+    contractVersion: 1,
+    risk: "R3",
+    state: "capture-required",
+    implementation:
+      "current comment mutation, actor/target response binding, and an authorized live fixture remain required",
+  },
+);
+
+const archivedCommentsCreateV1Operation = Object.freeze({
+  name: archivedCommentsCreateV1Contract.operation,
+  contractVersion: archivedCommentsCreateV1Contract.contractVersion,
+  risk: archivedCommentsCreateV1Contract.risk,
+  input: archivedCommentsCreateV1Contract.input,
+  sideEffect: archivedCommentsCreateV1Contract.sideEffect,
+  idempotency: archivedCommentsCreateV1Contract.idempotency,
+  dedupeWindowMs: archivedCommentsCreateV1Contract.dedupeWindowMs,
+  state: archivedCommentsCreateV1Contract.state,
+  dispatch: archivedCommentsCreateV1Contract.dispatch,
+  implementation: archivedCommentsCreateV1Contract.implementation,
+  planDispatches: (input: OperationInput) =>
+    planWebSessionContractDispatches(archivedCommentsCreateV1Contract, input),
+  validateInput: () => Object.freeze([]),
+});
+
 const desiredStateKeys = Object.freeze({
   "likes.set": "liked",
   "content.save": "saved",
@@ -59,7 +90,7 @@ const desiredStateKeys = Object.freeze({
 
 const currentOperations = webSessionContractOperations(
   Object.values(youtubeContracts),
-  "d22e1737e2dc1eb0153e3d5e8330d60e706370b849ef01fc856cba3cf4dc93ae",
+  "b22b52c3e2ca7635e31dbfdb1493b2b204519eb2c04093ec63c0465ca9e7bedd",
   {
     "media.publish": [1],
   },
@@ -88,6 +119,7 @@ const currentOperations = webSessionContractOperations(
 const operations = Object.freeze([
   ...currentOperations,
   archivedRepliesCreateV1Operation,
+  archivedCommentsCreateV1Operation,
 ]);
 
 export const youtubeWebPlugin = defineProviderPlugin({

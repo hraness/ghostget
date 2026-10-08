@@ -262,7 +262,7 @@
       }
     },
     "comments.create": {
-      "description": "Capture-required contract reservation: create one confirmed YouTube top-level comment only after its current mutation, actor/target response binding, and authorized live fixture are reviewed.",
+      "description": "Observed contract: create one top-level YouTube comment by binding the exact video, sending the reviewed comment token from its watch-page comments header to the fixed create_comment endpoint, and binding the created comment's authoring channel and body in the response.",
       "risk": "R3",
       "sideEffect": "Publishes one externally visible comment on the exact confirmed YouTube video.",
       "idempotency": "local-at-most-once",
@@ -290,7 +290,7 @@
       "webSession": {
         "site": "youtube",
         "action": "comments.create",
-        "contractVersion": 1,
+        "contractVersion": 2,
         "timeoutMs": 60000,
         "maxOutputBytes": 4194304
       }

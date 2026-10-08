@@ -2539,32 +2539,33 @@
 // canonical Release must independently measure and admit their exact
 // archives.
 // The 0.18.90 release lets Reddit content.delete@2 remove an exact authored
-// comment as well as a post: the Reddit contract code, the retained 1.14.0
-// adapter snapshot, and the rebuilt dist bundles add one packed source file
+// comment as well as a post and observes YouTube replies.create@2: the Reddit
+// and YouTube contract code, the retained Reddit 1.14.0 and YouTube 1.4.0
+// adapter snapshots, and the rebuilt dist bundles add two packed source files
 // over the 641-entry inventory. Two clean npm 11.16.0 packs on Node 24.18.1
 // (zlib 1.3.1-e00f703) with --ignore-scripts on darwin arm64 were
-// byte-identical at 642 files/entries, 12,243,041 packed bytes and
-// 24,520,298 unpacked bytes; archive SHA-256
-// e923371777d8b8e36df10dddcc05a8402547b8a7b2b93c61dc0f7fc5acc693d5. Retain the
-// reviewed allowances: 12,243,041 + 12,387 + 4,096 = 12,259,524 packed;
-// 24,520,298 + 353 + 65 = 24,520,716 unpacked. Current source CI and
+// byte-identical at 643 files/entries, 12,246,900 packed bytes and
+// 24,548,516 unpacked bytes; archive SHA-256
+// 09c12025f3ab35d9fd2d0909b63c85dad5865776bdafa91c7b802723be05a8d2. Retain the
+// reviewed allowances: 12,246,900 + 12,387 + 4,096 = 12,263,383 packed;
+// 24,548,516 + 353 + 1,656 = 24,550,525 unpacked. Current source CI and
 // canonical Release must independently measure and admit their exact
 // archives.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "0.18.90 Reddit comment delete",
+  scope: "0.18.90 Reddit comment delete and YouTube replies",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.16.0",
   nodeVersion: "24.18.1",
   zlibVersion: "1.3.1-e00f703",
   platform: "darwin-arm64",
-  archiveSha256: "e923371777d8b8e36df10dddcc05a8402547b8a7b2b93c61dc0f7fc5acc693d5",
-  packedBytes: 12_243_041,
-  unpackedBytes: 24_520_298,
-  entryCount: 642,
+  archiveSha256: "09c12025f3ab35d9fd2d0909b63c85dad5865776bdafa91c7b802723be05a8d2",
+  packedBytes: 12_246_900,
+  unpackedBytes: 24_548_516,
+  entryCount: 643,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,
-  payloadAllowance: 65,
+  payloadAllowance: 1656,
 });
 export const MAX_PACKED_BYTES = repairPackageMeasurement.packedBytes
   + repairPackageMeasurement.packedPlatformProjection + repairPackageMeasurement.packedPortabilityAllowance;

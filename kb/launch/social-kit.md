@@ -12,10 +12,10 @@ Post 1 of 9, 202 characters
 GhostGet is wget for the ghost in the machine. It gives the AI agent on your computer named web actions: read a page, save a media item, or use an account you connected, without giving it your password.
 ```
 
-Post 2 of 9, 183 characters
+Post 2 of 9, 233 characters
 
 ```text
-Ask for a page and your agent gets Markdown with its source attached. A Wikipedia article came back as 15,021 bytes where the raw page served 145,617 bytes of HTML, 9.7 times smaller.
+Ask for a page and your agent gets Markdown with its source attached, in seconds through a built-in lightweight engine. A Wikipedia article came back as 15,021 bytes where the raw page served 145,617 bytes of HTML, 9.7 times smaller.
 ```
 
 Post 3 of 9, 197 characters
@@ -24,10 +24,10 @@ Post 3 of 9, 197 characters
 A signed-in browser lets an agent click anything you can. With GhostGet it asks for one named action, like listing your Gmail contacts, and gets the result. It never sees a cookie, token, or login.
 ```
 
-Post 4 of 9, 184 characters
+Post 4 of 9, 210 characters
 
 ```text
-GhostGet has actions for 21 services, including Gmail, Beeper, WhatsApp, LinkedIn, X, Reddit, GitHub, and YouTube. You connect each account yourself, on the service's own sign-in page.
+GhostGet has actions for 21 services, including Gmail, Beeper, WhatsApp, LinkedIn, X, Bluesky, and Substack. Your agent can search, reply, join group chats, and publish video. You connect each account yourself.
 ```
 
 Post 5 of 9, 186 characters
@@ -36,10 +36,10 @@ Post 5 of 9, 186 characters
 Sometimes a post goes through but the answer gets lost on the way back. GhostGet writes down every send before it leaves and never sends it again on its own until it knows what happened.
 ```
 
-Post 6 of 9, 196 characters
+Post 6 of 9, 247 characters
 
 ```text
-Anything beyond a read starts as a preview that shows the service, the account, and exactly what will be sent. Your agent can prepare it. Nothing is sent until someone confirms that exact preview.
+Anything beyond a read starts as a preview that shows the service, the account, and exactly what will be sent. Confirm that exact preview, or allow an account to publish with an exact plan that runs once. Every write is read back from the service.
 ```
 
 Post 7 of 9, 171 characters
@@ -48,10 +48,10 @@ Post 7 of 9, 171 characters
 GhostGet is for Claude Code, Codex, Cursor, and other agents that run commands on your Mac or Linux machine and need to read the web and use the accounts you already have.
 ```
 
-Post 8 of 9, 192 characters
+Post 8 of 9, 179 characters
 
 ```text
-The plan is for GhostGet to stay small. Your agent does the thinking, and GhostGet runs only actions someone has reviewed. Each new service arrives as reviewed actions with their own previews.
+Your agent does the thinking. GhostGet runs the reviewed action. Each new service arrives as named actions with their own previews and readbacks, and the list grows every release.
 ```
 
 Post 9 of 9, 192 characters
@@ -70,10 +70,10 @@ Post 1 of 9, 202 characters
 GhostGet is wget for the ghost in the machine. It gives the AI agent on your computer named web actions: read a page, save a media item, or use an account you connected, without giving it your password.
 ```
 
-Post 2 of 9, 183 characters
+Post 2 of 9, 233 characters
 
 ```text
-Ask for a page and your agent gets Markdown with its source attached. A Wikipedia article came back as 15,021 bytes where the raw page served 145,617 bytes of HTML, 9.7 times smaller.
+Ask for a page and your agent gets Markdown with its source attached, in seconds through a built-in lightweight engine. A Wikipedia article came back as 15,021 bytes where the raw page served 145,617 bytes of HTML, 9.7 times smaller.
 ```
 
 Post 3 of 9, 197 characters
@@ -82,10 +82,10 @@ Post 3 of 9, 197 characters
 A signed-in browser lets an agent click anything you can. With GhostGet it asks for one named action, like listing your Gmail contacts, and gets the result. It never sees a cookie, token, or login.
 ```
 
-Post 4 of 9, 184 characters
+Post 4 of 9, 210 characters
 
 ```text
-GhostGet has actions for 21 services, including Gmail, Beeper, WhatsApp, LinkedIn, X, Reddit, GitHub, and YouTube. You connect each account yourself, on the service's own sign-in page.
+GhostGet has actions for 21 services, including Gmail, Beeper, WhatsApp, LinkedIn, X, Bluesky, and Substack. Your agent can search, reply, join group chats, and publish video. You connect each account yourself.
 ```
 
 Post 5 of 9, 186 characters
@@ -94,10 +94,10 @@ Post 5 of 9, 186 characters
 Sometimes a post goes through but the answer gets lost on the way back. GhostGet writes down every send before it leaves and never sends it again on its own until it knows what happened.
 ```
 
-Post 6 of 9, 196 characters
+Post 6 of 9, 247 characters
 
 ```text
-Anything beyond a read starts as a preview that shows the service, the account, and exactly what will be sent. Your agent can prepare it. Nothing is sent until someone confirms that exact preview.
+Anything beyond a read starts as a preview that shows the service, the account, and exactly what will be sent. Confirm that exact preview, or allow an account to publish with an exact plan that runs once. Every write is read back from the service.
 ```
 
 Post 7 of 9, 171 characters
@@ -106,10 +106,10 @@ Post 7 of 9, 171 characters
 GhostGet is for Claude Code, Codex, Cursor, and other agents that run commands on your Mac or Linux machine and need to read the web and use the accounts you already have.
 ```
 
-Post 8 of 9, 192 characters
+Post 8 of 9, 179 characters
 
 ```text
-The plan is for GhostGet to stay small. Your agent does the thinking, and GhostGet runs only actions someone has reviewed. Each new service arrives as reviewed actions with their own previews.
+Your agent does the thinking. GhostGet runs the reviewed action. Each new service arrives as named actions with their own previews and readbacks, and the list grows every release.
 ```
 
 Post 9 of 9, 192 characters
@@ -128,10 +128,10 @@ Post 1 of 9, 202 characters
 GhostGet is wget for the ghost in the machine. It gives the AI agent on your computer named web actions: read a page, save a media item, or use an account you connected, without giving it your password.
 ```
 
-Post 2 of 9, 183 characters
+Post 2 of 9, 233 characters
 
 ```text
-Ask for a page and your agent gets Markdown with its source attached. A Wikipedia article came back as 15,021 bytes where the raw page served 145,617 bytes of HTML, 9.7 times smaller.
+Ask for a page and your agent gets Markdown with its source attached, in seconds through a built-in lightweight engine. A Wikipedia article came back as 15,021 bytes where the raw page served 145,617 bytes of HTML, 9.7 times smaller.
 ```
 
 Post 3 of 9, 197 characters
@@ -140,10 +140,10 @@ Post 3 of 9, 197 characters
 A signed-in browser lets an agent click anything you can. With GhostGet it asks for one named action, like listing your Gmail contacts, and gets the result. It never sees a cookie, token, or login.
 ```
 
-Post 4 of 9, 184 characters
+Post 4 of 9, 210 characters
 
 ```text
-GhostGet has actions for 21 services, including Gmail, Beeper, WhatsApp, LinkedIn, X, Reddit, GitHub, and YouTube. You connect each account yourself, on the service's own sign-in page.
+GhostGet has actions for 21 services, including Gmail, Beeper, WhatsApp, LinkedIn, X, Bluesky, and Substack. Your agent can search, reply, join group chats, and publish video. You connect each account yourself.
 ```
 
 Post 5 of 9, 186 characters
@@ -152,10 +152,10 @@ Post 5 of 9, 186 characters
 Sometimes a post goes through but the answer gets lost on the way back. GhostGet writes down every send before it leaves and never sends it again on its own until it knows what happened.
 ```
 
-Post 6 of 9, 196 characters
+Post 6 of 9, 247 characters
 
 ```text
-Anything beyond a read starts as a preview that shows the service, the account, and exactly what will be sent. Your agent can prepare it. Nothing is sent until someone confirms that exact preview.
+Anything beyond a read starts as a preview that shows the service, the account, and exactly what will be sent. Confirm that exact preview, or allow an account to publish with an exact plan that runs once. Every write is read back from the service.
 ```
 
 Post 7 of 9, 171 characters
@@ -164,10 +164,10 @@ Post 7 of 9, 171 characters
 GhostGet is for Claude Code, Codex, Cursor, and other agents that run commands on your Mac or Linux machine and need to read the web and use the accounts you already have.
 ```
 
-Post 8 of 9, 192 characters
+Post 8 of 9, 179 characters
 
 ```text
-The plan is for GhostGet to stay small. Your agent does the thinking, and GhostGet runs only actions someone has reviewed. Each new service arrives as reviewed actions with their own previews.
+Your agent does the thinking. GhostGet runs the reviewed action. Each new service arrives as named actions with their own previews and readbacks, and the list grows every release.
 ```
 
 Post 9 of 9, 192 characters
@@ -183,19 +183,19 @@ https://ghostget.com/blog/introducing-ghostget/
 ```text
 GhostGet is wget for the ghost in the machine. It gives the AI agent on your computer named web actions: read a page, save a media item, or use an account you connected, without giving it your password.
 
-Ask for a page and your agent gets Markdown with its source attached. A Wikipedia article came back as 15,021 bytes where the raw page served 145,617 bytes of HTML, 9.7 times smaller.
+Ask for a page and your agent gets Markdown with its source attached, in seconds through a built-in lightweight engine. A Wikipedia article came back as 15,021 bytes where the raw page served 145,617 bytes of HTML, 9.7 times smaller.
 
 A signed-in browser lets an agent click anything you can. With GhostGet it asks for one named action, like listing your Gmail contacts, and gets the result. It never sees a cookie, token, or login.
 
-GhostGet has actions for 21 services, including Gmail, Beeper, WhatsApp, LinkedIn, X, Reddit, GitHub, and YouTube. You connect each account yourself, on the service's own sign-in page.
+GhostGet has actions for 21 services, including Gmail, Beeper, WhatsApp, LinkedIn, X, Bluesky, and Substack. Your agent can search, reply, join group chats, and publish video. You connect each account yourself.
 
 Sometimes a post goes through but the answer gets lost on the way back. GhostGet writes down every send before it leaves and never sends it again on its own until it knows what happened.
 
-Anything beyond a read starts as a preview that shows the service, the account, and exactly what will be sent. Your agent can prepare it. Nothing is sent until someone confirms that exact preview.
+Anything beyond a read starts as a preview that shows the service, the account, and exactly what will be sent. Confirm that exact preview, or allow an account to publish with an exact plan that runs once. Every write is read back from the service.
 
 GhostGet is for Claude Code, Codex, Cursor, and other agents that run commands on your Mac or Linux machine and need to read the web and use the accounts you already have.
 
-The plan is for GhostGet to stay small. Your agent does the thinking, and GhostGet runs only actions someone has reviewed. Each new service arrives as reviewed actions with their own previews.
+Your agent does the thinking. GhostGet runs the reviewed action. Each new service arrives as named actions with their own previews and readbacks, and the list grows every release.
 
 GhostGet is free, MIT licensed, and runs on macOS and Linux. The first step reads a public page and needs no account. Latest release: v0.18.90.
 
@@ -218,11 +218,11 @@ Topics: Developer Tools, Artificial Intelligence, Open Source
 
 - wget for the ghost in the machine
 - GhostGet is wget for the ghost in the machine. It gives the AI agent on your computer named web actions: read a page, save a media item, or use an account you connected, without giving it your password.
-- Ask for a page and your agent gets Markdown with its source attached. A Wikipedia article came back as 15,021 bytes where the raw page served 145,617 bytes of HTML, 9.7 times smaller.
+- Ask for a page and your agent gets Markdown with its source attached, in seconds through a built-in lightweight engine. A Wikipedia article came back as 15,021 bytes where the raw page served 145,617 bytes of HTML, 9.7 times smaller.
 - A signed-in browser lets an agent click anything you can. With GhostGet it asks for one named action, like listing your Gmail contacts, and gets the result. It never sees a cookie, token, or login.
-- GhostGet has actions for 21 services, including Gmail, Beeper, WhatsApp, LinkedIn, X, Reddit, GitHub, and YouTube. You connect each account yourself, on the service's own sign-in page.
+- GhostGet has actions for 21 services, including Gmail, Beeper, WhatsApp, LinkedIn, X, Bluesky, and Substack. Your agent can search, reply, join group chats, and publish video. You connect each account yourself.
 - Sometimes a post goes through but the answer gets lost on the way back. GhostGet writes down every send before it leaves and never sends it again on its own until it knows what happened.
-- Anything beyond a read starts as a preview that shows the service, the account, and exactly what will be sent. Your agent can prepare it. Nothing is sent until someone confirms that exact preview.
+- Anything beyond a read starts as a preview that shows the service, the account, and exactly what will be sent. Confirm that exact preview, or allow an account to publish with an exact plan that runs once. Every write is read back from the service.
 - GhostGet is for Claude Code, Codex, Cursor, and other agents that run commands on your Mac or Linux machine and need to read the web and use the accounts you already have.
 - GhostGet is free, MIT licensed, and runs on macOS and Linux. The first step reads a public page and needs no account. Latest release: v0.18.90.
 - Latest release: v0.18.90. https://ghostget.com/blog/introducing-ghostget/
@@ -236,8 +236,8 @@ Topics: Developer Tools, Artificial Intelligence, Open Source
 5. A lost reply never turns into an automatic double post (#beat-no-double-posts)
 6. Nothing goes out until you say so (#beat-preview-then-confirm)
 7. For people who run an agent on their own computer (#beat-who-its-for)
-8. A small, reviewed layer between agents and your accounts (#beat-stay-small)
-9. What GhostGet will not do (#beat-limits), launch post only
+8. The reviewed layer between every agent and every account (#beat-stay-small)
+9. Where GhostGet stops (#beat-limits), launch post only
 10. Free, open source, and on your machine (#beat-status)
 
 ## Facts and their records

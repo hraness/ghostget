@@ -68,6 +68,7 @@ describe("YouTube web policy primitives", () => {
     expect(youtubeManifest.schemaVersion).toBe(4);
     expect(youtubeManifest.surfaceId).toBe("youtube");
     const observed = [
+      "comments.create",
       "comments.read",
       "feeds.read",
       "media.read",
@@ -76,7 +77,6 @@ describe("YouTube web policy primitives", () => {
       "replies.create",
     ] as const;
     const captureRequired = [
-      "comments.create",
       "content.delete",
       "content.save",
       "content.edit",

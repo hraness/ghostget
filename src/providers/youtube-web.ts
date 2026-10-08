@@ -1304,3 +1304,37 @@ export function projectYouTubeCreatedReply(
   }
   return matches[0]!;
 }
+
+/** Finds the one reviewed `createCommentParams` token in a video's comments header. */
+export function findYouTubeCommentParams(value: unknown): string {
+  const found = new Set<string>();
+  for (const item of walkRecords(value, "YouTube comment create bootstrap")) {
+    const endpoint = isRecord(item.createCommentEndpoint) ? item.createCommentEndpoint : null;
+    const params = optionalBoundedString(endpoint?.createCommentParams, 8192);
+    if (params === null) continue;
+    if (!/^[A-Za-z0-9_%=-]{8,8192}$/u.test(params)) {
+      throw new Error("YouTube comment create bootstrap returned an invalid token");
+    }
+    found.add(params);
+  }
+  if (found.size !== 1) {
+    throw new Error("YouTube comment create bootstrap did not bind one comment token");
+  }
+  return found.values().next().value!;
+}
+
+/** Binds a create-comment response to a new top-level comment by the expected channel and body. */
+export function projectYouTubeCreatedComment(
+  value: unknown,
+  expected: { readonly body: string; readonly authorChannelId: string },
+): YouTubeProjectedComment {
+  assertYouTubeResponseSuccess(value, "YouTube comment create");
+  const matches = projectYouTubeComments(value, 100).comments.filter((comment) =>
+    !comment.id.includes(".")
+    && comment.body === expected.body
+    && comment.authorChannelId === expected.authorChannelId);
+  if (matches.length !== 1) {
+    throw new Error("YouTube comment create response did not bind actor and body");
+  }
+  return matches[0]!;
+}

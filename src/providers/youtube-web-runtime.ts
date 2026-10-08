@@ -46,7 +46,9 @@ import {
   youtubeSubscriptionState,
   youtubeWatchLaterState,
   type YouTubeBootstrapConfig,
+  findYouTubeCommentParams,
   findYouTubeReplyParams,
+  projectYouTubeCreatedComment,
   projectYouTubeCreatedReply,
   youtubeChannelFromSubject,
 } from "./youtube-web";
@@ -103,6 +105,7 @@ type InnertubeEndpoint =
   | "account/account_menu"
   | "account/accounts_list"
   | "browse"
+  | "comment/create_comment"
   | "comment/create_comment_reply"
   | "like/like"
   | "like/removelike"
@@ -948,7 +951,7 @@ async function executeCommentsRead(
   };
 }
 
-async function executeRepliesCreate(
+async function executeCommentWrite(
   bootstrap: YouTubeBootstrap,
   recipe: WebSessionRecipe,
   input: OperationInput,
@@ -959,7 +962,8 @@ async function executeRepliesCreate(
 ): Promise<WebSessionExecution> {
   const subject = requireBoundSubject(bootstrap);
   const videoId = videoIdInput(input);
-  const parentId = stringInput(input, "comment_id", 256);
+  const replying = recipe.action === "replies.create";
+  const parentId = replying ? stringInput(input, "comment_id", 256) : null;
   const body = stringInput(input, "body", 500);
   const finalUrl = `${YOUTUBE_ORIGIN}/watch?v=${videoId}`;
   let started = 0;
@@ -981,19 +985,25 @@ async function executeRepliesCreate(
       { continuation },
       "YouTube comments",
     );
-    if (!projectYouTubeComments(thread, 100).comments.some((comment) => comment.id === parentId)) {
+    // The header token lives on the first continuation page; the reply token on the thread.
+    if (
+      parentId !== null
+      && !projectYouTubeComments(thread, 100).comments.some((comment) => comment.id === parentId)
+    ) {
       throw new Error("YouTube video comments did not contain the exact parent comment");
     }
-    const createReplyParams = findYouTubeReplyParams(thread, parentId);
+    const writeEndpoint = parentId === null
+      ? "comment/create_comment" as const
+      : "comment/create_comment_reply" as const;
+    const writeParams = parentId === null
+      ? { createCommentParams: findYouTubeCommentParams(thread), commentText: body }
+      : { createReplyParams: findYouTubeReplyParams(thread, parentId), commentText: body };
     await options.beforeDispatch?.(dispatchEvent(recipe.action, 0, 0));
     started = 1;
-    const response = await innertube(
-      bootstrap,
-      "comment/create_comment_reply",
-      { createReplyParams, commentText: body },
-      "YouTube comment reply",
-    );
-    const reply = projectYouTubeCreatedReply(response, { parentId, body, authorChannelId });
+    const response = await innertube(bootstrap, writeEndpoint, writeParams, "YouTube comment write");
+    const reply = parentId === null
+      ? projectYouTubeCreatedComment(response, { body, authorChannelId })
+      : projectYouTubeCreatedReply(response, { parentId, body, authorChannelId });
     verified = 1;
     await options.afterDispatchVerified?.(dispatchEvent(recipe.action, 1, 1));
     return {
@@ -1018,8 +1028,8 @@ async function executeRepliesCreate(
       dispatchStarted: started > 0,
       dispatch: { planned: 1, started, verified },
       error: started > 0
-        ? "YouTube may have published the exact reply, but parent, actor, and body binding was not verified; reconcile before retrying"
-        : "YouTube comment reply failed before submission",
+        ? "YouTube may have published the exact comment, but parent, actor, and body binding was not verified; reconcile before retrying"
+        : "YouTube comment write failed before submission",
     };
   }
 }
@@ -1428,7 +1438,8 @@ export async function executeYouTubeWebOperation(
         "profiles.read",
         "relationships.follow.set",
       ].includes(recipe.action))
-      || (recipe.contractVersion === 2 && recipe.action === "replies.create")
+      || (recipe.contractVersion === 2
+        && (recipe.action === "replies.create" || recipe.action === "comments.create"))
     )
   ) {
     throw new Error(`YouTube authenticated web operation ${recipe.action} has no executable reviewed contract`);
@@ -1475,7 +1486,7 @@ export async function executeYouTubeWebOperation(
   if (recipe.action === "media.read") return executeMediaRead(bootstrap, input);
   if (recipe.action === "posts.read") return executePostRead(bootstrap, input);
   if (recipe.action === "comments.read") return executeCommentsRead(bootstrap, input);
-  if (recipe.action === "replies.create") return executeRepliesCreate(bootstrap, recipe, input, options);
+  if (recipe.action === "replies.create" || recipe.action === "comments.create") return executeCommentWrite(bootstrap, recipe, input, options);
   if (
     recipe.action === "likes.set"
     || recipe.action === "content.save"
