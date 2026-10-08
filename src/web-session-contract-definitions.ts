@@ -847,7 +847,7 @@ const youtube = {
   "posts.read": contract("youtube", "posts.read", "R1", "observed", "current resolve_url plus exact Community-post browse request"),
   "profiles.read": contract("youtube", "profiles.read", "R1", "observed", "current target-bound first-party channel response with exact subscriber, video, and lifetime-view counts"),
   "relationships.follow.set": contract("youtube", "relationships.follow.set", "R2", "capture-required", "the current target-bound subscription implementation and independent browse readback are deterministic-test proven but still require an authorized low-stakes live fixture"),
-  "replies.create": contract("youtube", "replies.create", "R3", "capture-required", "current reply mutation, parent binding, and an authorized live fixture remain required"),
+  "replies.create": contract("youtube", "replies.create", "R3", "observed", "reply to one top-level comment through the reviewed create_comment_reply token bound to the exact video and parent comment, with parent, authoring-channel, and body response binding", 2),
 } as const satisfies Readonly<Partial<Record<SemanticOperationName, WebSessionContract>>>;
 
 export const webSessionContractDefinitions = {

@@ -7,12 +7,49 @@ import {
   webSessionContractOperations,
   webImplementationSources,
 } from "../../provider-plugin-builtins";
-import { webSessionContractDefinitions } from "../../web-session-contract-definitions";
+import archivedYouTubeWebManifestV1_4 from "../../assets/adapters/youtube/wrench-web-adapter.v1.4.0.json";
+import type { OperationInput } from "../../model";
+import {
+  planWebSessionContractDispatches,
+  reviewedArchivedWebSessionContract,
+  webSessionContractDefinitions,
+} from "../../web-session-contract-definitions";
 
 const youtubeContracts = webSessionContractDefinitions.youtube;
 if (youtubeContracts === undefined) {
   throw new Error("YouTube web-session contracts are not installed");
 }
+
+const archivedRepliesCreateV1Contract = reviewedArchivedWebSessionContract(
+  archivedYouTubeWebManifestV1_4,
+  {
+    adapterId: "youtube-web",
+    adapterVersion: "1.4.0",
+    site: "youtube",
+    operation: "replies.create",
+    contractVersion: 1,
+    risk: "R3",
+    state: "capture-required",
+    implementation:
+      "current reply mutation, parent binding, and an authorized live fixture remain required",
+  },
+);
+
+const archivedRepliesCreateV1Operation = Object.freeze({
+  name: archivedRepliesCreateV1Contract.operation,
+  contractVersion: archivedRepliesCreateV1Contract.contractVersion,
+  risk: archivedRepliesCreateV1Contract.risk,
+  input: archivedRepliesCreateV1Contract.input,
+  sideEffect: archivedRepliesCreateV1Contract.sideEffect,
+  idempotency: archivedRepliesCreateV1Contract.idempotency,
+  dedupeWindowMs: archivedRepliesCreateV1Contract.dedupeWindowMs,
+  state: archivedRepliesCreateV1Contract.state,
+  dispatch: archivedRepliesCreateV1Contract.dispatch,
+  implementation: archivedRepliesCreateV1Contract.implementation,
+  planDispatches: (input: OperationInput) =>
+    planWebSessionContractDispatches(archivedRepliesCreateV1Contract, input),
+  validateInput: () => Object.freeze([]),
+});
 
 const desiredStateKeys = Object.freeze({
   "likes.set": "liked",
@@ -20,9 +57,9 @@ const desiredStateKeys = Object.freeze({
   "relationships.follow.set": "followed",
 } as const);
 
-const operations = webSessionContractOperations(
+const currentOperations = webSessionContractOperations(
   Object.values(youtubeContracts),
-  "01eed7386edd0d5122f89667f389d26e5589816096d9f49f72e5871673aaf983",
+  "d22e1737e2dc1eb0153e3d5e8330d60e706370b849ef01fc856cba3cf4dc93ae",
   {
     "media.publish": [1],
   },
@@ -48,10 +85,15 @@ const operations = webSessionContractOperations(
   });
 });
 
+const operations = Object.freeze([
+  ...currentOperations,
+  archivedRepliesCreateV1Operation,
+]);
+
 export const youtubeWebPlugin = defineProviderPlugin({
   apiVersion: 1,
   id: "youtube-web",
-  version: "1.3.0",
+  version: "1.4.0",
   displayName: "YouTube Authenticated Web",
   sourceKind: "built-in",
   implementationSources: webImplementationSources(import.meta.url, [

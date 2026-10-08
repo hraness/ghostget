@@ -1219,3 +1219,88 @@ export function youtubeSubscriptionState(value: unknown, expectedChannelId: stri
   if (states.size !== 1) throw new Error("YouTube subscription readback did not expose one exact state");
   return states.values().next().value!;
 }
+
+function escapedPattern(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\-]/gu, "\\$&");
+}
+
+/**
+ * Finds the one reviewed `createReplyParams` token that the watch-page comment
+ * response binds to the exact parent comment through its toolbar entity key.
+ */
+export function findYouTubeReplyParams(value: unknown, commentId: string): string {
+  if (!/^[A-Za-z0-9_-]{8,256}$/u.test(commentId)) {
+    throw new Error("YouTube reply parent must be one top-level comment ID");
+  }
+  const exactId = new RegExp(`(?<![A-Za-z0-9_.-])${escapedPattern(commentId)}(?![A-Za-z0-9_.-])`, "u");
+  const found = new Set<string>();
+  for (const item of walkRecords(value, "YouTube comment reply bootstrap")) {
+    const toolbar = isRecord(item.engagementToolbarSurfaceEntityPayload)
+      ? item.engagementToolbarSurfaceEntityPayload
+      : null;
+    if (toolbar === null) continue;
+    const key = optionalBoundedString(toolbar.key, 512);
+    if (key === null) continue;
+    let decoded: string;
+    try {
+      decoded = Buffer.from(decodeURIComponent(key), "base64").toString("latin1");
+    } catch {
+      continue;
+    }
+    if (!exactId.test(decoded)) continue;
+    let cursor: unknown = toolbar;
+    for (const name of [
+      "replyCommand",
+      "innertubeCommand",
+      "createCommentReplyDialogEndpoint",
+      "dialog",
+      "commentReplyDialogRenderer",
+      "replyButton",
+      "buttonRenderer",
+      "serviceEndpoint",
+      "createCommentReplyEndpoint",
+    ] as const) {
+      cursor = isRecord(cursor) ? cursor[name] : undefined;
+    }
+    const params = isRecord(cursor) ? optionalBoundedString(cursor.createReplyParams, 8192) : null;
+    if (params === null) continue;
+    if (!/^[A-Za-z0-9_%=-]{8,8192}$/u.test(params)) {
+      throw new Error("YouTube comment reply bootstrap returned an invalid reply token");
+    }
+    found.add(params);
+  }
+  if (found.size !== 1) {
+    throw new Error("YouTube comment reply bootstrap did not bind one exact parent comment");
+  }
+  return found.values().next().value!;
+}
+
+export function youtubeChannelFromSubject(subject: string): string {
+  const match = /^youtube:channel:(UC[A-Za-z0-9_-]{22})(?:\/|$)/u.exec(subject);
+  if (match === null) throw new Error("YouTube auth subject does not bind one channel");
+  return match[1]!;
+}
+
+/**
+ * Binds the create-reply response to the exact parent, authoring channel, and
+ * body. YouTube reply IDs are `<parentId>.<replyId>`, so the prefix is the
+ * parent binding.
+ */
+export function projectYouTubeCreatedReply(
+  value: unknown,
+  expected: {
+    readonly parentId: string;
+    readonly body: string;
+    readonly authorChannelId: string;
+  },
+): YouTubeProjectedComment {
+  assertYouTubeResponseSuccess(value, "YouTube comment reply");
+  const matches = projectYouTubeComments(value, 100).comments.filter((comment) =>
+    comment.id.startsWith(`${expected.parentId}.`)
+    && comment.body === expected.body
+    && comment.authorChannelId === expected.authorChannelId);
+  if (matches.length !== 1) {
+    throw new Error("YouTube comment reply response did not bind parent, actor, and body");
+  }
+  return matches[0]!;
+}

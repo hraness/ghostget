@@ -46,6 +46,9 @@ import {
   youtubeSubscriptionState,
   youtubeWatchLaterState,
   type YouTubeBootstrapConfig,
+  findYouTubeReplyParams,
+  projectYouTubeCreatedReply,
+  youtubeChannelFromSubject,
 } from "./youtube-web";
 import { isoBmffMp4VideoMetadata } from "./iso-bmff";
 import { hasExactKeys, hasSameKeys } from "../contracts-shape.js";
@@ -100,6 +103,7 @@ type InnertubeEndpoint =
   | "account/account_menu"
   | "account/accounts_list"
   | "browse"
+  | "comment/create_comment_reply"
   | "like/like"
   | "like/removelike"
   | "navigation/resolve_url"
@@ -944,6 +948,82 @@ async function executeCommentsRead(
   };
 }
 
+async function executeRepliesCreate(
+  bootstrap: YouTubeBootstrap,
+  recipe: WebSessionRecipe,
+  input: OperationInput,
+  options: {
+    readonly beforeDispatch?: (event: WebSessionDispatchEvent) => Promise<void>;
+    readonly afterDispatchVerified?: (event: WebSessionDispatchEvent) => Promise<void>;
+  },
+): Promise<WebSessionExecution> {
+  const subject = requireBoundSubject(bootstrap);
+  const videoId = videoIdInput(input);
+  const parentId = stringInput(input, "comment_id", 256);
+  const body = stringInput(input, "body", 500);
+  const finalUrl = `${YOUTUBE_ORIGIN}/watch?v=${videoId}`;
+  let started = 0;
+  let verified = 0;
+  try {
+    const authorChannelId = youtubeChannelFromSubject(subject);
+    const initial = await innertube(
+      bootstrap,
+      "next",
+      { videoId },
+      "YouTube video comments bootstrap",
+    );
+    assertYouTubeVideoBinding(initial, videoId, "YouTube video comments bootstrap");
+    const continuation = findYouTubeCommentsContinuation(initial);
+    if (continuation === null) throw new Error("YouTube video did not expose a comments section");
+    const thread = await innertube(
+      bootstrap,
+      "next",
+      { continuation },
+      "YouTube comments",
+    );
+    if (!projectYouTubeComments(thread, 100).comments.some((comment) => comment.id === parentId)) {
+      throw new Error("YouTube video comments did not contain the exact parent comment");
+    }
+    const createReplyParams = findYouTubeReplyParams(thread, parentId);
+    await options.beforeDispatch?.(dispatchEvent(recipe.action, 0, 0));
+    started = 1;
+    const response = await innertube(
+      bootstrap,
+      "comment/create_comment_reply",
+      { createReplyParams, commentText: body },
+      "YouTube comment reply",
+    );
+    const reply = projectYouTubeCreatedReply(response, { parentId, body, authorChannelId });
+    verified = 1;
+    await options.afterDispatchVerified?.(dispatchEvent(recipe.action, 1, 1));
+    return {
+      status: "succeeded",
+      output: Object.freeze({
+        videoId,
+        parentId,
+        commentId: reply.id,
+        author: reply.author,
+        authorChannelId: reply.authorChannelId,
+        body: reply.body,
+      }),
+      finalUrl,
+      dispatchStarted: true,
+      dispatch: { planned: 1, started, verified },
+    };
+  } catch {
+    return {
+      status: started > 0 ? "indeterminate" : "failed",
+      output: null,
+      finalUrl,
+      dispatchStarted: started > 0,
+      dispatch: { planned: 1, started, verified },
+      error: started > 0
+        ? "YouTube may have published the exact reply, but parent, actor, and body binding was not verified; reconcile before retrying"
+        : "YouTube comment reply failed before submission",
+    };
+  }
+}
+
 function exactProfileCount(value: number | null): Readonly<Record<string, unknown>> {
   return value === null
     ? Object.freeze({ status: "unavailable", reason: "not-exposed" })
@@ -1337,17 +1417,19 @@ export async function executeYouTubeWebOperation(
   }
   if (
     recipe.site !== "youtube"
-    || recipe.contractVersion !== 1
-    || ![
-      "comments.read",
-      "content.save",
-      "feeds.read",
-      "likes.set",
-      "media.read",
-      "posts.read",
-      "profiles.read",
-      "relationships.follow.set",
-    ].includes(recipe.action)
+    || !(
+      (recipe.contractVersion === 1 && [
+        "comments.read",
+        "content.save",
+        "feeds.read",
+        "likes.set",
+        "media.read",
+        "posts.read",
+        "profiles.read",
+        "relationships.follow.set",
+      ].includes(recipe.action))
+      || (recipe.contractVersion === 2 && recipe.action === "replies.create")
+    )
   ) {
     throw new Error(`YouTube authenticated web operation ${recipe.action} has no executable reviewed contract`);
   }
@@ -1393,6 +1475,7 @@ export async function executeYouTubeWebOperation(
   if (recipe.action === "media.read") return executeMediaRead(bootstrap, input);
   if (recipe.action === "posts.read") return executePostRead(bootstrap, input);
   if (recipe.action === "comments.read") return executeCommentsRead(bootstrap, input);
+  if (recipe.action === "replies.create") return executeRepliesCreate(bootstrap, recipe, input, options);
   if (
     recipe.action === "likes.set"
     || recipe.action === "content.save"

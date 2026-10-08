@@ -574,7 +574,7 @@ const identities = Object.freeze({
   },
   "youtube-web": {
     schemaVersion: 1,
-    pluginVersion: "1.3.0",
+    pluginVersion: "1.4.0",
     implementationSha256: "06480c8aa798ec228e44b7b20a7b35f471400c44439b85548c3d8c513caf8c9d",
     legacyCurrentReadImplementationSha256: [
       "4d38cceaf871d6885abf76790b3d47b1e77b8b35dbb94bf5411d86f60202acb4",

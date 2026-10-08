@@ -274,6 +274,7 @@ describe("single-process bundled adapter generation sync", () => {
       "youtube-web@1.1.0",
       "youtube-web@1.2.0",
       "youtube-web@1.3.0",
+      "youtube-web@1.4.0",
     ]);
     expect(Object.fromEntries(discovered.flatMap((adapter) =>
       adapter.upgradeFrom.map((baseline) => [
