@@ -7,12 +7,18 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
-## 0.18.89
+## 0.18.90
 
 Delete your own Reddit comments, not just posts.
 
 - `reddit-web` `content.delete@2` accepts an exact `t1_` comment as well as a `t3_` post. A comment is deleted only after a pre-read binds its author to the signed-in account and its body to the confirmed text, then verified gone by an independent `/api/info` readback.
 - The shipped `content.delete@1` (posts only) is archived as inert historical identity.
+
+## 0.18.89
+
+Let the Substack subscriber export return more than 500 rows.
+
+- The subscriber export cursor carries a fingerprint for every address already returned, and its 8,192-character cursor ceiling capped an export at about 500 rows. The cursor-token size limit is now set per feature: the default stays 8,192 and the Substack subscriber export uses 32,768, which raises the row bound to 2,000. The input check, adapter schema, contract digest and reviewed-identity pins follow.
 
 ## 0.18.88
 

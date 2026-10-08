@@ -86,7 +86,7 @@ export const substackWebPlugin = defineProviderPlugin({
     authKinds: browserSessionAuthKinds,
     operations: [...webSessionContractOperations(
       Object.values(substackContracts),
-      "44899d0fb82aa7063b171818934f73e5cf3414d4bbc177f833a9e5e6fd22b633",
+      "8d90a7dedbe66b3b8a2e7c4d2acb2ebdd48c71491f596f93ccdd372499ac7317",
       {
         "posts.publish": [2],
       },
