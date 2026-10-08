@@ -831,6 +831,24 @@ type XrpcOptions = {
   readonly recordNotFound?: true;
 };
 
+
+async function blueskyXrpcErrorCode(
+  response: Response,
+  operationDeadline: WebSessionOperationDeadline | undefined,
+): Promise<string | null> {
+  try {
+    if (!jsonContentType(response)) return null;
+    const bytes = await boundedBytes(response, 4 * 1024, operationDeadline);
+    const parsed: unknown = parseJson(bytes);
+    const code = typeof parsed === "object" && parsed !== null ? (parsed as { error?: unknown }).error : undefined;
+    return typeof code === "string" && /^[A-Za-z]{3,40}$/u.test(code) ? code : null;
+  } catch {
+    return null;
+  } finally {
+    response.body?.cancel().catch(() => undefined);
+  }
+}
+
 async function xrpc(
   client: BlueskyClient,
   nsid: BlueskyXrpcMethod,
@@ -935,8 +953,11 @@ async function xrpc(
       return BLUESKY_RECORD_NOT_FOUND;
     }
     if (response.status !== 200) {
-      response.body?.cancel().catch(() => undefined);
-      throw new Error(`Bluesky XRPC returned unreviewed status ${response.status}`);
+      // XRPC failures carry a short machine code (ExpiredToken, InvalidToken,
+      // RateLimitExceeded). Surface only that bounded code so a stale session
+      // is distinguishable from a bad request; never the message or body.
+      const code = await blueskyXrpcErrorCode(response, operationDeadline);
+      throw new Error(`Bluesky XRPC returned unreviewed status ${response.status}${code === null ? "" : ` (${code})`}`);
     }
     const bytes = await boundedBytes(
       response,

@@ -160,14 +160,6 @@ type FeedRequest = {
   readonly method: "GET" | "POST";
 };
 
-const viewerEvidence = Object.freeze({
-  operationName: "Viewer",
-  operationType: "query" as const,
-  queryId: "9t128XgFic52jPUEkJMf6w",
-  sourceChunk: "main.bbbbbc3a3b2a833ba.js",
-  observedOn: "2026-10-03",
-});
-
 function isRecord(value: unknown): value is JsonRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -875,7 +867,7 @@ function articleUploadOrigin(bootstrap: XBootstrap): string {
 }
 
 function fieldToggleValue(bootstrap: XBootstrap, name: string): boolean {
-  if (name === "withArticlePlainText" || name === "withPayments" || name === "withAuxiliaryUserLabels" || name === "isDelegate") {
+  if (name === "withArticlePlainText" || name === "withPayments" || name === "withAuxiliaryUserLabels" || name === "withDmBlocks" || name === "isDelegate") {
     return false;
   }
   if (name === "withArticleRichContentState") {
@@ -1008,7 +1000,7 @@ async function graphQl(
 }
 
 async function viewer(bootstrap: XBootstrap): Promise<Viewer> {
-  const descriptor = await resolveDescriptor(bootstrap, "Viewer", "query", viewerEvidence);
+  const descriptor = await resolveDescriptor(bootstrap, "Viewer", "query");
   const response = record(await graphQl(bootstrap, descriptor, {}, "GET"), "X Viewer response");
   if (response.errors !== undefined && (!Array.isArray(response.errors) || response.errors.length > 0)) {
     throw new Error("X Viewer response contained provider errors");

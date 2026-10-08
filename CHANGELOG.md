@@ -7,6 +7,14 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.91
+
+X works again after its bundle drop, and the evidence can be refreshed in one command.
+
+- Refreshed the reviewed `x-web` query IDs to X's current `main.ec728870257106e0a.js` drop. 25 operations rotated, among them `Viewer`, `CreateTweet`, the timelines and the Article mutations.
+- Every X GraphQL operation now declares a `withDmBlocks` field toggle. It is sent as `false`, like the other opt-in toggles.
+- `scripts/refresh-x-evidence.ts` rebuilds the evidence table from the live logged-in bundle and lists each rotation. The drift check is unchanged: a changed ID still fails until the refreshed table is reviewed and released.
+
 ## 0.18.90
 
 Delete your own Reddit comments, not just posts, and reply to YouTube comments.
