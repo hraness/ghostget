@@ -2552,7 +2552,7 @@ export const repairPackageMeasurement = Object.freeze({
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,
-  payloadAllowance: 65,
+  payloadAllowance: 1656,
 });
 export const MAX_PACKED_BYTES = repairPackageMeasurement.packedBytes
   + repairPackageMeasurement.packedPlatformProjection + repairPackageMeasurement.packedPortabilityAllowance;

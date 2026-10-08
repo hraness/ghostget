@@ -1,5 +1,15 @@
 # GhostGet
 
+> 👻 GhostGet is the web for your agent. It reads any page as Markdown, saves
+> media with SHA-256 records, and acts in your Gmail, Beeper, or X accounts
+> through named, reviewed operations. A measured article read costs about 3,800
+> tokens against 36,000 for the raw page. Your agent never sees a login, and
+> consequential writes wait for your confirmation.
+>
+> Ask your agent to set it up: https://ghostget.com
+>
+> — Ben Guo
+
 [![GhostGet: Named web actions for AI agents: read pages, save media, use connected accounts](https://ghostget.com/og.png)](https://ghostget.com)
 
 [![skills.sh](https://skills.sh/b/hraness/ghostget)](https://www.skills.sh/hraness/ghostget/ghostget)
@@ -20,6 +30,17 @@ named actions instead of credentials, and leaves a record of each write that
 matters. [The thread through
 hraness](https://hraness.com/writing/the-thread-through-hraness) describes how
 the other Hraness projects share that design.
+
+## What your agent can do now
+
+- **Read and save the web.** Pages become Markdown with their source attached. Paywalled PDFs download through your own browser sign-in. A provisioned Lightpanda engine serves public text capture and signed-in sessions in seconds, and Chromium takes the pages that need full rendering.
+- **Publish with the account you connected.** Post text to X, Threads, LinkedIn, and Substack, and publish one MP4 video to LinkedIn, Threads, and Substack. Comment and reply on Hacker News, X, Bluesky, LinkedIn, and Substack. `ghostget invoke <adapter> <op> --execute` sends a post you already allowed, with an exact plan and a single dispatch.
+- **Search and read inside accounts.** Search LinkedIn content and Bluesky posts, read your X following and followers, and list Gmail threads and contacts.
+- **Run group conversations.** Enroll a group in Beeper, iMessage, or WhatsApp by its exact participant list. Sends stop when the group changes.
+- **Connect accounts that do not use cookies.** A reviewed storage-state file binds sessions such as Bluesky's without loading the app.
+- **Call sites that publish tools.** Read-only tools on registered WebMCP sites run through the same fixed list of actions.
+
+Every write starts as an exact preview or an exact plan, runs once, and is read back from the service. Your agent holds no password at any step.
 
 ## Install
 
