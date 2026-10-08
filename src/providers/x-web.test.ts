@@ -25,6 +25,7 @@ import {
   projectXWebProfileStats,
   normalizeXWebUrtTimeline,
   resolveUniqueXWebBundleDescriptor,
+  xWebDescriptorMetadataSha256,
   resolveXWebLegacyDmInbox,
   validateXWebDesiredStateMutation,
   xWebHeaderSinkPolicy,
@@ -124,7 +125,7 @@ describe("X query descriptor revision evidence", () => {
   test("marks the snapshot as evidence that can never authorize dispatch by itself", () => {
     expect(xWebQueryDescriptorEvidenceSnapshot.role).toBe("revision-evidence-only");
     expect(xWebQueryDescriptorEvidenceSnapshot.currentBundleResolutionRequired).toBe(true);
-    expect(xWebQueryDescriptorEvidenceSnapshot.observedOn).toBe("2026-10-03");
+    expect(xWebQueryDescriptorEvidenceSnapshot.observedOn).toBe("2026-10-08");
     expect(xWebQueryDescriptorEvidenceSnapshot.mainBundleUrl).toStartWith("https://abs.twimg.com/");
   });
 
@@ -142,9 +143,9 @@ describe("X query descriptor revision evidence", () => {
   test("records the current reviewed Bookmarks observation", () => {
     const bookmarks = evidence("Bookmarks");
     expect(bookmarks).toMatchObject({
-      queryId: "Glt3WAwBvNSPD-n_sqmX_A",
-      sourceChunk: "shared~bundle.BookmarkFolders~bundle.Bookmarks.292efce92afba9d3a.js",
-      observedOn: "2026-10-03",
+      queryId: "OAtFv0SIZt6v3rZsF4gvJA",
+      sourceChunk: "shared~bundle.BookmarkFolders~bundle.Bookmarks.cdf420f8928d5b0ea.js",
+      observedOn: "2026-10-08",
     });
     expect(bookmarks.queryId).not.toBe("iblrFnKr6PZUR-dWpfXG6g");
     expect(bookmarks.queryId).not.toBe("tF6KOjmZM0WGcB2Q0mfwhw");
@@ -164,14 +165,14 @@ describe("X query descriptor revision evidence", () => {
 
   test("records the current reviewed UserTweets and SearchTimeline observations", () => {
     expect(evidence("UserTweets")).toMatchObject({
-      queryId: "qJy3MbaNndtzxf9IqUzxMg",
-      sourceChunk: "main.bbbbbc3a3b2a833ba.js",
-      observedOn: "2026-10-03",
+      queryId: "P4MigfQQcQgVgHNg1_H5lA",
+      sourceChunk: "main.ec728870257106e0a.js",
+      observedOn: "2026-10-08",
     });
     expect(evidence("SearchTimeline")).toMatchObject({
-      queryId: "uGB-gNd5HE4TkpO70OcFNw",
-      sourceChunk: "main.bbbbbc3a3b2a833ba.js",
-      observedOn: "2026-10-03",
+      queryId: "ph2fARFabkwfxqmSKQ1OPw",
+      sourceChunk: "main.ec728870257106e0a.js",
+      observedOn: "2026-10-08",
     });
     expect(xWebSemanticOperationRegistry["feeds.user"]).toEqual({
       semanticOperation: "feeds.read",
@@ -201,31 +202,31 @@ describe("X query descriptor revision evidence", () => {
 
   test("records the current reviewed HomeLatestTimeline observation", () => {
     expect(evidence("HomeLatestTimeline")).toMatchObject({
-      queryId: "Fh0y51H8g-iMubH-RmOLGA",
-      sourceChunk: "shared~bundle.Compose~bundle.HomeTimeline~bundle.LoggedInMain.6c22dfbf3ffe5e2da.js",
-      observedOn: "2026-10-03",
+      queryId: "5URyiXQyz6_8NZnoV37OVQ",
+      sourceChunk: "shared~bundle.Compose~bundle.HomeTimeline~bundle.LoggedInMain.47781478b7ea71d8a.js",
+      observedOn: "2026-10-08",
     });
     expect(evidence("HomeTimeline")).toMatchObject({
-      queryId: "whgGeEQDhEDkPQEJiJvYQw",
-      sourceChunk: "shared~bundle.Compose~bundle.HomeTimeline~bundle.LoggedInMain.6c22dfbf3ffe5e2da.js",
-      observedOn: "2026-10-03",
+      queryId: "V0wMxbYBxdrkfmV3kJSyRQ",
+      sourceChunk: "shared~bundle.Compose~bundle.HomeTimeline~bundle.LoggedInMain.47781478b7ea71d8a.js",
+      observedOn: "2026-10-08",
     });
   });
 
   test("records the current reviewed CreateTweet observation", () => {
     expect(evidence("CreateTweet")).toMatchObject({
-      queryId: "WNkbkQ_JLIofjdukTXahVA",
-      sourceChunk: "main.bbbbbc3a3b2a833ba.js",
-      observedOn: "2026-10-03",
+      queryId: "5pUpVEnRC2yGK7jaguF11w",
+      sourceChunk: "main.ec728870257106e0a.js",
+      observedOn: "2026-10-08",
     });
     expect(evidence("CreateTweet").queryId).not.toBe("GYdIGqVWfZNho79bQ2XDoA");
   });
 
   test("records the current reviewed Viewer and Article descriptor observations", () => {
     expect(evidence("Viewer")).toMatchObject({
-      queryId: "9t128XgFic52jPUEkJMf6w",
-      sourceChunk: "main.bbbbbc3a3b2a833ba.js",
-      observedOn: "2026-10-03",
+      queryId: "TpQxQtWMTMnIAMPlMGMqNw",
+      sourceChunk: "main.ec728870257106e0a.js",
+      observedOn: "2026-10-08",
     });
     expect(evidence("Viewer").queryId).not.toBe("5XShkXk2oO2J7SYmTu6pvw");
     expect(JSON.stringify(xWebQueryDescriptorEvidenceSnapshot))
@@ -237,17 +238,17 @@ describe("X query descriptor revision evidence", () => {
     expect(JSON.stringify(xWebQueryDescriptorEvidenceSnapshot))
       .not.toContain("main.a9c37180a4c75840a.js");
     expect(evidence("ArticleEntityDraftCreate")).toMatchObject({
-      queryId: "_rbmb_NKLqKVBr5X_MSoMQ",
-      sourceChunk: "bundle.TwitterArticles.494649ff8cf64f16a.js",
-      observedOn: "2026-10-03",
+      queryId: "fCkdrI6zrnw_UtVa3WDHhw",
+      sourceChunk: "bundle.TwitterArticles.a46d1c2f8088ffbaa.js",
+      observedOn: "2026-10-08",
     });
   });
 
   test("records the current reviewed UserByScreenName observation", () => {
     expect(evidence("UserByScreenName")).toMatchObject({
-      queryId: "KybxDj9RrADIITXlGG8kpw",
-      sourceChunk: "main.bbbbbc3a3b2a833ba.js",
-      observedOn: "2026-10-03",
+      queryId: "AMIBMjtxEEATh4z8V9GtRg",
+      sourceChunk: "main.ec728870257106e0a.js",
+      observedOn: "2026-10-08",
     });
     expect(JSON.stringify(xWebQueryDescriptorEvidenceSnapshot))
       .not.toContain("Gb-d6r0vxPOADdG62OEBpQ");
@@ -331,6 +332,52 @@ describe("exact current-bundle descriptor resolution", () => {
     }
     expect(failure?.message).toContain("query-ID drift");
     expect(failure?.message).not.toContain("ChangedQueryId_12345");
+  });
+
+  test("follows a pure query-ID rotation whose reviewed metadata fingerprint still matches", () => {
+    const metadata = {
+      features: ["responsive_web_graphql_timeline_navigation_enabled"],
+      toggles: ["withPayments"],
+    };
+    const reviewed = {
+      ...evidence("HomeTimeline"),
+      metadataSha256: xWebDescriptorMetadataSha256({
+        featureSwitches: metadata.features,
+        fieldToggles: metadata.toggles,
+      }),
+    };
+    const resolved = resolveUniqueXWebBundleDescriptor(
+      [descriptor("HomeTimeline", { queryId: "RotatedQueryId_12345", ...metadata })],
+      reviewed,
+    );
+    expect(resolved.queryId).toBe("RotatedQueryId_12345");
+    expect(resolved.rotatedFrom).toBe(reviewed.queryId);
+  });
+
+  test("still fails a rotation whose feature or toggle set also changed", () => {
+    const reviewed = {
+      ...evidence("HomeTimeline"),
+      metadataSha256: xWebDescriptorMetadataSha256({
+        featureSwitches: ["responsive_web_graphql_timeline_navigation_enabled"],
+        fieldToggles: ["withPayments"],
+      }),
+    };
+    expect(() => resolveUniqueXWebBundleDescriptor(
+      [descriptor("HomeTimeline", {
+        queryId: "RotatedQueryId_12345",
+        features: ["responsive_web_graphql_timeline_navigation_enabled"],
+        toggles: ["withPayments", "withDmBlocks"],
+      })],
+      reviewed,
+    )).toThrow("feature or field-toggle set also changed");
+  });
+
+  test("fails a rotation when the evidence carries no metadata fingerprint", () => {
+    const { metadataSha256: _omit, ...unfingerprinted } = evidence("HomeTimeline") as ReturnType<typeof evidence> & { metadataSha256?: string };
+    expect(() => resolveUniqueXWebBundleDescriptor(
+      [descriptor("HomeTimeline", { queryId: "RotatedQueryId_12345" })],
+      unfingerprinted,
+    )).toThrow("no reviewed metadata fingerprint");
   });
 
   test("rejects duplicate copies of the same descriptor", () => {

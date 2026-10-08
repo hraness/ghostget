@@ -804,7 +804,7 @@ describe("private X internal-API HAR evidence", () => {
   });
 
   test("keeps GraphQL operation revisions and field paths but no values, auth material, or dynamic user keys", () => {
-    const revision = "9t128XgFic52jPUEkJMf6w";
+    const revision = "TpQxQtWMTMnIAMPlMGMqNw";
     const url = new URL(`https://x.com/i/api/graphql/${revision}/Viewer`);
     url.searchParams.set("variables", JSON.stringify({ count: 20, cursor: "x-query-cursor-private" }));
     url.searchParams.set("features", JSON.stringify({ responsive_web_graphql_enabled: true }));

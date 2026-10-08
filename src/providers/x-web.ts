@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 /**
  * X consumer-web internal API policy primitives.
  *
@@ -25,12 +26,25 @@ export type XWebBundleQueryDescriptor = XWebQueryDescriptorKey & {
     readonly featureSwitches: readonly string[];
     readonly fieldToggles: readonly string[];
   };
+  /** Set when the live query ID differs from the reviewed one but the reviewed metadata fingerprint still matches. */
+  readonly rotatedFrom?: string;
 };
 
 export type XWebQueryDescriptorEvidence = XWebQueryDescriptorKey & {
   readonly sourceChunk: string;
   readonly observedOn?: string;
+  /** SHA-256 of the reviewed feature-switch and field-toggle sets; lets a pure query-ID rotation self-heal. */
+  readonly metadataSha256?: string;
 };
+
+/** Order-independent fingerprint of the reviewed feature-switch and field-toggle sets. */
+export function xWebDescriptorMetadataSha256(metadata: XWebBundleQueryDescriptor["metadata"]): string {
+  const canonical = JSON.stringify([
+    [...metadata.featureSwitches].sort(),
+    [...metadata.fieldToggles].sort(),
+  ]);
+  return createHash("sha256").update(canonical).digest("hex");
+}
 
 type JsonRecord = Record<string, unknown>;
 
@@ -112,10 +126,10 @@ function parseBundleQueryDescriptor(value: unknown, label: string): XWebBundleQu
   });
 }
 
-function parseDescriptorKey(value: unknown, label: string): XWebQueryDescriptorKey {
+function parseDescriptorKey(value: unknown, label: string): XWebQueryDescriptorKey & { readonly metadataSha256?: string } {
   const key = record(value, label);
   const required = ["queryId", "operationName", "operationType"] as const;
-  const allowed = new Set([...required, "metadata", "sourceChunk", "observedOn"]);
+  const allowed = new Set([...required, "metadata", "sourceChunk", "observedOn", "metadataSha256"]);
   const missing = required.filter((name) => !Object.hasOwn(key, name));
   const extra = Object.keys(key).filter((name) => !allowed.has(name));
   if (missing.length > 0) throw new Error(`${label} omitted ${missing.join(", ")}`);
@@ -125,6 +139,9 @@ function parseDescriptorKey(value: unknown, label: string): XWebQueryDescriptorK
   }
   if (key.observedOn !== undefined && (typeof key.observedOn !== "string" || !/^\d{4}-\d{2}-\d{2}$/u.test(key.observedOn))) {
     throw new Error(`${label}.observedOn must be an ISO date`);
+  }
+  if (key.metadataSha256 !== undefined && (typeof key.metadataSha256 !== "string" || !/^[0-9a-f]{64}$/u.test(key.metadataSha256))) {
+    throw new Error(`${label}.metadataSha256 must be a lowercase SHA-256 digest`);
   }
   if (key.metadata !== undefined) {
     const metadata = record(key.metadata, `${label}.metadata`);
@@ -136,6 +153,7 @@ function parseDescriptorKey(value: unknown, label: string): XWebQueryDescriptorK
     queryId: exactQueryId(requiredString(key, "queryId", label), `${label}.queryId`),
     operationName: exactOperationName(requiredString(key, "operationName", label), `${label}.operationName`),
     operationType: exactOperationType(key.operationType, `${label}.operationType`),
+    ...(key.metadataSha256 === undefined ? {} : { metadataSha256: key.metadataSha256 }),
   });
 }
 
@@ -178,8 +196,18 @@ export function resolveUniqueXWebBundleDescriptor(
   }
   const descriptor = typeMatches[0]!;
   if (descriptor.queryId !== expected.queryId) {
+    // A rotated ID is followed only when the reviewed feature-switch and
+    // field-toggle sets are exactly what the live descriptor declares. Any
+    // other change (a new toggle, a dropped feature) still needs review.
+    if (expected.metadataSha256 !== undefined
+      && expected.metadataSha256 === xWebDescriptorMetadataSha256(descriptor.metadata)) {
+      return Object.freeze({ ...descriptor, rotatedFrom: expected.queryId });
+    }
+    const detail = expected.metadataSha256 === undefined
+      ? "no reviewed metadata fingerprint confirms that only the ID rotated"
+      : "its feature or field-toggle set also changed";
     throw new Error(
-      `X query-ID drift for ${expected.operationName}:${expected.operationType}; reviewed evidence is stale`,
+      `X query-ID drift for ${expected.operationName}:${expected.operationType}; reviewed evidence is stale (${detail}; run scripts/refresh-x-evidence.ts)`,
     );
   }
   return descriptor;
@@ -244,42 +272,42 @@ export function bindXWebOperationMetadataValues(
 export const xWebQueryDescriptorEvidenceSnapshot = Object.freeze({
   schemaVersion: 1,
   role: "revision-evidence-only" as const,
-  observedOn: "2026-10-03",
+  observedOn: "2026-10-08",
   currentBundleResolutionRequired: true,
-  mainBundleUrl: "https://abs.twimg.com/responsive-web/client-web/main.bbbbbc3a3b2a833ba.js",
+  mainBundleUrl: "https://abs.twimg.com/responsive-web/client-web/main.ec728870257106e0a.js",
   descriptors: Object.freeze([
-    { operationName: "HomeTimeline", operationType: "query", queryId: "whgGeEQDhEDkPQEJiJvYQw", sourceChunk: "shared~bundle.Compose~bundle.HomeTimeline~bundle.LoggedInMain.6c22dfbf3ffe5e2da.js", observedOn: "2026-10-03" },
-    { operationName: "HomeLatestTimeline", operationType: "query", queryId: "Fh0y51H8g-iMubH-RmOLGA", sourceChunk: "shared~bundle.Compose~bundle.HomeTimeline~bundle.LoggedInMain.6c22dfbf3ffe5e2da.js", observedOn: "2026-10-03" },
-    { operationName: "ListLatestTweetsTimeline", operationType: "query", queryId: "FJ9uKqUTO7AoDHu1oU-s9w", sourceChunk: "shared~JetfuelWrapper~bundle.AudioSpaceDetail~bundle.AudioSpaceDiscovery~bundle.AudioSpacebarScreen~bundle.Bi.b659a76a60d9ee3ba.js", observedOn: "2026-10-03" },
-    { operationName: "ListRankedTweetsTimeline", operationType: "query", queryId: "EoKZVqTZkPTiwz0XCn2ezQ", sourceChunk: "shared~JetfuelWrapper~bundle.AudioSpaceDetail~bundle.AudioSpaceDiscovery~bundle.AudioSpacebarScreen~bundle.Bi.b659a76a60d9ee3ba.js", observedOn: "2026-10-03" },
-    { operationName: "Bookmarks", operationType: "query", queryId: "Glt3WAwBvNSPD-n_sqmX_A", sourceChunk: "shared~bundle.BookmarkFolders~bundle.Bookmarks.292efce92afba9d3a.js", observedOn: "2026-10-03" },
-    { operationName: "BookmarkSearchTimeline", operationType: "query", queryId: "vqbH512y_Emfr0P4rXJ0Lw", sourceChunk: "main.bbbbbc3a3b2a833ba.js", observedOn: "2026-10-03" },
-    { operationName: "SearchTimeline", operationType: "query", queryId: "uGB-gNd5HE4TkpO70OcFNw", sourceChunk: "main.bbbbbc3a3b2a833ba.js", observedOn: "2026-10-03" },
-    { operationName: "NotificationsTimeline", operationType: "query", queryId: "b0C9GbXfaAlL2F-dkJ4Gdg", sourceChunk: "bundle.Notifications.f416968e2c0372c5a.js", observedOn: "2026-10-03" },
-    { operationName: "TweetDetail", operationType: "query", queryId: "blErEeZkos5TDrWmrCp7cw", sourceChunk: "main.bbbbbc3a3b2a833ba.js", observedOn: "2026-10-03" },
-    { operationName: "TweetResultByRestId", operationType: "query", queryId: "LbQZrAWyKPvExi8di3-EoA", sourceChunk: "main.bbbbbc3a3b2a833ba.js", observedOn: "2026-10-03" },
-    { operationName: "TweetResultsByRestIds", operationType: "query", queryId: "RRYnxFsEuhlm9c0lWHDgaQ", sourceChunk: "main.bbbbbc3a3b2a833ba.js", observedOn: "2026-10-03" },
-    { operationName: "UserTweets", operationType: "query", queryId: "qJy3MbaNndtzxf9IqUzxMg", sourceChunk: "main.bbbbbc3a3b2a833ba.js", observedOn: "2026-10-03" },
-    { operationName: "UserTweetsAndReplies", operationType: "query", queryId: "Z1m9j8S1leAzQp6yZXuaSg", sourceChunk: "main.bbbbbc3a3b2a833ba.js", observedOn: "2026-10-03" },
-    { operationName: "UserMedia", operationType: "query", queryId: "GEs4r5bWKm0P0EIRfo2DGw", sourceChunk: "main.bbbbbc3a3b2a833ba.js", observedOn: "2026-10-03" },
-    { operationName: "FavoriteTweet", operationType: "mutation", queryId: "lI07N6Otwv1PhnEgXILM7A", sourceChunk: "main.bbbbbc3a3b2a833ba.js", observedOn: "2026-10-03" },
-    { operationName: "UnfavoriteTweet", operationType: "mutation", queryId: "ZYKSe-w7KEslx3JhSIk5LA", sourceChunk: "main.bbbbbc3a3b2a833ba.js", observedOn: "2026-10-03" },
-    { operationName: "CreateBookmark", operationType: "mutation", queryId: "aoDbu3RHznuiSkQ9aNM67Q", sourceChunk: "main.bbbbbc3a3b2a833ba.js", observedOn: "2026-10-03" },
-    { operationName: "DeleteBookmark", operationType: "mutation", queryId: "Wlmlj2-xzyS1GN3a6cj-mQ", sourceChunk: "main.bbbbbc3a3b2a833ba.js", observedOn: "2026-10-03" },
-    { operationName: "CreateRetweet", operationType: "mutation", queryId: "mbRO74GrOvSfRcJnlMapnQ", sourceChunk: "main.bbbbbc3a3b2a833ba.js", observedOn: "2026-10-03" },
-    { operationName: "DeleteRetweet", operationType: "mutation", queryId: "ZyZigVsNiFO6v1dEks1eWg", sourceChunk: "main.bbbbbc3a3b2a833ba.js", observedOn: "2026-10-03" },
-    { operationName: "CreateTweet", operationType: "mutation", queryId: "WNkbkQ_JLIofjdukTXahVA", sourceChunk: "main.bbbbbc3a3b2a833ba.js", observedOn: "2026-10-03" },
-    { operationName: "CreateNoteTweet", operationType: "mutation", queryId: "Q-sJyowqllPknxuKDt_pKQ", sourceChunk: "main.bbbbbc3a3b2a833ba.js", observedOn: "2026-10-03" },
-    { operationName: "DeleteTweet", operationType: "mutation", queryId: "nxpZCY2K-I6QoFHAHeojFQ", sourceChunk: "main.bbbbbc3a3b2a833ba.js", observedOn: "2026-10-03" },
-    { operationName: "Viewer", operationType: "query", queryId: "9t128XgFic52jPUEkJMf6w", sourceChunk: "main.bbbbbc3a3b2a833ba.js", observedOn: "2026-10-03" },
-    { operationName: "UserByScreenName", operationType: "query", queryId: "KybxDj9RrADIITXlGG8kpw", sourceChunk: "main.bbbbbc3a3b2a833ba.js", observedOn: "2026-10-03" },
-    { operationName: "Following", operationType: "query", queryId: "uwmIAx89XrXNuGY-Y7WFLg", sourceChunk: "main.bbbbbc3a3b2a833ba.js", observedOn: "2026-10-03" },
-    { operationName: "Followers", operationType: "query", queryId: "mrqxgX8JzwlL6pvYiC5CPA", sourceChunk: "main.bbbbbc3a3b2a833ba.js", observedOn: "2026-10-03" },
-    { operationName: "ArticleEntityDraftCreate", operationType: "mutation", queryId: "_rbmb_NKLqKVBr5X_MSoMQ", sourceChunk: "bundle.TwitterArticles.494649ff8cf64f16a.js", observedOn: "2026-10-03" },
-    { operationName: "ArticleEntityUpdateContent", operationType: "mutation", queryId: "x4Pz2ifYkOD6uSvzxOIUig", sourceChunk: "bundle.TwitterArticles.494649ff8cf64f16a.js", observedOn: "2026-10-03" },
-    { operationName: "ArticleEntityUpdateTitle", operationType: "mutation", queryId: "brHFCBTXXg8WOqc7BnXfAw", sourceChunk: "bundle.TwitterArticles.494649ff8cf64f16a.js", observedOn: "2026-10-03" },
-    { operationName: "ArticleEntityPublish", operationType: "mutation", queryId: "872mse3gUSifcgeJBBl4WA", sourceChunk: "bundle.TwitterArticles.494649ff8cf64f16a.js", observedOn: "2026-10-03" },
-    { operationName: "ArticleEntityResultByRestId", operationType: "query", queryId: "OF2ES8qTOPLFBU_oZWVkQw", sourceChunk: "bundle.TwitterArticles.494649ff8cf64f16a.js", observedOn: "2026-10-03" },
+    { operationName: "HomeTimeline", operationType: "query", queryId: "V0wMxbYBxdrkfmV3kJSyRQ", sourceChunk: "shared~bundle.Compose~bundle.HomeTimeline~bundle.LoggedInMain.47781478b7ea71d8a.js", observedOn: "2026-10-08", metadataSha256: "e100273168465653ceafeaff394ca1e2b7236d5d2cbea9238ce39c572d62ceaf" },
+    { operationName: "HomeLatestTimeline", operationType: "query", queryId: "5URyiXQyz6_8NZnoV37OVQ", sourceChunk: "shared~bundle.Compose~bundle.HomeTimeline~bundle.LoggedInMain.47781478b7ea71d8a.js", observedOn: "2026-10-08", metadataSha256: "e100273168465653ceafeaff394ca1e2b7236d5d2cbea9238ce39c572d62ceaf" },
+    { operationName: "ListLatestTweetsTimeline", operationType: "query", queryId: "wD-euF_1WoOc5VygdYIhYA", sourceChunk: "shared~JetfuelWrapper~bundle.AudioSpaceDetail~bundle.AudioSpaceDiscovery~bundle.AudioSpacebarScreen~bundle.Bi.7c65839bdb079a6ca.js", observedOn: "2026-10-08", metadataSha256: "e100273168465653ceafeaff394ca1e2b7236d5d2cbea9238ce39c572d62ceaf" },
+    { operationName: "ListRankedTweetsTimeline", operationType: "query", queryId: "YJtUm-1FOvroOe9i1w7_3Q", sourceChunk: "shared~JetfuelWrapper~bundle.AudioSpaceDetail~bundle.AudioSpaceDiscovery~bundle.AudioSpacebarScreen~bundle.Bi.7c65839bdb079a6ca.js", observedOn: "2026-10-08", metadataSha256: "e100273168465653ceafeaff394ca1e2b7236d5d2cbea9238ce39c572d62ceaf" },
+    { operationName: "Bookmarks", operationType: "query", queryId: "OAtFv0SIZt6v3rZsF4gvJA", sourceChunk: "shared~bundle.BookmarkFolders~bundle.Bookmarks.cdf420f8928d5b0ea.js", observedOn: "2026-10-08", metadataSha256: "e100273168465653ceafeaff394ca1e2b7236d5d2cbea9238ce39c572d62ceaf" },
+    { operationName: "BookmarkSearchTimeline", operationType: "query", queryId: "BYZi2BctI_PPWPtVIARwNQ", sourceChunk: "main.ec728870257106e0a.js", observedOn: "2026-10-08", metadataSha256: "e100273168465653ceafeaff394ca1e2b7236d5d2cbea9238ce39c572d62ceaf" },
+    { operationName: "SearchTimeline", operationType: "query", queryId: "ph2fARFabkwfxqmSKQ1OPw", sourceChunk: "main.ec728870257106e0a.js", observedOn: "2026-10-08", metadataSha256: "e100273168465653ceafeaff394ca1e2b7236d5d2cbea9238ce39c572d62ceaf" },
+    { operationName: "NotificationsTimeline", operationType: "query", queryId: "4TuDRWeusve2-BH2IqldBg", sourceChunk: "bundle.Notifications.923c22e958f2c738a.js", observedOn: "2026-10-08", metadataSha256: "e100273168465653ceafeaff394ca1e2b7236d5d2cbea9238ce39c572d62ceaf" },
+    { operationName: "TweetDetail", operationType: "query", queryId: "z-3ZLa-NQ8Sp09diHkJNBg", sourceChunk: "main.ec728870257106e0a.js", observedOn: "2026-10-08", metadataSha256: "e100273168465653ceafeaff394ca1e2b7236d5d2cbea9238ce39c572d62ceaf" },
+    { operationName: "TweetResultByRestId", operationType: "query", queryId: "CxpIrb-Lt2oBpojNjvDatg", sourceChunk: "main.ec728870257106e0a.js", observedOn: "2026-10-08", metadataSha256: "bb5e9f10943b8dc5298e58304ddda51a09f747d5f22815ac395da6dfa8dc7604" },
+    { operationName: "TweetResultsByRestIds", operationType: "query", queryId: "pF6RH9M_gT7suFJL2zsJSQ", sourceChunk: "main.ec728870257106e0a.js", observedOn: "2026-10-08", metadataSha256: "bb5e9f10943b8dc5298e58304ddda51a09f747d5f22815ac395da6dfa8dc7604" },
+    { operationName: "UserTweets", operationType: "query", queryId: "P4MigfQQcQgVgHNg1_H5lA", sourceChunk: "main.ec728870257106e0a.js", observedOn: "2026-10-08", metadataSha256: "e100273168465653ceafeaff394ca1e2b7236d5d2cbea9238ce39c572d62ceaf" },
+    { operationName: "UserTweetsAndReplies", operationType: "query", queryId: "D6LBfPh1ENcZP2wxliZ9Og", sourceChunk: "main.ec728870257106e0a.js", observedOn: "2026-10-08", metadataSha256: "e100273168465653ceafeaff394ca1e2b7236d5d2cbea9238ce39c572d62ceaf" },
+    { operationName: "UserMedia", operationType: "query", queryId: "6KUGvSJgYSsXxLZstwsjdQ", sourceChunk: "main.ec728870257106e0a.js", observedOn: "2026-10-08", metadataSha256: "e100273168465653ceafeaff394ca1e2b7236d5d2cbea9238ce39c572d62ceaf" },
+    { operationName: "FavoriteTweet", operationType: "mutation", queryId: "lI07N6Otwv1PhnEgXILM7A", sourceChunk: "main.ec728870257106e0a.js", observedOn: "2026-10-08", metadataSha256: "643d5437104296e21d906ecb15b2c96ad278f20cfc4af53b12bb6069bd853726" },
+    { operationName: "UnfavoriteTweet", operationType: "mutation", queryId: "ZYKSe-w7KEslx3JhSIk5LA", sourceChunk: "main.ec728870257106e0a.js", observedOn: "2026-10-08", metadataSha256: "643d5437104296e21d906ecb15b2c96ad278f20cfc4af53b12bb6069bd853726" },
+    { operationName: "CreateBookmark", operationType: "mutation", queryId: "aoDbu3RHznuiSkQ9aNM67Q", sourceChunk: "main.ec728870257106e0a.js", observedOn: "2026-10-08", metadataSha256: "643d5437104296e21d906ecb15b2c96ad278f20cfc4af53b12bb6069bd853726" },
+    { operationName: "DeleteBookmark", operationType: "mutation", queryId: "Wlmlj2-xzyS1GN3a6cj-mQ", sourceChunk: "main.ec728870257106e0a.js", observedOn: "2026-10-08", metadataSha256: "643d5437104296e21d906ecb15b2c96ad278f20cfc4af53b12bb6069bd853726" },
+    { operationName: "CreateRetweet", operationType: "mutation", queryId: "mbRO74GrOvSfRcJnlMapnQ", sourceChunk: "main.ec728870257106e0a.js", observedOn: "2026-10-08", metadataSha256: "643d5437104296e21d906ecb15b2c96ad278f20cfc4af53b12bb6069bd853726" },
+    { operationName: "DeleteRetweet", operationType: "mutation", queryId: "ZyZigVsNiFO6v1dEks1eWg", sourceChunk: "main.ec728870257106e0a.js", observedOn: "2026-10-08", metadataSha256: "643d5437104296e21d906ecb15b2c96ad278f20cfc4af53b12bb6069bd853726" },
+    { operationName: "CreateTweet", operationType: "mutation", queryId: "5pUpVEnRC2yGK7jaguF11w", sourceChunk: "main.ec728870257106e0a.js", observedOn: "2026-10-08", metadataSha256: "996be73d33bbdeb76f05cadeca361d488059ae995976a2e9f9758c011089df67" },
+    { operationName: "CreateNoteTweet", operationType: "mutation", queryId: "4ZgEQwT1s_Ztx7oXm2Sxug", sourceChunk: "main.ec728870257106e0a.js", observedOn: "2026-10-08", metadataSha256: "996be73d33bbdeb76f05cadeca361d488059ae995976a2e9f9758c011089df67" },
+    { operationName: "DeleteTweet", operationType: "mutation", queryId: "nxpZCY2K-I6QoFHAHeojFQ", sourceChunk: "main.ec728870257106e0a.js", observedOn: "2026-10-08", metadataSha256: "643d5437104296e21d906ecb15b2c96ad278f20cfc4af53b12bb6069bd853726" },
+    { operationName: "Viewer", operationType: "query", queryId: "TpQxQtWMTMnIAMPlMGMqNw", sourceChunk: "main.ec728870257106e0a.js", observedOn: "2026-10-08", metadataSha256: "7e4c519e8c9a04632ed216583d45e41dbd2ec97ddb5e7bffa09f05ef0f17ddd8" },
+    { operationName: "UserByScreenName", operationType: "query", queryId: "AMIBMjtxEEATh4z8V9GtRg", sourceChunk: "main.ec728870257106e0a.js", observedOn: "2026-10-08", metadataSha256: "2b27dc4f52173019230116a978e72d5f9efb15396b1d759fe5d2a00a7eb29b4c" },
+    { operationName: "Following", operationType: "query", queryId: "nyTOiXy603sofPjdrXYL9Q", sourceChunk: "main.ec728870257106e0a.js", observedOn: "2026-10-08", metadataSha256: "e100273168465653ceafeaff394ca1e2b7236d5d2cbea9238ce39c572d62ceaf" },
+    { operationName: "Followers", operationType: "query", queryId: "NPvSAR1p8XUWh8J6PeP3-g", sourceChunk: "main.ec728870257106e0a.js", observedOn: "2026-10-08", metadataSha256: "e100273168465653ceafeaff394ca1e2b7236d5d2cbea9238ce39c572d62ceaf" },
+    { operationName: "ArticleEntityDraftCreate", operationType: "mutation", queryId: "fCkdrI6zrnw_UtVa3WDHhw", sourceChunk: "bundle.TwitterArticles.a46d1c2f8088ffbaa.js", observedOn: "2026-10-08", metadataSha256: "b19e9490c1f27e73638e1eb7d2927bdff399159c8d409c549e1e9126880e7c4b" },
+    { operationName: "ArticleEntityUpdateContent", operationType: "mutation", queryId: "FMC9CKP145f5wgXYCsmtiA", sourceChunk: "bundle.TwitterArticles.a46d1c2f8088ffbaa.js", observedOn: "2026-10-08", metadataSha256: "b19e9490c1f27e73638e1eb7d2927bdff399159c8d409c549e1e9126880e7c4b" },
+    { operationName: "ArticleEntityUpdateTitle", operationType: "mutation", queryId: "wTWiDSxOe1ZsImjXyuoiYw", sourceChunk: "bundle.TwitterArticles.a46d1c2f8088ffbaa.js", observedOn: "2026-10-08", metadataSha256: "b19e9490c1f27e73638e1eb7d2927bdff399159c8d409c549e1e9126880e7c4b" },
+    { operationName: "ArticleEntityPublish", operationType: "mutation", queryId: "86zqyWZeIoccSyBxmxcd6w", sourceChunk: "bundle.TwitterArticles.a46d1c2f8088ffbaa.js", observedOn: "2026-10-08", metadataSha256: "b19e9490c1f27e73638e1eb7d2927bdff399159c8d409c549e1e9126880e7c4b" },
+    { operationName: "ArticleEntityResultByRestId", operationType: "query", queryId: "eUiP53I_YemhBOI2TMCI3A", sourceChunk: "bundle.TwitterArticles.a46d1c2f8088ffbaa.js", observedOn: "2026-10-08", metadataSha256: "b19e9490c1f27e73638e1eb7d2927bdff399159c8d409c549e1e9126880e7c4b" },
   ] satisfies readonly XWebQueryDescriptorEvidence[]),
 });
 
