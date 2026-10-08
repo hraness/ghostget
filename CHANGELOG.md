@@ -13,6 +13,7 @@ Delete your own Reddit comments, not just posts, and reply to YouTube comments.
 
 - `reddit-web` `content.delete@2` accepts an exact `t1_` comment as well as a `t3_` post. A comment is deleted only after a pre-read binds its author to the signed-in account and its body to the confirmed text, then verified gone by an independent `/api/info` readback.
 - The shipped `content.delete@1` (posts only) is archived as inert historical identity.
+- `youtube-web` `comments.create@2` posts a top-level comment through the reviewed header token bound to the exact video, binding the created comment's authoring channel and body; the reserved `@1` is archived. Evidence is one confirmed live comment on the maintainer's own video.
 - `youtube-web` `replies.create@2` replies to one top-level comment: the exact video and parent comment bind the reviewed reply token from the watch-page comment response, and the created reply is bound to its parent, authoring channel and body in the response. The recorder does not capture YouTube's comment writes, so the evidence is one confirmed live reply on the maintainer's own video rather than a derivation. The reserved `replies.create@1` is archived.
 
 ## 0.18.89

@@ -2544,11 +2544,11 @@
 // adapter snapshots, and the rebuilt dist bundles add two packed source files
 // over the 641-entry inventory. Two clean npm 11.16.0 packs on Node 24.18.1
 // (zlib 1.3.1-e00f703) with --ignore-scripts on darwin arm64 were
-// byte-identical at 643 files/entries, 12,246,900 packed bytes and
-// 24,548,516 unpacked bytes; archive SHA-256
-// 09c12025f3ab35d9fd2d0909b63c85dad5865776bdafa91c7b802723be05a8d2. Retain the
-// reviewed allowances: 12,246,900 + 12,387 + 4,096 = 12,263,383 packed;
-// 24,548,516 + 353 + 1,656 = 24,550,525 unpacked. Current source CI and
+// byte-identical at 643 files/entries, 12,247,676 packed bytes and
+// 24,552,581 unpacked bytes; archive SHA-256
+// 24881b2710f9a788221854f9a9c3a5d1372dc233596559dc90f0aa65f1137424. Retain the
+// reviewed allowances: 12,247,676 + 12,387 + 4,096 = 12,264,159 packed;
+// 24,552,581 + 353 + 1,656 = 24,554,590 unpacked. Current source CI and
 // canonical Release must independently measure and admit their exact
 // archives.
 export const repairPackageMeasurement = Object.freeze({
@@ -2558,9 +2558,9 @@ export const repairPackageMeasurement = Object.freeze({
   nodeVersion: "24.18.1",
   zlibVersion: "1.3.1-e00f703",
   platform: "darwin-arm64",
-  archiveSha256: "09c12025f3ab35d9fd2d0909b63c85dad5865776bdafa91c7b802723be05a8d2",
-  packedBytes: 12_246_900,
-  unpackedBytes: 24_548_516,
+  archiveSha256: "24881b2710f9a788221854f9a9c3a5d1372dc233596559dc90f0aa65f1137424",
+  packedBytes: 12_247_676,
+  unpackedBytes: 24_552_581,
   entryCount: 643,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
