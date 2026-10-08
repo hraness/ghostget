@@ -544,7 +544,7 @@ describe("provider plugin definition and registry", () => {
       {
         id: "youtube-web",
         surface: "youtube",
-        version: "1.3.0",
+        version: "1.4.0",
         current: "06480c8aa798ec228e44b7b20a7b35f471400c44439b85548c3d8c513caf8c9d",
         prior: "4d38cceaf871d6885abf76790b3d47b1e77b8b35dbb94bf5411d86f60202acb4",
         operation: "profiles.read",
@@ -598,9 +598,9 @@ describe("provider plugin definition and registry", () => {
       {
         id: "reddit-web",
         surface: "reddit",
-        version: "1.5.0",
-        current: "f1057bfc12d2e077ae0c462637685ce99288429850cd9e730bdb2eea636afdc1",
-        prior: "468b6032e209bcf128279c891f40d2232d6147c3fc5e14abd39c65f919fd337e",
+        version: "1.6.0",
+        current: "faa5e7749b404a6a5b2ce96f888272fc9f9cb6ebe663ae7655cce07e76b88fc0",
+        prior: "f1057bfc12d2e077ae0c462637685ce99288429850cd9e730bdb2eea636afdc1",
         operation: "profiles.read",
         contractVersion: 1,
       },

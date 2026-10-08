@@ -1029,6 +1029,86 @@ describe("Reddit authenticated internal API runtime", () => {
     expect(calls.filter((call) => call.url.pathname === "/api/del")).toHaveLength(1);
   });
 
+  const ownComment = (overrides: Record<string, unknown> = {}) => ({
+    kind: "t1",
+    data: {
+      name: COMMENT_ID,
+      author: "wrench_viewer",
+      body: "a short honest comment",
+      parent_id: POST_ID,
+      ...overrides,
+    },
+  });
+
+  test("deletes only the exact confirmed authored comment and verifies it is gone", async () => {
+    const calls: CapturedRequest[] = [];
+    let reads = 0;
+    const result = await executeRedditWebOperation(
+      recipe("content.delete"),
+      { post_id: COMMENT_ID, expected_title: "a short honest comment" },
+      redditAuth,
+      {
+        dependencies: {
+          ...dependencies(calls, (request) => {
+            if (request.url.pathname === "/api/me.json") return jsonResponse(viewerResponse());
+            if (request.url.pathname === "/api/info.json") {
+              reads += 1;
+              return jsonResponse(reads < 3
+                ? listing([ownComment()])
+                : listing([ownComment({ author: "[deleted]", body: "[deleted]" })]));
+            }
+            if (request.url.pathname === "/api/del") {
+              expect(Object.fromEntries(new URLSearchParams(request.body as string))).toEqual({
+                id: COMMENT_ID,
+                uh: FIRST_MODHASH,
+              });
+              return jsonResponse({});
+            }
+            throw new Error(`unexpected test request ${request.url.pathname}`);
+          }),
+          sleep: () => Promise.resolve(),
+        },
+      },
+    );
+    expect(result).toMatchObject({
+      status: "succeeded",
+      output: { postId: COMMENT_ID, deleted: true, noOp: false },
+      dispatch: { planned: 1, started: 1, verified: 1 },
+    });
+    expect(calls.filter((call) => call.url.pathname === "/api/del")).toHaveLength(1);
+  });
+
+  test("refuses to delete a comment whose body changed or whose author is not the viewer", async () => {
+    for (const comment of [
+      ownComment({ body: "edited after confirmation" }),
+      ownComment({ author: "someone_else" }),
+    ]) {
+      const calls: CapturedRequest[] = [];
+      let thrown: unknown = null;
+      try {
+        await executeRedditWebOperation(
+          recipe("content.delete"),
+          { post_id: COMMENT_ID, expected_title: "a short honest comment" },
+          redditAuth,
+          {
+            dependencies: {
+              ...dependencies(calls, (request) => {
+                if (request.url.pathname === "/api/me.json") return jsonResponse(viewerResponse());
+                if (request.url.pathname === "/api/info.json") return jsonResponse(listing([comment]));
+                throw new Error(`unexpected test request ${request.url.pathname}`);
+              }),
+              sleep: () => Promise.resolve(),
+            },
+          },
+        );
+      } catch (error) {
+        thrown = error;
+      }
+      expect(thrown).not.toBeNull();
+      expect(calls.filter((call) => call.url.pathname === "/api/del")).toHaveLength(0);
+    }
+  });
+
   test("publishes one exact comment and verifies actor, parent, and body", async () => {
     const calls: CapturedRequest[] = [];
     let commentReads = 0;

@@ -20,7 +20,8 @@ test("flair routes inherit no predecessor identities while existing routes retai
     for (const version of operation.contractVersions) {
       const aliases = registry.legacyContractImplementationHashes(binding, operation.name, version);
       const observedCommentWriter = version === 2
-        && (operation.name === "comments.create" || operation.name === "replies.create");
+        && (operation.name === "comments.create" || operation.name === "replies.create"
+          || operation.name === "content.delete");
       if (operation.name.startsWith("flair.") || observedCommentWriter) {
         expect(aliases).toEqual([]);
       } else {
@@ -34,6 +35,7 @@ test("flair routes inherit no predecessor identities while existing routes retai
           "91cc3364ab1ccba66bd2e099f64fcccc187fde94145a8bf1eaa14f0f5533f6d7",
           "646a29b320373f50ccdf9ae8b8b60d5147428f0f899a226480c2c5b009294d8a",
           "468b6032e209bcf128279c891f40d2232d6147c3fc5e14abd39c65f919fd337e",
+          "f1057bfc12d2e077ae0c462637685ce99288429850cd9e730bdb2eea636afdc1",
         ]);
       }
     }

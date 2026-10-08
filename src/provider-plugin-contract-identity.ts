@@ -419,8 +419,8 @@ const identities = Object.freeze({
   },
   "reddit-web": {
     schemaVersion: 1,
-    pluginVersion: "1.5.0",
-    implementationSha256: "f1057bfc12d2e077ae0c462637685ce99288429850cd9e730bdb2eea636afdc1",
+    pluginVersion: "1.6.0",
+    implementationSha256: "faa5e7749b404a6a5b2ce96f888272fc9f9cb6ebe663ae7655cce07e76b88fc0",
     legacyCurrentReadImplementationSha256: [],
     legacyDistributionReadImplementationSha256: [
       "64a4c1e78ce8565a50613f63ff605f0f57f488617ef31386b5ddce5e3db885c9",
@@ -431,6 +431,7 @@ const identities = Object.freeze({
       "91cc3364ab1ccba66bd2e099f64fcccc187fde94145a8bf1eaa14f0f5533f6d7",
       "646a29b320373f50ccdf9ae8b8b60d5147428f0f899a226480c2c5b009294d8a",
       "468b6032e209bcf128279c891f40d2232d6147c3fc5e14abd39c65f919fd337e",
+      "f1057bfc12d2e077ae0c462637685ce99288429850cd9e730bdb2eea636afdc1",
     ].map((implementationSha256) => ({
       implementationSha256,
       routes: REDDIT_1_3_BINDING_ROUTE_COORDINATES,
@@ -573,7 +574,7 @@ const identities = Object.freeze({
   },
   "youtube-web": {
     schemaVersion: 1,
-    pluginVersion: "1.3.0",
+    pluginVersion: "1.4.0",
     implementationSha256: "06480c8aa798ec228e44b7b20a7b35f471400c44439b85548c3d8c513caf8c9d",
     legacyCurrentReadImplementationSha256: [
       "4d38cceaf871d6885abf76790b3d47b1e77b8b35dbb94bf5411d86f60202acb4",

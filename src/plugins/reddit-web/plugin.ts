@@ -15,6 +15,7 @@ import archivedRedditWebManifestV1_6 from "../../assets/adapters/reddit/wrench-w
 import archivedRedditWebManifestV1_7 from "../../assets/adapters/reddit/wrench-web-adapter.v1.7.0.json";
 import archivedRedditWebManifestV1_8 from "../../assets/adapters/reddit/wrench-web-adapter.v1.8.0.json";
 import archivedRedditWebManifestV1_9 from "../../assets/adapters/reddit/wrench-web-adapter.v1.9.0.json";
+import archivedRedditWebManifestV1_14 from "../../assets/adapters/reddit/wrench-web-adapter.v1.14.0.json";
 import archivedRedditWebManifestV1_13 from "../../assets/adapters/reddit/wrench-web-adapter.v1.13.0.json";
 import archivedRedditWebMediaReadV1Manifest from "../../assets/adapters/reddit/wrench-web-adapter.v1.10.0.json";
 import type { OperationInput } from "../../model";
@@ -36,7 +37,7 @@ if (redditContracts === undefined) {
 
 const currentOperations = webSessionContractOperations(
   Object.values(redditContracts),
-  "f1057bfc12d2e077ae0c462637685ce99288429850cd9e730bdb2eea636afdc1",
+  "faa5e7749b404a6a5b2ce96f888272fc9f9cb6ebe663ae7655cce07e76b88fc0",
   {},
   {
     "messaging.list": {
@@ -445,6 +446,37 @@ const archivedRepliesCreateV1Operation = Object.freeze({
   validateInput: () => Object.freeze([]),
 });
 
+const archivedContentDeleteV1Contract = reviewedArchivedWebSessionContract(
+  archivedRedditWebManifestV1_14,
+  {
+    adapterId: "reddit-web",
+    adapterVersion: "1.14.0",
+    site: "reddit",
+    operation: "content.delete",
+    contractVersion: 1,
+    risk: "R3",
+    state: "observed",
+    implementation:
+      "exact authored-post pre-read, /api/del dispatch, and independent exact-target absence readback",
+  },
+);
+
+const archivedContentDeleteV1Operation = Object.freeze({
+  name: archivedContentDeleteV1Contract.operation,
+  contractVersion: archivedContentDeleteV1Contract.contractVersion,
+  risk: archivedContentDeleteV1Contract.risk,
+  input: archivedContentDeleteV1Contract.input,
+  sideEffect: archivedContentDeleteV1Contract.sideEffect,
+  idempotency: archivedContentDeleteV1Contract.idempotency,
+  dedupeWindowMs: archivedContentDeleteV1Contract.dedupeWindowMs,
+  state: archivedContentDeleteV1Contract.state,
+  dispatch: archivedContentDeleteV1Contract.dispatch,
+  implementation: archivedContentDeleteV1Contract.implementation,
+  planDispatches: (input: OperationInput) =>
+    planWebSessionContractDispatches(archivedContentDeleteV1Contract, input),
+  validateInput: () => Object.freeze([]),
+});
+
 const operations = Object.freeze([
   ...currentOperations,
   archivedMediaReadOperation,
@@ -458,12 +490,13 @@ const operations = Object.freeze([
   archivedMediaPublishOperationV8,
   archivedCommentsCreateV1Operation,
   archivedRepliesCreateV1Operation,
+  archivedContentDeleteV1Operation,
 ]);
 
 export const redditWebPlugin = defineProviderPlugin({
   apiVersion: 1,
   id: "reddit-web",
-  version: "1.5.0",
+  version: "1.6.0",
   displayName: "Reddit Authenticated Web",
   sourceKind: "built-in",
   implementationSources: webImplementationSources(import.meta.url, [

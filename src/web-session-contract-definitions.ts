@@ -418,6 +418,7 @@ const REDDIT_WEB_OPERATIONS = operationPolicies("reddit", [
   "replies.create",
 ], {
   "comments.create": 2,
+  "content.delete": 2,
   "media.read": 2,
   "media.publish": 8,
   "replies.create": 2,
@@ -731,7 +732,7 @@ const reddit = {
   "comments.create": contract("reddit", "comments.create", REDDIT_WEB_OPERATIONS["comments.create"].risk, REDDIT_WEB_OPERATIONS["comments.create"].state, REDDIT_WEB_OPERATIONS["comments.create"].reason, 2),
   "comments.read": contract("reddit", "comments.read", REDDIT_WEB_OPERATIONS["comments.read"].risk, REDDIT_WEB_OPERATIONS["comments.read"].state, REDDIT_WEB_OPERATIONS["comments.read"].reason),
   "communities.membership.set": contract("reddit", "communities.membership.set", REDDIT_WEB_OPERATIONS["communities.membership.set"].risk, REDDIT_WEB_OPERATIONS["communities.membership.set"].state, REDDIT_WEB_OPERATIONS["communities.membership.set"].reason),
-  "content.delete": contract("reddit", "content.delete", REDDIT_WEB_OPERATIONS["content.delete"].risk, REDDIT_WEB_OPERATIONS["content.delete"].state, REDDIT_WEB_OPERATIONS["content.delete"].reason),
+  "content.delete": contract("reddit", "content.delete", REDDIT_WEB_OPERATIONS["content.delete"].risk, REDDIT_WEB_OPERATIONS["content.delete"].state, REDDIT_WEB_OPERATIONS["content.delete"].reason, 2),
   "content.edit": contract("reddit", "content.edit", REDDIT_WEB_OPERATIONS["content.edit"].risk, REDDIT_WEB_OPERATIONS["content.edit"].state, REDDIT_WEB_OPERATIONS["content.edit"].reason),
   "content.save": contract("reddit", "content.save", REDDIT_WEB_OPERATIONS["content.save"].risk, REDDIT_WEB_OPERATIONS["content.save"].state, REDDIT_WEB_OPERATIONS["content.save"].reason),
   "feeds.read": contract("reddit", "feeds.read", REDDIT_WEB_OPERATIONS["feeds.read"].risk, REDDIT_WEB_OPERATIONS["feeds.read"].state, REDDIT_WEB_OPERATIONS["feeds.read"].reason),
@@ -832,7 +833,7 @@ const twitch = {
 } as const satisfies Readonly<Partial<Record<SemanticOperationName, WebSessionContract>>>;
 
 const youtube = {
-  "comments.create": contract("youtube", "comments.create", "R3", "capture-required", "current comment mutation, actor/target response binding, and an authorized live fixture remain required"),
+  "comments.create": contract("youtube", "comments.create", "R3", "observed", "top-level comment through the reviewed create_comment token bound to the exact video, with authoring-channel and body response binding", 2),
   "comments.read": contract("youtube", "comments.read", "R1", "observed", "current acknowledgement-free Innertube next/continuation requests with exact video binding"),
   "content.delete": contract("youtube", "content.delete", "R3", "capture-required", "cleanup only discarded the stalled incomplete Studio draft; no uploaded-video authored pre-read, accepted video/delete response, or exact-target absence readback was observed"),
   "content.edit": contract("youtube", "content.edit", "R3", "capture-required", "video, Community-post, and comment edit mutations require separate reviewed contracts"),
@@ -846,7 +847,7 @@ const youtube = {
   "posts.read": contract("youtube", "posts.read", "R1", "observed", "current resolve_url plus exact Community-post browse request"),
   "profiles.read": contract("youtube", "profiles.read", "R1", "observed", "current target-bound first-party channel response with exact subscriber, video, and lifetime-view counts"),
   "relationships.follow.set": contract("youtube", "relationships.follow.set", "R2", "capture-required", "the current target-bound subscription implementation and independent browse readback are deterministic-test proven but still require an authorized low-stakes live fixture"),
-  "replies.create": contract("youtube", "replies.create", "R3", "capture-required", "current reply mutation, parent binding, and an authorized live fixture remain required"),
+  "replies.create": contract("youtube", "replies.create", "R3", "observed", "reply to one top-level comment through the reviewed create_comment_reply token bound to the exact video and parent comment, with parent, authoring-channel, and body response binding", 2),
 } as const satisfies Readonly<Partial<Record<SemanticOperationName, WebSessionContract>>>;
 
 export const webSessionContractDefinitions = {

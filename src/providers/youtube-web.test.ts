@@ -68,14 +68,15 @@ describe("YouTube web policy primitives", () => {
     expect(youtubeManifest.schemaVersion).toBe(4);
     expect(youtubeManifest.surfaceId).toBe("youtube");
     const observed = [
+      "comments.create",
       "comments.read",
       "feeds.read",
       "media.read",
       "posts.read",
       "profiles.read",
+      "replies.create",
     ] as const;
     const captureRequired = [
-      "comments.create",
       "content.delete",
       "content.save",
       "content.edit",
@@ -84,7 +85,6 @@ describe("YouTube web policy primitives", () => {
       "media.publish",
       "posts.publish",
       "relationships.follow.set",
-      "replies.create",
     ] as const;
     expect(Object.keys(youtubeManifest.operations).sort()).toEqual(
       [...observed, ...captureRequired].sort(),

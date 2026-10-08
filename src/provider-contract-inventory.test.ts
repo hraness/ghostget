@@ -4,17 +4,17 @@ import { pathToFileURL } from "node:url";
 import { describe, expect, test } from "bun:test";
 
 const predecessorDefaultInventorySha256 =
-  "879176c13b70689d98813285a584003974e7376b2821412eb0b85d81dfb67320";
+  "cfc9e39d4cb707d9a38749d12b31d9cb4c0c6e034373f3aa77f52865caae9f68";
 const predecessorLegacyInventorySha256 = [
-  "987d6ed8a0c114445d08e730f0fd9ce76be89c9420a89d4e840e3d1e776e55ea",
-  "6fa0cdee77cb1307de684aefc16affd9b3e9567a504922ca3c1e7cbbb3732909",
-  "0f338e3f8c2d13255de2ae21a058146d279a9665d37ed76586050d1a294425f5",
-  "f5e68d1994e8ef67be427f31fd370e68329054230a12c963ff4653ebb3be7c1d",
-  "cb0906ee4e52d3ea2c378e02c27f3d20bdc9ca39884425146d5c9d45c900e3dd",
-  "36ab3e011c247f8e776550066c4e67ba08b3581d65e8c0e1e4e7f8ec64cdddb3",
-  "674185f902a76c0ec53f7490b71c94b745443027a2958ffbd766d12a931cb956",
-  "72a870350b206477e3ffb98555f93cf76aa43dbbc434c63f26e5bf2b9e94b8b6",
-  "907b2fad26cd927c4f9c7e8c5d1d436c338ec18708d52f0d307df04a67331dc9",
+  "6be91b2fc614a4a9add7f4ee96ec5f05ee90c91956417931ad8df129748e3fdf",
+  "3ce45c80a74cb6ef7305ee99f6499bdcaaf2d3392c1243d1c969699345cd4e3e",
+  "c6654225713890439b9a7a9237f5055636672ad60ddddacc0ce3929de2271845",
+  "e5869081e3d595e979d0d24176a9e26812c35de3200b5e8df3f1f197af011129",
+  "dd9e6ddb0531b9834cb7d80bb193c6e07346caaeaff5fb49847262049cf3bf5e",
+  "c07324a927b6f7b84509c78a16814826a0bfd84c2a8996469553dfc1c76008cb",
+  "111e0ee9c9bac9b971fc7565eac7427ef1b0aa096891cac7f3e83dd8dbcb3a72",
+  "b4d0af81879f67dd7e65c920791ddfef2ad1685976c8f11e9bf89c9eec3cf3a4",
+  "64125b599452a0e9b309eab47dd84463480c1ac46e1ec04a2f407882843a5db9",
   "b8928bbb6e52613010d2bd7b4b3df4a83d31e565bc5cb817b4ceb21761332b97",
   "a80e18bfabd02d852bdb95b9b0744c1e844df15fe89223cc6993643f22373d2a",
   "eb15a4ce2325507b7e04bb906db975e832f8e1e73ec1200dce93db64a8aa1220",
@@ -171,7 +171,8 @@ function isCurrentOnlyRow(row) {
     || (row[0] === "web-session-api" && row[1] === "github")
     || (row[0] === "web-session-api" && row[1] === "reddit" && row[2].startsWith("flair."))
     || (row[0] === "web-session-api" && row[1] === "reddit" && row[3] === 2
-      && (row[2] === "comments.create" || row[2] === "replies.create"))
+      && (row[2] === "comments.create" || row[2] === "replies.create" || row[2] === "content.delete"))
+    || (row[0] === "web-session-api" && row[1] === "youtube" && (row[2] === "replies.create" || row[2] === "comments.create") && row[3] === 2)
     || (row[0] === "web-session-api" && row[1] === "substack" && row[2].startsWith("subscribers."))
     || (row[0] === "web-session-api" && row[1] === "twitch")
     || (row[0] === "web-session-api" && row[1] === "webmcp")
@@ -197,7 +198,7 @@ for (const plugin of registry.list()) {
             contractVersion,
           );
           const isPredecessorReddit = binding.surfaceId === "reddit" && !operation.name.startsWith("flair.")
-            && !(contractVersion === 2 && (operation.name === "comments.create" || operation.name === "replies.create"));
+            && !(contractVersion === 2 && (operation.name === "comments.create" || operation.name === "replies.create" || operation.name === "content.delete"));
           const isPredecessorSubstack = binding.surfaceId === "substack" && !operation.name.startsWith("subscribers.");
           const isPredecessorHackerNews = binding.surfaceId === "hacker-news";
           const legacyImplementations = isPredecessorReddit
@@ -377,8 +378,8 @@ describe("durable provider contract inventory", () => {
       expect(inventory).toEqual({
         rows: 326,
         sha256: predecessorDefaultInventorySha256,
-        currentOnlyRows: 89,
-        currentOnlySha256: "0f644b22823c31699010001174e9befed2b34939e389f587e8ddce80887d517f",
+        currentOnlyRows: 92,
+        currentOnlySha256: "1900030e376fa0c5e22e7847e5f0c764dce91c53a8760b874817b8f68b277c32",
         automationRows: [
           ["linked-device", "whatsapp", "messaging.automation.read", 1],
           ["linked-device", "whatsapp", "messaging.automation.send.attachment", 1],

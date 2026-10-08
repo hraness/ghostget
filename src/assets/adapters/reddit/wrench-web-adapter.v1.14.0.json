@@ -1,7 +1,7 @@
 {
   "schemaVersion": 4,
   "id": "reddit-web",
-  "version": "1.15.0",
+  "version": "1.14.0",
   "displayName": "Reddit (Authenticated Web API)",
   "surfaceId": "reddit",
   "origins": [
@@ -430,24 +430,24 @@
       }
     },
     "content.delete": {
-      "description": "Observed contract: delete one exact current-account Reddit post (t3_) or comment (t1_) only after a pre-read binds its confirmed title or body, then independently verify exact-target absence.",
+      "description": "Observed contract: delete one exact current-account Reddit post only after an authored-post pre-read binds its confirmed title, then independently verify exact-target absence.",
       "risk": "R3",
-      "sideEffect": "Permanently deletes the exact confirmed Reddit post or comment authored by the authenticated account.",
+      "sideEffect": "Permanently deletes the exact confirmed Reddit post authored by the authenticated account.",
       "idempotency": "local-at-most-once",
       "dedupeWindowMs": 2592000000,
       "input": {
         "properties": {
           "post_id": {
             "type": "string",
-            "description": "Exact t3_ Reddit post or t1_ comment fullname",
+            "description": "Exact t3_ Reddit post fullname",
             "minLength": 4,
             "maxLength": 40
           },
           "expected_title": {
             "type": "string",
-            "description": "Exact current post title (t3_) or comment body (t1_) used for pre-delete confirmation",
+            "description": "Exact current post title used for pre-delete confirmation",
             "minLength": 1,
-            "maxLength": 2000
+            "maxLength": 280
           }
         },
         "required": [
@@ -458,7 +458,7 @@
       "webSession": {
         "site": "reddit",
         "action": "content.delete",
-        "contractVersion": 2,
+        "contractVersion": 1,
         "timeoutMs": 60000,
         "maxOutputBytes": 4194304
       }

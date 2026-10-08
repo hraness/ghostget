@@ -2533,22 +2533,35 @@
 // npm 11.16.0 packs on Node 24.18.1 (zlib 1.3.1-e00f703) with --ignore-scripts on
 // darwin arm64 were byte-identical at 641 files/entries, 12,238,950 packed
 // bytes and 24,484,455 unpacked bytes; archive SHA-256
-// c58ba69ec2efb7c034aa926dd5bc5918e5e2f1f88c055fe6bb6c147816d00a26. Retain the
+// e923371777d8b8e36df10dddcc05a8402547b8a7b2b93c61dc0f7fc5acc693d5. Retain the
 // reviewed allowances: 12,238,950 + 12,387 + 4,096 = 12,255,433 packed;
 // 24,484,455 + 353 + 65 = 24,484,873 unpacked. Current source CI and
 // canonical Release must independently measure and admit their exact
 // archives.
+// The 0.18.90 release lets Reddit content.delete@2 remove an exact authored
+// comment as well as a post and observes YouTube replies.create@2: the Reddit
+// and YouTube contract code, the retained Reddit 1.14.0 and YouTube 1.4.0
+// adapter snapshots, and the rebuilt dist bundles add two packed source files
+// over the 641-entry inventory. Two clean npm 11.16.0 packs on Node 24.18.1
+// (zlib 1.3.1-e00f703) with --ignore-scripts on darwin arm64 were
+// byte-identical at 643 files/entries, 12,247,676 packed bytes and
+// 24,552,581 unpacked bytes; archive SHA-256
+// 24881b2710f9a788221854f9a9c3a5d1372dc233596559dc90f0aa65f1137424. Retain the
+// reviewed allowances: 12,247,676 + 12,387 + 4,096 = 12,264,159 packed;
+// 24,552,581 + 353 + 1,656 = 24,554,590 unpacked. Current source CI and
+// canonical Release must independently measure and admit their exact
+// archives.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "0.18.89 Substack subscriber export chain bound",
+  scope: "0.18.90 Reddit comment delete and YouTube replies",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.16.0",
   nodeVersion: "24.18.1",
   zlibVersion: "1.3.1-e00f703",
   platform: "darwin-arm64",
-  archiveSha256: "c58ba69ec2efb7c034aa926dd5bc5918e5e2f1f88c055fe6bb6c147816d00a26",
-  packedBytes: 12_239_649,
-  unpackedBytes: 24_486_962,
-  entryCount: 641,
+  archiveSha256: "24881b2710f9a788221854f9a9c3a5d1372dc233596559dc90f0aa65f1137424",
+  packedBytes: 12_247_676,
+  unpackedBytes: 24_552_581,
+  entryCount: 643,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,

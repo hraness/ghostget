@@ -192,7 +192,7 @@ describe("Reddit internal-web operation registry", () => {
         action,
         contractVersion: action === "media.publish"
           ? 9
-          : action === "media.read" || action === "comments.create" || action === "replies.create"
+          : action === "media.read" || action === "comments.create" || action === "replies.create" || action === "content.delete"
             ? 2
             : 1,
       });
@@ -533,6 +533,13 @@ describe("Reddit exact request authorization", () => {
       targetId: POST_ID,
     });
     expect(deletion.formNames).toEqual(["id", "uh"]);
+    expect(authorizeRedditWebRequest({
+      operation: "content.delete",
+      url: "https://www.reddit.com/api/del",
+      method: "POST",
+      body: new URLSearchParams({ id: "t1_abc123", uh: MODHASH }).toString(),
+      targetId: "t1_abc123",
+    }).formNames).toEqual(["id", "uh"]);
     expect(JSON.stringify({ lease, submit, deletion })).not.toContain("private-cookie");
   });
 

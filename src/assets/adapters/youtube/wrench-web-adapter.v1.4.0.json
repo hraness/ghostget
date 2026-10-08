@@ -1,7 +1,7 @@
 {
   "schemaVersion": 4,
   "id": "youtube-web",
-  "version": "1.5.0",
+  "version": "1.4.0",
   "displayName": "YouTube (Authenticated Web API)",
   "surfaceId": "youtube",
   "origins": [
@@ -262,7 +262,7 @@
       }
     },
     "comments.create": {
-      "description": "Observed contract: create one top-level YouTube comment by binding the exact video, sending the reviewed comment token from its watch-page comments header to the fixed create_comment endpoint, and binding the created comment's authoring channel and body in the response.",
+      "description": "Capture-required contract reservation: create one confirmed YouTube top-level comment only after its current mutation, actor/target response binding, and authorized live fixture are reviewed.",
       "risk": "R3",
       "sideEffect": "Publishes one externally visible comment on the exact confirmed YouTube video.",
       "idempotency": "local-at-most-once",
@@ -290,25 +290,19 @@
       "webSession": {
         "site": "youtube",
         "action": "comments.create",
-        "contractVersion": 2,
+        "contractVersion": 1,
         "timeoutMs": 60000,
         "maxOutputBytes": 4194304
       }
     },
     "replies.create": {
-      "description": "Observed contract: reply to one top-level YouTube comment by binding the exact video and parent comment from the watch-page comment response, sending its reviewed reply token to the fixed create_comment_reply endpoint, and binding the created reply's parent, authoring channel, and body in the response.",
+      "description": "Capture-required contract reservation: create one confirmed YouTube comment reply only after its current mutation, actor/parent response binding, and authorized live fixture are reviewed.",
       "risk": "R3",
       "sideEffect": "Publishes one externally visible reply to the exact confirmed YouTube comment.",
       "idempotency": "local-at-most-once",
       "dedupeWindowMs": 86400000,
       "input": {
         "properties": {
-          "video_id": {
-            "type": "string",
-            "description": "Exact YouTube video ID that carries the parent comment",
-            "minLength": 11,
-            "maxLength": 11
-          },
           "comment_id": {
             "type": "string",
             "description": "Exact parent YouTube comment ID",
@@ -323,7 +317,6 @@
           }
         },
         "required": [
-          "video_id",
           "comment_id",
           "body"
         ]
@@ -331,7 +324,7 @@
       "webSession": {
         "site": "youtube",
         "action": "replies.create",
-        "contractVersion": 2,
+        "contractVersion": 1,
         "timeoutMs": 60000,
         "maxOutputBytes": 4194304
       }
