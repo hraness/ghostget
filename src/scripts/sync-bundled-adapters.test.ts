@@ -262,6 +262,7 @@ describe("single-process bundled adapter generation sync", () => {
       "x-web@1.13.0",
       "x-web@1.14.0",
       "x-web@1.15.0",
+      "x-web@1.16.0",
       "x-web@1.2.0",
       "x-web@1.3.0",
       "x-web@1.4.0",
@@ -275,6 +276,7 @@ describe("single-process bundled adapter generation sync", () => {
       "youtube-web@1.2.0",
       "youtube-web@1.3.0",
       "youtube-web@1.4.0",
+      "youtube-web@1.5.0",
     ]);
     expect(Object.fromEntries(discovered.flatMap((adapter) =>
       adapter.upgradeFrom.map((baseline) => [

@@ -257,17 +257,18 @@ describe("social video provider contracts", () => {
     ]);
   });
 
-  test("reserves only exact authored-video YouTube deletion", () => {
+  test("observes exact authored YouTube comment and reply deletion", () => {
     const deletion = operation(youtubeWebPlugin, "youtube", "content.delete");
     expect(deletion).toMatchObject({
-      contractVersion: 1,
+      contractVersion: 2,
       risk: "R3",
-      state: "capture-required",
+      state: "observed",
       dispatch: "single",
     });
-    expect(deletion.input.required).toEqual(["video_id", "expected_title"]);
+    expect(deletion.input.required).toEqual(["video_id", "comment_id", "expected_body"]);
     expect(Object.keys(deletion.input.properties).sort()).toEqual([
-      "expected_title",
+      "comment_id",
+      "expected_body",
       "video_id",
     ]);
   });

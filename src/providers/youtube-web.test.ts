@@ -70,6 +70,7 @@ describe("YouTube web policy primitives", () => {
     const observed = [
       "comments.create",
       "comments.read",
+      "content.delete",
       "feeds.read",
       "media.read",
       "posts.read",
@@ -77,7 +78,6 @@ describe("YouTube web policy primitives", () => {
       "replies.create",
     ] as const;
     const captureRequired = [
-      "content.delete",
       "content.save",
       "content.edit",
       "content.schedule",

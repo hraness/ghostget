@@ -2538,6 +2538,12 @@
 // 24,484,455 + 353 + 65 = 24,484,873 unpacked. Current source CI and
 // canonical Release must independently measure and admit their exact
 // archives.
+// The 0.18.92 release adds the X and YouTube content.delete@2/@3 executors and two
+// archived manifest snapshots (645 entries). Two clean npm packs with
+// --ignore-scripts on darwin arm64 were byte-identical at 645 entries, 12,262,772
+// packed and 24,618,853 unpacked bytes; archive SHA-256 9db23463054b588de6ee258c8d4a478589d9b5dc2f59f5d6389a01a9580ed202. Allowances:
+// 12,262,772 + 12,387 + 4,096 = 12,279,255 packed; 24,618,853 + 353 + 1,656 =
+// 24,620,862 unpacked.
 // The 0.18.91 release refreshes X's reviewed query IDs and adds
 // scripts/refresh-x-evidence.ts without adding a packed file; Bluesky errors gain
 // their XRPC code. Two clean npm packs with --ignore-scripts on darwin arm64
@@ -2550,24 +2556,24 @@
 // adapter snapshots, and the rebuilt dist bundles add two packed source files
 // over the 641-entry inventory. Two clean npm 11.16.0 packs on Node 24.18.1
 // (zlib 1.3.1-e00f703) with --ignore-scripts on darwin arm64 were
-// byte-identical at 643 files/entries, 12,249,642 packed bytes and
-// 24,558,688 unpacked bytes; archive SHA-256
-// 79a5aca9e83f95bb355b486870521c1b7bd69b7acaf94857db65c93942ad8478. Retain the
-// reviewed allowances: 12,249,642 + 12,387 + 4,096 = 12,266,125 packed;
-// 24,558,688 + 353 + 1,656 = 24,560,697 unpacked. Current source CI and
+// byte-identical at 645 files/entries, 12,262,772 packed bytes and
+// 24,618,853 unpacked bytes; archive SHA-256
+// 9db23463054b588de6ee258c8d4a478589d9b5dc2f59f5d6389a01a9580ed202. Retain the
+// reviewed allowances: 12,262,772 + 12,387 + 4,096 = 12,279,255 packed;
+// 24,618,853 + 353 + 1,656 = 24,620,862 unpacked. Current source CI and
 // canonical Release must independently measure and admit their exact
 // archives.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "0.18.91 X query-ID refresh and Bluesky error codes",
+  scope: "0.18.92 X and YouTube content.delete",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.16.0",
   nodeVersion: "24.18.1",
   zlibVersion: "1.3.1-e00f703",
   platform: "darwin-arm64",
-  archiveSha256: "79a5aca9e83f95bb355b486870521c1b7bd69b7acaf94857db65c93942ad8478",
-  packedBytes: 12_249_642,
-  unpackedBytes: 24_558_688,
-  entryCount: 643,
+  archiveSha256: "9db23463054b588de6ee258c8d4a478589d9b5dc2f59f5d6389a01a9580ed202",
+  packedBytes: 12_262_772,
+  unpackedBytes: 24_618_853,
+  entryCount: 645,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,

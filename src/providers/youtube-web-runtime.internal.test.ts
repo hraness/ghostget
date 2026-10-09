@@ -217,6 +217,7 @@ function dependencies(
     acquireCookies,
     fetch,
     now: () => 1_700_000_000_000,
+    sleep: () => Promise.resolve(),
   };
 }
 
@@ -964,5 +965,229 @@ describe("YouTube replies.create", () => {
         expect(result.dispatch).toEqual({ planned: 1, started: 1, verified: 0 });
       });
     }
+  });
+});
+
+describe("YouTube content.delete", () => {
+  const COMMENT_ID = "UgxOwnedComment1234567AaABAg";
+  const REPLY_ID = `${COMMENT_ID}.ownedReply123`;
+  const deleteRecipe: WebSessionRecipe = { ...recipe("content.delete"), contractVersion: 2 };
+
+  function toolbarKey(commentId: string): string {
+    return encodeURIComponent(Buffer.from(`\u0012\u0001${commentId}`).toString("base64"));
+  }
+
+  function deleteToken(commentId: string, type = 6): string {
+    return encodeURIComponent(
+      Buffer.concat([Buffer.from([0x08, type, 0x10, 0x59, 0x1a, commentId.length]), Buffer.from(commentId)])
+        .toString("base64"),
+    );
+  }
+
+  function toolbar(commentId: string, token: string | null) {
+    return {
+      engagementToolbarSurfaceEntityPayload: {
+        key: toolbarKey(commentId),
+        menuCommand: {
+          innertubeCommand: {
+            menuEndpoint: {
+              menu: {
+                menuRenderer: {
+                  items: [
+                    { menuNavigationItemRenderer: { icon: { iconType: "FLAG" } } },
+                    ...(token === null ? [] : [{
+                      menuNavigationItemRenderer: {
+                        icon: { iconType: "DELETE" },
+                        navigationEndpoint: {
+                          confirmDialogEndpoint: {
+                            content: {
+                              confirmDialogRenderer: {
+                                confirmButton: {
+                                  buttonRenderer: {
+                                    serviceEndpoint: { performCommentActionEndpoint: { action: token } },
+                                  },
+                                },
+                              },
+                            },
+                          },
+                        },
+                      },
+                    }]),
+                  ],
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+  }
+
+  function comment(id: string, text: string, channel: string = CHANNEL_ID) {
+    return {
+      commentRenderer: {
+        commentId: id,
+        contentText: { simpleText: text },
+        authorEndpoint: { browseEndpoint: { browseId: channel } },
+      },
+    };
+  }
+
+  function topThread(options: { present: boolean; token?: string | null; channel?: string; text?: string }) {
+    if (!options.present) return { continuationContents: [] };
+    return {
+      continuationContents: [
+        {
+          commentThreadRenderer: {
+            comment: comment(COMMENT_ID, options.text ?? "owned text", options.channel),
+            commentViewModel: { commentViewModel: { commentId: COMMENT_ID } },
+            replies: {
+              commentRepliesRenderer: {
+                contents: [{
+                  continuationItemRenderer: {
+                    continuationEndpoint: { continuationCommand: { token: "replies-token" } },
+                  },
+                }],
+              },
+            },
+          },
+        },
+        toolbar(COMMENT_ID, options.token === undefined ? deleteToken(COMMENT_ID) : options.token),
+      ],
+    };
+  }
+
+  function repliesPage(present: boolean, token: string | null = deleteToken(REPLY_ID)) {
+    return present
+      ? { continuationContents: [comment(REPLY_ID, "owned reply"), toolbar(REPLY_ID, token)] }
+      : { continuationContents: [] };
+  }
+
+  function handler(initial: { deleted: boolean; stays?: boolean }, options: {
+    thread?: (deleted: boolean) => unknown;
+    replies?: (deleted: boolean) => unknown;
+    action?: unknown;
+  } = {}) {
+    const state = { ...initial };
+    return (request: CapturedRequest): Response | null => {
+      if (endpoint(request) === "next") {
+        const requestBody = body(request);
+        if (requestBody.videoId === VIDEO_ID) {
+          return jsonResponse({
+            currentVideoEndpoint: { watchEndpoint: { videoId: VIDEO_ID } },
+            contents: [{
+              itemSectionRenderer: {
+                targetId: "comments-section",
+                contents: [{
+                  continuationItemRenderer: {
+                    continuationEndpoint: { continuationCommand: { token: "comments-token" } },
+                  },
+                }],
+              },
+            }],
+          });
+        }
+        if (requestBody.continuation === "replies-token") {
+          return jsonResponse((options.replies ?? ((deleted: boolean) => repliesPage(!deleted)))(
+            state.deleted && state.stays !== true,
+          ));
+        }
+        return jsonResponse((options.thread
+          ?? ((deleted: boolean) => topThread({ present: !deleted })))(state.deleted && state.stays !== true));
+      }
+      if (endpoint(request) === "comment/perform_comment_action") {
+        state.deleted = true;
+        return jsonResponse(options.action ?? { actionResults: [{ status: "STATUS_SUCCEEDED" }] });
+      }
+      return null;
+    };
+  }
+
+  const input = { video_id: VIDEO_ID, comment_id: COMMENT_ID, expected_body: "owned text" };
+  const replyInput = { video_id: VIDEO_ID, comment_id: REPLY_ID, expected_body: "owned reply" };
+  const writes = (calls: CapturedRequest[]) =>
+    calls.filter((call) => endpoint(call) === "comment/perform_comment_action");
+
+  test("deletes one owned top-level comment and proves it gone", async () => {
+    const calls: CapturedRequest[] = [];
+    const result = await executeYouTubeWebOperation(deleteRecipe, input, youtubeAuth, {
+      dependencies: dependencies(calls, (() => { const operation = handler({ deleted: false }); return (request: CapturedRequest) => baseHandler(request, operation); })()),
+    });
+    expect(result.status).toBe("succeeded");
+    expect(result.dispatch).toEqual({ planned: 1, started: 1, verified: 1 });
+    expect(result.output).toMatchObject({ commentId: COMMENT_ID, parentId: null, deleted: true });
+    expect(writes(calls)).toHaveLength(1);
+    expect(body(writes(calls)[0]!).actions).toEqual([deleteToken(COMMENT_ID)]);
+    assertInnertubeEnvelope(writes(calls)[0]!);
+  });
+
+  test("deletes one owned reply through its parent's replies page", async () => {
+    const calls: CapturedRequest[] = [];
+    const result = await executeYouTubeWebOperation(deleteRecipe, replyInput, youtubeAuth, {
+      dependencies: dependencies(calls, (() => { const operation = handler({ deleted: false }, { thread: () => topThread({ present: true }) }); return (request: CapturedRequest) => baseHandler(request, operation); })()),
+    });
+    expect(result.status).toBe("succeeded");
+    expect(result.output).toMatchObject({ commentId: REPLY_ID, parentId: COMMENT_ID, deleted: true });
+    expect(body(writes(calls)[0]!).actions).toEqual([deleteToken(REPLY_ID)]);
+  });
+
+  test("fails before dispatch when the comment is not on the video", async () => {
+    const calls: CapturedRequest[] = [];
+    const result = await executeYouTubeWebOperation(deleteRecipe, input, youtubeAuth, {
+      dependencies: dependencies(calls, (() => { const operation = handler({ deleted: true }); return (request: CapturedRequest) => baseHandler(request, operation); })()),
+    });
+    expect(result.status).toBe("failed");
+    expect(result.dispatch).toEqual({ planned: 1, started: 0, verified: 0 });
+    expect(writes(calls)).toHaveLength(0);
+  });
+
+  for (const [name, override] of [
+    ["another channel authored it", { thread: () => topThread({ present: true, channel: TARGET_CHANNEL_ID }) }],
+    ["the body differs", { thread: () => topThread({ present: true, text: "different" }) }],
+    ["no delete action is exposed", { thread: () => topThread({ present: true, token: null }) }],
+    ["the delete token is another comment's", {
+      thread: () => topThread({ present: true, token: deleteToken("UgxSomeOtherComment123456AaABAg") }),
+    }],
+    ["the token is not delete-typed", {
+      thread: () => topThread({ present: true, token: deleteToken(COMMENT_ID, 8) }),
+    }],
+  ] as const) {
+    test(`fails before dispatch when ${name}`, async () => {
+      const calls: CapturedRequest[] = [];
+      const result = await executeYouTubeWebOperation(deleteRecipe, input, youtubeAuth, {
+        dependencies: dependencies(calls, (() => { const operation = handler({ deleted: false }, override); return (request: CapturedRequest) => baseHandler(request, operation); })()),
+      });
+      expect(result.status).toBe("failed");
+      expect(result.dispatch.started).toBe(0);
+      expect(writes(calls)).toHaveLength(0);
+    });
+  }
+
+  test("reports indeterminate when the comment is still readable after the delete", async () => {
+    const calls: CapturedRequest[] = [];
+    const result = await executeYouTubeWebOperation(deleteRecipe, input, youtubeAuth, {
+      dependencies: dependencies(calls, (() => { const operation = handler({ deleted: false, stays: true }); return (request: CapturedRequest) => baseHandler(request, operation); })()),
+    });
+    expect(result.status).toBe("indeterminate");
+    expect(result.dispatch).toEqual({ planned: 1, started: 1, verified: 0 });
+    expect(writes(calls)).toHaveLength(1);
+  });
+
+  test("reports indeterminate when the action result is not a success", async () => {
+    const calls: CapturedRequest[] = [];
+    const result = await executeYouTubeWebOperation(deleteRecipe, input, youtubeAuth, {
+      dependencies: dependencies(calls, (() => { const operation = handler({ deleted: false }, { action: { actionResults: [{ status: "STATUS_FAILED" }] } }); return (request: CapturedRequest) => baseHandler(request, operation); })()),
+    });
+    expect(result.status).toBe("indeterminate");
+    expect(result.dispatch.verified).toBe(0);
+  });
+
+  test("keeps the archived content.delete@1 video reservation capture-required", async () => {
+    await expect(executeYouTubeWebOperation(
+      { ...recipe("content.delete"), contractVersion: 1 },
+      { video_id: VIDEO_ID, expected_title: "title" },
+      youtubeAuth,
+      { dependencies: dependencies([], (request) => baseHandler(request, () => null)) },
+    )).rejects.toThrow("capture-required");
   });
 });

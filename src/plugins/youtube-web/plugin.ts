@@ -90,9 +90,10 @@ const desiredStateKeys = Object.freeze({
 
 const currentOperations = webSessionContractOperations(
   Object.values(youtubeContracts),
-  "b22b52c3e2ca7635e31dbfdb1493b2b204519eb2c04093ec63c0465ca9e7bedd",
+  "1f109ebcc1ab70e45824975657a8f01085c1a90de5821d2f96c22f4cdc8d4a3d",
   {
     "media.publish": [1],
+    "content.delete": [1],
   },
 ).map((operation) => {
   if (!Object.hasOwn(desiredStateKeys, operation.name)) return operation;
@@ -125,7 +126,7 @@ const operations = Object.freeze([
 export const youtubeWebPlugin = defineProviderPlugin({
   apiVersion: 1,
   id: "youtube-web",
-  version: "1.4.0",
+  version: "1.5.0",
   displayName: "YouTube Authenticated Web",
   sourceKind: "built-in",
   implementationSources: webImplementationSources(import.meta.url, [

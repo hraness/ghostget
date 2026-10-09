@@ -650,6 +650,7 @@ export const xWebMutationOperationIds = Object.freeze([
   "threads.reply",
   "replies.create",
   "posts.quote",
+  "content.delete",
   "likes.enable",
   "likes.disable",
   "bookmarks.enable",
@@ -669,6 +670,7 @@ const mutationOperationNames = Object.freeze({
   "threads.reply": "CreateTweet",
   "replies.create": "CreateTweet",
   "posts.quote": "CreateTweet",
+  "content.delete": "DeleteTweet",
   "likes.enable": "FavoriteTweet",
   "likes.disable": "UnfavoriteTweet",
   "bookmarks.enable": "CreateBookmark",
@@ -777,6 +779,12 @@ function validateCreateTweetVariables(operationId: XWebMutationOperationId, vari
     const match = /^https:\/\/x\.com\/i\/status\/([0-9]{1,19})$/u.exec(variables.attachment_url);
     if (match?.[1] === undefined) throw new Error("X posts.quote attachment_url must bind one exact X post");
   }
+}
+
+function validateDeleteTweetVariables(variables: JsonRecord): void {
+  exactMutationKeys(variables, ["tweet_id", "dark_request"], "X content.delete variables");
+  exactMutationPostId(variables.tweet_id, "X content.delete target");
+  if (variables.dark_request !== false) throw new Error("X content.delete dark_request must be false");
 }
 
 function validateDesiredStateVariables(operationId: XWebMutationOperationId, variables: JsonRecord): void {
@@ -1022,6 +1030,7 @@ export function authorizeXWebMutationRequest(
   else if (operationId === "articles.title" || operationId === "articles.content") {
     validateRichArticleUpdateVariables(operationId, variables);
   }
+  else if (operationId === "content.delete") validateDeleteTweetVariables(variables);
   else validateDesiredStateVariables(operationId, variables);
   exactBooleanMap(body.features, descriptor.metadata.featureSwitches, `X ${operationId} features`);
   if (descriptor.metadata.fieldToggles.length > 0) {
@@ -2534,6 +2543,17 @@ function nestedRetweetTarget(result: JsonRecord): string | null {
     if (identity !== null) return identity;
   }
   return null;
+}
+
+/**
+ * Validate the accepted DeleteTweet envelope. The response carries no post
+ * identity of its own, so it only proves the mutation was accepted; deletion is
+ * proven by the independent absence readback.
+ */
+export function validateXWebDeleteTweetMutation(response: unknown): void {
+  const data = graphQlData(response);
+  const deleted = record(data.delete_tweet, "X DeleteTweet response.delete_tweet");
+  if (deleted.tweet_results !== undefined) record(deleted.tweet_results, "X DeleteTweet response.tweet_results");
 }
 
 /** Validate exact X consumer-web desired-state success markers and identities. */

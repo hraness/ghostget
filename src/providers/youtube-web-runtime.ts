@@ -46,7 +46,10 @@ import {
   youtubeSubscriptionState,
   youtubeWatchLaterState,
   type YouTubeBootstrapConfig,
+  type YouTubeProjectedComment,
   findYouTubeCommentParams,
+  findYouTubeCommentDeleteAction,
+  findYouTubeRepliesContinuation,
   findYouTubeReplyParams,
   projectYouTubeCreatedComment,
   projectYouTubeCreatedReply,
@@ -107,6 +110,7 @@ type InnertubeEndpoint =
   | "browse"
   | "comment/create_comment"
   | "comment/create_comment_reply"
+  | "comment/perform_comment_action"
   | "like/like"
   | "like/removelike"
   | "navigation/resolve_url"
@@ -118,6 +122,7 @@ type InnertubeEndpoint =
 
 export type YouTubeWebRuntimeDependencies = Partial<WebSessionNetworkDependencies> & {
   readonly now?: () => number;
+  readonly sleep?: (milliseconds: number) => Promise<void>;
 };
 
 export class YouTubeAuthRepairRequiredError extends Error {
@@ -283,6 +288,7 @@ type YouTubeBootstrap = {
   readonly timeoutMs: number;
   readonly maxOutputBytes: number;
   readonly now: () => number;
+  readonly sleep: (milliseconds: number) => Promise<void>;
   readonly subject: string;
 };
 
@@ -787,6 +793,8 @@ async function bootstrapYouTube(
     timeoutMs: options.timeoutMs,
     maxOutputBytes: options.maxOutputBytes,
     now: options.dependencies?.now ?? Date.now,
+    sleep: options.dependencies?.sleep
+      ?? ((milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds))),
   };
   const subject = await currentSubject(partial);
   return Object.freeze({ ...partial, subject });
@@ -1030,6 +1038,141 @@ async function executeCommentWrite(
       error: started > 0
         ? "YouTube may have published the exact comment, but parent, actor, and body binding was not verified; reconcile before retrying"
         : "YouTube comment write failed before submission",
+    };
+  }
+}
+
+const YOUTUBE_DELETE_READBACK_DELAYS_MS = Object.freeze([0, 500, 1_500, 3_000]);
+
+type YouTubeLocatedComment = {
+  readonly comment: YouTubeProjectedComment | null;
+  readonly page: unknown;
+};
+
+/**
+ * Read the comment thread (or, for a reply, its parent's replies page) and
+ * find the exact comment. A reply whose parent is not on the first page throws,
+ * so absence is never inferred from a page the comment could be missing from.
+ */
+async function locateComment(
+  bootstrap: YouTubeBootstrap,
+  videoId: string,
+  commentId: string,
+  parentId: string | null,
+): Promise<YouTubeLocatedComment> {
+  const initial = await innertube(
+    bootstrap,
+    "next",
+    { videoId },
+    "YouTube video comments bootstrap",
+  );
+  assertYouTubeVideoBinding(initial, videoId, "YouTube video comments bootstrap");
+  const continuation = findYouTubeCommentsContinuation(initial);
+  if (continuation === null) throw new Error("YouTube video did not expose a comments section");
+  const thread = await innertube(bootstrap, "next", { continuation }, "YouTube comments");
+  const threadComments = projectYouTubeComments(thread, 100).comments;
+  if (parentId === null) {
+    return { comment: threadComments.find((entry) => entry.id === commentId) ?? null, page: thread };
+  }
+  if (!threadComments.some((entry) => entry.id === parentId)) {
+    throw new Error("YouTube video comments did not contain the exact parent comment");
+  }
+  const repliesContinuation = findYouTubeRepliesContinuation(thread, parentId);
+  if (repliesContinuation === null) return { comment: null, page: null };
+  const replies = await innertube(
+    bootstrap,
+    "next",
+    { continuation: repliesContinuation },
+    "YouTube comment replies",
+  );
+  return {
+    comment: projectYouTubeComments(replies, 100).comments.find((entry) => entry.id === commentId) ?? null,
+    page: replies,
+  };
+}
+
+async function executeCommentDelete(
+  bootstrap: YouTubeBootstrap,
+  recipe: WebSessionRecipe,
+  input: OperationInput,
+  options: {
+    readonly beforeDispatch?: (event: WebSessionDispatchEvent) => Promise<void>;
+    readonly afterDispatchVerified?: (event: WebSessionDispatchEvent) => Promise<void>;
+  },
+): Promise<WebSessionExecution> {
+  const subject = requireBoundSubject(bootstrap);
+  const videoId = videoIdInput(input);
+  const commentId = stringInput(input, "comment_id", 513);
+  if (!/^[A-Za-z0-9_-]{8,256}(?:\.[A-Za-z0-9_-]{1,256})?$/u.test(commentId)) {
+    throw new Error("input.comment_id must be an exact YouTube comment ID");
+  }
+  const parentId = commentId.includes(".") ? commentId.slice(0, commentId.indexOf(".")) : null;
+  const expectedBody = stringInput(input, "expected_body", 10_000);
+  const finalUrl = `${YOUTUBE_ORIGIN}/watch?v=${videoId}`;
+  let started = 0;
+  let verified = 0;
+  try {
+    const authorChannelId = youtubeChannelFromSubject(subject);
+    const before = await locateComment(bootstrap, videoId, commentId, parentId);
+    if (before.comment === null) {
+      throw new Error("YouTube video comments did not contain the exact comment");
+    }
+    if (before.comment.authorChannelId !== authorChannelId) {
+      throw new Error("YouTube comment was not authored by the bound channel");
+    }
+    if (before.comment.body !== expectedBody) {
+      throw new Error("YouTube comment body did not match the confirmed text");
+    }
+    const action = findYouTubeCommentDeleteAction(before.page, commentId);
+    await options.beforeDispatch?.(dispatchEvent(recipe.action, 0, 0));
+    started = 1;
+    const response = await innertube(
+      bootstrap,
+      "comment/perform_comment_action",
+      { actions: [action] },
+      "YouTube comment delete",
+    );
+    const results = (response as { readonly actionResults?: unknown }).actionResults;
+    for (const result of Array.isArray(results) ? results : []) {
+      const status = (result as { readonly status?: unknown } | null)?.status;
+      if (status !== undefined && status !== "STATUS_SUCCEEDED") {
+        throw new Error("YouTube comment delete was not accepted");
+      }
+    }
+    let gone = false;
+    let lastError: unknown;
+    for (const delay of YOUTUBE_DELETE_READBACK_DELAYS_MS) {
+      if (delay > 0) await bootstrap.sleep(delay);
+      try {
+        if ((await locateComment(bootstrap, videoId, commentId, parentId)).comment === null) {
+          gone = true;
+          break;
+        }
+        lastError = new Error("YouTube comment is still readable");
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    if (!gone) throw new Error("YouTube independent absence readback did not settle", { cause: lastError });
+    verified = 1;
+    await options.afterDispatchVerified?.(dispatchEvent(recipe.action, 1, 1));
+    return {
+      status: "succeeded",
+      output: Object.freeze({ videoId, commentId, parentId, deleted: true }),
+      finalUrl,
+      dispatchStarted: true,
+      dispatch: { planned: 1, started, verified },
+    };
+  } catch {
+    return {
+      status: started > 0 ? "indeterminate" : "failed",
+      output: null,
+      finalUrl,
+      dispatchStarted: started > 0,
+      dispatch: { planned: 1, started, verified },
+      error: started > 0
+        ? "YouTube may have deleted the comment but exact absence readback was not verified; reconcile before retrying"
+        : "YouTube comment delete failed before submission",
     };
   }
 }
@@ -1439,7 +1582,11 @@ export async function executeYouTubeWebOperation(
         "relationships.follow.set",
       ].includes(recipe.action))
       || (recipe.contractVersion === 2
-        && (recipe.action === "replies.create" || recipe.action === "comments.create"))
+        && (
+          recipe.action === "replies.create"
+          || recipe.action === "comments.create"
+          || recipe.action === "content.delete"
+        ))
     )
   ) {
     throw new Error(`YouTube authenticated web operation ${recipe.action} has no executable reviewed contract`);
@@ -1486,6 +1633,7 @@ export async function executeYouTubeWebOperation(
   if (recipe.action === "media.read") return executeMediaRead(bootstrap, input);
   if (recipe.action === "posts.read") return executePostRead(bootstrap, input);
   if (recipe.action === "comments.read") return executeCommentsRead(bootstrap, input);
+  if (recipe.action === "content.delete") return executeCommentDelete(bootstrap, recipe, input, options);
   if (recipe.action === "replies.create" || recipe.action === "comments.create") return executeCommentWrite(bootstrap, recipe, input, options);
   if (
     recipe.action === "likes.set"
