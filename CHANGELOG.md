@@ -7,6 +7,12 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.92
+
+X posts, and YouTube comments and replies, can now be deleted through Ghostget.
+
+- `x-web` `content.delete@3` deletes one post. It pre-reads the post, requires that the bound viewer authored it and that its text matches `expected_text`, sends one `DeleteTweet` mutation, and returns `succeeded` only after an independent bounded readback shows the post gone. A post that is already gone returns a no-op. The `@1` and `@2` capture-required reservations stay archived.
+- `youtube-web` `content.delete@2` deletes one comment or reply authored by the bound channel. The input is `video_id`, `comment_id` (`parentId.replyId` for a reply) and `expected_body`. It takes the delete action token from that exact comment's own owner menu and fails before sending if the comment is not the bound channel's, the body differs, or the token is absent. Success needs an absence readback. Video deletion remains capture-required under the archived `@1`.
 ## 0.18.91
 
 X works again after its bundle drop, and the evidence can be refreshed in one command.

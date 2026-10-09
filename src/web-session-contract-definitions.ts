@@ -723,7 +723,7 @@ const x = {
   "posts.quote": contract("x", "posts.quote", "R3", "capture-required", "CreateTweet quote needs an authorized live fixture and reviewed transaction-header behavior; quote text uses the same reviewed 25000-unit CreateTweet bound as posts.publish", 2),
   "likes.set": contract("x", "likes.set", "R2", "observed", "current FavoriteTweet/UnfavoriteTweet desired-state mutations with ephemeral transaction header and independent TweetResultByRestId readback", 2),
   "content.save": contract("x", "content.save", "R2", "observed", "current CreateBookmark/DeleteBookmark desired-state mutations with ephemeral transaction header and independent TweetResultByRestId readback"),
-  "content.delete": contract("x", "content.delete", "R3", "capture-required", "current DeleteTweet request, accepted response, author binding, and exact not-found readback require an authorized live fixture; expected_text uses the same reviewed 25000-unit CreateTweet bound as posts.publish", 2),
+  "content.delete": contract("x", "content.delete", "R3", "observed", "current DeleteTweet mutation bound to the exact authored post by a viewer-bound TweetResultByRestId pre-read of author and text, with an independent bounded absence readback; expected_text uses the same reviewed 25000-unit CreateTweet bound as posts.publish", 3),
   "articles.publish": contract("x", "articles.publish", "R3", "capture-required", "ArticleEntityPublish and public readback remain outside the private draft contract", 4),
 } as const satisfies Readonly<Partial<Record<SemanticOperationName, WebSessionContract>>>;
 
@@ -835,7 +835,7 @@ const twitch = {
 const youtube = {
   "comments.create": contract("youtube", "comments.create", "R3", "observed", "top-level comment through the reviewed create_comment token bound to the exact video, with authoring-channel and body response binding", 2),
   "comments.read": contract("youtube", "comments.read", "R1", "observed", "current acknowledgement-free Innertube next/continuation requests with exact video binding"),
-  "content.delete": contract("youtube", "content.delete", "R3", "capture-required", "cleanup only discarded the stalled incomplete Studio draft; no uploaded-video authored pre-read, accepted video/delete response, or exact-target absence readback was observed"),
+  "content.delete": contract("youtube", "content.delete", "R3", "observed", "delete one comment or reply authored by the bound channel: the exact video's comment thread is pre-read to bind the author channel and body, the delete action token is taken from that exact comment's own owner menu, one perform_comment_action is sent, and an independent bounded absence readback proves it gone; video deletion remains capture-required", 2),
   "content.edit": contract("youtube", "content.edit", "R3", "capture-required", "video, Community-post, and comment edit mutations require separate reviewed contracts"),
   "content.save": contract("youtube", "content.save", "R2", "capture-required", "the current Watch Later playlist edit implementation and target-bound readback are deterministic-test proven but still require an authorized low-stakes live fixture"),
   "content.schedule": contract("youtube", "content.schedule", "R3", "capture-required", "Studio scheduling requires current multi-origin visibility, timezone, audience, and processing contracts"),

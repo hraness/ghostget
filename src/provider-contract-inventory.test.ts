@@ -4,22 +4,22 @@ import { pathToFileURL } from "node:url";
 import { describe, expect, test } from "bun:test";
 
 const predecessorDefaultInventorySha256 =
-  "cfc9e39d4cb707d9a38749d12b31d9cb4c0c6e034373f3aa77f52865caae9f68";
+  "57d7783a03197649d3f96b853b56fe6d810c65eb11a066c354fd311f5e4a02ad";
 const predecessorLegacyInventorySha256 = [
-  "6be91b2fc614a4a9add7f4ee96ec5f05ee90c91956417931ad8df129748e3fdf",
-  "3ce45c80a74cb6ef7305ee99f6499bdcaaf2d3392c1243d1c969699345cd4e3e",
-  "c6654225713890439b9a7a9237f5055636672ad60ddddacc0ce3929de2271845",
-  "e5869081e3d595e979d0d24176a9e26812c35de3200b5e8df3f1f197af011129",
-  "dd9e6ddb0531b9834cb7d80bb193c6e07346caaeaff5fb49847262049cf3bf5e",
-  "c07324a927b6f7b84509c78a16814826a0bfd84c2a8996469553dfc1c76008cb",
-  "111e0ee9c9bac9b971fc7565eac7427ef1b0aa096891cac7f3e83dd8dbcb3a72",
-  "b4d0af81879f67dd7e65c920791ddfef2ad1685976c8f11e9bf89c9eec3cf3a4",
-  "64125b599452a0e9b309eab47dd84463480c1ac46e1ec04a2f407882843a5db9",
-  "b8928bbb6e52613010d2bd7b4b3df4a83d31e565bc5cb817b4ceb21761332b97",
-  "a80e18bfabd02d852bdb95b9b0744c1e844df15fe89223cc6993643f22373d2a",
-  "eb15a4ce2325507b7e04bb906db975e832f8e1e73ec1200dce93db64a8aa1220",
-  "4ee7f77da56cc82227d28e4c0c775b8517570cbcb846d13991eeddacf11d7f66",
-  "a5438454bf32acd5c1986006fae0e7cd3c9fab34d362b33794aa56a2bd7b8862",
+  "715bc128abd65710cd114dc760bfdd86db096299d491e18a15d8c44680ccecee",
+  "e20d3eaf2a2e64500735959947a37f55e7641e17b7253b8755a9b954a5473ac2",
+  "c0991f5fd2ef7141b2c57556c0278c40d0b06c6fd31abfe8e0df203dd0964a8c",
+  "5d1427934e802be3100fb01009afad3991899c3f190187876b7da23bab919f63",
+  "bbe83c5f1164560cedc19dba838a5109e7359c46dd7bf1d5b0ad4d699d713965",
+  "758c00da6ae34359e1b311ea0baf4581e428cb1662b5033503f436d6d4850a68",
+  "189fa14087034870aef4a0b96d72895a6a278ccdd7a0b6b8093da9c58b98c62f",
+  "28fd9d59a1f14eb34529fe41982489f15b7b49407850ff035e0babeb89759d08",
+  "39e70a23927de21d8c5270a5bce4eb707c095692e551ce8bc6fedb391b5f79f1",
+  "edc840ada0a9be5996d428090965bf436c99542224b58832b4e3a1a11665d973",
+  "52b0ce38df0ddf6022a0f623d78b8a57dfa89a0bf6348da030129dc43c459856",
+  "aee5047f382d0538804e5c0dd3709cfb77c9d57c79ba1c4095a8a8f0fa99a7ca",
+  "7e57cb0b02169540f52df11b39f174af5b845e985009c3649cdea503c2c61a1d",
+  "43c0965b148ae2e8bc67a99ec48ab3efec46de37572a027de0e0eb444fd5c221",
   "4c68f991249235150a5c81d0d4f67cacaf49de9a60127cbdbef21838e5e10ea7",
   "06047e57795ba602804add8034875247d7abfce74538e092d3edc12f60a22951",
   "caa90c716077d0563317c78d719a4f82ced934775373cebadddc917587bb4cdb",
@@ -172,7 +172,8 @@ function isCurrentOnlyRow(row) {
     || (row[0] === "web-session-api" && row[1] === "reddit" && row[2].startsWith("flair."))
     || (row[0] === "web-session-api" && row[1] === "reddit" && row[3] === 2
       && (row[2] === "comments.create" || row[2] === "replies.create" || row[2] === "content.delete"))
-    || (row[0] === "web-session-api" && row[1] === "youtube" && (row[2] === "replies.create" || row[2] === "comments.create") && row[3] === 2)
+    || (row[0] === "web-session-api" && row[1] === "youtube" && (row[2] === "replies.create" || row[2] === "comments.create" || row[2] === "content.delete") && row[3] === 2)
+    || (row[0] === "web-session-api" && row[1] === "x" && row[2] === "content.delete" && row[3] === 3)
     || (row[0] === "web-session-api" && row[1] === "substack" && row[2].startsWith("subscribers."))
     || (row[0] === "web-session-api" && row[1] === "twitch")
     || (row[0] === "web-session-api" && row[1] === "webmcp")
@@ -378,8 +379,8 @@ describe("durable provider contract inventory", () => {
       expect(inventory).toEqual({
         rows: 326,
         sha256: predecessorDefaultInventorySha256,
-        currentOnlyRows: 92,
-        currentOnlySha256: "1900030e376fa0c5e22e7847e5f0c764dce91c53a8760b874817b8f68b277c32",
+        currentOnlyRows: 94,
+        currentOnlySha256: "cae12e6f23a3cf32a876cf79dae2ac11f3ba94d9b60a9abc43ec56e4bad0daf1",
         automationRows: [
           ["linked-device", "whatsapp", "messaging.automation.read", 1],
           ["linked-device", "whatsapp", "messaging.automation.send.attachment", 1],
@@ -411,9 +412,9 @@ describe("durable provider contract inventory", () => {
           294,
           256,
           256,
-          240,
+          256,
           215,
-          169,
+          195,
           148,
           148,
           148,

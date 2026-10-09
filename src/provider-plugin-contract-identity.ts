@@ -550,9 +550,10 @@ const identities = Object.freeze({
   },
   "x-web": {
     schemaVersion: 1,
-    pluginVersion: "1.4.0",
-    implementationSha256: "7b791fe596a286034bf89257434572c267031cae16d3bef422188c32f7c5a539",
+    pluginVersion: "1.5.0",
+    implementationSha256: "4588a6fa7e0f73b4321402d217c2ea1c99c0533cbf32c2e7d38737eb62340234",
     legacyCurrentReadImplementationSha256: [
+      "7b791fe596a286034bf89257434572c267031cae16d3bef422188c32f7c5a539",
       "8ebee7a6e32e2e55f185379615ecb55ec4b494cc91e45ffa05b1534bd4941c78",
       "d3cbabe754717ad18f06cb3b434eb87cbfcb6105c97e88c81653606d5916f4ea",
       "8cdc6996e77125b4435586126442aae33fedf7ea27f788bddd01f39efe4f8a09",
@@ -574,9 +575,10 @@ const identities = Object.freeze({
   },
   "youtube-web": {
     schemaVersion: 1,
-    pluginVersion: "1.4.0",
-    implementationSha256: "06480c8aa798ec228e44b7b20a7b35f471400c44439b85548c3d8c513caf8c9d",
+    pluginVersion: "1.5.0",
+    implementationSha256: "86f1918869e1a86cbf633831d912075a4c0c2526169e582df9d8db4ba239b626",
     legacyCurrentReadImplementationSha256: [
+      "06480c8aa798ec228e44b7b20a7b35f471400c44439b85548c3d8c513caf8c9d",
       "4d38cceaf871d6885abf76790b3d47b1e77b8b35dbb94bf5411d86f60202acb4",
       "2c73bbfcb49ba86a7dec8b08d62b87c98c234545d8a1fd93cf02f03868dced34",
       "324abc5f2776c5dc16b9f42f65c20d9781ffc3925ba9f80ca098de45e8d29407",

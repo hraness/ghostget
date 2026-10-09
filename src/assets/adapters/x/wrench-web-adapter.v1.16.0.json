@@ -1,7 +1,7 @@
 {
  "schemaVersion": 4,
  "id": "x-web",
- "version": "1.17.0",
+ "version": "1.16.0",
  "displayName": "X (Authenticated Web API)",
  "surfaceId": "x",
  "origins": [
@@ -618,7 +618,7 @@
    }
   },
   "content.delete": {
-   "description": "Observed contract: delete one exact current-account X post by pre-reading it through TweetResultByRestId to bind the viewer as its author and the exact text, sending one DeleteTweet mutation, and proving the post is gone with an independent bounded absence readback.",
+   "description": "Capture-required contract reservation: delete one exact current-account X post only after the current DeleteTweet request, accepted response, author binding, and exact not-found readback are live-proven.",
    "risk": "R3",
    "sideEffect": "Permanently deletes the exact confirmed authored X post from the authenticated account.",
    "idempotency": "local-at-most-once",
@@ -646,7 +646,7 @@
    "webSession": {
     "site": "x",
     "action": "content.delete",
-    "contractVersion": 3,
+    "contractVersion": 2,
     "timeoutMs": 60000,
     "maxOutputBytes": 2097152
    }

@@ -5172,3 +5172,138 @@ describe("X authenticated internal-API runtime", () => {
     expect(calls.some((call) => call.method === "POST")).toBeFalse();
   });
 });
+
+describe("X content.delete", () => {
+  const DELETE_ID = "nxpZCY2K-I6QoFHAHeojFQ";
+  const text = "owned post text";
+
+  function deleteHandler(options: {
+    readonly state: { deleted: boolean; stays?: boolean };
+    readonly present?: (deleted: boolean) => unknown;
+    readonly mutation?: unknown;
+  }) {
+    return (request: CapturedRequest): Response => {
+      if (request.url.href === "https://x.com/home") {
+        return new Response(homeHtml(), { headers: { "content-type": "text/html" } });
+      }
+      if (request.url.href === MAIN_URL) {
+        return new Response(mainBundle(
+          descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
+          descriptor("DeleteTweet", DELETE_ID, "mutation"),
+          descriptor("TweetResultByRestId", "CxpIrb-Lt2oBpojNjvDatg", "query"),
+        ), { headers: { "content-type": "application/javascript" } });
+      }
+      if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
+      if (request.url.pathname.endsWith(`/${DELETE_ID}/DeleteTweet`)) {
+        options.state.deleted = true;
+        return jsonResponse(options.mutation ?? { data: { delete_tweet: { tweet_results: {} } } });
+      }
+      if (request.url.pathname.endsWith("/TweetResultByRestId")) {
+        const gone = options.state.deleted && options.state.stays !== true;
+        return jsonResponse((options.present ?? ((deleted: boolean) =>
+          deleted ? { data: {} } : publishedTweetReadback({ text })))(gone));
+      }
+      throw new Error(`unexpected test request ${request.url.href}`);
+    };
+  }
+
+  const input = { post_id: CREATED_POST_ID, expected_text: text };
+  const mutations = (calls: CapturedRequest[]) =>
+    calls.filter((call) => call.url.pathname.endsWith("/DeleteTweet"));
+
+  test("deletes one owned post after binding author and text, then proves it absent", async () => {
+    const calls: CapturedRequest[] = [];
+    const before: unknown[] = [];
+    const after: unknown[] = [];
+    const result = await executeXWebOperation(
+      xRecipe("content.delete", 3),
+      input,
+      xAuth,
+      {
+        dependencies: dependencies(calls, deleteHandler({ state: { deleted: false } })),
+        beforeDispatch: (event) => { before.push(event); return Promise.resolve(); },
+        afterDispatchVerified: (event) => { after.push(event); return Promise.resolve(); },
+      },
+    );
+    expect(result).toMatchObject({
+      status: "succeeded",
+      output: { postId: CREATED_POST_ID, deleted: true },
+      dispatchStarted: true,
+      dispatch: { planned: 1, started: 1, verified: 1 },
+    });
+    expect(mutations(calls)).toHaveLength(1);
+    expect(mutations(calls)[0]!.method).toBe("POST");
+    expect(JSON.parse(mutations(calls)[0]!.body ?? "{}")).toMatchObject({
+      variables: { tweet_id: CREATED_POST_ID, dark_request: false },
+    });
+    expect(before).toHaveLength(1);
+    expect(after).toHaveLength(1);
+  });
+
+  test("is a no-op when the post is already absent", async () => {
+    const calls: CapturedRequest[] = [];
+    const result = await executeXWebOperation(xRecipe("content.delete", 3), input, xAuth, {
+      dependencies: dependencies(calls, deleteHandler({
+        state: { deleted: true },
+        present: () => ({ data: {} }),
+      })),
+    });
+    expect(result).toMatchObject({ status: "succeeded", noOp: true, dispatchStarted: false });
+    expect(mutations(calls)).toHaveLength(0);
+  });
+
+  for (const [name, present] of [
+    ["another account authored it", () => publishedTweetReadback({ text, authorId: "999000999" })],
+    ["the text differs", () => publishedTweetReadback({ text: "different text" })],
+  ] as const) {
+    test(`fails before dispatch when ${name}`, async () => {
+      const calls: CapturedRequest[] = [];
+      const result = await executeXWebOperation(xRecipe("content.delete", 3), input, xAuth, {
+        dependencies: dependencies(calls, deleteHandler({ state: { deleted: false }, present })),
+      });
+      expect(result).toMatchObject({ status: "failed", dispatchStarted: false });
+      expect(result.dispatch).toEqual({ planned: 1, started: 0, verified: 0 });
+      expect(mutations(calls)).toHaveLength(0);
+    });
+  }
+
+  test("treats a tombstone readback as absent", async () => {
+    const calls: CapturedRequest[] = [];
+    const result = await executeXWebOperation(xRecipe("content.delete", 3), input, xAuth, {
+      dependencies: dependencies(calls, deleteHandler({
+        state: { deleted: false },
+        present: (gone) => gone
+          ? { data: { tweetResult: { result: { __typename: "TweetTombstone" } } } }
+          : publishedTweetReadback({ text }),
+      })),
+    });
+    expect(result.status).toBe("succeeded");
+  });
+
+  test("reports indeterminate when the post is still readable after the mutation", async () => {
+    const calls: CapturedRequest[] = [];
+    const result = await executeXWebOperation(xRecipe("content.delete", 3), input, xAuth, {
+      dependencies: dependencies(calls, deleteHandler({ state: { deleted: false, stays: true } })),
+    });
+    expect(result).toMatchObject({ status: "indeterminate", dispatchStarted: true });
+    expect(result.dispatch).toEqual({ planned: 1, started: 1, verified: 0 });
+  });
+
+  test("reports indeterminate when the delete response is malformed", async () => {
+    const calls: CapturedRequest[] = [];
+    const result = await executeXWebOperation(xRecipe("content.delete", 3), input, xAuth, {
+      dependencies: dependencies(calls, deleteHandler({
+        state: { deleted: false },
+        mutation: { data: { something_else: {} } },
+      })),
+    });
+    expect(result.status).toBe("indeterminate");
+    expect(result.dispatch.verified).toBe(0);
+  });
+
+  test("keeps the archived content.delete@2 reservation capture-required", async () => {
+    await expect(executeXWebOperation(xRecipe("content.delete", 2), input, xAuth, {
+      dependencies: dependencies([], deleteHandler({ state: { deleted: false } })),
+    })).rejects.toThrow();
+  });
+});

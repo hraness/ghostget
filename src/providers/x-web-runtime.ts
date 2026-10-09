@@ -81,6 +81,7 @@ import {
   projectXWebFeedPost,
   projectXWebProfileStats,
   resolveUniqueXWebBundleDescriptor,
+  validateXWebDeleteTweetMutation,
   validateXWebDesiredStateMutation,
   validateXWebRichArticleContentState,
   xWebQueryDescriptorEvidenceSnapshot,
@@ -3426,6 +3427,152 @@ async function executeArticleDraftSave(
   }
 }
 
+type XTweetPresence =
+  | { readonly present: true; readonly result: JsonRecord }
+  | { readonly present: false };
+
+/**
+ * Read one tweet by ID and distinguish "gone" from "unreadable". X answers a
+ * deleted or unknown post with an empty tweetResult; anything else that is not
+ * the exact requested post throws so the caller never infers absence from drift.
+ */
+async function tweetPresence(bootstrap: XBootstrap, id: string): Promise<XTweetPresence> {
+  const descriptor = await resolveDescriptor(bootstrap, "TweetResultByRestId", "query");
+  const response = await graphQl(bootstrap, descriptor, {
+    tweetId: id,
+    withCommunity: false,
+    includePromotedContent: false,
+    withVoice: false,
+  }, "GET", "posts.by-id");
+  const data = record(
+    (record(response, "X post presence response")).data,
+    "X post presence response.data",
+  );
+  const tweetResult = data.tweetResult;
+  if (tweetResult === undefined || tweetResult === null) return { present: false };
+  const container = record(tweetResult, "X post presence response.tweetResult");
+  if (container.result === undefined || container.result === null) return { present: false };
+  const raw = record(container.result, "X post presence result");
+  if (raw.__typename === "TweetTombstone" || raw.__typename === "TweetUnavailable") {
+    return { present: false };
+  }
+  const result = unwrapTweet(raw, "X post presence result");
+  if (postId(result.rest_id, "X post presence rest_id") !== id) {
+    throw new Error("X post presence readback did not bind the requested post");
+  }
+  return { present: true, result };
+}
+
+/** Bind a read tweet to the bound viewer and the exact confirmed text before it may be deleted. */
+function assertDeletableTweet(result: JsonRecord, expectedText: string, viewerId: string): void {
+  const legacy = record(result.legacy, "X delete pre-read.legacy");
+  if (legacy.user_id_str !== viewerId) {
+    throw new Error("X delete pre-read did not bind the post to the confirmed viewer");
+  }
+  let text = boundCreateTweetText(result, legacy);
+  if (text !== null) {
+    const suffix = tweetMediaUrls(legacy).map((url) => ` ${url}`).join("");
+    if (suffix.length > 0 && text.endsWith(suffix)) text = text.slice(0, text.length - suffix.length);
+  }
+  if (text !== expectedText) throw new Error("X delete pre-read did not bind the confirmed text");
+}
+
+async function waitForTweetAbsence(
+  bootstrap: XBootstrap,
+  id: string,
+  sleep: (milliseconds: number) => Promise<void>,
+): Promise<void> {
+  let lastError: unknown;
+  for (const delay of PUBLISH_READBACK_DELAYS_MS) {
+    if (delay > 0) {
+      const pause = () => sleep(delay);
+      if (bootstrap.operationDeadline === undefined) await pause();
+      else await bootstrap.operationDeadline.run(pause, "authenticated web operation deadline");
+    }
+    try {
+      if (!(await tweetPresence(bootstrap, id)).present) return;
+      lastError = new Error("X post is still readable");
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw new Error("X independent absence readback did not settle within the reviewed bound", {
+    cause: lastError,
+  });
+}
+
+async function executeContentDelete(
+  bootstrap: XBootstrap,
+  recipe: WebSessionRecipe,
+  input: OperationInput,
+  auth: GhostgetAuth,
+  options: {
+    readonly beforeDispatch?: (event: WebSessionDispatchEvent) => Promise<void>;
+    readonly afterDispatchVerified?: (event: WebSessionDispatchEvent) => Promise<void>;
+  },
+): Promise<WebSessionExecution> {
+  const viewerBinding = await requireBoundViewer(bootstrap, auth);
+  const id = postId(input.post_id, "input.post_id");
+  const expectedText = requiredString(input.expected_text, "input.expected_text", MAX_X_CREATE_TWEET_TEXT_LENGTH);
+  const finalUrl = `${X_ORIGIN}/i/status/${id}`;
+  let started = 0;
+  let verified = 0;
+  try {
+    const before = await tweetPresence(bootstrap, id);
+    if (!before.present) {
+      return {
+        status: "succeeded",
+        output: { effect: "already-satisfied", postId: id },
+        finalUrl,
+        noOp: true,
+        dispatchStarted: false,
+        dispatch: { planned: 1, started: 0, verified: 0 },
+      };
+    }
+    assertDeletableTweet(before.result, expectedText, viewerBinding.id);
+    const descriptor = await resolveDescriptor(bootstrap, "DeleteTweet", "mutation");
+    const response = await graphQl(
+      bootstrap,
+      descriptor,
+      { tweet_id: id, dark_request: false },
+      "POST",
+      undefined,
+      "content.delete",
+      async () => {
+        await options.beforeDispatch?.(dispatchEvent(recipe.action, 1, 1, 0, 0));
+        started = 1;
+      },
+    );
+    validateXWebDeleteTweetMutation(response);
+    await waitForTweetAbsence(
+      bootstrap,
+      id,
+      bootstrap.dependencies?.sleep
+        ?? ((milliseconds) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds))),
+    );
+    verified = 1;
+    await options.afterDispatchVerified?.(dispatchEvent(recipe.action, 1, 1, 1, 1));
+    return {
+      status: "succeeded",
+      output: { postId: id, deleted: true },
+      finalUrl,
+      dispatchStarted: true,
+      dispatch: { planned: 1, started, verified },
+    };
+  } catch {
+    return {
+      status: started > 0 ? "indeterminate" : "failed",
+      output: null,
+      finalUrl,
+      dispatchStarted: started > 0,
+      dispatch: { planned: 1, started, verified },
+      error: started > 0
+        ? "X may have deleted the post but exact absence readback was not verified; reconcile before retrying"
+        : "X delete failed before submission",
+    };
+  }
+}
+
 async function executeDesiredState(
   bootstrap: XBootstrap,
   recipe: WebSessionRecipe,
@@ -3649,6 +3796,9 @@ export async function executeXWebOperation(
   ) return executePublish(bootstrap, recipe, input, auth, options);
   if (recipe.action === "articles.draft.save") {
     return executeArticleDraftSave(bootstrap, recipe, input, auth, options);
+  }
+  if (recipe.action === "content.delete" && recipe.contractVersion === 3) {
+    return executeContentDelete(bootstrap, recipe, input, auth, options);
   }
   if (recipe.action === "likes.set" || recipe.action === "content.save" || recipe.action === "posts.repost") {
     return executeDesiredState(bootstrap, recipe, input, auth, options);

@@ -14,6 +14,7 @@ import archivedXWebPostsPublishV2Manifest from "../../assets/adapters/x/wrench-w
 import archivedXWebPostsPublishV3Manifest from "../../assets/adapters/x/wrench-web-adapter.v1.9.0.json";
 import archivedXWebArticlesReadV1Manifest from "../../assets/adapters/x/wrench-web-adapter.v1.11.0.json";
 import archivedXWebLongPostPredecessorManifest from "../../assets/adapters/x/wrench-web-adapter.v1.13.0.json";
+import archivedXWebContentDeleteV2Manifest from "../../assets/adapters/x/wrench-web-adapter.v1.16.0.json";
 import {
   browserSessionAuthKinds,
   webSessionContractOperations,
@@ -153,7 +154,7 @@ function xArticleDraftV2Dispatches(
 
 const currentOperations = webSessionContractOperations(
   Object.values(webSessionContractDefinitions.x),
-  "a81b8c26f2229e4c6b282b57ba698824ceaea43ac4ceec050b6ad1ca71387286",
+  "653bde258f27f97780929396bfda9acb799266dab659749ec259af0601c2943d",
   {
     "likes.set": [1],
   },
@@ -342,6 +343,7 @@ function archivedXWebCaptureRequiredOperation(
   adapterVersion: string,
   operation: "posts.quote" | "content.delete",
   implementation: string,
+  contractVersion = 1,
 ) {
   const contract = reviewedArchivedWebSessionContract(
     manifest,
@@ -350,7 +352,7 @@ function archivedXWebCaptureRequiredOperation(
       adapterVersion,
       site: "x",
       operation,
-      contractVersion: 1,
+      contractVersion,
       risk: "R3",
       state: "capture-required",
       implementation,
@@ -404,12 +406,19 @@ const operations = Object.freeze([
     "content.delete",
     "x content.delete@1 kept the leftover 280-unit expected_text cap and remains a capture-required reservation",
   ),
+  archivedXWebCaptureRequiredOperation(
+    archivedXWebContentDeleteV2Manifest,
+    "1.16.0",
+    "content.delete",
+    "x content.delete@2 was a capture-required reservation until the DeleteTweet request, author binding, and absence readback were live-proven",
+    2,
+  ),
 ]);
 
 export const xWebPlugin = defineProviderPlugin({
   apiVersion: 1,
   id: "x-web",
-  version: "1.4.0",
+  version: "1.5.0",
   displayName: "X Authenticated Web",
   sourceKind: "built-in",
   implementationSources: webImplementationSources(import.meta.url, [

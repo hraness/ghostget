@@ -1,7 +1,7 @@
 {
   "schemaVersion": 4,
   "id": "youtube-web",
-  "version": "1.6.0",
+  "version": "1.5.0",
   "displayName": "YouTube (Authenticated Web API)",
   "surfaceId": "youtube",
   "origins": [
@@ -453,42 +453,35 @@
       }
     },
     "content.delete": {
-      "description": "Observed contract: delete one comment or reply authored by the bound channel. The exact video's comment thread is pre-read to bind the author channel and body, the delete action token is taken from that exact comment's own owner menu, one perform_comment_action is sent, and an independent bounded absence readback proves it gone. Video deletion remains capture-required.",
+      "description": "Capture-required contract reservation: cleanup only discarded the stalled incomplete Studio draft; no uploaded-video authored pre-read, accepted video/delete response, or exact-target absence readback was observed.",
       "risk": "R3",
-      "sideEffect": "Permanently deletes the exact confirmed YouTube comment or reply authored by the authenticated channel.",
+      "sideEffect": "Permanently deletes the exact confirmed YouTube video authored by the authenticated account.",
       "idempotency": "local-at-most-once",
       "dedupeWindowMs": 2592000000,
       "input": {
         "properties": {
           "video_id": {
             "type": "string",
-            "description": "Exact 11-character YouTube video ID the comment is on",
+            "description": "Exact 11-character current-account YouTube video ID",
             "minLength": 11,
             "maxLength": 11
           },
-          "comment_id": {
+          "expected_title": {
             "type": "string",
-            "description": "Exact comment ID, or parentId.replyId for a reply",
-            "minLength": 8,
-            "maxLength": 513
-          },
-          "expected_body": {
-            "type": "string",
-            "description": "Exact current comment text used for pre-delete confirmation",
+            "description": "Exact current video title used for pre-delete confirmation",
             "minLength": 1,
-            "maxLength": 10000
+            "maxLength": 90
           }
         },
         "required": [
           "video_id",
-          "comment_id",
-          "expected_body"
+          "expected_title"
         ]
       },
       "webSession": {
         "site": "youtube",
         "action": "content.delete",
-        "contractVersion": 2,
+        "contractVersion": 1,
         "timeoutMs": 60000,
         "maxOutputBytes": 4194304
       }

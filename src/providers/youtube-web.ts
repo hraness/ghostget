@@ -1275,6 +1275,114 @@ export function findYouTubeReplyParams(value: unknown, commentId: string): strin
   return found.values().next().value!;
 }
 
+const YOUTUBE_DELETE_ACTION_TYPE = 6;
+
+function youtubeBase64Bytes(value: string): Buffer | null {
+  try {
+    const decoded = decodeURIComponent(value);
+    return Buffer.from(decoded.replaceAll("-", "+").replaceAll("_", "/"), "base64");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Finds the one reviewed delete-action token the comment thread exposes for
+ * the exact comment: the DELETE item of that comment's own owner menu, whose
+ * perform_comment_action payload is delete-typed and embeds the comment ID.
+ * Only comments the signed-in account owns carry this menu item.
+ */
+export function findYouTubeCommentDeleteAction(value: unknown, commentId: string): string {
+  if (!/^[A-Za-z0-9_-]{8,256}(?:\.[A-Za-z0-9_-]{1,256})?$/u.test(commentId)) {
+    throw new Error("YouTube comment delete target must be one exact comment ID");
+  }
+  const exactId = new RegExp(`(?<![A-Za-z0-9_.-])${escapedPattern(commentId)}(?![A-Za-z0-9_.-])`, "u");
+  const found = new Set<string>();
+  for (const item of walkRecords(value, "YouTube comment delete bootstrap")) {
+    const toolbar = isRecord(item.engagementToolbarSurfaceEntityPayload)
+      ? item.engagementToolbarSurfaceEntityPayload
+      : null;
+    if (toolbar === null) continue;
+    const key = optionalBoundedString(toolbar.key, 512);
+    if (key === null) continue;
+    const keyBytes = youtubeBase64Bytes(key);
+    if (keyBytes === null || !exactId.test(keyBytes.toString("latin1"))) continue;
+    let cursor: unknown = toolbar;
+    for (const name of ["menuCommand", "innertubeCommand", "menuEndpoint", "menu", "menuRenderer"] as const) {
+      cursor = isRecord(cursor) ? cursor[name] : undefined;
+    }
+    const items = isRecord(cursor) && Array.isArray(cursor.items) ? cursor.items : [];
+    for (const menuItem of items) {
+      const entry = isRecord(menuItem) && isRecord(menuItem.menuNavigationItemRenderer)
+        ? menuItem.menuNavigationItemRenderer
+        : null;
+      if (entry === null || !isRecord(entry.icon) || entry.icon.iconType !== "DELETE") continue;
+      let action: unknown = entry;
+      for (const name of [
+        "navigationEndpoint",
+        "confirmDialogEndpoint",
+        "content",
+        "confirmDialogRenderer",
+        "confirmButton",
+        "buttonRenderer",
+        "serviceEndpoint",
+        "performCommentActionEndpoint",
+      ] as const) {
+        action = isRecord(action) ? action[name] : undefined;
+      }
+      const token = isRecord(action) ? optionalBoundedString(action.action, 8192) : null;
+      if (token === null) continue;
+      if (!/^[A-Za-z0-9_%=-]{8,8192}$/u.test(token)) {
+        throw new Error("YouTube comment delete bootstrap returned an invalid action token");
+      }
+      const bytes = youtubeBase64Bytes(token);
+      if (
+        bytes === null
+        || bytes.length < 4
+        || bytes[0] !== 0x08
+        || bytes[1] !== YOUTUBE_DELETE_ACTION_TYPE
+        || !exactId.test(bytes.toString("latin1"))
+      ) continue;
+      found.add(token);
+    }
+  }
+  if (found.size !== 1) {
+    throw new Error("YouTube comment delete bootstrap did not bind one owned delete action for the exact comment");
+  }
+  return found.values().next().value!;
+}
+
+/** Finds the replies continuation of one exact top-level comment, or null when it has no replies. */
+export function findYouTubeRepliesContinuation(value: unknown, parentId: string): string | null {
+  const tokens = new Set<string>();
+  for (const item of walkRecords(value, "YouTube comment replies bootstrap")) {
+    const thread = isRecord(item.commentThreadRenderer) ? item.commentThreadRenderer : null;
+    if (thread === null) continue;
+    const outer = isRecord(thread.commentViewModel) ? thread.commentViewModel : null;
+    const inner = outer !== null && isRecord(outer.commentViewModel) ? outer.commentViewModel : null;
+    if (inner?.commentId !== parentId) continue;
+    const replies = isRecord(thread.replies) && isRecord(thread.replies.commentRepliesRenderer)
+      ? thread.replies.commentRepliesRenderer
+      : null;
+    const contents = replies !== null && Array.isArray(replies.contents) ? replies.contents : [];
+    for (const entry of contents) {
+      const renderer = isRecord(entry) && isRecord(entry.continuationItemRenderer)
+        ? entry.continuationItemRenderer
+        : null;
+      const endpoint = renderer !== null && isRecord(renderer.continuationEndpoint)
+        ? renderer.continuationEndpoint
+        : null;
+      const command = endpoint !== null && isRecord(endpoint.continuationCommand)
+        ? endpoint.continuationCommand
+        : null;
+      const token = optionalBoundedString(command?.token, 8192);
+      if (token !== null) tokens.add(token);
+    }
+  }
+  if (tokens.size > 1) throw new Error("YouTube comment replies exposed ambiguous continuations");
+  return tokens.size === 0 ? null : tokens.values().next().value!;
+}
+
 export function youtubeChannelFromSubject(subject: string): string {
   const match = /^youtube:channel:(UC[A-Za-z0-9_-]{22})(?:\/|$)/u.exec(subject);
   if (match === null) throw new Error("YouTube auth subject does not bind one channel");
