@@ -112,6 +112,15 @@ export function describeFailure(label: string, outcome: Awaited<ReturnType<typeo
   ].join("\n");
 }
 
+/**
+ * runTool reports a finished process as "exited" with its exit code; it has no
+ * "succeeded" kind. Comparing against one failed every nightly rebuild command,
+ * including clones that exited 0.
+ */
+export function commandSucceeded(outcome: Awaited<ReturnType<typeof runTool>>): boolean {
+  return outcome.kind === "exited" && outcome.exitCode === 0;
+}
+
 async function must(
   command: readonly string[],
   cwd: string,
@@ -123,7 +132,7 @@ async function must(
     environment: { ...process.env as Record<string, string>, ...extraEnvironment },
     timeoutMs: 15 * 60_000,
   });
-  if (outcome.kind !== "succeeded") fail(describeFailure(label, outcome));
+  if (!commandSucceeded(outcome)) fail(describeFailure(label, outcome));
   return outcome.stdout.trim();
 }
 
