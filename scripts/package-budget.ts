@@ -2539,11 +2539,11 @@
 // canonical Release must independently measure and admit their exact
 // archives.
 // The 0.18.92 release adds the X and YouTube content.delete@2/@3 executors and two
-// archived manifest snapshots without adding a packed file. Two clean npm packs with
-// --ignore-scripts on darwin arm64 were byte-identical at 643 entries, 12,254,184
-// packed and 24,578,411 unpacked bytes; archive SHA-256 b17e7ef15aa77be5284d42800c270e3f1559adc26d32977f972f98c0e074749c. Allowances:
-// 12,254,184 + 12,387 + 4,096 = 12,270,667 packed; 24,578,411 + 353 + 1,656 =
-// 24,580,420 unpacked.
+// archived manifest snapshots (645 entries). Two clean npm packs with
+// --ignore-scripts on darwin arm64 were byte-identical at 645 entries, 12,262,772
+// packed and 24,618,853 unpacked bytes; archive SHA-256 9db23463054b588de6ee258c8d4a478589d9b5dc2f59f5d6389a01a9580ed202. Allowances:
+// 12,262,772 + 12,387 + 4,096 = 12,279,255 packed; 24,618,853 + 353 + 1,656 =
+// 24,620,862 unpacked.
 // The 0.18.91 release refreshes X's reviewed query IDs and adds
 // scripts/refresh-x-evidence.ts without adding a packed file; Bluesky errors gain
 // their XRPC code. Two clean npm packs with --ignore-scripts on darwin arm64
@@ -2556,11 +2556,11 @@
 // adapter snapshots, and the rebuilt dist bundles add two packed source files
 // over the 641-entry inventory. Two clean npm 11.16.0 packs on Node 24.18.1
 // (zlib 1.3.1-e00f703) with --ignore-scripts on darwin arm64 were
-// byte-identical at 643 files/entries, 12,254,184 packed bytes and
-// 24,578,411 unpacked bytes; archive SHA-256
-// b17e7ef15aa77be5284d42800c270e3f1559adc26d32977f972f98c0e074749c. Retain the
-// reviewed allowances: 12,254,184 + 12,387 + 4,096 = 12,270,667 packed;
-// 24,578,411 + 353 + 1,656 = 24,580,420 unpacked. Current source CI and
+// byte-identical at 645 files/entries, 12,262,772 packed bytes and
+// 24,618,853 unpacked bytes; archive SHA-256
+// 9db23463054b588de6ee258c8d4a478589d9b5dc2f59f5d6389a01a9580ed202. Retain the
+// reviewed allowances: 12,262,772 + 12,387 + 4,096 = 12,279,255 packed;
+// 24,618,853 + 353 + 1,656 = 24,620,862 unpacked. Current source CI and
 // canonical Release must independently measure and admit their exact
 // archives.
 export const repairPackageMeasurement = Object.freeze({
@@ -2570,10 +2570,10 @@ export const repairPackageMeasurement = Object.freeze({
   nodeVersion: "24.18.1",
   zlibVersion: "1.3.1-e00f703",
   platform: "darwin-arm64",
-  archiveSha256: "b17e7ef15aa77be5284d42800c270e3f1559adc26d32977f972f98c0e074749c",
-  packedBytes: 12_254_184,
-  unpackedBytes: 24_578_411,
-  entryCount: 643,
+  archiveSha256: "9db23463054b588de6ee258c8d4a478589d9b5dc2f59f5d6389a01a9580ed202",
+  packedBytes: 12_262_772,
+  unpackedBytes: 24_618_853,
+  entryCount: 645,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,
