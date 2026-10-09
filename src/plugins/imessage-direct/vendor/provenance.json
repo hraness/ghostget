@@ -7,6 +7,7 @@
   },
   "reviewedPatchStack": {
     "tipCommit": "533789195c48480aef2cdc3a2377038301d5b861",
+    "sourceTree": "ac999492b328f3e95b0d8e306648a21e9aebb42d",
     "patches": [
       {
         "file": "0001-fix-keep-AppleScript-send-payloads-out-of-child-argv.patch",

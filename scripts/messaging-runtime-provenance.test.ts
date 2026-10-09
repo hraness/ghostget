@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { gunzipSync } from "node:zlib";
 
 import { MESSAGING_NATIVE_ARTIFACTS } from "../src/providers/messaging-native-artifacts";
-import { assertPatchStackIdentity, verify } from "./messaging-runtime-provenance";
+import { assertPatchStackIdentity, commandSucceeded, verify } from "./messaging-runtime-provenance";
 
 describe("messaging runtime provenance", () => {
   test("pinned source trees tolerate reconstructed commit metadata but reject source drift", () => {
@@ -17,6 +17,20 @@ describe("messaging runtime provenance", () => {
     const legacy = { tipCommit: stack.tipCommit, patches: [] };
     expect(() => assertPatchStackIdentity("imsg", legacy, stack.tipCommit, "4".repeat(40))).not.toThrow();
     expect(() => assertPatchStackIdentity("imsg", legacy, "3".repeat(40), "4".repeat(40))).toThrow("patch stack landed");
+  });
+
+  test("a rebuild command succeeds only when it exits 0", () => {
+    expect(commandSucceeded({ kind: "exited", exitCode: 0, stdout: "", stderr: "" })).toBe(true);
+    expect(commandSucceeded({ kind: "exited", exitCode: 1, stdout: "", stderr: "" })).toBe(false);
+    expect(commandSucceeded({ kind: "timed-out", detail: "late", stdout: "", stderr: "" })).toBe(false);
+    expect(commandSucceeded({ kind: "signaled", detail: "SIGKILL", stdout: "", stderr: "" })).toBe(false);
+  });
+
+  test("every committed patch stack pins its reconstructed source tree", () => {
+    for (const vendor of ["imessage-direct", "whatsapp-linked-device"]) {
+      const record = JSON.parse(readFileSync(join(import.meta.dir, "..", "src", "plugins", vendor, "vendor", "provenance.json"), "utf8")) as { reviewedPatchStack: { sourceTree?: string } };
+      expect(record.reviewedPatchStack.sourceTree).toMatch(/^[0-9a-f]{40}$/u);
+    }
   });
 
   test("the committed compressed and executable pins verify from the checked-in bytes", async () => {
