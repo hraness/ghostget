@@ -109,10 +109,17 @@ function exactOperationType(value: unknown, label: string): XWebOperationType {
 
 function parseBundleQueryDescriptor(value: unknown, label: string): XWebBundleQueryDescriptor {
   const descriptor = record(value, label);
-  exactKeys(descriptor, ["queryId", "operationName", "operationType", "metadata"], label);
+  // A descriptor resolved through query-ID rotation carries `rotatedFrom`; it is re-parsed on every later use.
+  const rotated = Object.hasOwn(descriptor, "rotatedFrom");
+  exactKeys(
+    descriptor,
+    rotated ? ["queryId", "operationName", "operationType", "metadata", "rotatedFrom"] : ["queryId", "operationName", "operationType", "metadata"],
+    label,
+  );
   const metadata = record(descriptor.metadata, `${label}.metadata`);
   exactKeys(metadata, ["featureSwitches", "fieldToggles"], `${label}.metadata`);
   return Object.freeze({
+    ...(rotated ? { rotatedFrom: exactQueryId(requiredString(descriptor, "rotatedFrom", label), `${label}.rotatedFrom`) } : {}),
     queryId: exactQueryId(requiredString(descriptor, "queryId", label), `${label}.queryId`),
     operationName: exactOperationName(
       requiredString(descriptor, "operationName", label),
@@ -129,7 +136,7 @@ function parseBundleQueryDescriptor(value: unknown, label: string): XWebBundleQu
 function parseDescriptorKey(value: unknown, label: string): XWebQueryDescriptorKey & { readonly metadataSha256?: string } {
   const key = record(value, label);
   const required = ["queryId", "operationName", "operationType"] as const;
-  const allowed = new Set([...required, "metadata", "sourceChunk", "observedOn", "metadataSha256"]);
+  const allowed = new Set([...required, "metadata", "sourceChunk", "observedOn", "metadataSha256", "rotatedFrom"]);
   const missing = required.filter((name) => !Object.hasOwn(key, name));
   const extra = Object.keys(key).filter((name) => !allowed.has(name));
   if (missing.length > 0) throw new Error(`${label} omitted ${missing.join(", ")}`);

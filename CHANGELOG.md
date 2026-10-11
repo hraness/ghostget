@@ -7,6 +7,10 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+Fixed X reads failing with "resolved X descriptor contained unsupported field(s): rotatedFrom".
+
+- When X rotated a query ID and the reviewed metadata fingerprint still matched, `x-web` followed the new ID but then rejected its own resolved descriptor in the strict parsers, so every read failed as `contract-drift` until the evidence was refreshed. Both descriptor parsers now accept and validate `rotatedFrom`.
+
 ## 0.18.92
 
 X posts, and YouTube comments and replies, can now be deleted through Ghostget.
