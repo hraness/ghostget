@@ -352,6 +352,8 @@ describe("exact current-bundle descriptor resolution", () => {
     );
     expect(resolved.queryId).toBe("RotatedQueryId_12345");
     expect(resolved.rotatedFrom).toBe(reviewed.queryId);
+    // The resolved descriptor is re-parsed when the request path is built, so it must survive that.
+    expect(buildXWebGraphQlPath(resolved)).toContain("RotatedQueryId_12345/HomeTimeline");
   });
 
   test("still fails a rotation whose feature or toggle set also changed", () => {
