@@ -4198,6 +4198,7 @@ main .founder-note { margin-inline: 3rem 0; padding-inline: 0; }
   .ghostget-collapse__meter-from,
   .ghostget-collapse__meter-to { animation: none; }
   .ghostget-collapse__page:not(.ghostget-collapse__page--article) { opacity: 0.45; }
+  .ghostget-collapse__meter-from { visibility: hidden; }
 }
 @media (prefers-reduced-transparency: reduce) {
   .ghostget-collapse__page:not(.ghostget-collapse__page--article) { opacity: 1; }
@@ -4212,6 +4213,7 @@ main .founder-note { margin-inline: 3rem 0; padding-inline: 0; }
   .ghostget-collapse__meter-track { border: 1px solid CanvasText; }
   .ghostget-collapse__page, .ghostget-collapse__result, .ghostget-collapse__meter-fill,
   .ghostget-collapse__meter-from, .ghostget-collapse__meter-to { animation: none; }
+  .ghostget-collapse__meter-from { visibility: hidden; }
   .ghostget-collapse__page { opacity: 1; }
 }
 
