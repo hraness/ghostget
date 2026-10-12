@@ -1,7 +1,7 @@
 {
   "name": "@hraness/ghostget",
   "version": "0.18.92",
-  "description": "GhostGet gives your AI agent named web actions: read a page, archive one media item, or use a connected account, without credentials or a browser to steer.",
+  "description": "GhostGet is an agent tool for driving websites fast. Agents call named actions instead of clicking through pages, using a tenth of the tokens and no password.",
   "license": "MIT",
   "type": "module",
   "sideEffects": [
