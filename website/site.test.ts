@@ -160,7 +160,8 @@ describe("ghostget.com static site", () => {
       readFile(join(websiteRoot, "source/styles.css"), "utf8"),
     ]);
     expect(home).toMatch(/<\/header>\s*<section aria-label="A note from the author" class="founder-note">/u);
-    expect(home).toContain("GhostGet is the web for your agent.");
+    // The note opens in the registry's words (the medium description's first sentence).
+    expect(home).toContain(`<p>${portfolio.messaging.medium.split(". ")[0]}.`);
     expect(home).toContain('<a href="https://ghostget.com">ghostget.com</a>');
     expect(css).toContain('"Instrument Serif"');
     expect(css).not.toContain("Georgia");
@@ -2160,7 +2161,9 @@ describe("ghostget.com static site", () => {
     const details = socialImageSiteDetails(socialSite, SOCIAL_IMAGE_HOME_PAGE);
     const fit = socialImageFit(details);
     expect(fit.layout).toBe("product");
-    expect(fit.headline.lines).toEqual(["Faster browsing", "for agents"]);
+    // The registry heading wraps to two lines on the card without reduction.
+    expect(fit.headline.lines).toHaveLength(2);
+    expect(fit.headline.lines.join(" ")).toBe(marketing.hero.heading);
     expect(fit.headline.reduced).toBe(false);
     expect(fit.description?.lines.join(" ")).toBe(SOCIAL_IMAGE_DESCRIPTION);
     expect(fit.description?.cut).toBe("none");

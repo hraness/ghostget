@@ -3902,3 +3902,366 @@ main .founder-note { margin-inline: 3rem 0; padding-inline: 0; }
   main .founder-note { margin-inline-start: 1.25rem; }
   .founder-note__body p { font-size: 1.25rem; }
 }
+
+/* Hero proof object: one real named action beside the copy. */
+.ghostget-product-hero .hraness-marketing-hero__frame .hraness-marketing-proof-frame {
+  margin: 0;
+}
+.proof-transcript--action {
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+@media (max-width: 40rem) {
+  .proof-transcript--action { font-size: 0.72rem; padding: 0.9rem 1rem; }
+}
+.command-stack__note {
+  color: var(--muted);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  margin: 0.6rem 0 0;
+}
+
+/* Mechanism diagram: product-owned SVG in the palette, one accent. */
+.ghostget-diagram {
+  --ghostget-diagram-accent: var(--ghostget-action);
+  color: var(--foreground);
+  display: grid;
+  gap: 1rem;
+  margin: 0;
+  min-inline-size: 0;
+}
+.ghostget-diagram__scroll {
+  max-inline-size: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+.ghostget-diagram__scroll:focus-visible {
+  outline: 2px solid var(--ghostget-action);
+  outline-offset: 3px;
+}
+.ghostget-diagram__canvas {
+  block-size: auto;
+  display: block;
+  font-family: var(--font-text);
+  inline-size: 100%;
+  min-inline-size: 44rem;
+}
+.ghostget-diagram__node {
+  fill: var(--surface);
+  stroke: var(--line);
+  stroke-width: 1;
+}
+.ghostget-diagram__node--accent {
+  fill: color-mix(in oklab, var(--ghostget-action) 12%, var(--surface));
+  stroke: var(--ghostget-action);
+  stroke-width: 1.5;
+}
+.ghostget-diagram__label,
+.ghostget-diagram__detail,
+.ghostget-diagram__chip-text {
+  fill: var(--foreground);
+  text-anchor: middle;
+}
+.ghostget-diagram__label { font-size: 19px; font-weight: 550; }
+.ghostget-diagram__detail { fill: var(--muted); font-size: 14.5px; }
+.ghostget-diagram__detail--mono { font-family: var(--font-mono); font-size: 13.5px; }
+.ghostget-diagram__chip { fill: transparent; stroke: var(--line); }
+.ghostget-diagram__chip-text { font-size: 13.5px; font-weight: 500; }
+.ghostget-diagram__connector {
+  color: var(--ghostget-diagram-accent);
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.75;
+}
+.ghostget-diagram__connector--return { stroke-dasharray: 5 6; stroke-width: 1.5; }
+.ghostget-diagram__caption {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.55;
+  max-inline-size: 70ch;
+}
+@media (forced-colors: active) {
+  .ghostget-diagram { --ghostget-diagram-accent: CanvasText; }
+  .ghostget-diagram__node, .ghostget-diagram__chip { fill: Canvas; stroke: CanvasText; }
+  .ghostget-diagram__label, .ghostget-diagram__detail, .ghostget-diagram__chip-text { fill: CanvasText; }
+}
+
+/* Signature moment: a page's markup folds into one call and one result while
+ * the token meter drops. CSS only; the box is reserved; reduced motion shows
+ * the final frame. */
+.ghostget-collapse {
+  display: grid;
+  gap: 1rem;
+  margin: 0;
+  min-inline-size: 0;
+}
+.ghostget-collapse__stage {
+  --ggc-duration: 2.6s;
+  --ggc-delay: 0.6s;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  contain: layout paint;
+  display: grid;
+  gap: 1.25rem 1.5rem;
+  grid-template-areas: "pages call" "meter meter";
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  min-block-size: 20rem;
+  overflow: hidden;
+  padding: 1.5rem;
+}
+.ghostget-collapse__pages {
+  display: grid;
+  gap: 0.5rem;
+  grid-area: pages;
+  position: relative;
+  align-content: start;
+}
+.ghostget-collapse__page {
+  background: var(--background);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.55rem 0.7rem;
+  transform-origin: 100% 50%;
+  animation: ggc-fold var(--ggc-duration) cubic-bezier(0.4, 0, 0.2, 1) var(--ggc-delay) both;
+}
+.ghostget-collapse__page[data-part="2"] { animation-delay: calc(var(--ggc-delay) + 0.12s); }
+.ghostget-collapse__page[data-part="3"] { animation-delay: calc(var(--ggc-delay) + 0.24s); }
+.ghostget-collapse__page[data-part="4"] { animation-delay: calc(var(--ggc-delay) + 0.36s); }
+.ghostget-collapse__page--article {
+  border-color: var(--ghostget-action);
+  animation-name: ggc-keep;
+}
+.ghostget-collapse__page-title {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+}
+.ghostget-collapse__page--article .ghostget-collapse__page-title { color: var(--ghostget-action); }
+.ghostget-collapse__line {
+  background: color-mix(in oklab, var(--foreground) 16%, transparent);
+  block-size: 0.3rem;
+  border-radius: 999px;
+  display: block;
+  inline-size: 92%;
+}
+.ghostget-collapse__line--short { inline-size: 58%; }
+.ghostget-collapse__page--article .ghostget-collapse__line { background: color-mix(in oklab, var(--ghostget-action) 55%, transparent); }
+.ghostget-collapse__pages-label,
+.ghostget-collapse__result-meta,
+.ghostget-collapse__meter-label {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+}
+.ghostget-collapse__call {
+  align-content: start;
+  display: grid;
+  gap: 0.75rem;
+  grid-area: call;
+  min-inline-size: 0;
+}
+.ghostget-collapse__command {
+  background: var(--code-background);
+  border-radius: 8px;
+  color: var(--code-foreground);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  padding: 0.7rem 0.9rem;
+}
+.ghostget-collapse__prompt { color: var(--ghostget-action-bright); }
+.ghostget-collapse__result {
+  background: var(--background);
+  border: 1px solid var(--ghostget-action);
+  border-radius: 8px;
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.8rem 0.9rem;
+  animation: ggc-arrive var(--ggc-duration) cubic-bezier(0.4, 0, 0.2, 1) var(--ggc-delay) both;
+}
+.ghostget-collapse__result-line {
+  font-size: 0.86rem;
+  line-height: 1.45;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ghostget-collapse__result-line--head { font-weight: 600; }
+.ghostget-collapse__meter {
+  align-items: center;
+  display: grid;
+  gap: 0.4rem 1rem;
+  grid-area: meter;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.ghostget-collapse__meter-label { grid-column: 1 / -1; }
+.ghostget-collapse__meter-track {
+  background: color-mix(in oklab, var(--foreground) 8%, transparent);
+  block-size: 0.9rem;
+  border-radius: 999px;
+  display: block;
+  overflow: hidden;
+  position: relative;
+}
+.ghostget-collapse__meter-ghost,
+.ghostget-collapse__meter-fill {
+  block-size: 100%;
+  border-radius: 999px;
+  display: block;
+  inset: 0 auto 0 0;
+  position: absolute;
+}
+.ghostget-collapse__meter-ghost {
+  background: color-mix(in oklab, var(--foreground) 18%, transparent);
+  inline-size: 100%;
+}
+.ghostget-collapse__meter-fill {
+  background: var(--ghostget-action);
+  inline-size: 10.4%;
+  animation: ggc-meter var(--ggc-duration) cubic-bezier(0.4, 0, 0.2, 1) var(--ggc-delay) both;
+}
+.ghostget-collapse__meter-value {
+  display: grid;
+  font-family: var(--font-mono);
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  min-inline-size: 5.5ch;
+  text-align: end;
+}
+.ghostget-collapse__meter-from,
+.ghostget-collapse__meter-to { grid-area: 1 / 1; }
+.ghostget-collapse__meter-from {
+  color: var(--muted);
+  text-decoration: line-through;
+  animation: ggc-fade-out var(--ggc-duration) linear var(--ggc-delay) both;
+}
+.ghostget-collapse__meter-to {
+  color: var(--ghostget-action);
+  animation: ggc-fade-in var(--ggc-duration) linear var(--ggc-delay) both;
+}
+.ghostget-collapse__caption {
+  color: var(--muted);
+  display: grid;
+  font-size: 0.9rem;
+  gap: 0.35rem;
+  line-height: 1.55;
+  max-inline-size: 70ch;
+}
+.ghostget-collapse__caption span { color: var(--foreground); }
+.ghostget-collapse__caption small { font-size: 0.8125rem; }
+@keyframes ggc-fold {
+  0%, 35% { opacity: 1; transform: none; }
+  100% { opacity: 0.18; transform: translateX(1.5rem) scaleY(0.2); }
+}
+@keyframes ggc-keep {
+  0%, 35% { transform: none; }
+  100% { transform: translateY(-0.25rem); }
+}
+@keyframes ggc-arrive {
+  0%, 45% { opacity: 0; transform: translateY(0.5rem); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes ggc-meter {
+  0%, 30% { inline-size: 100%; }
+  100% { inline-size: 10.4%; }
+}
+@keyframes ggc-fade-out {
+  0%, 40% { opacity: 1; text-decoration-color: transparent; }
+  100% { opacity: 0; }
+}
+@keyframes ggc-fade-in {
+  0%, 60% { opacity: 0; }
+  100% { opacity: 1; }
+}
+@media (max-width: 48rem) {
+  .ghostget-collapse__stage {
+    grid-template-areas: "pages" "call" "meter";
+    grid-template-columns: minmax(0, 1fr);
+    min-block-size: 0;
+    padding: 1.1rem;
+  }
+  .ghostget-collapse__pages { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ghostget-collapse__pages-label { grid-column: 1 / -1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ghostget-collapse__page,
+  .ghostget-collapse__page--article,
+  .ghostget-collapse__result,
+  .ghostget-collapse__meter-fill,
+  .ghostget-collapse__meter-from,
+  .ghostget-collapse__meter-to { animation: none; }
+  .ghostget-collapse__page:not(.ghostget-collapse__page--article) { opacity: 0.45; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .ghostget-collapse__page:not(.ghostget-collapse__page--article) { opacity: 1; }
+}
+@media (forced-colors: active) {
+  .ghostget-collapse__stage,
+  .ghostget-collapse__page,
+  .ghostget-collapse__result,
+  .ghostget-collapse__command { background: Canvas; border-color: CanvasText; color: CanvasText; }
+  .ghostget-collapse__line, .ghostget-collapse__meter-ghost { background: GrayText; }
+  .ghostget-collapse__meter-fill { background: Highlight; }
+  .ghostget-collapse__meter-track { border: 1px solid CanvasText; }
+  .ghostget-collapse__page, .ghostget-collapse__result, .ghostget-collapse__meter-fill,
+  .ghostget-collapse__meter-from, .ghostget-collapse__meter-to { animation: none; }
+  .ghostget-collapse__page { opacity: 1; }
+}
+
+/* Benchmark: tokens per task, drawn with CSS so every value stays text. */
+.ghostget-benchmark {
+  display: grid;
+  gap: 1rem;
+  margin: 0 0 1.5rem;
+  min-inline-size: 0;
+}
+.ghostget-benchmark__bars {
+  display: grid;
+  gap: 0.9rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.ghostget-benchmark__row {
+  display: grid;
+  gap: 0.35rem;
+}
+.ghostget-benchmark__label { font-size: 0.95rem; font-weight: 550; }
+.ghostget-benchmark__bar {
+  align-items: center;
+  block-size: 1.6rem;
+  border-radius: 6px;
+  display: flex;
+  min-inline-size: 2px;
+  position: relative;
+  white-space: nowrap;
+}
+.ghostget-benchmark__bar--browsing { background: color-mix(in oklab, var(--foreground) 14%, transparent); inline-size: 100%; }
+.ghostget-benchmark__bar--ghostget { background: var(--ghostget-action); inline-size: 10.4%; }
+.ghostget-benchmark__value {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  padding-inline-start: 0.6rem;
+}
+.ghostget-benchmark__bar--ghostget .ghostget-benchmark__value {
+  inset-inline-start: 100%;
+  position: absolute;
+}
+.ghostget-benchmark__note {
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.55;
+  max-inline-size: 76ch;
+}
+@media (forced-colors: active) {
+  .ghostget-benchmark__bar--browsing { background: GrayText; }
+  .ghostget-benchmark__bar--ghostget { background: Highlight; }
+}
