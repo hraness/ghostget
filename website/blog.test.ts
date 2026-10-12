@@ -96,7 +96,7 @@ describe("GhostGet blog admission", () => {
       expect(main).toContain('class="plain-publication__provenance"');
       expect(main).toContain('class="plain-publication__sources"');
       expect(main).toContain('class="editorial-figure"');
-      expect(main).not.toMatch(/(?:Published|Updated|Checked) <time/u);
+      expect(main).toMatch(/Published <time/u);
       for (const placeholder of main.match(/\{\{[A-Z0-9_]+\}\}/gu) ?? []) {
         expect(["{{GHOSTGET_RELEASE}}", "{{LAUNCH_FILM}}"] ).toContain(placeholder);
       }
@@ -225,7 +225,7 @@ describe("Editorial image delivery", () => {
   test("blog cards, figures, social metadata, and schema use each article's own image", async () => {
     const shell = await readFile(join(websiteRoot, "source/blog.html"), "utf8");
     const index = renderBlogIndexMain();
-    expect(index).not.toContain("<time");
+    expect(index).toContain("<time");
     expect(index.match(/class="blog-entry-image"/gu)).toHaveLength(BLOG_POSTS.length);
     for (const post of BLOG_POSTS) {
       const image = editorialImage(blogPostPath(post.slug));

@@ -64,6 +64,16 @@
           <p>A macOS or Linux computer, a terminal, and <a href="https://bun.sh/docs/installation">Bun 1.3.14</a>. Check it with <code>bun --version</code>. GhostGet is free and MIT licensed. You can use it directly or with an agent that can run commands, such as Codex, Claude Code, or Cursor, after you <a href="#agents">check the agent’s network settings</a>.</p>
         </section>
 
+        <section aria-labelledby="limits">
+          <h2 id="limits">What GhostGet supports</h2>
+          <ul class="guide-list">
+            <li><strong>Platforms.</strong> macOS and Linux with Bun 1.3.14. Windows is not supported. Agent Skill installs also need <code>npx</code> or <code>bunx</code>.</li>
+            <li><strong>Sites.</strong> Any public page through <code>ghostget read</code>, and named actions in {{PROVIDER_SURFACE_COUNT}} services: Beeper, Bluesky, ClasificadosOnline, Facebook, Facebook Groups, Facebook Marketplace, GitHub, Gmail, Hacker News, Instagram, iMessage, LinkedIn, Reddit, Substack, Threads, TikTok, Twitch, WebMCP Registry, WhatsApp, X, and YouTube. The <a href="/docs/reference/provider-capabilities/">provider directory</a> lists each action and what it needs; most need a connected account.</li>
+            <li><strong>Local apps.</strong> Beeper actions need Beeper Desktop signed in on the same machine. iMessage, Apple Photos, and WhatsApp export run on macOS only; WhatsApp export needs an Apple silicon Mac and an already linked device.</li>
+            <li><strong>Agents.</strong> Codex, Claude Code, Cursor, and any agent that can run a terminal command or import the TypeScript SDK. GhostGet publishes no hosted API or MCP server; platforms that expose tools through MCP wrap the same commands.</li>
+          </ul>
+        </section>
+
         <section aria-labelledby="install">
           <h2 id="install">1. Install GhostGet</h2>
           {{GHOSTGET_PLATFORM_BADGES}}

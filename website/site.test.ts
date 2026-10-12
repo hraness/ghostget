@@ -857,7 +857,7 @@ describe("ghostget.com static site", () => {
         : `Drafted with AI and reviewed by ${post.admission.review?.reviewer}.`;
       expect(postHtml).toContain(`<p class="plain-publication__provenance" data-drafting="ai" data-reviewer-type="${reviewerType}">${provenance}</p>`);
       expect(postHtml).toContain('class="editorial-figure"');
-      expect(postHtml).not.toMatch(/(?:Published|Updated|Checked) <time/u);
+      expect(postHtml).toMatch(/Published <time/u);
       expect(postHtml).not.toContain("{{");
       const indexable = post.admission.lifecycle === "indexable";
       expect(postHtml.includes('<meta name="robots" content="noindex">')).toBe(!indexable);
