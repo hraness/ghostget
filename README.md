@@ -559,7 +559,7 @@ separate outcome from the live read, so a failed refresh or local publication
 never erases the last good snapshot. Inputs, account subjects, cursors, private
 IDs, and provider output remain inside authenticated local ciphertext.
 Replacing or removing an auth locator rotates its local lifetime identity, so
-old view and provider-session ciphertext cannot revive after recreation.
+old projection and provider-session ciphertext cannot revive after recreation.
 
 For social video, inspect the exact installed schema before planning. Current
 source observes MP4 publication through `x-web posts.publish`, the official
