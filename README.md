@@ -1,10 +1,10 @@
 # GhostGet
 
-> 👻 GhostGet is the web for your agent. It reads any page as Markdown, saves
-> media with SHA-256 records, and acts in your Gmail, Beeper, or X accounts
-> through named, reviewed operations. A measured article read costs about 3,800
-> tokens against 36,000 for the raw page. Your agent never sees a login, and
-> consequential writes wait for your confirmation.
+> 👻 GhostGet is an agent tool for driving websites fast. Instead of screenshots
+> and clicks, your agent calls named actions for the sites you use: read the
+> page, list the inbox, send the reply, publish the post. One measured article
+> read costs about 3,800 tokens through GhostGet against 36,000 for the raw
+> page, and your agent never holds a password.
 >
 > Ask your agent to set it up: https://ghostget.com
 >
@@ -14,22 +14,48 @@
 
 [![skills.sh](https://skills.sh/b/hraness/ghostget)](https://www.skills.sh/hraness/ghostget/ghostget)
 
-GhostGet gives the agent you already use a fixed list of reviewed web actions:
-read a page, save one media item, or act in a connected account. Your agent
-never sees your credentials and never steers a browser.
+GhostGet is an agent tool for driving websites fast. Instead of screenshots and
+clicks, agents call named actions for the sites you use, finishing tasks in a
+tenth of the tokens without ever holding a password. It is for people who
+already run an agent such as Codex, Claude Code, or Cursor and want it to use
+the web the way they do: read a page, save a file, act in an account.
 
-GhostGet works with Codex, Claude Code, Cursor, and other agents that can run
-commands; your agent supplies the model and the plan. Start with a public page.
-You need no GhostGet account, API key, connected service, or Markdown vault.
-GhostGet is free, MIT licensed, and runs on macOS and Linux with Bun 1.3.14.
+Each action knows one site. It runs on your computer against your own signed-in
+session, returns structured data instead of a page to parse, and leaves a record
+of every write that matters. Your agent supplies the model and the plan; GhostGet
+supplies the actions. GhostGet is free, MIT licensed, and runs on macOS and Linux
+with Bun 1.3.14.
 
 [Get started](#install) · [Choose a task](#choose-your-next-task) · [Supported services](https://ghostget.com/docs/reference/provider-capabilities/) · [Docs](https://ghostget.com/docs/tutorials/getting-started/) · [Security](SECURITY.md)
 
-GhostGet keeps the pages and media it saves on your computer, gives your agent
-named actions instead of credentials, and leaves a record of each write that
-matters. [The thread through
-hraness](https://hraness.com/writing/the-thread-through-hraness) describes how
-the other Hraness projects share that design.
+## How it works
+
+```mermaid
+flowchart LR
+    A["Your agent<br/>CLI · Agent Skill · SDK · platform tool bridge"] -->|"ghostget invoke gmail messaging.list"| B["GhostGet action"]
+    B --> C["Your signed-in session<br/>on your computer"]
+    C --> D["Structured result<br/>JSON or Markdown"]
+    D -.-> A
+```
+
+Your agent names the action. GhostGet runs it against the session you already
+have, with no password in the prompt and no browser for the model to steer, and
+hands back the result as data.
+
+### Tokens per task
+
+| Approach | Bytes in context | Estimated tokens |
+| --- | ---: | ---: |
+| Raw HTML of the page | 145,617 | about 36,000 |
+| GhostGet `read` | 15,021 | about 3,800 |
+
+Task: read one Wikipedia article ([Wget](https://en.wikipedia.org/wiki/Wget)).
+One run of each on September 22, 2026, over HTTP with no browser. Tokens are
+estimated at four bytes per token and rounded to the nearest hundred; the
+Markdown is 9.7× smaller than the HTML. Token counts vary by model tokenizer.
+The install and actions in this README refer to release v0.18.92.
+[The thread through hraness](https://hraness.com/writing/the-thread-through-hraness)
+describes how the other Hraness projects share this design.
 
 ## What your agent can do now
 
@@ -183,7 +209,7 @@ provider-readiness result can be false on a fresh installation.
 
 Your agent calls named actions rather than receiving account tokens. Reads can
 keep encrypted local snapshots. Consequential writes need an exact preview and
-explicit authority; uncertain results stay visible instead of being blindly
+explicit permission; uncertain results stay visible instead of being blindly
 retried. Local state is not all encrypted: see the
 [privacy guide](https://ghostget.com/privacy/) for the storage boundaries.
 
@@ -198,7 +224,7 @@ manager.
 
 The separate public web gateway applies your domain and path rules to
 `ghostget web request <url>`. It needs an authorized local control client.
-Gateway-only mode is an application permission boundary, not an operating-system
+Gateway-only mode is an application permission limit, not an operating-system
 firewall.
 
 ## Built-in provider catalog
@@ -227,7 +253,7 @@ the authoritative `@beeper/cli` 0.6.2 executable; six reads use fixed Beeper
 Desktop loopback endpoints. Adapter 2.5.0 adds two scoped owner-automation
 permissions, `messaging.automation.read` and `messaging.automation.send.text`,
 served only through the owner-driven `ghostget messaging automation` host with
-sends behind an explicit bounded grant. GhostGet binds one Desktop target and does not expose
+sends behind an explicit limited grant. GhostGet binds one Desktop target and does not expose
 a generic command runner. Submission is not a claim of network delivery.
 
 ```sh
@@ -241,7 +267,7 @@ ghostget messaging preview --input @/absolute/private/beeper-turn.json \
   --private-output /absolute/private/beeper-preview.json --json
 ```
 
-`routes` returns bounded discovery evidence and opaque candidate references.
+`routes` returns limited discovery details and opaque candidate references.
 Put one candidate `routeRef` in the private resolve request. GhostGet loads the
 checked provider target from encrypted private state and performs the exact
 provider read. The caller never resupplies an account, network, conversation
@@ -279,7 +305,7 @@ needs a new approval.
 
 GhostGet complements browser automation, direct API clients, MCP, and agent
 frameworks. Those tools own interfaces, transports, models, and planning. GhostGet
-owns the narrow capability boundary that can sit beneath them.
+owns the narrow capability limit that can sit beneath them.
 
 ## SDK and code mode
 
@@ -306,11 +332,11 @@ void plugin
 ```
 
 The package exposes nine public TypeScript entrypoints. Its root exposes
-programmatic plugin types and bounded validators.
+programmatic plugin types and strict validators.
 `@hraness/ghostget/client` exposes persistent-read and strict live-invocation
 helpers, `@hraness/ghostget/beeper` exposes the body-free Beeper contact
 interaction export, `@hraness/ghostget/apple-photos` exposes exact local Photos
-contact evidence, `@hraness/ghostget/whatsapp` exposes the bounded private
+contact evidence, `@hraness/ghostget/whatsapp` exposes the private
 TextButler export, `@hraness/ghostget/omni` exposes normalized
 cross-provider reads, and `@hraness/ghostget/messaging` exposes agentic messaging
 route discovery and resolution, `@hraness/ghostget/messaging-automation` exposes the trusted owner messaging host, and `@hraness/ghostget/contracts` exposes the machine-checkable contract parsers and schemas. Importing any SDK entrypoint does not start the CLI.
@@ -338,16 +364,16 @@ if (result.status === "failed") {
 ```
 
 The asynchronous `invokeCapability` form accepts an abort signal. Both forms
-run GhostGet's execution and projection identity fences before and after the
+run GhostGet's execution and output identity checks before and after the
 read, then return a discriminated result instead of asking a consumer to parse
 the raw process envelope. The receipt-bound top-level `status` narrows both
 branches in ordinary TypeScript control flow. Failed results carry one closed
 `readFailure` category and retry disposition. Consumers use that policy field
-for control flow and never inspect the receipt's bounded diagnostic text.
+for control flow and never inspect the receipt's short diagnostic text.
 
-### Machine-checkable contracts
+### Check a plan against the catalog
 
-`ghostget contracts catalog --json` prints a compact, schema-backed projection
+`ghostget contracts catalog --json` prints a compact, schema-backed listing
 of the installed catalog (`ghostget.contract-catalog.v1`): every adapter,
 operation, transport, risk, state, durable contract hash, input schema, and
 whether the operation runs as `public` or needs `--auth`. `ghostget contracts
@@ -361,8 +387,8 @@ repair handoff documents.
 from failed invocation attempts. It reports missing coverage or suspected drift,
 and suggests consumer review when a different contract is installed. It never
 captures, retries, activates a contract, or opens a PR. Plan demand can be
-previewed with `--plan <file>` and retained explicitly with `--record`.
-`GHOSTGET_REPAIR_SIGNALS=off` disables this bounded diagnostic cache.
+previewed with `--plan <file>` and kept with `--record`.
+`GHOSTGET_REPAIR_SIGNALS=off` disables this short diagnostic cache.
 
 ```ts
 import { checkCollectionPlan, parseCollectionPlan, parseContractCatalog, parseInvokeReadResult } from "@hraness/ghostget/contracts"
@@ -395,17 +421,17 @@ ghostget url-metadata backfill --root kb
 ghostget doctor --json
 ```
 
-### Local browser admission
+### How many browsers run at once
 
 GhostGet permits at most two locally owned browser acquisitions at once across
-all GhostGet processes that share the same state home. This first gate covers
+all GhostGet processes that share the same state home. This limit covers
 fresh and profile-backed page capture. Explicit `--cdp` and `--browser-live`
 attachments do not launch a GhostGet-owned browser and therefore do not consume
 a slot.
 
-Admission is automatic. Polling uses bounded jitter and a budget equal to the
+Queueing is automatic. Polling uses random jitter and a budget equal to the
 lesser of the remaining capture timeout and 30 seconds. Queueing consumes the
-capture timeout. An in-flight bounded state-safety operation may settle after
+capture timeout. An in-flight state-safety operation may settle after
 that polling budget expires, but GhostGet rechecks the deadline and rolls back a
 late claim, so no browser launches after it. Each claim binds a random token to
 the owner's exact process-start identity. GhostGet automatically reclaims a claim
@@ -422,14 +448,14 @@ ghostget runs list --json
 ```
 
 If a crash leaves capacity blocked, run `ghostget doctor --json` and read
-`ghostget.home` from the report. The admission files are under
+`ghostget.home` from the report. The claim files are under
 `<ghostget.home>/captures/browser-admissions`. Same-boot recovery acquires a
-durable recovery lease and rechecks the exact private session, daemon start,
+durable recovery record and rechecks the exact private session, daemon start,
 launch identity, CDP endpoint, and root generations before any effect. A
 naturally exited exact owner needs no signal: GhostGet requires two exact inactive
 session envelopes, unchanged roots, three refused CDP connections, and a final
 owner, session, and root reproof. A still-live exact owner may receive only the
-bounded graceful termination modeled by that recovery protocol.
+graceful termination modeled by that recovery protocol.
 
 Do not edit or remove a claim because its GhostGet PID is gone, and do not treat a
 reboot as the recovery procedure. Unknown liveness, malformed lifecycle output,
@@ -440,27 +466,27 @@ exits during finalization, so a completed read remains available without
 repeating the provider request or signaling a dead owner.
 
 The slot remains held through upstream browser, proxy, process, and isolation
-cleanup settlement. Managed provider/bootstrap and derivation browser sessions
-remain outside this first gate and keep their existing containment and cleanup
-boundaries.
+cleanup completion. Managed provider/bootstrap and derivation browser sessions
+remain outside this limit and keep their existing containment and cleanup
+rules.
 
 `ghostget url-metadata` delegates to the shared `@hraness/wordcell` URL-intelligence
-boundary. Backfill searches for bounded metadata through its pinned Rust search
+library. Backfill searches for limited metadata through its pinned Rust search
 helper, records resumable `url-metadata.json` sidecars beside saved URLs, and
 performs read-only Archive.today discovery, including archive.is URLs, by
 default. Pass `--no-archive` to disable archive discovery or `--refresh` to
-replace an existing sidecar after a fresh bounded lookup. Run
+replace an existing sidecar after a fresh limited lookup. Run
 `ghostget url-metadata --help` for the complete limits and helper-path options.
 
 GhostGet archives one accessible, finite, non-DRM media item at a time. It
 rejects playlists, live streams, affirmative DRM, and unsupported
-authentication instead of weakening the archive boundary. Use it only for
+authentication instead of weakening the archive rules. Use it only for
 material you are authorized to access. GhostGet does not bypass authentication,
 payment, access controls, or DRM.
 
 Each completed media item retains the acquired encoded media,
 privacy-projected provider metadata, requested derivatives and transcripts, a
-versioned manifest, and SHA-256 integrity records. Inspect the directory
+versioned index, and SHA-256 integrity records. Inspect the directory
 directly and run `ghostget verify` to recompute every recorded artifact hash.
 
 If a save is interrupted, for example by a crash or power loss, the newest
@@ -489,7 +515,7 @@ ghostget plugin doctor --json
 ```
 
 `capabilities` reports the installed semantic operations and their current
-contract state. A `capture-required` operation is an inert reservation, not a
+contract state. A `capture-required` operation is an placeholder reservation, not a
 partially supported request. Source plugins are trusted in-process code.
 Portable plugins run as explicitly trusted child-process code; process
 separation contains ordinary failures but is not a hostile-code sandbox.
@@ -497,7 +523,7 @@ separation contains ordinary failures but is not a hostile-code sandbox.
 ## Persistent reads
 
 Successful R1 invocations with a verified account subject publish an encrypted
-snapshot of the exact validated query and bounded provider output. The same
+snapshot of the exact validated query and limited provider output. The same
 query can be returned later without opening a browser or provider connection:
 
 ```sh
@@ -508,7 +534,7 @@ ghostget reddit-web messaging.list --auth reddit-main --input '{"folder":"inbox"
 
 Public ClasificadosOnline rental search is `clasificados-web listings.search`.
 It needs no login. Pass `location` plus optional `beds_min` and `max_price`. Each
-row includes the canonical listing URL, rent, beds, baths, street address when
+row includes the listing URL, rent, beds, baths, street address when
 the list card publishes one, ZIP when a reviewed table or known-address override
 can prove it, and a neighborhood derived from that address, ZIP, or the card's
 own coordinates. Broker titles are never the neighborhood source. See
@@ -525,7 +551,7 @@ Reddit, and TikTok;
 Substack also exposes owned-publication subscriber totals through
 `organizations.read`. Each counter is either an exact nonnegative integer or a
 categorical unavailable value. GhostGet never promotes a rounded profile label
-to an exact metric. The Agent Skill includes the bounded daily collection and
+to an exact metric. The Agent Skill includes the daily collection and
 consumer-handoff workflow.
 
 Normal invocation is the explicit revalidation step. Cache publication has a
@@ -544,17 +570,17 @@ explicit post declarations. The Threads route binds MP4 dimensions, upload,
 created identity, actor, text, and exact permalink video readback. The Bluesky
 route binds the fixed video-service upload job and processed blob to the exact
 repository record, durable target, and authoritative PDS plus public AppView
-readbacks. LinkedIn web, Substack Notes, TikTok, Instagram, and YouTube expose bounded `media.publish` reservations,
-but those routes remain network-inert while their provider-specific upload,
+readbacks. LinkedIn web, Substack Notes, TikTok, Instagram, and YouTube expose `media.publish` reservations,
+but those routes remain offline while their provider-specific upload,
 processing, and independent readback contracts are `capture-required`.
 Substack's reservation now has live 200 evidence for initialization, multipart
-transfer, transcode, status, and video-attachment creation, but remains inert:
+transfer, transcode, status, and video-attachment creation, but stays disabled:
 the authorized profile-backed Note create returned 403 in two independent
 attempts, so no exact published-video target or readback exists.
 
 `reddit-web media.read@2` reads one exact Reddit-hosted video post through the
 current-account-bound `/api/info` exchange. It returns only stable post fields,
-dimensions, duration, safety flags, and completed-transcode status. Canonical,
+dimensions, duration, safety flags, and completed-transcode status. Standard,
 fallback, signed, and expiring playback URLs are deliberately excluded.
 Standalone Threads post and media reads and Facebook Marketplace media reads
 remain capture-required; an observed feed, listing, or publication contract
@@ -598,7 +624,7 @@ and `cache` remain available for diagnostics and richer UI states.
 Exact snapshots preserve provider page and completeness semantics without
 reinterpretation. Revalidation reruns the selected R1 operation; it does not
 imply a separate provider sync. In particular, WhatsApp reads revalidate its
-local linked-device projection, while `ghostget auth sync <id> --once` remains
+local linked-device copy, while `ghostget auth sync <id> --once` remains
 explicit.
 
 ### Contact providers
@@ -610,8 +636,8 @@ not turn missing message history into zero activity.
 
 | Provider | Contact collection | Directional statistics |
 | --- | --- | --- |
-| Gmail | Google People connections | Bounded Gmail message scans with explicit truncation |
-| Beeper local Desktop | One coverage-limited account-aware result window from the already-authorized local Desktop projection; contract 3 walks Desktop contact pages up to 200 with an opaque continuation, while CLI contracts 1 and 2 stay on the first-page window | Unavailable; GhostGet does not scan message history while listing contacts |
+| Gmail | Google People connections | Limited Gmail message scans with explicit truncation |
+| Beeper local Desktop | One coverage-limited account-aware result window from the already-authorized local Desktop data; contract 3 walks Desktop contact pages up to 200 with an opaque continuation, while CLI contracts 1 and 2 stay on the first-page window | Unavailable; GhostGet does not scan message history while listing contacts |
 | LinkedIn official API | First-degree connections with locale-selection evidence | Unavailable; the Connections API does not expose ordinary inbox history |
 | Instagram authenticated web | Unique non-viewer participants from the reviewed first Direct inbox summary page, with explicit first-page and pagination incompleteness | Unavailable until acknowledgement-free message-history paging is reviewed |
 | WhatsApp linked device | One page of the authenticated account owner's private, quiescent Whatsmeow contact store | Unavailable; GhostGet does not treat a linked-device message cache as account-owned history |
@@ -648,13 +674,13 @@ Telegram's official `getContacts` method belongs to
 [TDLib's user-client API](https://core.telegram.org/tdlib/docs/classtd_1_1td__api_1_1get_contacts.html).
 GhostGet will not install or expose this surface until it can bind the TDLib
 authorization lifecycle, account identity, local database, paging behavior,
-and message-history completeness without weakening the linked-device boundary.
+and message-history completeness without weakening the linked-device limits.
 
 ### Native WhatsApp export for TextButler
 
 The [WhatsApp provider guide](https://ghostget.com/docs/how-to/export-whatsapp/) documents
-the pinned macOS arm64 Wacli runtime, bounded local reads, and private export.
-Export one existing account-bound local projection without pairing, syncing,
+the pinned macOS arm64 Wacli runtime, limited local reads, and private export.
+Export one existing account-bound local copy without pairing, syncing,
 or sending:
 
 ```sh
@@ -665,15 +691,15 @@ ghostget whatsapp export-message-like-me --auth whatsapp-main \
 GhostGet writes six NDJSON artifacts plus `manifest.json` using the TextButler
 local message bundle format, schema 2, source `wacli-local@1.0.0`, provider
 `whatsapp@0.15.0`, and the immutable TextButler 0.7.0 consumer. The
-receipt reports bounded local coverage and `remote-history-incomplete` because
-an admitted `wacli.db` cannot prove complete remote WhatsApp history.
+receipt reports partial local coverage and `remote-history-incomplete` because
+an accepted `wacli.db` cannot prove complete remote WhatsApp history.
 
-The fixed projection excludes message-yourself chats for both proven PN and
+The fixed export excludes message-yourself chats for both proven PN and
 LID self aliases. It also excludes reaction rows and reports
 `reaction-state-unproven`, because Wacli 0.15.0 cannot prove whether a stored
 reaction remains active or was removed. Keep the seven-file bundle private.
 
-### Apple Photos contact evidence
+### Apple Photos contacts
 
 Apple Photos is a local source export, not an authenticated provider action.
 It performs no authentication, network request, Photos change request, media
@@ -695,7 +721,7 @@ sidecar, which can also change that sidecar's modification and change times.
 Read-only database access does not promise unchanged shared-memory bytes or
 timestamps. GhostGet binds each source's physical identity before and after
 capture while allowing ordinary live size and modification-time changes. It
-applies the same capture boundary to every current Apple Contacts database
+applies the same capture rules to every current Apple Contacts database
 discovered under the account's fixed AddressBook root, validates and queries
 only the captured databases, and removes them after ordinary success or handled
 failure.
@@ -703,8 +729,8 @@ Symlinks, hardlinks, owner or identity changes, size overruns, missing tables,
 and relevant Core Data column drift fail closed.
 
 Before database bytes enter the temporary directory, the CLI wins the shared
-private-export admission and records a process-owned,
-filesystem-identity-bound recovery lease. A later export reclaims only the
+private-export claim and records a process-owned,
+filesystem-identity-bound recovery record. A later export reclaims only the
 exact leased directory left by forced termination or a crash after proving its
 owner is dead; live or uninspectable owners remain untouched and stop the run.
 
@@ -738,7 +764,7 @@ artifact private because its exact identifiers and cluster counts reveal
 personal relationship and biometric-derived metadata. See the focused
 [Apple Photos guide](skills/ghostget/references/apple-photos.md).
 
-### Beeper through exact pinned and direct Desktop contracts
+### Beeper
 
 The bundled `beeper-linked-device` source plugin operates an existing Beeper
 Desktop authorization through one pinned CLI contract and six fixed Desktop
@@ -759,14 +785,14 @@ contract walks Desktop contact pages with opaque before/after cursors. The
 current `messaging.read` contract uses the same cursor scheme and adds a sender
 filter. R1 reads include accounts, bridges,
 contacts, conversations, message pages, exact messages, message context, and
-bounded searches. R2 desired-state actions include
+limited searches. R2 desired-state actions include
 reactions, archive, pin, mute, priority, private drafts, reminders, and local
 Desktop focus. R3 actions send text, files, stickers, or voice messages; edit
 an exact message; start a conversation; change the network-visible read state;
 send Notify Anyway; change group metadata; set disappearing timers; and emit
-bounded presence.
+limited presence.
 
-`conversations.start` binds only the exact account and canonical user ID.
+`conversations.start` binds only the exact account and exact user ID.
 Set a group title afterward through the separately confirmed
 `conversations.title.set` operation; GhostGet does not hide that rename inside
 conversation creation.
@@ -813,12 +839,12 @@ and [CLI manual](https://github.com/beeper/cli/blob/a416af06023449a87312dc11e546
 for the upstream distribution. The semantic response contract is separately
 reviewed against `@beeper/desktop-api` 5.0.0 at
 [commit `b9c1714410139c2139b597338cd002d785653e85`](https://github.com/beeper/desktop-api-js/tree/b9c1714410139c2139b597338cd002d785653e85);
-the executable digest does not by itself attest independently updated Desktop
+the executable digest does not by itself prove independently updated Desktop
 API behavior.
 
 The authoritative runtime identity is `@beeper/cli` 0.6.2 from the pinned
 release artifacts. The tagged source `packages/cli/package.json` declares 0.6.1;
-that value is provenance only and is not execution authority.
+that value is provenance only and is not permission to run.
 
 The live Desktop `/v1/info` bundle ID and exact advertised version are also
 part of the bound account realm. An in-place Desktop upgrade therefore
@@ -857,12 +883,12 @@ Desktop loopback POST after route and context preflight; it does not call the
 CLI or SDK and never retries. A returned `pendingMessageID` proves submission
 to Desktop only, not network delivery.
 
-## Agentic messaging through one exact provider route
+## Send a message through one route
 
 The messaging facade resolves one provider-native conversation, reads current
-bounded context, previews an authored one-to-eight-bubble turn, and executes it
+recent context, previews an authored one-to-eight-bubble turn, and executes it
 through the existing GhostGet confirmation and run kernel. GhostGet remains the
-only live provider boundary. A caller may use TextButler or another local
+only live provider connection. A caller may use TextButler or another local
 evidence tool for drafting, but an archive, contact record, name, handle,
 participant match, or merged person is never a send target.
 
@@ -871,7 +897,7 @@ an absolute owner-only private file. Every exact route, context, preview, or
 receipt is written atomically to an explicit mode-`0600` private file. Ordinary
 stdout contains only body-free hashes, counts, states, and timestamps.
 
-`routes` returns the V2 bounded discovery artifact. Each result is a
+`routes` returns the V2 discovery result. Each result is a
 non-actionable V2 candidate whose opaque `routeRef` names a checked target in
 GhostGet's encrypted private state. The V2 resolve request contains only that
 reference:
@@ -902,9 +928,9 @@ ghostget messaging preview --input @/absolute/private/turn.json \
 
 | Provider | Agentic action status |
 | --- | --- |
-| Beeper Desktop | Qualified for exact text turns and exact provider replies through one bound local account and conversation |
-| iMessage | Qualified for exact text turns through the device-default Messages account, with SMS fallback disabled and threaded replies unavailable |
-| WhatsApp | Readable from its bounded linked-device projection; sending remains unavailable pending controlled live freshness and reconciliation qualification |
+| Beeper Desktop | Supports exact text turns and exact provider replies through one bound local account and conversation |
+| iMessage | Supports exact text turns through the device-default Messages account, with SMS fallback disabled and threaded replies unavailable |
+| WhatsApp | Readable from its local linked-device copy; sending remains unavailable until live freshness and reconciliation checks pass |
 | X archive | Local analysis evidence only; an archive can never become a live route or action |
 
 The private preview shows the exact recipient, conversation, provider, ordered
@@ -957,7 +983,7 @@ are R4 and unavailable to provider dispatch; and plain `status` is among the
 (`messaging.automation.read` and `messaging.automation.send.text`) belong only
 to the owner-driven automation host and admit no generic invocation. GhostGet does not turn administrative,
 destructive, caller-selected network, or arbitrary-filesystem commands into
-agent authority.
+agent permission.
 
 Create a private, agent-ready TextButler bundle from every connected
 account materialized by Beeper Desktop:
@@ -968,7 +994,7 @@ ghostget beeper export-message-like-me --auth beeper-main \
 ```
 
 For contact or rolodex enrichment, derive a smaller body-free relationship
-view from the same admitted sequential history. Keep the artifact private:
+view from the same accepted sequential history. Keep the artifact private:
 
 ```sh
 umask 077
@@ -1017,7 +1043,7 @@ account in a deterministic order. Each invocation selects its account through
 an operation-private CLI config, so account identifiers never appear in command
 arguments, environment paths, or progress output. Stderr reports the account
 ordinal and cumulative validated chat and message counts. Long account,
-conversion, bundle-validation, and publication phases repeat their elapsed time
+conversion, bundle-validation, and publication steps repeat their elapsed time
 every 30 seconds, including final private-shard cleanup. It prints the private
 recovery check before that work begins, so stale cleanup is visible too. A final
 account enumeration rejects a realm that changed while the sequential snapshot
@@ -1029,30 +1055,30 @@ and `manifest.json` in a private sibling directory, fsyncs them, and exposes the
 seven-file bundle with one atomic directory rename. The requested output path
 stays absent until that commit. Success removes the raw shards; failure or
 cancellation removes owned staging and leaves no partial output. The output
-directory is mode 0700, and every file is mode 0600 with a canonical SHA-256
+directory is mode 0700, and every file is mode 0600 with a SHA-256
 digest.
 
 Each connected account has exactly one normalized self participant, anchored by
 the account user's stable Beeper ID. Before emitting records, GhostGet proves a
 deterministic candidate chat prefix against the record, byte, and participant
 work bounds, then derives only hashed identity evidence from that prefix. If
-normalization changes the admitted prefix, GhostGet discards the provisional
+normalization changes the accepted prefix, GhostGet discards the provisional
 state and repeats with the shorter prefix. Explicit chat `isSelf` values and
 message `isSender` values establish account-local self and peer evidence. Later
-admitted evidence applies to earlier chats, a rejected suffix cannot affect the
-retained facts, message files stay bound to their validated SHA-256 digests, and
-contradictory retained evidence stops the export without publishing. Reactions
+accepted records applies to earlier chats, a rejected suffix cannot affect the
+kept facts, message files stay bound to their validated SHA-256 digests, and
+contradictory kept records stops the export without publishing. Reactions
 inherit a normalized participant reference while their raw provider tuple
 remains only inside a composite hash. Nonunique provider reaction IDs are
 preserved with the categorical `reaction-provider-id-non-unique` warning.
 
-The JSON result reports the manifest path and digest, record counts,
+The JSON result reports the `manifest.json` path and digest, record counts,
 completeness, and warnings. `--limit-chats` is global across the account
 sequence. `--limit-messages` and `--max-participants` apply to each chat, which
 matches the official CLI flags. Reached limits are recorded as truncation.
 GhostGet always passes hard ceilings of 100,000 chats and 1,000,000 messages per
 chat, and it emits a coherent truncated bundle before the 500,000-record or 512
-MiB bundle ceiling. Conversion also stops at a deterministic chat boundary
+MiB bundle ceiling. Conversion also stops at a deterministic chat edge
 before 250,000 participant occurrences across account anchors, rosters, message
 senders, reaction actors, and implied self insertions for direct chats. This
 bounds normalization work even when many chats repeat the same participants.
@@ -1068,27 +1094,27 @@ final conversion. Cleanup first moves each owned directory into a private
 quarantine and verifies its filesystem identity before recursive removal.
 
 Before credentials or message bytes enter a raw working directory, GhostGet
-wins one atomic export-admission claim shared across all Beeper auth IDs. A
+wins one atomic export claim shared across all Beeper auth IDs. A
 second invocation stops before account discovery while a live or
 uninspectable owner holds that claim. A later invocation can reclaim it only
 after proving that the exact owner is no longer running.
 
-After admission, GhostGet writes a durable private lease containing the directory
+After the claim, GhostGet writes a durable private recovery record containing the directory
 and process identities.
 The atomic bundle stage receives the same protection. A later invocation
 reclaims a stale directory only after proving that its exact owner, and any
 recorded Beeper child, is no longer running. Live or indeterminate owners are
 left untouched and the command stops with a categorical error. If a crash
-lands between the atomic rename and lease release, recovery recognizes the
+lands between the atomic rename and claim release, recovery recognizes the
 same directory at the requested output path and preserves the published
 bundle.
 
 The [built-in Beeper Desktop MCP server](https://developers.beeper.com/desktop-api/mcp/)
 gives supported MCP clients a first-party path to Beeper Desktop. This export
-path uses the official CLI because GhostGet needs a pinned, bounded, read-only
+path uses the official CLI because GhostGet needs a pinned, read-only
 file snapshot that it can validate and publish atomically.
 
-Contact and chat lists are bounded to 200 records because the reviewed Desktop
+Contact and chat lists are limited to 200 records because the reviewed Desktop
 reads expose no continuation for those commands. Message pages use opaque
 before/after cursors returned by Desktop, plus the optional sender filter; GhostGet
 rejects duplicate or non-advancing cursors at normalization and never derives a
@@ -1098,9 +1124,9 @@ and includes attachment metadata without media IDs, paths, URLs, or downloads.
 This is a local materialized view, not a claim that every connected network has
 finished backfilling its remote history.
 
-### Direct iMessage through a reviewed private transport
+### iMessage
 
-The built-in `imessage` local-CLI plugin reads bounded current context from
+The built-in `imessage` local-CLI plugin reads recent context from
 `chat.db` and can submit a confirmed one-to-eight-bubble turn to an exact live
 chat GUID.
 It wraps `openclaw/imsg` 0.14.1 plus a vendored reviewed patch stack. The
@@ -1118,10 +1144,10 @@ matching outgoing `chat.db` row. Otherwise the result remains non-retryable
 uncertainty.
 
 Each bubble crosses its own durable no-retry fence. Before every remaining
-bubble, GhostGet rereads the exact chat and bounded message window. It continues
+bubble, GhostGet rereads the exact chat and recent message window. It continues
 only when the route is unchanged and the visible history is either the exact
 preview base, that same base while an accepted bubble is not yet visible, or
-the exact accepted own-message prefix with only bounded-window eviction.
+the exact accepted own-message prefix with only window eviction.
 Incoming or unrelated outgoing messages, edits, deletions, reorderings, or a
 reused provider message identity stop the suffix. Threaded replies remain
 unsupported.
@@ -1149,10 +1175,10 @@ never asks an agent to copy or print a token. If Google reports that the refresh
 credential is time-limited, the command prints its expiry; publish the personal
 consent app to production and repeat with `--force` to obtain durable renewal.
 `gmail.readonly` is a Google restricted scope whose consent grants mailbox-read
-access even though the relationship projection's code-owned contract fetches
+access even though the relationship view's code-owned contract fetches
 metadata only and never message bodies.
 
-After login, confirm the account with a bounded live read:
+After login, confirm the account with a small live read:
 
 ```sh
 ghostget gmail contacts.list --auth gmail-main \
@@ -1207,7 +1233,7 @@ ghostget gmail messaging.read --auth gmail-main \
 ```
 
 `contacts.list` selects saved Google Contacts, interaction-created Other
-contacts, or the mailbox-wide `interactions` projection. Paginate each
+contacts, or the mailbox-wide `interactions` view. Paginate each
 collection independently with its returned
 `nextCursor`; the OAuth token must carry both People read scopes. Contact
 statistics are optional so bulk enumeration can avoid per-contact Gmail
@@ -1216,7 +1242,7 @@ events, and the selected name's display, given, middle, family, prefix, and
 suffix fields. GhostGet selects the sole People primary name when present and
 otherwise accepts only a single unmarked name. Other contacts and interaction
 rows do not accept this option. When requested, contact statistics report sent and received counts plus the maximum internal
-date across every bounded matched message. Count and date completeness flags
+date across every matched message. Count and date completeness flags
 remain explicit when the scan bound truncates a query or a message lacks a
 date. Contacts with mixed, unsupported, or absent addresses report `partial`,
 `unsupported`, or `unavailable` address coverage and lower-bound, incomplete
@@ -1226,14 +1252,14 @@ metadata reads. Inbox and search rows include a provider-derived `threadUrl`
 and the exact `messaging.read` input. Reading does not mark a message seen or
 emit a protocol acknowledgement.
 
-The `interactions` projection scans each matching Gmail message once in a
+The `interactions` view scans each matching Gmail message once in a
 fixed half-open window. Omit `after` for the initial mailbox scan; later calls
 can pass the prior `before` as an inclusive lower bound and fetch only newer
 messages. A guarded one-second search overlap is filtered by exact internal
-date before aggregation. The projection reads headers, labels, and internal
-dates but never message bodies. Per canonical external address it emits sent/received
+date before aggregation. The view reads headers, labels, and internal
+dates but never message bodies. Per normalized external address it emits sent/received
 counts, first/last timestamps, 30/90/365-day counts, and direction-specific
-completeness. Spam, trash, drafts, and chats are outside the projection;
+completeness. Spam, trash, drafts, and chats are outside the view;
 the first page lists the account's configured Gmail send-as addresses so
 callers can exclude every self alias from all pages. Missing internal dates
 become explicit lower bounds. Opaque hashes and the
@@ -1243,7 +1269,7 @@ message IDs.
 Pass a returned Gmail `threadUrl` to `ghostget read` or `ghostget clip` with the
 same auth locator. Gmail clips default to private GhostGet state rather than the
 Git-backed knowledge base. `--output <directory>` is the explicit plaintext
-export boundary. Attachments are content-addressed and integrity-recorded;
+export limit. Attachments are content-addressed and integrity-recorded;
 the implicit capture default and explicit `--media all` include every MIME
 attachment, while `--media none` omits their bytes. `--media images` is rejected
 because it would misrepresent non-image files in a Gmail thread. The private
@@ -1252,15 +1278,15 @@ message, MIME part, provider attachment, declared filename and MIME type, and
 snapshot provenance. Its schema-2 provenance preserves normalized reviewed headers
 for each message: Subject, In-Reply-To, From, To, Cc, Bcc, Date, and Message-ID. Every
 physical attachment object uses the deterministic `<sha256>.bin` name and
-`application/octet-stream` manifest type, so conflicting or active declared
+`application/octet-stream` media type, so conflicting or active declared
 types cannot create a second object or activate stored content.
 Text body leaves that Gmail externalizes through its attachment endpoint are
 resolved within the same body budget before a read or clip reports completion.
 Official `messaging.read` results cap full-thread decoded text at 7 MiB. Gmail's
-Omni projection keeps an exact UTF-8-safe 256 KiB prefix per message and sets
+Omni view keeps an exact UTF-8-safe 256 KiB prefix per message and sets
 `bodyTruncated` explicitly without adding a synthetic marker.
 Full-thread JSON reserves at most 32 MiB for inline attachment payloads;
-provider-hosted attachment endpoints remain independently bounded to 100 MiB
+provider-hosted attachment endpoints remain independently limited to 100 MiB
 per file, so profile, thread, and attachment responses never share one broad
 memory allowance.
 
@@ -1286,11 +1312,11 @@ The current provider state is explicit:
 | `x-web` | Observed R2 structured private draft with ordered inline images and exact unpublished readback | Capture-required R3 |
 | `linkedin-web` | Observed R2 paragraphs/headings/native-blockquote/native-link private draft with a separate banner cover, ordered inline images, alt text, captions, and exact unpublished readback | Capture-required R3 |
 
-The `x-web` draft operation accepts a title, a canonical provider-neutral
+The `x-web` draft operation accepts a title, a provider-neutral
 `ArticleDraftDocument` schemaVersion 2 string, 1–20 ordered plan-bound JPEG,
 PNG, or WebP files up to 5 MiB each, and an optional exact existing
 private `draft_id`. The document supports paragraphs, headings, blockquotes,
-list items, bold/italic/strikethrough ranges, and native canonical HTTPS link
+list items, bold/italic/strikethrough ranges, and native HTTPS link
 ranges. Image blocks support captions; native image alt text, covers, embeds,
 Markdown, and HTML remain unavailable. The separate official `x` OAuth operation exposes only its reviewed
 plain-text `body` contract plus an optional cover. Inspect the exact installed
@@ -1301,17 +1327,17 @@ choice involved in translating, abridging, retitling, attributing, and linking
 it for the destination. GhostGet sends only the final reviewed title and
 document; it does not turn a source URL into provider copy. The exported
 `projectXStatusArticleEmbed` helper provides one deterministic destination
-projection for already-reviewed X status text: blockquote plus canonical X
+form for already-reviewed X status text: blockquote plus X
 link for both `x-web` and `linkedin-web`.
 
-For `linkedin-web`, pass `cover_image` outside the canonical document when
+For `linkedin-web`, pass `cover_image` outside the document when
 creating a draft or intentionally replacing its banner. On an exact
 `draft_id` replacement, omit `cover_image` to preserve the independently read
 existing banner without another upload. GhostGet binds a supplied cover only to
 LinkedIn's Article banner slot. `inline_images` contains only images intended
 at exact body positions.
 
-For X, put the exact inner canonical JSON document and local image path in a
+For X, put the exact inner JSON document and local image path in a
 private input file:
 
 ```json
@@ -1337,7 +1363,7 @@ ghostget x-web articles.draft.save \
 ghostget confirm <preview-digest> --json
 ```
 
-Review the exact account, title, canonical document, ordered attachment
+Review the exact account, title, document, ordered attachment
 hashes, optional draft ID, contract, and dispatch schedule. Require a successful result to identify
 `articles.draft.save`, report `published: false` and `mode: "draft"`, and return
 the private draft identity. Do not retry a partial or indeterminate save and do
@@ -1356,7 +1382,7 @@ ghostget x-web articles.read \
 
 `x-web articles.read@2` is an R1 read for one current-viewer-owned private
 Article in the `Draft` lifecycle. Its closed output binds the exact article and
-owner IDs, `published: false`, one bounded single-line title, and bounded rich
+owner IDs, `published: false`, one single-line title, and limited rich
 content. It is not an Article list and does not read published X Articles.
 LinkedIn Article reads remain capture-required; the observed LinkedIn draft
 save contract does not confer a read operation.
@@ -1366,7 +1392,7 @@ Signed-in LinkedIn now exposes the same private R2 seam through
 paragraphs, H1/H2 headings, native blockquotes, native HTTPS links, and ordered inline images with
 required descriptive alt text and optional captions. It creates or replaces
 only one bound private draft and independently verifies the exact unpublished
-text/image/asset result from one bounded hidden server payload in the
+text/image/asset result from one single hidden server payload in the
 authenticated editor HTML. Its fixed current single-upload registration, signed byte
 transfer, writes, and server-response read run inside a contained, account-bound Chrome
 session because LinkedIn rejects the same editor traffic when replayed by a
@@ -1382,7 +1408,7 @@ The omni layer materializes selected exact inbox snapshots into a strict shared
 union of conversations, messages, and notifications. Each provider owns a pure,
 versioned materializer with explicit identity, pagination, completeness,
 tombstone, and deletion semantics. Unsupported providers say why. A shape
-change fails at that provider-owned boundary, retains the last good normalized
+change fails at that provider-owned step, retains the last good normalized
 entities, and records the exact failed revision instead of guessing.
 
 Omni v1 has no provider-authored write-invalidation tags. Auth-incarnation,
@@ -1438,7 +1464,7 @@ render((await messages.revalidation).current.view)
 
 ## Create a portable plugin
 
-An agent can create a private, network-inert starting point without editing
+An agent can create a private, offline starting point without editing
 GhostGet:
 
 ```sh
@@ -1457,23 +1483,23 @@ ghostget plugin install /absolute/private/example-web.ghostgetplugin \
   --trust-code --json
 ```
 
-`init` writes a strict `ghostget-plugin.json`, a self-contained runtime, inert
+`init` writes a strict `ghostget-plugin.json`, a self-contained runtime, placeholder
 operation metadata, secret-free fixtures, and package-local agent guidance.
 `check` is static and does not execute plugin code. `test --trust-code` binds
 the decision to the verified plugin identity before running its declared
 secret-free fixtures. `pack` creates a reproducible content-addressed package.
 `install --trust-code` is the separate decision to let that exact package run.
 
-Portable code receives only declared, bounded host capabilities. Network
+Portable code receives only declared, limited host capabilities. Network
 requests are pinned to declared HTTPS origins; credentials are opaque handles
 usable only at declared sinks; files and state are namespaced handles; and
 mutations must use the kernel's begin, request, and verify sequence. The host
 does not expose a shell, package manager, ambient environment, unrestricted
 filesystem, redirect, retry, or arbitrary request primitive.
 
-Read [the plugin guide](docs/plugins.md) before replacing an inert reservation
+Read [the plugin guide](docs/plugins.md) before replacing an placeholder reservation
 with an observed contract. The repository's [GhostGet Agent Skill](skills/ghostget/SKILL.md)
-gives coding agents the same workflow and safety boundary. Its bundled
+gives coding agents the same workflow and safety rules. Its bundled
 [social cross-posting guidance](skills/ghostget/references/cross-posting.md)
 orchestrates exact, previewed text, image, and video posts across supported
 platforms while preserving per-provider attachment limits and at-most-once
@@ -1483,7 +1509,7 @@ skill as the skills CLI.
 ## Risk and confirmation
 
 - R1 is a reviewed read with no intended remote mutation.
-- R2 is one bounded, normally reversible change.
+- R2 is one small, normally reversible change.
 - R3 is an externally visible or consequential change, including an exact
   authored-item deletion only where a provider-specific contract binds the
   target, current account, revision, mutation, and independent absence readback.
@@ -1563,7 +1589,7 @@ bun install --frozen-lockfile
 bun run check
 ```
 
-The full gate type-checks, tests, builds, runs the secret-free CLI and portable
+The full check type-checks, tests, builds, runs the secret-free CLI and portable
 plugin lifecycle smoke, then installs and imports the packed package in a clean
 consumer. See [CONTRIBUTING.md](CONTRIBUTING.md) for change boundaries and
 [local development](docs/local-development.md) for isolated parallel worktrees.

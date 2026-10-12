@@ -61,13 +61,13 @@
         <section aria-labelledby="lane-libraries">
           <h2 id="lane-libraries">Agent libraries drive the browser for you</h2>
           <p><a href="https://github.com/browser-use/browser-use">browser-use</a>, <a href="https://github.com/browserbase/stagehand">Stagehand</a>, and <a href="https://www.skyvern.com/">Skyvern</a> provide tools for building browser-driven workflows. You hand them a goal in plain language, and the model loops: observe the page through a DOM serialization or screenshot, plan the next step, act through CDP or Playwright, and repeat until the goal is done. This fits work where the next step depends on what the page shows. Each observation and action adds work, so the amount of page state returned matters.</p>
-          <p><a href="/compare/browser-use/">GhostGet vs browser-use</a> covers the detailed boundary difference.</p>
+          <p><a href="/compare/browser-use/">GhostGet vs browser-use</a> covers the detailed difference in what the agent can reach.</p>
         </section>
 
         <section aria-labelledby="lane-tools">
           <h2 id="lane-tools">Tool servers give your agent browser controls</h2>
           <p><a href="https://github.com/microsoft/playwright-mcp">Playwright MCP</a> and <a href="https://github.com/ChromeDevTools/chrome-devtools-mcp">chrome-devtools-mcp</a> keep the agent you already run in charge and expose browser actions as MCP tools. Your agent calls <code>browser_click</code> or <code>browser_snapshot</code>; the page's accessibility tree streams back into its context after each call. The amount of page state returned affects context use. Your agent’s permissions and the tool server’s controls determine which actions it can perform.</p>
-          <p><a href="/compare/playwright-mcp/">GhostGet vs Playwright MCP</a> covers the token and authority trade in detail.</p>
+          <p><a href="/compare/playwright-mcp/">GhostGet vs Playwright MCP</a> covers the token and permission trade in detail.</p>
         </section>
 
         <section aria-labelledby="lane-cli">
@@ -150,7 +150,7 @@
                 </tr>
                 <tr>
                   <th scope="row">GhostGet</th>
-                  <td>One typed result per named operation</td>
+                  <td>One structured result per named operation</td>
                   <td>Only the reviewed operations in the installed release</td>
                   <td>Repeated account and page work where you want to know exactly what the agent can do</td>
                 </tr>

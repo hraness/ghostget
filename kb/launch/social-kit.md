@@ -209,7 +209,7 @@ Tagline: wget for the ghost in the machine
 Description:
 
 ```text
-GhostGet gives your AI agent named web actions: read a page, archive one media item, or use a connected account, without credentials or a browser to steer.
+GhostGet is an agent tool for driving websites fast. Agents call named actions instead of clicking through pages, using a tenth of the tokens and no password.
 ```
 
 Topics: Developer Tools, Artificial Intelligence, Open Source

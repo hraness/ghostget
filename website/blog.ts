@@ -817,7 +817,7 @@ export function renderBlogPostMain(post: BlogPost, bodyFragment: string): string
     heading: post.title,
     provenance: articleProvenanceFromAdmission(post.admission),
     published: post.published,
-    showDates: false,
+    showDates: true,
     toc: tocFromBody(bodyHtml),
     ...(post.updated === undefined ? {} : { updated: post.updated }),
   });
@@ -840,7 +840,7 @@ export function renderBlogIndexMain(posts: readonly BlogPost[] = BLOG_POSTS): st
       title: post.title,
       ...(post.updated === undefined ? {} : { updated: post.updated }),
     })),
-    showDates: false,
+    showDates: true,
     summary: BLOG_DESCRIPTION,
   });
   let entryIndex = 0;

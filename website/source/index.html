@@ -65,22 +65,44 @@
 
     <main id="main" tabindex="-1">
       <div class="hraness-marketing-page">
-        <header aria-labelledby="brand-name" class="hraness-marketing-hero ghostget-product-hero" data-align="start" data-hraness-marketing="hero" data-tone="paper">
+        <header aria-labelledby="brand-name" class="hraness-marketing-hero ghostget-product-hero" data-align="start" data-hraness-marketing="hero" data-layout="split" data-tone="paper">
           <div class="hraness-marketing-hero__copy">
             <h1 class="hraness-marketing-hero__heading" id="brand-name">{{PORTFOLIO_HERO_START}} <span class="hero-heading-accent">{{PORTFOLIO_HERO_END}}</span></h1>
             <p class="hraness-marketing-hero__summary hero-explainer">{{PORTFOLIO_HERO_SUMMARY}}</p>
             <div class="hraness-marketing-hero__install">{{GHOSTGET_PLATFORM_INSTALL}}</div>
             <div class="hraness-marketing-hero__actions">
-              <a class="home-text-link" data-analytics-cta="hero-see-it-work" href="/docs/tutorials/getting-started/#demo">{{PORTFOLIO_SECONDARY_ACTION}} <span aria-hidden="true">→</span></a>
+              <a class="home-text-link" data-analytics-cta="hero-see-it-work" href="#providers">{{PORTFOLIO_SECONDARY_ACTION}} <span aria-hidden="true">→</span></a>
             </div>
           </div>
-
+          <div class="hraness-marketing-hero__frame">
+            <figure class="hraness-marketing-proof-frame" data-hraness-marketing="proof-frame">
+              <div aria-hidden="true" class="hraness-marketing-proof-frame__chrome"><span class="hraness-marketing-proof-frame__lights"><span class="hraness-marketing-proof-frame__light"></span><span class="hraness-marketing-proof-frame__light"></span><span class="hraness-marketing-proof-frame__light"></span></span><span class="hraness-marketing-proof-frame__title">One named action · Terminal</span></div>
+              <div class="hraness-marketing-proof-frame__content"><pre class="proof-transcript proof-transcript--action" tabindex="0"><code><span class="proof-transcript__prompt">$</span> ghostget webmcp sites.search --input '{"query":"docs","limit":3}' --json
+{
+  "ok": true,
+  "status": "succeeded",
+  "output": {
+    "sites": [
+      { "domain": "docs.fish.audio", "name": "Fish Audio", "toolCount": 5 },
+      { "domain": "developers.cloudflare.com", "name": "Cloudflare Docs", "toolCount": 2 },
+      { "domain": "inference-docs.cerebras.ai", "name": "Cerebras Inference", "toolCount": 5 }
+    ],
+    "nextCursor": "Mw"
+  },
+  "source": "live"
+}</code></pre></div>
+              <figcaption class="hraness-marketing-proof-frame__caption">
+                <span>One named action, one JSON result: the sites in the public WebMCP Registry that match “docs”, each with its tool count. No account, no browser, no page to parse.</span>
+                <small>Recorded October 12, 2026. Each site object shows three of its eleven keys; the run record and hashes are left out.</small>
+              </figcaption>
+            </figure>
+          </div>
         </header>
 
         <section aria-label="A note from the author" class="founder-note">
           <span aria-hidden="true" class="founder-note__emoji">👻</span>
           <div class="founder-note__body">
-            <p>GhostGet is the web for your agent. It reads any page as Markdown, saves media with SHA-256 records, and acts in your Gmail, Beeper, or X accounts through named, reviewed operations. A measured article read costs about 3,800 tokens against 36,000 for the raw page. Your agent never sees a login, and consequential writes wait for your confirmation.</p>
+            <p>GhostGet is an agent tool for driving websites fast. Instead of loading pages, taking screenshots, and clicking through them, your agent calls a named action: list the inbox, send the reply, publish the post. Each action knows one site, runs against your own signed-in session, and returns structured data. A task that costs 36,000 tokens of browsing takes about 3,800 through GhostGet, and your agent never holds a password.</p>
             <p class="founder-note__action">Ask your agent to set it up: <a href="https://ghostget.com">ghostget.com</a></p>
             <p class="founder-note__signature">Ben Guo</p>
           </div>
@@ -94,52 +116,110 @@
             <h2 class="hraness-marketing-section__heading" id="uses-heading">{{PORTFOLIO_HEADING:uses-heading}}</h2>
           </div>
           <dl aria-label="GhostGet in three points" class="hraness-marketing-pillars" data-hraness-marketing="pillars">
-            <div><dt>Read</dt><dd>Turn a public URL into Markdown your agent can inspect on the spot or keep in a local knowledge base.</dd></div>
+            <div><dt>Read</dt><dd>Turn a public URL into Markdown your agent can use on the spot or keep in a local knowledge base, in one call and without a browser.</dd></div>
             <div><dt>Archive</dt><dd>Save one media item you’re allowed to access, with its transcript and source details. Playlists, live streams, and DRM-protected media are not supported.</dd></div>
-            <div><dt>Act</dt><dd>Use supported actions across {{PROVIDER_SURFACE_COUNT}} services, including Beeper, Gmail, and YouTube. Search LinkedIn and Bluesky, reply on Hacker News, X, and Substack, publish video to LinkedIn, Threads, and Substack, and run group chats. Most need a connected account.</dd></div>
+            <div><dt>Act</dt><dd>Call named actions in {{PROVIDER_SURFACE_COUNT}} services, including Beeper, Gmail, and YouTube. Search LinkedIn and Bluesky, reply on Hacker News, X, and Substack, publish video to LinkedIn, Threads, and Substack, and run group chats. Most need a connected account.</dd></div>
           </dl>
         </section>
 
-        <section aria-labelledby="how-it-works-heading" class="hraness-marketing-section" data-hraness-marketing="section" data-layout="split" id="how-it-works">
+        <section aria-labelledby="how-it-works-heading" class="hraness-marketing-section" data-hraness-marketing="section" data-layout="stack" id="how-it-works">
           <div class="hraness-marketing-section__heading-group">
             <p class="home-eyebrow">How it works</p>
             <h2 class="hraness-marketing-section__heading" id="how-it-works-heading">{{PORTFOLIO_HEADING:how-it-works-heading}}</h2>
-            <p class="hraness-marketing-section__summary">GhostGet runs supported actions and returns their results. Connect an account only when the action needs one.</p>
+            <p class="hraness-marketing-section__summary">Your agent names the task. GhostGet runs the matching action against your own signed-in session and hands back structured data. The same actions work from the command line, the Agent Skill, the TypeScript SDK, and the tool bridge of any agent platform.</p>
           </div>
           <div class="hraness-marketing-section__body">
-          <div class="hraness-marketing-hero__frame">
-            <figure class="hraness-marketing-proof-frame" data-hraness-marketing="proof-frame">
-              <div aria-hidden="true" class="hraness-marketing-proof-frame__chrome"><span class="hraness-marketing-proof-frame__lights"><span class="hraness-marketing-proof-frame__light"></span><span class="hraness-marketing-proof-frame__light"></span><span class="hraness-marketing-proof-frame__light"></span></span><span class="hraness-marketing-proof-frame__title">Read a page · Terminal</span></div>
-              <div class="hraness-marketing-proof-frame__content"><pre class="proof-transcript" tabindex="0"><code><span class="proof-transcript__prompt">$</span> {{GHOSTGET_READ_CODE}}
-<span class="proof-transcript__meta">Capturing https://example.com/ (auto, auto) ...</span>
----
-title: "Example Domain"
-source: "https://example.com/"
-clipped: "2026-09-05"
-platform: "generic"
-capture_status: "complete"
-capture_method: "http"
-capture_scope: "page"
----
-# Example Domain
-
-This domain is for use in documentation examples without needing permission. Avoid use in operations.
-
-[Learn more](https://iana.org/domains/example)</code></pre></div>
-              <figcaption class="hraness-marketing-proof-frame__caption">
-                <span>A public page returned as Markdown, with its source and capture details. This read saved no files.</span>
-                <small>Public-page read recorded on September 5, 2026; command updated for GhostGet.</small>
-              </figcaption>
+            <figure class="ghostget-diagram">
+              <div aria-label="How one GhostGet action runs: your agent names a task, GhostGet runs the matching action against your signed-in session, and a structured result comes back." class="ghostget-diagram__scroll" role="region" tabindex="0">
+                <svg aria-hidden="true" class="ghostget-diagram__canvas" focusable="false" height="320" viewBox="0 0 960 320" width="960">
+                  <defs>
+                    <marker id="ghostget-arrow" markerHeight="7" markerUnits="userSpaceOnUse" markerWidth="7" orient="auto-start-reverse" refX="5.5" refY="3.5" viewBox="0 0 7 7"><path d="M0 0 L7 3.5 L0 7 Z" fill="context-stroke"></path></marker>
+                  </defs>
+                  <g class="ghostget-diagram__node-group">
+                    <rect class="ghostget-diagram__node" height="112" rx="10" width="196" x="20" y="60"></rect>
+                    <text class="ghostget-diagram__label" x="118" y="104">Your agent</text>
+                    <text class="ghostget-diagram__detail" x="118" y="132">Claude Code, Codex,</text>
+                    <text class="ghostget-diagram__detail" x="118" y="154">Cursor, or your own</text>
+                  </g>
+                  <g class="ghostget-diagram__node-group">
+                    <rect class="ghostget-diagram__node ghostget-diagram__node--accent" height="112" rx="10" width="196" x="260" y="60"></rect>
+                    <text class="ghostget-diagram__label" x="358" y="104">GhostGet action</text>
+                    <text class="ghostget-diagram__detail ghostget-diagram__detail--mono" x="358" y="132">gmail messaging.list</text>
+                    <text class="ghostget-diagram__detail" x="358" y="154">one site, one job</text>
+                  </g>
+                  <g class="ghostget-diagram__node-group">
+                    <rect class="ghostget-diagram__node" height="112" rx="10" width="196" x="500" y="60"></rect>
+                    <text class="ghostget-diagram__label" x="598" y="104">Your signed-in session</text>
+                    <text class="ghostget-diagram__detail" x="598" y="132">stays on your machine;</text>
+                    <text class="ghostget-diagram__detail" x="598" y="154">the agent holds no password</text>
+                  </g>
+                  <g class="ghostget-diagram__node-group">
+                    <rect class="ghostget-diagram__node" height="112" rx="10" width="196" x="740" y="60"></rect>
+                    <text class="ghostget-diagram__label" x="838" y="104">Structured result</text>
+                    <text class="ghostget-diagram__detail ghostget-diagram__detail--mono" x="838" y="132">{ "ok": true, … }</text>
+                    <text class="ghostget-diagram__detail" x="838" y="154">JSON, not a screenshot</text>
+                  </g>
+                  <path class="ghostget-diagram__connector" d="M216 116 H254" marker-end="url(#ghostget-arrow)"></path>
+                  <path class="ghostget-diagram__connector" d="M456 116 H494" marker-end="url(#ghostget-arrow)"></path>
+                  <path class="ghostget-diagram__connector" d="M696 116 H734" marker-end="url(#ghostget-arrow)"></path>
+                  <path class="ghostget-diagram__connector ghostget-diagram__connector--return" d="M838 172 V228 H118 V178" marker-end="url(#ghostget-arrow)"></path>
+                  <text class="ghostget-diagram__detail" x="478" y="250">the result goes back to the agent, never the session</text>
+                  <g class="ghostget-diagram__entry">
+                    <text class="ghostget-diagram__detail" x="118" y="36">Entry points</text>
+                    <rect class="ghostget-diagram__chip" height="30" rx="15" width="60" x="290" y="14"></rect><text class="ghostget-diagram__chip-text" x="320" y="34">CLI</text>
+                    <rect class="ghostget-diagram__chip" height="30" rx="15" width="112" x="360" y="14"></rect><text class="ghostget-diagram__chip-text" x="416" y="34">Agent Skill</text>
+                    <rect class="ghostget-diagram__chip" height="30" rx="15" width="64" x="482" y="14"></rect><text class="ghostget-diagram__chip-text" x="514" y="34">SDK</text>
+                    <rect class="ghostget-diagram__chip" height="30" rx="15" width="226" x="556" y="14"></rect><text class="ghostget-diagram__chip-text" x="669" y="34">Platform tool bridge (MCP)</text>
+                  </g>
+                  <text class="ghostget-diagram__detail" x="480" y="300">Reads return at once. Account changes show a preview first and run after you confirm.</text>
+                </svg>
+              </div>
+              <figcaption class="ghostget-diagram__caption">Your agent names the task; GhostGet runs one action against your signed-in session and returns JSON. Entry points: the command line, the Agent Skill, the TypeScript SDK, or your platform’s own tool bridge.</figcaption>
             </figure>
-          </div>
             <ol aria-label="One GhostGet request" class="hraness-marketing-flow" data-hraness-marketing="flow">
               <li class="hraness-marketing-flow__step"><span aria-hidden="true" class="hraness-marketing-flow__number">01</span><div class="hraness-marketing-flow__body"><strong class="hraness-marketing-flow__label">Name the job</strong><p class="hraness-marketing-flow__detail">Ask your agent to read a page, check an inbox, or save a video.</p></div></li>
-              <li class="hraness-marketing-flow__step"><span aria-hidden="true" class="hraness-marketing-flow__number">02</span><div class="hraness-marketing-flow__body"><strong class="hraness-marketing-flow__label">Match one action</strong><p class="hraness-marketing-flow__detail">Your agent selects an action from the installed capability list.</p></div></li>
-              <li class="hraness-marketing-flow__step"><span aria-hidden="true" class="hraness-marketing-flow__number">03</span><div class="hraness-marketing-flow__body"><strong class="hraness-marketing-flow__label">Use the right account</strong><p class="hraness-marketing-flow__detail">GhostGet checks the selected account and inputs. Account changes require your preview and confirmation.</p></div></li>
-              <li class="hraness-marketing-flow__step"><span aria-hidden="true" class="hraness-marketing-flow__number">04</span><div class="hraness-marketing-flow__body"><strong class="hraness-marketing-flow__label">Return the result</strong><p class="hraness-marketing-flow__detail">Read the result, save it, or let your agent use it in the next step. Incomplete or unknown results stay visible.</p></div></li>
+              <li class="hraness-marketing-flow__step"><span aria-hidden="true" class="hraness-marketing-flow__number">02</span><div class="hraness-marketing-flow__body"><strong class="hraness-marketing-flow__label">Match one action</strong><p class="hraness-marketing-flow__detail">Your agent picks an action from the installed list, such as <code>gmail messaging.list</code>.</p></div></li>
+              <li class="hraness-marketing-flow__step"><span aria-hidden="true" class="hraness-marketing-flow__number">03</span><div class="hraness-marketing-flow__body"><strong class="hraness-marketing-flow__label">Use the right account</strong><p class="hraness-marketing-flow__detail">GhostGet runs the action against the account you connected. Account changes wait for your preview and confirmation.</p></div></li>
+              <li class="hraness-marketing-flow__step"><span aria-hidden="true" class="hraness-marketing-flow__number">04</span><div class="hraness-marketing-flow__body"><strong class="hraness-marketing-flow__label">Return the result</strong><p class="hraness-marketing-flow__detail">Your agent gets JSON or Markdown to use in its next step. Incomplete or unknown results stay visible.</p></div></li>
             </ol>
-            <figure class="launch-figure">
-              {{LAUNCH_MOCKUP:named-action}}
+          </div>
+        </section>
+
+        <section aria-labelledby="named-action-heading" class="hraness-marketing-section" data-hraness-marketing="section" data-layout="stack" id="named-action">
+          <div class="hraness-marketing-section__heading-group">
+            <p class="home-eyebrow">One call</p>
+            <h2 class="hraness-marketing-section__heading" id="named-action-heading">A page full of markup becomes one result.</h2>
+            <p class="hraness-marketing-section__summary">Browsing puts the whole page into the context window: navigation, scripts, sidebars, and the article buried in them. A named action returns only the result, at about a tenth of the tokens.</p>
+          </div>
+          <div class="hraness-marketing-section__body">
+            <figure class="ghostget-collapse" data-hraness-signature="named-action">
+              <div aria-hidden="true" class="ghostget-collapse__stage">
+                <div class="ghostget-collapse__pages">
+                  <div class="ghostget-collapse__page" data-part="1"><span class="ghostget-collapse__page-title">navigation</span><span class="ghostget-collapse__line"></span><span class="ghostget-collapse__line ghostget-collapse__line--short"></span></div>
+                  <div class="ghostget-collapse__page" data-part="2"><span class="ghostget-collapse__page-title">scripts</span><span class="ghostget-collapse__line"></span><span class="ghostget-collapse__line"></span><span class="ghostget-collapse__line ghostget-collapse__line--short"></span></div>
+                  <div class="ghostget-collapse__page" data-part="3"><span class="ghostget-collapse__page-title">sidebar</span><span class="ghostget-collapse__line ghostget-collapse__line--short"></span><span class="ghostget-collapse__line"></span></div>
+                  <div class="ghostget-collapse__page" data-part="4"><span class="ghostget-collapse__page-title">footer</span><span class="ghostget-collapse__line"></span></div>
+                  <div class="ghostget-collapse__page ghostget-collapse__page--article" data-part="5"><span class="ghostget-collapse__page-title">article</span><span class="ghostget-collapse__line"></span><span class="ghostget-collapse__line"></span><span class="ghostget-collapse__line ghostget-collapse__line--short"></span></div>
+                  <span class="ghostget-collapse__pages-label">145,617 bytes of HTML</span>
+                </div>
+                <div class="ghostget-collapse__call">
+                  <span class="ghostget-collapse__command"><span class="ghostget-collapse__prompt">$</span> ghostget read https://en.wikipedia.org/wiki/Wget</span>
+                  <div class="ghostget-collapse__result">
+                    <span class="ghostget-collapse__result-line ghostget-collapse__result-line--head"># Wget</span>
+                    <span class="ghostget-collapse__result-line">GNU Wget is a computer program that retrieves content from web servers…</span>
+                    <span class="ghostget-collapse__result-meta">15,021 bytes of Markdown</span>
+                  </div>
+                </div>
+                <div class="ghostget-collapse__meter">
+                  <span class="ghostget-collapse__meter-label">Tokens in the context window</span>
+                  <span class="ghostget-collapse__meter-track"><span class="ghostget-collapse__meter-ghost"></span><span class="ghostget-collapse__meter-fill"></span></span>
+                  <span class="ghostget-collapse__meter-value"><span class="ghostget-collapse__meter-from">36,000</span><span class="ghostget-collapse__meter-to">3,800</span></span>
+                </div>
+              </div>
+              <figcaption class="ghostget-collapse__caption">
+                <span>The Wikipedia article on Wget served 145,617 bytes of HTML, about 36,000 tokens. <code>ghostget read</code> returned the same article as 15,021 bytes of Markdown, about 3,800 tokens.</span>
+                <small>One page, measured September 22, 2026 over HTTP with no browser, at four bytes per token. The install and actions on this page refer to release {{GHOSTGET_RELEASE}}.</small>
+              </figcaption>
             </figure>
           </div>
         </section>
@@ -148,9 +228,16 @@ This domain is for use in documentation examples without needing permission. Avo
           <div class="hraness-marketing-section__heading-group">
             <p class="home-eyebrow">Measured</p>
             <h2 class="hraness-marketing-section__heading" id="measured-heading">{{PORTFOLIO_HEADING:measured-heading}}</h2>
-            <p class="hraness-marketing-section__summary">These September 22, 2026 reads returned Markdown and capture details. Each completed over HTTP without a browser. The table compares bytes, not token counts or billing.</p>
+            <p class="hraness-marketing-section__summary">One task, measured twice: read the Wikipedia article on Wget as text an agent can use. The bars estimate tokens at four bytes per token; the table below gives the measured bytes for that page and four more.</p>
           </div>
           <div class="hraness-marketing-section__body">
+            <figure class="ghostget-benchmark">
+              <ul aria-label="Estimated tokens per task" class="ghostget-benchmark__bars">
+                <li class="ghostget-benchmark__row"><span class="ghostget-benchmark__label">Raw page HTML, as a browser fetch loads it</span><span class="ghostget-benchmark__bar ghostget-benchmark__bar--browsing"><span class="ghostget-benchmark__value">36,000 tokens</span></span></li>
+                <li class="ghostget-benchmark__row"><span class="ghostget-benchmark__label">GhostGet <code>read</code>, Markdown</span><span class="ghostget-benchmark__bar ghostget-benchmark__bar--ghostget"><span class="ghostget-benchmark__value">3,800 tokens</span></span></li>
+              </ul>
+              <figcaption class="ghostget-benchmark__note">Task: read one Wikipedia article (Wget). Metric: estimated tokens, 4 bytes per token, rounded to the nearest hundred. Baseline: the raw HTML the page served, 145,617 bytes. GhostGet: 15,021 bytes of Markdown, 9.7× smaller. Sample: one run of each on September 22, 2026, over HTTP with no browser. Token counts vary by model tokenizer; bytes are the measured values.</figcaption>
+            </figure>
             <div class="table-scroll" role="region" aria-labelledby="measured-heading" tabindex="0">
               <table>
                 <thead><tr><th scope="col">Page read</th><th scope="col">ghostget returns</th><th scope="col">Raw HTML</th><th scope="col">Smaller by</th></tr></thead>
@@ -213,7 +300,23 @@ This domain is for use in documentation examples without needing permission. Avo
             <div class="command-stack">
               <div class="hraness-marketing-proof-frame" data-hraness-marketing="proof-frame">
                 <div aria-hidden="true" class="hraness-marketing-proof-frame__chrome"><span class="hraness-marketing-proof-frame__lights"><span class="hraness-marketing-proof-frame__light"></span><span class="hraness-marketing-proof-frame__light"></span><span class="hraness-marketing-proof-frame__light"></span></span><span class="hraness-marketing-proof-frame__title">Then read a page · Terminal</span></div><div class="hraness-marketing-proof-frame__content">
-                <pre tabindex="0" aria-label="Read a public page">{{GHOSTGET_READ_CODE}}</pre></div>
+                <pre class="proof-transcript" tabindex="0"><code><span class="proof-transcript__prompt">$</span> {{GHOSTGET_READ_CODE}}
+<span class="proof-transcript__meta">Capturing https://example.com/ (auto, auto) ...</span>
+---
+title: "Example Domain"
+source: "https://example.com/"
+clipped: "2026-09-05"
+platform: "generic"
+capture_status: "complete"
+capture_method: "http"
+capture_scope: "page"
+---
+# Example Domain
+
+This domain is for use in documentation examples without needing permission. Avoid use in operations.
+
+[Learn more](https://iana.org/domains/example)</code></pre></div>
+                <p class="command-stack__note">Public-page read recorded on September 5, 2026; command updated for GhostGet.</p>
               </div>
             </div>
             <div class="skill-install" data-skill-install data-install-command="agent_skill">
@@ -237,7 +340,7 @@ This domain is for use in documentation examples without needing permission. Avo
           <header class="hraness-marketing-interfaces__header">
             <p class="home-eyebrow">Interfaces</p>
             <h2 class="hraness-marketing-interfaces__heading" id="interfaces-title">{{PORTFOLIO_HEADING:interfaces-title}}</h2>
-            <p>Use GhostGet from your own agent, terminal, or TypeScript program. It runs locally; there is no hosted API or MCP server.</p>
+            <p>Use GhostGet from your own agent, terminal, or TypeScript program. It runs on your machine with no hosted API. Agent platforms reach the same actions through their own MCP or tool bridge; GhostGet ships no server of its own.</p>
           </header>
           <div class="hraness-marketing-interface-grid">
             <article class="hraness-marketing-interface"><h3 class="hraness-marketing-interface__heading">{{PORTFOLIO_HEADING:agent-skill}}</h3><p>Give your agent a guide to reading pages, using accounts, and saving media.</p><div class="hraness-marketing-proof-frame" data-hraness-marketing="proof-frame"><div aria-hidden="true" class="hraness-marketing-proof-frame__chrome"><span class="hraness-marketing-proof-frame__lights"><span class="hraness-marketing-proof-frame__light"></span><span class="hraness-marketing-proof-frame__light"></span><span class="hraness-marketing-proof-frame__light"></span></span><span class="hraness-marketing-proof-frame__title">Agent Skill · Terminal</span></div><div class="hraness-marketing-proof-frame__content"><pre tabindex="0" aria-label="Install the GhostGet Agent Skill">{{GHOSTGET_SKILL_CODE}}</pre></div></div></article>
@@ -284,7 +387,7 @@ This domain is for use in documentation examples without needing permission. Avo
           <div class="hraness-marketing-section__heading-group">
             <p class="home-eyebrow">Compare</p>
             <h2 class="hraness-marketing-section__heading" id="comparison-title">{{PORTFOLIO_HEADING:comparison-title}}</h2>
-            <p class="hraness-marketing-section__summary">GhostGet runs named actions on your machine. Browser tools let the model choose its steps; hosted services handle reading, browsing, or account connections for you.</p>
+            <p class="hraness-marketing-section__summary">GhostGet runs named actions on your machine against your own sessions. Browser tools let the model choose each click; hosted services handle reading, browsing, or account connections for you.</p>
           </div>
           <div class="hraness-marketing-section__body">
             <figure class="hraness-marketing-comparison">
@@ -317,7 +420,7 @@ This domain is for use in documentation examples without needing permission. Avo
             <h2 class="hraness-marketing-questions__heading" id="faq-title">{{PORTFOLIO_HEADING:faq-title}}</h2>
           </header>
           <div class="hraness-marketing-question-list">
-            <details class="hraness-marketing-question"><summary>Which agents does it work with?</summary><div class="hraness-marketing-question__answer"><p>Any agent that can run commands: Claude Code, Codex, Cursor, Gemini CLI, or your own. The optional <a href="{{GHOSTGET_SKILLS}}">Agent Skill</a> teaches it the GhostGet commands and their limits in one step.</p></div></details>
+            <details class="hraness-marketing-question"><summary>Which agents does it work with?</summary><div class="hraness-marketing-question__answer"><p>Any agent that can run commands: Claude Code, Codex, Cursor, Gemini CLI, or your own. The optional <a href="{{GHOSTGET_SKILLS}}">Agent Skill</a> teaches it the GhostGet commands and their limits in one step. A platform that exposes tools through MCP can wrap the same commands; <a href="https://github.com/hraness/ghostget/blob/main/docs/agent-platforms.md">see the agent platform notes</a>.</p></div></details>
             <details class="hraness-marketing-question"><summary>Does GhostGet need an account?</summary><div class="hraness-marketing-question__answer"><p>Public-page reads need no account. Connect a service when you want its actions. A free <a href="https://account.hraness.com/">Hraness account</a> is optional and lets you manage support across our studio.</p></div></details>
             <details class="hraness-marketing-question"><summary>Does it use my credentials?</summary><div class="hraness-marketing-question__answer"><p>Yes, for connected services. Sign-ins stay in a local store and are omitted from GhostGet’s outputs. Your agent keeps any separate tools and permissions you give it.</p></div></details>
             <details class="hraness-marketing-question"><summary>What does it cost?</summary><div class="hraness-marketing-question__answer"><p>Nothing. GhostGet is free and MIT licensed, with no hosted tier and no paid plan. You pay your model provider and any service subscriptions you already have.</p></div></details>
