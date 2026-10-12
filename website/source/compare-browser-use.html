@@ -60,7 +60,7 @@
         <section aria-labelledby="bu-model">
           <h2 id="bu-model">Two execution models</h2>
           <p>browser-use owns the loop. The model sees the current page through DOM serialization and optional screenshots, decides the next action, executes it through CDP, and observes again. Persistent sessions, multi-tab flows, and self-recovery are the point: when a flow breaks, the model finds another path through the live page.</p>
-          <p>GhostGet owns the operation. The agent asks for an outcome such as <code>messaging.list</code> or a URL read. The kernel binds the exact provider, account realm, transport, contract version, and risk level, runs one exchange, and returns a typed result. There is no session the model can improvise inside: no selectors, no coordinates, no next click to invent.</p>
+          <p>GhostGet owns the operation. The agent asks for an outcome such as <code>messaging.list</code> or a URL read. The kernel binds the exact provider, account realm, transport, contract version, and risk level, runs one exchange, and returns a structured result. There is no session the model can improvise inside: no selectors, no coordinates, no next click to invent.</p>
         </section>
 
         <section aria-labelledby="bu-cost">
@@ -84,12 +84,12 @@
                 <tr>
                   <th scope="row">What the caller supplies</th>
                   <td>A goal in plain language; the library picks the steps</td>
-                  <td>A named operation and its typed input; the contract picks the exchange</td>
+                  <td>A named operation and its declared input; the operation definition picks the exchange</td>
                 </tr>
                 <tr>
                   <th scope="row">What enters model context</th>
                   <td>Page state on every step, plus action history</td>
-                  <td>Only the result: Markdown, an archive, a typed receipt, or a typed error</td>
+                  <td>Only the result: Markdown, an archive, a structured result, or a structured error</td>
                 </tr>
                 <tr>
                   <th scope="row">Credentials</th>
@@ -119,12 +119,12 @@
         <section aria-labelledby="bu-choose">
           <h2 id="bu-choose">When to pick which</h2>
           <p>Pick browser-use when the task is open-ended, the path is unknown, and recovery matters more than auditability: research crawls, one-off flows, sites with no stable contract. The model's freedom to improvise is the feature.</p>
-          <p>Pick GhostGet when the task recurs and the boundary is the point: reading a connected inbox, publishing through a reviewed operation, archiving one authorized media item, or capturing a page as durable Markdown. You give up reach and gain a call you can reason about, diff in review, and firewall behind an exact operation set.</p>
+          <p>Pick GhostGet when the task recurs and the fixed action set is the point: reading a connected inbox, publishing through a reviewed operation, archiving one authorized media item, or capturing a page as durable Markdown. You give up reach and gain a call you can reason about, diff in review, and firewall behind an exact operation set.</p>
           <p>They compose cleanly: keep a driver for the long tail, and put GhostGet in front of the paths that must behave the same way every run.</p>
         </section>
 
         <aside class="guide-callout" aria-labelledby="bu-next">
-          <h2 id="bu-next">See the boundary before you install</h2>
+          <h2 id="bu-next">See the action set before you install</h2>
           <p>Browse the <a href="/docs/reference/provider-capabilities/">supported action set</a> for {{GHOSTGET_RELEASE}}, read the <a href="/docs/explanation/security-model/">security model</a>, then <a href="/docs/tutorials/getting-started/">install the CLI</a>. All six approaches are compared at <a href="/compare/">How agents reach the web</a>.</p>
         </aside>
       </article>

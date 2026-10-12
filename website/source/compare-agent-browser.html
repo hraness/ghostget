@@ -59,8 +59,8 @@
 
         <section aria-labelledby="ab-model">
           <h2 id="ab-model">Who controls the browser</h2>
-          <p>Used directly, agent-browser is a steering surface: the agent decides which URL to open, which selector to click, what to type, and what JavaScript to evaluate. Disk-first snapshots keep the token cost lower than streamed MCP state, but the authority model is unchanged. Every reachable page is a place the agent can act, and every action is one the caller chose.</p>
-          <p>GhostGet uses the same class of engine inside a bounded capture path. When an HTTP fetch cannot produce the requested result, an internal browser acquisition may render the page under an admission cap of two across all GhostGet processes sharing a state home. The caller supplies a URL and a result contract; it cannot supply a selector, a coordinate, a keystroke, or a script. The agent can’t reach the engine.</p>
+          <p>Used directly, agent-browser is a steering surface: the agent decides which URL to open, which selector to click, what to type, and what JavaScript to evaluate. Disk-first snapshots keep the token cost lower than streamed MCP state, but the permission model is unchanged. Every reachable page is a place the agent can act, and every action is one the caller chose.</p>
+          <p>GhostGet uses the same class of engine inside a capture path with fixed limits. When an HTTP fetch cannot produce the requested result, an internal browser acquisition may render the page under a limit of two browsers at once across all GhostGet processes sharing a state home. The caller supplies a URL and a result contract; it cannot supply a selector, a coordinate, a keystroke, or a script. The agent can’t reach the engine.</p>
         </section>
 
         <section aria-labelledby="ab-table">
@@ -88,17 +88,17 @@
                 <tr>
                   <th scope="row">Browser exposure</th>
                   <td>Full steering, including <code>eval</code> on live pages</td>
-                  <td>Internal capture only, behind an admission gate; no steering surface exists</td>
+                  <td>Internal capture only, behind a limit of two browsers at once; no command, selector, or script reaches it</td>
                 </tr>
                 <tr>
                   <th scope="row">Credentials</th>
-                  <td>Whatever the agent's browser profile or typed input contains</td>
+                  <td>Whatever the agent's browser profile or keyboard input contains</td>
                   <td>Opaque auth locators bound to one account realm and transport</td>
                 </tr>
                 <tr>
                   <th scope="row">Result shape</th>
                   <td>Snapshots, screenshots, and command output on disk or stdout</td>
-                  <td>Typed Markdown, archive manifests, receipts, or typed errors</td>
+                  <td>Markdown, archive records, structured results, or structured errors</td>
                 </tr>
               </tbody>
             </table>
@@ -108,7 +108,7 @@
         <section aria-labelledby="ab-choose">
           <h2 id="ab-choose">When to pick which</h2>
           <p>Pick agent-browser directly when your agent needs to compose its own browsing: exploratory sessions, form experiments, or flows where the steps are the deliverable. It is a well-shaped tool for that job, which is part of why GhostGet builds on it rather than reinventing the engine.</p>
-          <p>Pick GhostGet when the deliverable is the result, not the session. A page read returns bounded Markdown; an account action returns a typed receipt; and the agent cannot turn the capture engine into a navigation surface because no command, selector, or script channel reaches it. If your threat model is "the agent must not click around the web," that closure is the product.</p>
+          <p>Pick GhostGet when the deliverable is the result, not the session. A page read returns Markdown; an account action returns a structured result; and the agent cannot turn the capture engine into a navigation surface because no command, selector, or script channel reaches it. If your threat model is "the agent must not click around the web," that closure is the product.</p>
         </section>
 
         <aside class="guide-callout" aria-labelledby="ab-next">

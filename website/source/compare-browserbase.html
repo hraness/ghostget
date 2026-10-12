@@ -60,11 +60,11 @@
         <section aria-labelledby="bb-model">
           <h2 id="bb-model">Infrastructure versus capability</h2>
           <p>Browserbase is infrastructure. A session gives your code a remote, proxied, stealth-configured Chromium it steers directly: every selector, click, and navigation is yours to choose, and session replay and inspection help you debug what happened. Stagehand, its companion SDK, raises the abstraction with <code>act</code>, <code>extract</code>, and <code>observe</code> so an agent can describe intent while the model resolves the concrete steps. Both share the property that someone, human or model, is driving a live page.</p>
-          <p>GhostGet doesn’t host browsers. There is no session to rent because there is no browser to steer: the caller names a reviewed operation, the kernel binds the exact account, transport, and contract, and one bounded result returns. Public-page reads run as a single HTTP request on your own machine; account actions run against fixed provider boundaries under your local credentials.</p>
+          <p>GhostGet doesn’t host browsers. There is no session to rent because there is no browser to steer: the caller names a reviewed operation, the kernel binds the exact account, transport, and contract, and one structured result returns. Public-page reads run as a single HTTP request on your own machine; account actions run against a fixed set of provider actions under your local credentials.</p>
         </section>
 
         <section aria-labelledby="bb-data">
-          <h2 id="bb-data">Where the session lives is a data boundary</h2>
+          <h2 id="bb-data">Where the session lives decides who sees your data</h2>
           <p>A hosted session means your authenticated traffic, cookies, and page content traverse a third party's browser. Browserbase publishes SOC 2 and HIPAA attestations and session isolation controls, which is the right answer when you need a managed browser. It is still a trust decision you make for every credential that enters the session.</p>
           <p>GhostGet keeps sign-ins on your machine. Auth locators resolve to one account realm and transport on your machine; secrets load only inside an isolated credential helper; and results land in your filesystem under your permissions. Nothing is proxied through a hosted browser because none exists.</p>
         </section>
@@ -119,7 +119,7 @@
         <section aria-labelledby="bb-choose">
           <h2 id="bb-choose">When to pick which</h2>
           <p>Pick Browserbase when the workload needs a real, steerable browser at scale: hundreds of parallel sessions, bot-resistant targets, replay for audit, or compliance tiers your own fleet cannot provide. Stagehand earns its keep when you want intent-level steps without hand-maintaining selectors.</p>
-          <p>Pick GhostGet when the work is a known operation on an account you own, and the job is to keep a coding agent inside it. Reading an inbox, listing conversations, archiving one media item, or capturing a page as Markdown does not need a rented Chromium; it needs a boundary that cannot be talked past.</p>
+          <p>Pick GhostGet when the work is a known operation on an account you own, and the job is to keep a coding agent inside it. Reading an inbox, listing conversations, archiving one media item, or capturing a page as Markdown does not need a rented Chromium; it needs an action set that cannot be talked past.</p>
         </section>
 
         <aside class="guide-callout" aria-labelledby="bb-next">

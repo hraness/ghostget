@@ -60,7 +60,7 @@
         <section aria-labelledby="pm-model">
           <h2 id="pm-model">Two contracts with the model's context</h2>
           <p>Playwright MCP's contract is per-step: each tool call returns the page's accessibility tree, so the agent re-reads the world after every action. That keeps the model oriented inside a live page, and it is the direct price of generality. Microsoft-reported figures cited in a July 2026 <a href="https://modernqacourse.com/docs/en/01-agent-skills-browser-automation/07-competitive-landscape/01-tool-comparison-matrix">comparison matrix</a> put a typical Playwright MCP task near 114,000 tokens versus about 27,000 for its disk-first CLI path; treat any single figure as an estimate. The direction holds because page state re-enters context on every step.</p>
-          <p>GhostGet's contract is per-operation: the agent sends one typed request and receives one typed result. A public-page read returns the page as bounded Markdown and nothing else; a provider action returns its contract's fields and nothing else. No accessibility tree, screenshot, or intermediate page state enters context because no steering surface exists to report on.</p>
+          <p>GhostGet works per operation: the agent sends one request and receives one structured result. A public-page read returns the page as Markdown and nothing else; a provider action returns its contract's fields and nothing else. No accessibility tree, screenshot, or intermediate page state enters context because no steering surface exists to report on.</p>
         </section>
 
         <section aria-labelledby="pm-authority">
@@ -104,7 +104,7 @@
                 <tr>
                   <th scope="row">Best fit</th>
                   <td>Occasional live control for an agent that must improvise</td>
-                  <td>Repeatable reads and account actions where the boundary is the requirement</td>
+                  <td>Repeatable reads and account actions where the fixed action set is the requirement</td>
                 </tr>
               </tbody>
             </table>
