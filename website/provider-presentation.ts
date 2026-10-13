@@ -568,7 +568,7 @@ export function renderProviderMarquee(directory: ProviderDirectory): string {
     throw new Error("the provider band must show every listed provider");
   }
   return renderMarketingMarqueeHtml({
-    action: { href: "#providers", label: "See every provider" },
+    action: { href: "/docs/reference/provider-capabilities/", label: "See every action" },
     id: PROVIDER_MARQUEE_ID,
     items: entries.map((entry) => ({ mark: entry.mark, name: entry.name })),
     label: "Works with {count} services",
