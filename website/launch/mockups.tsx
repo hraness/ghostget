@@ -279,7 +279,61 @@ export function ControlsMockup({ theme }: MockupProps) {
 }
 
 /** The mockup ids the beats name, in the order the post shows them. */
+/** The example page the homepage proof reads. Invented site on an example domain. */
+const LAMP_URL = "https://fieldnotes.example/posts/reading-lamp";
+const LAMP_TITLE = "A reading lamp for the web";
+
+/** Beat what, for the homepage hero: a web page on the left becoming clean Markdown on the right. */
+export function PageToMarkdownMockup({ theme }: MockupProps) {
+  const lines: TerminalLine[] = [
+    { kind: "input", text: `ghostget read ${LAMP_URL}` },
+    { kind: "output", text: "---" },
+    { kind: "output", text: `title: "${LAMP_TITLE}"` },
+    { kind: "output", text: `source: "${LAMP_URL}"` },
+    { kind: "output", text: 'capture_status: "complete"' },
+    { kind: "output", text: "---" },
+    { kind: "output", text: `# ${LAMP_TITLE}` },
+    { kind: "output", text: "Most of a page is not the page..." },
+    { kind: "comment", text: "no browser, no cookies, no HTML to parse", tone: "muted" },
+  ];
+  return (
+    <MockupRoot {...themed(theme)} className="ggm" describe="Illustration: a web page with menus, a cookie banner, and a sidebar on the left; the same page as a short Markdown document in a terminal on the right." kind="ghostget-lamp">
+      <div className="ggm-lamp">
+        <div className="ggm-lamp-side" data-ggm-side="page">
+          <BrowserWindow url={LAMP_URL}>
+            <div className="ggm-lamp-page">
+              <div className="ggm-lamp-masthead">
+                <span className="ggm-lamp-site">Field Notes</span>
+                <span className="ggm-lamp-nav"><span>Essays</span><span>Archive</span><span>Shop</span><span>Subscribe</span></span>
+              </div>
+              <div className="ggm-lamp-banner"><span>We use cookies.</span><span className="ggm-lamp-button">Accept all</span></div>
+              <div className="ggm-lamp-columns">
+                <div className="ggm-lamp-article">
+                  <span className="ggm-lamp-kicker">Essays</span>
+                  <span className="ggm-lamp-title">{LAMP_TITLE}</span>
+                  <span className="ggm-lamp-byline">Noor Haddad · 6 min read</span>
+                  <span className="ggm-lamp-text">Most of a page is not the page. Menus, banners, and scripts wrap a few hundred words.</span>
+                                  </div>
+                <div className="ggm-lamp-aside">
+                  <span className="ggm-lamp-ad">Sponsored</span>
+                  <span className="ggm-lamp-ad">Newsletter</span>
+                  <span className="ggm-lamp-ad">Trending</span>
+                </div>
+              </div>
+            </div>
+          </BrowserWindow>
+        </div>
+        <span aria-hidden="true" className="ggm-lamp-arrow"><span>ghostget read</span><svg viewBox="0 0 24 24" width="20" height="20"><path d="M4 12h14m-5-5 5 5-5 5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" /></svg></span>
+        <div className="ggm-lamp-side" data-ggm-side="markdown">
+          <TerminalFrame describe="Terminal where ghostget read prints the page as Markdown with its source attached." lines={lines} title="Agent terminal" />
+        </div>
+      </div>
+    </MockupRoot>
+  );
+}
+
 export const LAUNCH_MOCKUP_IDS = [
+  "page-to-markdown",
   "agent-read",
   "measured",
   "named-action",
@@ -302,6 +356,8 @@ export function LaunchMockup({
 }: MockupProps & Readonly<{ id: string; state?: Readonly<Record<string, string>>; services: readonly LaunchService[] }>) {
   const t = themed(theme);
   switch (id as LaunchMockupId) {
+    case "page-to-markdown":
+      return <PageToMarkdownMockup {...t} />;
     case "agent-read":
       return <AgentReadMockup {...t} />;
     case "measured":

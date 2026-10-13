@@ -926,13 +926,13 @@ function renderGhostgetPlatformInstall(installCommand: string): string {
       {
         command: installCommand,
         id: "macos",
-        noteHtml: `${GHOSTGET_BUN_NOTE} The optional iMessage and WhatsApp helpers and the menu bar app need Apple silicon.`,
+        noteHtml: GHOSTGET_BUN_NOTE,
         shell: "Terminal",
       },
       {
         command: installCommand,
         id: "linux",
-        noteHtml: `${GHOSTGET_BUN_NOTE} The iMessage and WhatsApp helpers and the menu bar app are macOS only.`,
+        noteHtml: GHOSTGET_BUN_NOTE,
         shell: "Terminal",
       },
       {
@@ -941,7 +941,7 @@ function renderGhostgetPlatformInstall(installCommand: string): string {
         noteHtml: GHOSTGET_BUN_NOTE,
         shell: "WSL2 terminal",
         unavailable: true,
-        unavailableNoteHtml: "GhostGet isn’t tested on Windows. It runs in WSL2 with the Linux command.",
+        unavailableNoteHtml: "Run the Linux command in WSL2.",
       },
     ],
   });
@@ -1004,7 +1004,7 @@ function renderTemplate(
       }
     }
     if (page.canonicalPath === "/") {
-      rendered = replaceRequired(rendered, "{{EDITORIAL_CARDS}}", renderEditorialCards());
+      if (rendered.includes("{{EDITORIAL_CARDS}}")) rendered = replaceRequired(rendered, "{{EDITORIAL_CARDS}}", renderEditorialCards());
       rendered = replaceRequired(rendered, "{{RELATED_GROUPS}}", renderRelatedGroups(RELATED_PRODUCT_IDS));
     } else if (/\{\{(?:EDITORIAL_CARDS|RELATED_GROUPS)\}\}/u.test(rendered)) {
       throw new Error("Editorial and related cards belong only on the homepage.");
@@ -1023,7 +1023,7 @@ function renderTemplate(
     /<meta name="ghostget-posthog-key" content="[^"]*">/u,
     (meta) => `${meta}\n    <meta name="${ANALYTICS_ROUTE_META}" content="${escapeHtml(page?.canonicalPath ?? "")}">`,
   );
-  if (page?.canonicalPath === "/" || page?.canonicalPath === "/docs/reference/provider-capabilities/" || page?.canonicalPath === "/providers/") {
+  if (page?.canonicalPath === "/docs/reference/provider-capabilities/" || page?.canonicalPath === "/providers/") {
     rendered = replaceRequired(
       rendered,
       "{{PROVIDER_OVERVIEW_CARDS}}",

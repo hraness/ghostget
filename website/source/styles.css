@@ -2664,12 +2664,6 @@ body {
   align-items: center;
 }
 
-@media (forced-colors: none) {
-  .hraness-marketing-action[data-emphasis="primary"] {
-    color: var(--ghostget-action-ink);
-  }
-}
-
 .hraness-marketing-page ::selection {
   background-color: var(--ghostget-action-soft);
   color: var(--foreground);
@@ -2802,13 +2796,12 @@ body {
 }
 
 @media (max-width: 48rem) {
-  /* The homepage links take their own row and scroll sideways if they
-   * ever outgrow it, keeping full-size hit targets. */
+  /* The homepage links take their own row and wrap onto a second one at
+   * phone widths, keeping full-size hit targets and no sideways scroll. */
   [data-hraness-marketing-preset="editorial"] .hraness-marketing-header__nav {
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     gap: 0 1.25rem;
-    overflow-x: auto;
-    scrollbar-width: none;
+    overflow: visible;
   }
 
   [data-hraness-marketing-preset="editorial"] .hraness-marketing-header__nav::-webkit-scrollbar {
@@ -4293,4 +4286,186 @@ main .founder-note { inline-size: auto; margin-inline: 3rem 0; }
 @media (forced-colors: active) {
   .ghostget-benchmark__bar--browsing { background: GrayText; }
   .ghostget-benchmark__bar--ghostget { background: Highlight; }
+}
+
+/* Ingot primary action. Shared across the portfolio, 2026-10-13. A neutral
+ * metal with a faint spectrum reflection, like the foil lockup: graphite with
+ * pale text in light appearance, silver with dark text in dark appearance. */
+.hraness-marketing-action[data-emphasis="primary"],
+.hraness-marketing-account__primary,
+.button-primary,
+.ingot {
+  --ingot-ink: var(--foreground, CanvasText);
+  --ingot-paper: var(--background, Canvas);
+  --ingot-metal: color-mix(in oklch, var(--ingot-ink) 88%, var(--ingot-paper));
+  --ingot-metal-light: color-mix(in oklch, var(--ingot-ink) 72%, var(--ingot-paper));
+  --ingot-text: var(--ingot-paper);
+  position: relative;
+  isolation: isolate;
+  border: 1px solid color-mix(in oklch, var(--ingot-ink) 92%, var(--ingot-paper));
+  border-radius: 0.625rem;
+  background-color: var(--ingot-metal);
+  background-image:
+    linear-gradient(180deg, color-mix(in srgb, white 16%, transparent) 0%, transparent 46%, color-mix(in srgb, black 10%, transparent) 100%),
+    linear-gradient(115deg,
+      color-mix(in srgb, var(--hraness-foil-1, oklch(0.89 0.065 337)) 9%, transparent),
+      color-mix(in srgb, var(--hraness-foil-2, oklch(0.875 0.05 277)) 9%, transparent),
+      color-mix(in srgb, var(--hraness-foil-3, oklch(0.92 0.05 170)) 9%, transparent),
+      color-mix(in srgb, var(--hraness-foil-4, oklch(0.95 0.045 96)) 9%, transparent),
+      color-mix(in srgb, var(--hraness-foil-5, oklch(0.9 0.05 55)) 9%, transparent),
+      color-mix(in srgb, var(--hraness-foil-6, oklch(0.875 0.06 305)) 9%, transparent)),
+    linear-gradient(115deg, var(--ingot-metal-light) 0%, var(--ingot-metal) 28%, var(--ingot-metal-light) 52%, var(--ingot-metal) 74%, var(--ingot-metal-light) 100%);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 28%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, black 18%, transparent),
+    0 1px 2px color-mix(in srgb, var(--ingot-ink) 18%, transparent),
+    0 6px 16px -8px color-mix(in srgb, var(--ingot-ink) 35%, transparent);
+  color: var(--ingot-text);
+  font-weight: 550;
+  letter-spacing: 0.005em;
+  text-shadow: 0 1px 0 color-mix(in srgb, black 22%, transparent);
+  transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease;
+}
+.hraness-marketing-action[data-emphasis="primary"]:hover,
+.hraness-marketing-account__primary:hover,
+.button-primary:hover,
+.ingot:hover {
+  background-color: var(--ingot-metal);
+  border-color: color-mix(in oklch, var(--ingot-ink) 92%, var(--ingot-paper));
+  color: var(--ingot-text);
+  filter: brightness(1.06);
+}
+.hraness-marketing-action[data-emphasis="primary"]:active,
+.hraness-marketing-account__primary:active,
+.button-primary:active,
+.ingot:active {
+  transform: translateY(1px);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 10%, transparent),
+    inset 0 2px 6px color-mix(in srgb, black 30%, transparent),
+    0 1px 1px color-mix(in srgb, var(--ingot-ink) 12%, transparent);
+}
+.hraness-marketing-action[data-emphasis="primary"]:focus-visible,
+.hraness-marketing-account__primary:focus-visible,
+.button-primary:focus-visible,
+.ingot:focus-visible {
+  outline: 2px solid var(--hraness-marketing-accent, var(--primary));
+  outline-offset: 3px;
+}
+@media (prefers-color-scheme: dark) {
+  .hraness-marketing-action[data-emphasis="primary"],
+  .hraness-marketing-account__primary,
+  .button-primary,
+  .ingot {
+    /* Silver on dark: the ingot is the pale metal and the text is the page ink. */
+    --ingot-metal: color-mix(in oklch, var(--ingot-ink) 90%, var(--ingot-paper));
+    --ingot-metal-light: color-mix(in oklch, var(--ingot-ink) 76%, var(--ingot-paper));
+    text-shadow: 0 1px 0 color-mix(in srgb, white 30%, transparent);
+  }
+}
+@media (forced-colors: active) {
+  .hraness-marketing-action[data-emphasis="primary"],
+  .hraness-marketing-account__primary,
+  .button-primary,
+  .ingot {
+    background: ButtonFace;
+    color: ButtonText;
+    border-color: ButtonText;
+    box-shadow: none;
+    text-shadow: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hraness-marketing-action[data-emphasis="primary"],
+  .hraness-marketing-account__primary,
+  .button-primary,
+  .ingot { transition: none; }
+  .hraness-marketing-action[data-emphasis="primary"]:active,
+  .hraness-marketing-account__primary:active,
+  .button-primary:active,
+  .ingot:active { transform: none; }
+}
+
+/* No horizontal overflow at phone widths: every code block scrolls inside its
+ * own box, and the provider marquee clips its moving track. */
+pre,
+.proof-transcript,
+.hraness-marketing-proof-frame__content pre {
+  max-inline-size: 100%;
+  min-inline-size: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+pre:focus-visible {
+  outline: 2px solid var(--ghostget-action);
+  outline-offset: 3px;
+}
+.hraness-marketing-marquee__viewport {
+  overflow: hidden;
+}
+.hraness-marketing-marquee__track {
+  inline-size: auto;
+}
+
+/* Design pass 2026-10-13: one object per section. */
+.ghostget-hero-facts {
+  margin: 0;
+}
+.ghostget-product-hero .hraness-marketing-hero__actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+}
+.ghostget-product-hero .hraness-marketing-hero__frame .hkm-root {
+  inline-size: 100%;
+}
+.ghostget-stats {
+  --hraness-marketing-fact-columns: 3;
+  inline-size: auto;
+}
+.ghostget-stats strong {
+  font-family: var(--hraness-marketing-heading-font, var(--font-text));
+  font-size: clamp(1.75rem, 3vw, 2.25rem);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.ghostget-stats dt {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.ghostget-stats :where(strong, span) {
+  display: block;
+}
+.ghostget-stats + .table-scroll {
+  margin-block-start: 1.5rem;
+}
+.ghostget-stats__source {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 0.75rem 0 0;
+}
+@media (max-width: 48rem) {
+  .ghostget-stats { --hraness-marketing-fact-columns: 1; }
+  .ghostget-stats > div:nth-child(2n + 1) { border-inline-start: 0; }
+  .ghostget-stats > div:nth-child(n + 3) { border-block-start: var(--hraness-marketing-rule); }
+}
+.provider-section .hraness-marketing-marquee {
+  inline-size: auto;
+  padding-block: 0;
+}
+.ghostget-install-commands {
+  inline-size: auto;
+}
+.ghostget-trust .hraness-marketing-trust-item {
+  grid-template-rows: auto auto 1fr;
+}
+.ghostget-trust__icon {
+  color: var(--ghostget-action);
+  margin-block-end: 0.75rem;
+}
+@media (forced-colors: active) {
+  .ghostget-trust__icon { color: CanvasText; }
 }
