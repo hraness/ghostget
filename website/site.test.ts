@@ -1247,38 +1247,11 @@ describe("ghostget.com static site", () => {
       "utf8",
     );
     expect(homepageMarkdown).not.toContain("![](");
-    expect(homepageMarkdown).toContain('import { isProviderPluginId } from "@hraness/ghostget"');
+    expect(homepageMarkdown).toContain("Measured September 22, 2026");
+    // Essays have their own pages; the home page no longer carries image cards.
+    expect(html).not.toContain('class="card editorial-card"');
     for (const image of INDEXABLE_EDITORIAL_IMAGES) {
-      expect(homepageMarkdown).toContain(image.cardTitle);
       expect(homepageMarkdown).not.toContain(editorialImageUrl(image));
-    }
-
-    const editorialCards = html.match(
-      /<article class="card editorial-card">[\s\S]*?<\/article>/gu,
-    ) ?? [];
-    expect(editorialCards).toHaveLength(INDEXABLE_EDITORIAL_IMAGES.length);
-    for (const [index, image] of INDEXABLE_EDITORIAL_IMAGES.entries()) {
-      const card = editorialCards[index] ?? "";
-      expect(card).toMatch(
-        /^<article class="card editorial-card">\s*<a href="[^"]+">[\s\S]*<\/a>\s*<\/article>$/u,
-      );
-      expect(card.match(/<a\b/gu)).toHaveLength(1);
-      expect(card).toContain(`<a href="${image.canonicalPath}">`);
-      expect(card.match(/<h[1-6]\b/gu)).toHaveLength(1);
-      expect(card.match(/<h3\b/gu)).toHaveLength(1);
-      expect(card.match(/<\/h3>/gu)).toHaveLength(1);
-      expect(card).toContain(`<h3>${image.cardTitle}</h3>`);
-      expect(card).toContain(
-        `<p class="editorial-card-description">${image.cardDescription}</p>`,
-      );
-      expect(card).toMatch(/<\/h3>\s*<p class="editorial-card-description">/u);
-      expect(card).not.toContain(`</strong>${image.cardDescription}`);
-      expect(card).not.toMatch(/<\/h3>[^<\s]/u);
-      const linkEnd = card.lastIndexOf("</a>");
-      expect(card.indexOf("<img ")).toBeLessThan(linkEnd);
-      expect(card).toContain(`sizes="${EDITORIAL_CARD_IMAGE_SIZES}"`);
-      expect(card.indexOf("<h3>")).toBeLessThan(linkEnd);
-      expect(card.indexOf('<p class="editorial-card-description">')).toBeLessThan(linkEnd);
 
       const page = pages.find(({ definition }) =>
         definition.canonicalPath === image.canonicalPath);
@@ -1394,11 +1367,10 @@ describe("ghostget.com static site", () => {
     );
     expect(html).toContain('scope="row">Your agent’s web fetch</th>');
     expect(html).toContain('<a href="/compare/firecrawl/">Firecrawl</a> / <a href="/compare/jina-reader/">Jina Reader</a></th>');
-    expect(html).toContain('href="https://github.com/unclecode/crawl4ai">Crawl4AI</a>');
-    expect(html).toContain('<a href="https://composio.dev">Composio</a> / <a href="https://www.arcade.dev">Arcade</a> / <a href="https://pipedream.com/docs/connect">Pipedream Connect</a></th>');
-    expect(html).not.toContain("Hosted integration breadth and managed end-user authentication");
-    expect(html).toContain('href="https://docs.apify.com/integrations/mcp">Apify MCP</a>');
-    expect(html).toContain('href="/compare/browserbase/">Browserbase + Stagehand</a>');
+    // The home table keeps five rows; the full comparison lives at /compare/.
+    expect(html).toContain('<a href="/compare/browser-use/">browser-use</a></th>');
+    expect(html).toContain('<a href="/compare/playwright-mcp/">Playwright MCP</a></th>');
+    expect(html).toContain('<a href="/compare/">Read the detailed comparisons</a>');
     expect(html).toContain(
       "If a write went out and its result is unknown, GhostGet won’t send it again.",
     );
@@ -1489,24 +1461,20 @@ describe("ghostget.com static site", () => {
     expect(providerCapabilities?.html).toContain(
       "This directory lists the current release's generic actions and, separately, owner-only messaging permissions.",
     );
-    expect(html).toContain(providerCards);
+    // The home page shows the provider band; the cards live on the reference page.
+    expect(html).not.toContain(providerCards);
     expect(providerCapabilities?.html).toContain(providerCards);
-    expect(html.match(/class="provider-mark"/gu)).toHaveLength(providerDirectory.providerCount);
     expect(providerCapabilities?.html.match(/class="provider-mark"/gu))
       .toHaveLength(providerDirectory.providerCount);
-    expect(html.match(/class="provider-feature-copy"/gu)).toHaveLength(1);
     expect(providerCapabilities?.html.match(/class="provider-feature-copy"/gu)).toHaveLength(1);
-    expect(html).toContain(
-      `${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.cliBackedOperationCount)} actions run through a pinned version of Beeper's official CLI, and ${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.desktopLoopbackOperationCount)} are fixed reads from Beeper Desktop. Writes need a preview first, and GhostGet never resends a write whose outcome is unknown.`,
-    );
     expect(providerCapabilities?.html).toContain(
       `${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.cliBackedOperationCount)} actions run through a pinned version of Beeper's official CLI, and ${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.desktopLoopbackOperationCount)} are fixed reads from Beeper Desktop. Writes need a preview first, and GhostGet never resends a write whose outcome is unknown.`,
     );
-    // The provider band directly under the hero counts the same directory as the cards.
+    // The provider band is the Providers section object and counts the same directory as the cards.
     const providerBand = renderProviderMarquee(providerDirectory);
     expect(html).toContain(providerBand);
-    expect(html.indexOf(providerBand)).toBeGreaterThan(html.indexOf('data-hraness-marketing="hero"'));
-    expect(html.indexOf(providerBand)).toBeLessThan(html.indexOf('id="uses"'));
+    expect(html.indexOf(providerBand)).toBeGreaterThan(html.indexOf('id="providers"'));
+    expect(html.indexOf(providerBand)).toBeLessThan(html.indexOf('id="start"'));
     expect(providerBand).toContain(`<strong class="hraness-marketing-marquee__count">${String(providerDirectory.providerCount)}</strong>`);
     for (const page of pages.slice(1)) expect(page.html).not.toContain("hraness-marketing-marquee");
     const homeMarkdown = await readFile(join(websiteRoot, "dist/index.md"), "utf8");
@@ -1516,7 +1484,7 @@ describe("ghostget.com static site", () => {
     expect(Number(providerHeading?.match(/\d+/u)?.[0])).toBe(providerDirectory.providerCount);
     expect(html).not.toContain("Each card names the actions");
     for (const entry of providerDirectory.entries) {
-      expect(html).toContain(`data-provider-icon="${entry.icon}"`);
+      expect(providerBand).toContain(entry.name);
       expect(providerCapabilities?.html).toContain(`data-provider-icon="${entry.icon}"`);
     }
     expect(providerCapabilities?.html).toContain(providerGroups);
