@@ -402,7 +402,7 @@ describe("provider presentation", () => {
     const html = renderProviderMarquee(directory);
     expect(html.startsWith(`<section aria-labelledby="${PROVIDER_MARQUEE_ID}-label" class="hraness-marketing-marquee"`)).toBeTrue();
     expect(html).toContain(`Works with <strong class="hraness-marketing-marquee__count">${String(directory.providerCount)}</strong> services`);
-    expect(html).toContain('<a class="hraness-marketing-marquee__action hraness-text-link" href="#providers">See every provider</a>');
+    expect(html).toContain('<a class="hraness-marketing-marquee__action hraness-text-link" href="/docs/reference/provider-capabilities/">See every action</a>');
     const accessibleList = /<ul class="hraness-marketing-marquee__list">(.*?)<\/ul>/u.exec(html)?.[1] ?? "";
     const names = [...accessibleList.matchAll(/<span class="hraness-marketing-marquee__name">(.*?)<\/span>/gu)].map((match) => match[1]);
     expect(names).toEqual(entries.map((entry) => entry.name));

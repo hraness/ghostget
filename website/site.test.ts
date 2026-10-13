@@ -596,7 +596,7 @@ describe("ghostget.com static site", () => {
     expect(html).not.toContain("@jungle/");
     expect(html).not.toContain("hraness.com/ghostget");
     expect(html.match(/<h1\b/gu)).toHaveLength(1);
-    expect(html.match(/<details\b/gu)).toHaveLength(12);
+    expect(html.match(/<details\b/gu)).toHaveLength(8);
     expect(html.match(/<iframe\b/gu)).toBeNull();
     // The hero is copy plus one real transcript: no decorative field, drifting
     // cards, blur, or pointer-driven light behind the text.
@@ -605,16 +605,15 @@ describe("ghostget.com static site", () => {
       expect(page.html).not.toContain("/assets/field-");
       expect(page.html).not.toContain("data-hraness-hero-item");
     }
-    expect(html).toContain('class="proof-transcript"');
-    expect(html).toContain('class="syntax-code language-shell"');
-    expect(html).toContain('class="syntax-code language-typescript"');
-    expect(html).toContain('class="hraness-marketing-proof-frame__chrome"');
+    // The hero proof object: a page in a browser window becoming Markdown in a terminal.
+    expect(html).toContain('data-hraness-signature="page-to-markdown"');
+    expect(html).toContain('class="hkm-terminal-lines"');
     expect(html).not.toContain("ghostget menubar");
-    expect(html).toContain("ghostget status");
-    expect(html).toContain("Review connected accounts, permissions, pending approvals, recent activity, and saved output files from the terminal");
-    expect(html).toContain("ghostget tui");
-    expect(html).toContain("ghostget control serve");
     expect(html).toContain('class="table-scroll" role="region" aria-labelledby="measured-heading" tabindex="0"');
+    expect(html).toContain("145,617 bytes");
+    expect(html).toContain("15,021 bytes");
+    expect(html).toContain("Measured September 22, 2026 over HTTP with no browser, at four bytes per token.");
+    expect(html).toContain('href="/docs/reference/provider-capabilities/">See every action</a>');
     expect(html).toContain('<a class="skip-link" href="#main">');
     // Outbound clicks are classified by destination host, so links carry no analytics tags.
     expect(html).not.toContain("data-analytics-event");
@@ -622,36 +621,8 @@ describe("ghostget.com static site", () => {
     expect(html.match(new RegExp(`href="${REPOSITORY_URL}"`, "gu"))).toHaveLength(3);
     expect(html).not.toContain("Privacy: cookieless PostHog analytics");
     expect(html).toContain('href="/privacy/"');
-    expect(html).toContain('href="/compare/personal-agents-browser-use/"');
+    expect(html).toContain('href="/compare/"');
     for (const path of NOINDEX_ESSAY_PATHS) expect(html).not.toContain(`href="${path}"`);
-    expect(html).toContain('href="/docs/how-to/connect-beeper/"');
-    expect(html).toContain('href="/docs/how-to/export-whatsapp/"');
-    const argumentsSection = /<section aria-labelledby="arguments-title" class="section editorial-cluster">[\s\S]*?<\/section>/u
-      .exec(html)?.[0];
-    const guidesSection = /<section aria-labelledby="guides-title" class="section guide-cluster">[\s\S]*?<\/section>/u
-      .exec(html)?.[0];
-    expect(argumentsSection).toBeDefined();
-    expect(guidesSection).toBeDefined();
-    expect(argumentsSection).toContain('<h2 id="arguments-title">Arguments and comparisons</h2>');
-    expect(argumentsSection).toContain('<div class="card-grid editorial-card-grid">');
-    expect(argumentsSection?.match(/<article class="card(?: editorial-card)?">/gu)).toHaveLength(
-      INDEXABLE_EDITORIAL_IMAGES.length,
-    );
-    expect(guidesSection?.match(/<article class="card">/gu)).toHaveLength(6);
-    expect(argumentsSection).toContain('href="/compare/"');
-    for (const path of NOINDEX_ESSAY_PATHS) {
-      expect(argumentsSection).not.toContain(`href="${path}"`);
-      expect(guidesSection).not.toContain(`href="${path}"`);
-    }
-    for (const image of editorialImages) {
-      expect(argumentsSection?.includes(`href="${image.canonicalPath}"`)).toBe(
-        !image.canonicalPath.startsWith("/blog/") && !isNoindexDocumentPath(image.canonicalPath),
-      );
-      expect(guidesSection).not.toContain(`href="${image.canonicalPath}"`);
-    }
-    expect(guidesSection).not.toContain('class="card editorial-card"');
-    // Task guides are the reader's next step after the FAQ; essays follow them.
-    expect(html.indexOf(guidesSection ?? "")).toBeLessThan(html.indexOf(argumentsSection ?? ""));
     let heroHeading = "";
     new HTMLRewriter().on("h1#brand-name", { text(chunk) { heroHeading += chunk.text; } }).transform(html);
     expect(heroHeading.replace(/\s+/gu, " ").trim()).toBe(portfolio.messaging.hero.heading);
@@ -665,8 +636,6 @@ describe("ghostget.com static site", () => {
     }
     expect(html).toContain('data-hraness-marketing="header"');
     expect(html).toContain('data-hraness-marketing="hero"');
-    expect(html).toContain('data-hraness-marketing="proof-frame"');
-    expect(html).toContain('data-hraness-marketing="pillars"');
     expect(html).toContain('data-hraness-marketing="maker"');
     // The maker section is product-owned studio attribution in page content;
     // network attribution belongs to the shared footer and is never repeated here.
@@ -675,13 +644,10 @@ describe("ghostget.com static site", () => {
     expect(makerSection).toContain('<h2 class="hraness-marketing-maker__heading" id="maker-title">Hraness</h2>');
     expect(makerSection).not.toContain("hraness-attribution");
     expect(makerSection).not.toMatch(/Built by\b/u);
-    expect(html).toContain('clipped: "2026-09-05"');
-    expect(html).toContain("Public-page read recorded on September 5, 2026; command updated for GhostGet.");
     expect(html).toContain('<a href="https://hraness.com">hraness.com</a>');
     expect(html).toContain('<a href="https://x.com/hraness">@hraness</a>');
     expect(html).not.toMatch(/\bstyle="/u);
     expect(html).toContain('data-hraness-marketing="install"');
-    expect(html).toContain('data-hraness-marketing="interfaces"');
     expect(html).toContain('data-hraness-marketing="trust"');
     expect(html).toContain('data-hraness-marketing="questions"');
     expect(html).toContain('data-hraness-marketing="related"');
@@ -704,7 +670,6 @@ describe("ghostget.com static site", () => {
     expect(relatedSection).not.toMatch(/hraness-marketing-card__(?:title|meta|body)/u);
     expect(html.indexOf('data-hraness-marketing="related"')).toBeLessThan(html.indexOf('data-hraness-marketing="cta"'));
     expect(html).toContain('data-hraness-marketing="cta"');
-    expect(html).toContain("Use an Agent Skill, CLI, or TypeScript SDK");
     expect(html).not.toContain('class="hraness-marketing-hero__eyebrow"');
     expect(html).toContain('data-align="start"');
     expect(html).not.toContain('class="hraness-marketing-hero__example"');
@@ -928,9 +893,11 @@ describe("ghostget.com static site", () => {
       }
       expect(cssPropertyValues(css, ".ghostget-product-hero .hero-explainer", "color").at(-1))
         .toBe("var(--muted)");
-      expect(cssPropertyValues(css, '.hraness-marketing-action[data-emphasis="primary"]', "color").at(-1))
-        .toBe(css === sourceCss ? "var(--ghostget-action-ink)" : "ButtonText");
-      expect(css).toMatch(/@media\s*\(forced-colors: none\)\s*\{\s*\.hraness-marketing-action\[data-emphasis="primary"\]\s*\{\s*color:\s*var\(--ghostget-action-ink\)/u);
+      // The primary action is the portfolio ingot: paper text on an ink bar, and system
+      // button colors under forced colors.
+      expect(css).toContain("--ingot-metal:");
+      expect(css).toContain("--ingot-text:");
+      expect(cssPropertyValues(css, '.hraness-marketing-action[data-emphasis="primary"]', "color").at(-1)).toBe("ButtonText");
       const providerMarkDisplay = cssPropertyValues(css, ".provider-mark", "display");
       expect(providerMarkDisplay.length).toBeGreaterThan(0);
       expect(providerMarkDisplay).not.toContain("none");
