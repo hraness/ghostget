@@ -4421,7 +4421,7 @@ pre:focus-visible {
   inline-size: 100%;
 }
 .ghostget-stats {
-  --hraness-marketing-fact-columns: 4;
+  --hraness-marketing-fact-columns: 3;
   inline-size: auto;
 }
 .ghostget-stats strong {
@@ -4448,7 +4448,7 @@ pre:focus-visible {
   margin: 0.75rem 0 0;
 }
 @media (max-width: 48rem) {
-  .ghostget-stats { --hraness-marketing-fact-columns: 2; }
+  .ghostget-stats { --hraness-marketing-fact-columns: 1; }
   .ghostget-stats > div:nth-child(2n + 1) { border-inline-start: 0; }
   .ghostget-stats > div:nth-child(n + 3) { border-block-start: var(--hraness-marketing-rule); }
 }

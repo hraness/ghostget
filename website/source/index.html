@@ -94,14 +94,14 @@
           <div class="hraness-marketing-section__heading-group">
             <p class="home-eyebrow">How it works</p>
             <h2 class="hraness-marketing-section__heading" id="how-it-works-heading">{{PORTFOLIO_HEADING:how-it-works-heading}}</h2>
-            <p class="hraness-marketing-section__summary">Your agent names the task, GhostGet runs one action against your signed-in session, and JSON comes back.</p>
+            <p class="hraness-marketing-section__summary">Your agent names the task; GhostGet runs one action in your signed-in session.</p>
           </div>
           <div class="hraness-marketing-section__body">
             <ol aria-label="One GhostGet request" class="hraness-marketing-flow" data-hraness-marketing="flow">
               <li class="hraness-marketing-flow__step"><span aria-hidden="true" class="hraness-marketing-flow__number">01</span><div class="hraness-marketing-flow__body"><strong class="hraness-marketing-flow__label">Name the job</strong><p class="hraness-marketing-flow__detail">Read a page, check an inbox, or save a video.</p></div></li>
-              <li class="hraness-marketing-flow__step"><span aria-hidden="true" class="hraness-marketing-flow__number">02</span><div class="hraness-marketing-flow__body"><strong class="hraness-marketing-flow__label">Match one action</strong><p class="hraness-marketing-flow__detail">Your agent picks one from the installed list, such as <code>gmail messaging.list</code>.</p></div></li>
-              <li class="hraness-marketing-flow__step"><span aria-hidden="true" class="hraness-marketing-flow__number">03</span><div class="hraness-marketing-flow__body"><strong class="hraness-marketing-flow__label">Run it on your machine</strong><p class="hraness-marketing-flow__detail">Against the account you connected. Account changes wait for your confirmation.</p></div></li>
-              <li class="hraness-marketing-flow__step"><span aria-hidden="true" class="hraness-marketing-flow__number">04</span><div class="hraness-marketing-flow__body"><strong class="hraness-marketing-flow__label">Return the result</strong><p class="hraness-marketing-flow__detail">JSON or Markdown for the agent’s next step.</p></div></li>
+              <li class="hraness-marketing-flow__step"><span aria-hidden="true" class="hraness-marketing-flow__number">02</span><div class="hraness-marketing-flow__body"><strong class="hraness-marketing-flow__label">Match one action</strong><p class="hraness-marketing-flow__detail">Such as <code>gmail messaging.list</code>.</p></div></li>
+              <li class="hraness-marketing-flow__step"><span aria-hidden="true" class="hraness-marketing-flow__number">03</span><div class="hraness-marketing-flow__body"><strong class="hraness-marketing-flow__label">Run it on your machine</strong><p class="hraness-marketing-flow__detail">Account changes wait for you.</p></div></li>
+              <li class="hraness-marketing-flow__step"><span aria-hidden="true" class="hraness-marketing-flow__number">04</span><div class="hraness-marketing-flow__body"><strong class="hraness-marketing-flow__label">Return the result</strong><p class="hraness-marketing-flow__detail">JSON or Markdown.</p></div></li>
             </ol>
           </div>
         </section>
@@ -110,14 +110,13 @@
           <div class="hraness-marketing-section__heading-group">
             <p class="home-eyebrow">Measured</p>
             <h2 class="hraness-marketing-section__heading" id="measured-heading">{{PORTFOLIO_HEADING:measured-heading}}</h2>
-            <p class="hraness-marketing-section__summary">One Wikipedia article, read twice: as the HTML a browser fetch loads, and as the Markdown <code>ghostget read</code> returns.</p>
+            <p class="hraness-marketing-section__summary">The same pages, fetched as raw HTML and read with <code>ghostget read</code>.</p>
           </div>
           <div class="hraness-marketing-section__body">
             <dl aria-label="The Wikipedia article on Wget, measured September 22, 2026" class="hraness-marketing-stats__list ghostget-stats">
               <div><dt>Raw page HTML</dt><dd><strong>36,000</strong><span>tokens, from 145,617 bytes</span></dd></div>
               <div><dt>GhostGet Markdown</dt><dd><strong>3,800</strong><span>tokens, from 15,021 bytes</span></dd></div>
               <div><dt>Smaller by</dt><dd><strong>9.7×</strong><span>the same article, the same day</span></dd></div>
-              <div><dt>Pages measured</dt><dd><strong>5</strong><span>in the table below</span></dd></div>
             </dl>
             <div class="table-scroll" role="region" aria-labelledby="measured-heading" tabindex="0">
               <table>
@@ -150,7 +149,7 @@
           <div class="hraness-marketing-install__heading-group">
             <p class="home-eyebrow">Get started</p>
             <h2 class="hraness-marketing-install__heading" id="start-heading">{{PORTFOLIO_HEADING:start-heading}}</h2>
-            <p class="install-summary">Install the <a href="{{GHOSTGET_PACKAGE_ARTIFACT}}"><code>@hraness/ghostget</code> release archive</a> with <a href="https://bun.sh/docs/installation">Bun 1.3.14</a>, then read a public page. No account is needed.</p>
+            <p class="install-summary">Install the <a href="{{GHOSTGET_PACKAGE_ARTIFACT}}"><code>@hraness/ghostget</code> release archive</a> with <a href="https://bun.sh/docs/installation">Bun 1.3.14</a>; no account needed.</p>
             {{GHOSTGET_PLATFORM_BADGES}}
           </div>
           <div class="hraness-marketing-install__commands">
@@ -172,7 +171,6 @@
               <p class="skill-install-note" id="hero-skill-install-note">With Bun, run <code>{{GHOSTGET_SKILL_INSTALL_COMMAND_BUNX}}</code> instead. <a href="{{GHOSTGET_SKILLS}}">View the GhostGet Agent Skill on skills.sh.</a></p>
               <p aria-live="polite" class="visually-hidden" data-skill-install-status id="hero-skill-install-status" role="status"></p>
             </div>
-            <p class="install-next">You’ll see <strong>Example Domain</strong> as Markdown. Next, <a href="/docs/tutorials/getting-started/#save-pages">save a page</a> or <a href="/docs/tutorials/getting-started/#inspect-capabilities">connect a service</a>.</p>
           </div>
         </section>
 
@@ -180,13 +178,13 @@
           <header class="hraness-marketing-trust__header">
             <p class="home-eyebrow">Safety</p>
             <h2 class="hraness-marketing-trust__heading" id="local-by-design-title">{{PORTFOLIO_HEADING:local-by-design-title}}</h2>
-            <p>Sign-ins and saved results stay on your machine. Actions contact only the service you choose.</p>
+            <p>Sign-ins and saved results stay on your machine.</p>
           </header>
           <dl class="hraness-marketing-trust-grid ghostget-trust">
-            <div class="hraness-marketing-trust-item"><svg aria-hidden="true" class="ghostget-trust__icon" fill="none" focusable="false" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewBox="0 0 24 24" width="24"><rect height="10" rx="2" width="14" x="5" y="11"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg><dt>Keep sign-ins local</dt><dd>Each connection belongs to one account; your agent receives results, never the password.</dd></div>
-            <div class="hraness-marketing-trust-item"><svg aria-hidden="true" class="ghostget-trust__icon" fill="none" focusable="false" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewBox="0 0 24 24" width="24"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg><dt>Preview account changes</dt><dd>A send or an edit shows you what it will do and runs after you confirm.</dd></div>
-            <div class="hraness-marketing-trust-item"><svg aria-hidden="true" class="ghostget-trust__icon" fill="none" focusable="false" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewBox="0 0 24 24" width="24"><path d="M4 7h16v13H4z"></path><path d="M3 4h18v3H3z"></path><path d="M10 11h4"></path></svg><dt>Keep earlier reads</dt><dd>Saved reads are encrypted on your machine, so a failed refresh leaves your copy in place.</dd></div>
-            <div class="hraness-marketing-trust-item"><svg aria-hidden="true" class="ghostget-trust__icon" fill="none" focusable="false" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewBox="0 0 24 24" width="24"><path d="M8.5 3h7l5 5v7l-5 5h-7l-5-5V8z"></path><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg><dt>Stop when a service changes</dt><dd>An action stops instead of guessing, and a write with an unknown result is never sent twice.</dd></div>
+            <div class="hraness-marketing-trust-item"><svg aria-hidden="true" class="ghostget-trust__icon" fill="none" focusable="false" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewBox="0 0 24 24" width="24"><rect height="10" rx="2" width="14" x="5" y="11"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg><dt>Keep sign-ins local</dt><dd>Your agent receives results, never the password.</dd></div>
+            <div class="hraness-marketing-trust-item"><svg aria-hidden="true" class="ghostget-trust__icon" fill="none" focusable="false" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewBox="0 0 24 24" width="24"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg><dt>Preview account changes</dt><dd>Sends and edits run after you confirm.</dd></div>
+            <div class="hraness-marketing-trust-item"><svg aria-hidden="true" class="ghostget-trust__icon" fill="none" focusable="false" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewBox="0 0 24 24" width="24"><path d="M4 7h16v13H4z"></path><path d="M3 4h18v3H3z"></path><path d="M10 11h4"></path></svg><dt>Keep earlier reads</dt><dd>Saved reads stay encrypted on your machine.</dd></div>
+            <div class="hraness-marketing-trust-item"><svg aria-hidden="true" class="ghostget-trust__icon" fill="none" focusable="false" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewBox="0 0 24 24" width="24"><path d="M8.5 3h7l5 5v7l-5 5h-7l-5-5V8z"></path><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg><dt>Stop when a service changes</dt><dd>An action stops instead of guessing.</dd></div>
           </dl>
         </section>
 
@@ -194,7 +192,7 @@
           <div class="hraness-marketing-section__heading-group">
             <p class="home-eyebrow">Compare</p>
             <h2 class="hraness-marketing-section__heading" id="comparison-title">{{PORTFOLIO_HEADING:comparison-title}}</h2>
-            <p class="hraness-marketing-section__summary">GhostGet runs named actions on your machine against your own sessions. Browser tools let the model choose each click; hosted services read for you.</p>
+            <p class="hraness-marketing-section__summary">GhostGet runs named actions on your machine, against your own sessions.</p>
           </div>
           <div class="hraness-marketing-section__body">
             <div class="table-scroll ghostget-compare" role="region" aria-labelledby="comparison-title" tabindex="0">
@@ -209,7 +207,7 @@
                 </tbody>
               </table>
             </div>
-            <p class="ghostget-stats__source">GhostGet is free and MIT licensed, and public-page reads need no key. <a href="/compare/">Read the detailed comparisons</a>.</p>
+            <p class="ghostget-stats__source"><a href="/compare/">Read the detailed comparisons</a>.</p>
           </div>
         </section>
 
@@ -219,10 +217,10 @@
             <h2 class="hraness-marketing-questions__heading" id="faq-title">{{PORTFOLIO_HEADING:faq-title}}</h2>
           </header>
           <div class="hraness-marketing-question-list">
-            <details class="hraness-marketing-question"><summary>Which agents does it work with?</summary><div class="hraness-marketing-question__answer"><p>Any agent that can run commands: Claude Code, Codex, Cursor, Gemini CLI, or your own. The optional <a href="{{GHOSTGET_SKILLS}}">Agent Skill</a> teaches it the commands in one step.</p></div></details>
-            <details class="hraness-marketing-question"><summary>Does GhostGet need an account?</summary><div class="hraness-marketing-question__answer"><p>Public-page reads need none. Connect a service when you want its actions. A free <a href="https://account.hraness.com/">Hraness account</a> is optional.</p></div></details>
+            <details class="hraness-marketing-question"><summary>Which agents does it work with?</summary><div class="hraness-marketing-question__answer"><p>Any agent that can run commands: Claude Code, Codex, Cursor, Gemini CLI, or your own.</p></div></details>
+            <details class="hraness-marketing-question"><summary>Does GhostGet need an account?</summary><div class="hraness-marketing-question__answer"><p>Public-page reads need none. Connect a service when you want its actions.</p></div></details>
             <details class="hraness-marketing-question"><summary>Does it use my credentials?</summary><div class="hraness-marketing-question__answer"><p>Yes, for connected services. Sign-ins stay in a local store and never appear in GhostGet’s output.</p></div></details>
-            <details class="hraness-marketing-question"><summary>What does it cost?</summary><div class="hraness-marketing-question__answer"><p>Nothing. GhostGet is free and MIT licensed, with no hosted tier or paid plan.</p></div></details>
+            <details class="hraness-marketing-question"><summary>What does it cost?</summary><div class="hraness-marketing-question__answer"><p>Nothing. GhostGet is free and MIT licensed.</p></div></details>
             <details class="hraness-marketing-question"><summary>Which platforms does it run on?</summary><div class="hraness-marketing-question__answer"><p>macOS and Linux with Bun 1.3.14. Actions that read iMessage or Apple Photos need macOS.</p></div></details>
             <details class="hraness-marketing-question"><summary>Why does GhostGet refuse to retry some writes?</summary><div class="hraness-marketing-question__answer"><p>If a write went out and its result is unknown, GhostGet won’t send it again. It stays marked unsettled until separate evidence shows what happened.</p></div></details>
           </div>
@@ -234,7 +232,7 @@
             <h2 class="hraness-marketing-maker__heading" id="maker-title">{{PORTFOLIO_HEADING:maker-title}}</h2>
           </header>
           <div class="hraness-marketing-maker__body">
-            <p>GhostGet is built by Hraness, a software studio in Puerto Rico that makes tools giving AI agents memory, context, web access, and a record of their work.</p>
+            <p>GhostGet is built by Hraness, a software studio in Puerto Rico.</p>
             <ul class="hraness-marketing-maker__links">
               <li><a href="https://hraness.com">hraness.com</a></li>
               <li><a href="https://x.com/hraness">@hraness</a></li>

@@ -293,7 +293,7 @@ export function PageToMarkdownMockup({ theme }: MockupProps) {
     { kind: "output", text: 'capture_status: "complete"' },
     { kind: "output", text: "---" },
     { kind: "output", text: `# ${LAMP_TITLE}` },
-    { kind: "output", text: "Most of a page is not the page. Menus, banners, and scripts wrap a few hundred words..." },
+    { kind: "output", text: "Most of a page is not the page..." },
     { kind: "comment", text: "no browser, no cookies, no HTML to parse", tone: "muted" },
   ];
   return (
@@ -313,8 +313,7 @@ export function PageToMarkdownMockup({ theme }: MockupProps) {
                   <span className="ggm-lamp-title">{LAMP_TITLE}</span>
                   <span className="ggm-lamp-byline">Noor Haddad · 6 min read</span>
                   <span className="ggm-lamp-text">Most of a page is not the page. Menus, banners, and scripts wrap a few hundred words.</span>
-                  <span className="ggm-lamp-text">A reading lamp lights the page and leaves the room dark.</span>
-                </div>
+                                  </div>
                 <div className="ggm-lamp-aside">
                   <span className="ggm-lamp-ad">Sponsored</span>
                   <span className="ggm-lamp-ad">Newsletter</span>
