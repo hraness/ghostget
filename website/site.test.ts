@@ -154,17 +154,20 @@ function lossyWebpDimensions(bytes: Uint8Array): Readonly<{ height: number; widt
 }
 
 describe("ghostget.com static site", () => {
-  test("sets the founder note directly below the home hero in Instrument Serif", async () => {
+  test("sets the founder note directly below the home hero in the text face", async () => {
     const [home, css] = await Promise.all([
       readFile(join(websiteRoot, "source/index.html"), "utf8"),
       readFile(join(websiteRoot, "source/styles.css"), "utf8"),
     ]);
     expect(home).toMatch(/<\/header>\s*<section aria-label="A note from the author" class="founder-note">/u);
-    // The note opens in the registry's words (the medium description's first sentence).
-    expect(home).toContain(`<p>${portfolio.messaging.medium.split(". ")[0]}.`);
+    // The note is the registry blurb, word for word, signed before it asks.
+    expect(home).toContain(`<p>${portfolio.messaging.blurb.text}</p>`);
+    expect(home.indexOf("founder-note__signature")).toBeLessThan(home.indexOf("founder-note__action"));
     expect(home).toContain('<a href="https://ghostget.com">ghostget.com</a>');
-    expect(css).toContain('"Instrument Serif"');
-    expect(css).not.toContain("Georgia");
+    // The note reads in the text face; no serif fallback remains in the site's own styles.
+    expect(css).not.toMatch(/Instrument Serif|Georgia/u);
+    const bodyRule = css.slice(css.indexOf(".founder-note__body p {"));
+    expect(bodyRule.slice(0, bodyRule.indexOf("}"))).toContain("var(--font-text");
   });
 
   test("inlines the complete UI stylesheet after its layer declarations", () => {

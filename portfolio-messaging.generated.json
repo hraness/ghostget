@@ -5,7 +5,7 @@
   "portfolio": {
     "contract": "hraness.portfolio-public/v1",
     "url": "https://hraness.com/portfolio.json",
-    "digest": "sha256:9fee76882f7ddfe3eadffc0a1acad6a8975b7b2fa8580433efadfcffe469c757"
+    "digest": "sha256:f22d8bdf1b765586ce4e862e410156bf18ff889feeacd2b55aad668e9d9f1022"
   },
   "messaging": {
     "formatVersion": 1,
@@ -31,7 +31,7 @@
     },
     "blurb": {
       "emoji": "👻",
-      "text": "GhostGet is an agent tool for driving websites fast. Instead of screenshots and clicks, an agent calls a named action for the site: list the inbox, send the message, pull the statement. A task that costs 36,000 tokens of browsing takes about 3,800 through GhostGet, and the agent never holds a password.",
+      "text": "GhostGet lets an agent drive a website the way it would call an API. Instead of screenshots and clicks, it runs a named action for the site: list the inbox, send the message, pull the statement. A task that costs 36,000 tokens of browsing takes about 3,800, and the agent never holds a password.",
       "cta": {
         "label": "Ask your agent to set it up",
         "url": "https://ghostget.com"
@@ -216,7 +216,7 @@
       "messaging": {
         "names": {
           "name": "Sponge",
-          "command": "spongev2"
+          "command": "sponge"
         },
         "short": "Local deep research agent that writes cited reports and improves with each run",
         "tagline": "Deep research that runs on your machine"
