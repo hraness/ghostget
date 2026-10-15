@@ -63,6 +63,7 @@ const publicImportSpecifiers = Object.freeze([
   "@hraness/ghostget/messaging",
   "@hraness/ghostget/messaging-automation",
   "@hraness/ghostget/contracts",
+  "@hraness/ghostget/app-host-protocol",
 ]);
 
 const packageRoot = resolve(import.meta.dir, "..");

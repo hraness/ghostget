@@ -5,6 +5,7 @@ const BUN_TEST_TIMEOUT_MS = 180_000;
 const DEFAULT_CONCURRENCY = 4;
 
 export const MACOS_TEST_FILES = Object.freeze([
+  "src/app-host-boundaries.test.ts",
   "src/apple-photos-cli-recovery.test.ts",
   "src/apple-photos-cli.test.ts",
   "src/apple-photos-client.test.ts",

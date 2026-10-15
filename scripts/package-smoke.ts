@@ -21,6 +21,7 @@ const importSpecifiers = [
   "@hraness/ghostget/messaging",
   "@hraness/ghostget/messaging-automation",
   "@hraness/ghostget/contracts",
+  "@hraness/ghostget/app-host-protocol",
 ];
 const binNames = ["ghostget"];
 const packageDiscoveryKeywords = [
@@ -848,6 +849,14 @@ try {
     process.execPath,
     "-e",
     "await import('./node_modules/@hraness/ghostget/src/beeper-message-like-me-cli.ts')",
+  ], consumer);
+  await access(join(consumer, "node_modules", ".bin", "ghostget-app-host"));
+  await run([
+    process.execPath,
+    "--no-env-file",
+    "--no-install",
+    "-e",
+    "await import('./node_modules/@hraness/ghostget/src/app-host.ts')",
   ], consumer);
   await run([
     process.execPath,

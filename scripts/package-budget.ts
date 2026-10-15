@@ -2563,17 +2563,25 @@
 // 24,618,853 + 353 + 1,656 = 24,620,862 unpacked. Current source CI and
 // canonical Release must independently measure and admit their exact
 // archives.
+// Native app-host adds seven bounded runtime sources, one protocol entrypoint,
+// and its supported transport guide: nine added files, 654 total. Two clean
+// npm 11.19.0 packs on Node 24.20.0 (zlib 1.2.12), --ignore-scripts on
+// darwin arm64, were byte-identical: 12,260,886 compressed / 24,656,731
+// payload bytes, SHA-256 637abffaf8ebae5f507a88b687db24834ecc8c83088b0941ff344ebd43d01c96.
+// Retain the reviewed allowances: 12,260,886 + 12,387 + 4,096 = 12,277,369
+// packed; 24,656,731 + 353 + 1,656 = 24,658,740 unpacked. Source CI and
+// canonical Release independently measure and admit the exact archive.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "0.18.92 X and YouTube content.delete",
+  scope: "native app-host over 0.18.92",
   command: "npm pack --ignore-scripts",
-  npmVersion: "11.16.0",
-  nodeVersion: "24.18.1",
-  zlibVersion: "1.3.1-e00f703",
+  npmVersion: "11.19.0",
+  nodeVersion: "24.20.0",
+  zlibVersion: "1.2.12",
   platform: "darwin-arm64",
-  archiveSha256: "9db23463054b588de6ee258c8d4a478589d9b5dc2f59f5d6389a01a9580ed202",
-  packedBytes: 12_262_772,
-  unpackedBytes: 24_618_853,
-  entryCount: 645,
+  archiveSha256: "637abffaf8ebae5f507a88b687db24834ecc8c83088b0941ff344ebd43d01c96",
+  packedBytes: 12_260_886,
+  unpackedBytes: 24_656_731,
+  entryCount: 654,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,

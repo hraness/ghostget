@@ -18,12 +18,14 @@ const requiredPaths = Object.freeze([
   "docs/imessage-direct-provider.md",
   "docs/messaging-automation.md",
   "docs/rental-listings.md",
+  "docs/native-app-host.md",
   "package.json",
   "tsconfig.json",
   "dist/apple-photos-client.js",
   "dist/beeper-client.js",
   "dist/client.js",
   "dist/contracts.js",
+  "dist/app-host-protocol.js",
   "dist/index.js",
   "dist/messaging.js",
   "dist/messaging-automation-api.js",
@@ -40,6 +42,13 @@ const requiredPaths = Object.freeze([
   "src/lightpanda-browser.ts",
   "src/support.ts",
   "src/contracts.ts",
+  "src/app-host.ts",
+  "src/app-host-confirmation.ts",
+  "src/app-host-protocol.ts",
+  "src/app-host-service.ts",
+  "src/app-host-state.ts",
+  "src/app-host-transport.ts",
+  "src/app-host-validation.ts",
   "src/index.ts",
   "src/local-cli-surface-contract.ts",
   "src/message-like-me-agentic-messaging.ts",
@@ -216,6 +225,7 @@ function verifyAllowedPath(path: string, type: "directory" | "file", skillName: 
       || path === "bunfig.toml"
       || path === "docs/imessage-direct-provider.md"
       || path === "docs/rental-listings.md"
+      || path === "docs/native-app-host.md"
       || path === "docs/messaging-automation.md"
       || path === "package.json"
       || path === "tsconfig.json"

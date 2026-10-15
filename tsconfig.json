@@ -37,6 +37,9 @@
       "@hraness/ghostget/contracts": [
         "./src/contracts.ts"
       ],
+      "@hraness/ghostget/app-host-protocol": [
+        "./src/app-host-protocol.ts"
+      ],
       "next": [
         "./website/next-types.d.ts"
       ]

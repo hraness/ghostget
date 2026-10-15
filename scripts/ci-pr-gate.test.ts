@@ -118,6 +118,7 @@ describe("PR CI test shards", () => {
 describe("macOS PR check subset", () => {
   test("keeps every darwin-owned file and the iMessage installer canary", async () => {
     await assertMacosCheckFilesExist(repositoryRoot);
+    expect(MACOS_TEST_FILES).toContain("src/app-host-boundaries.test.ts");
     expect(MACOS_TEST_FILES).toContain("src/apple-photos-local-source.test.ts");
     expect(MACOS_TEST_FILES).toContain("src/imessage-direct-plugin.test.ts");
     expect(MACOS_TEST_FILES).toContain("src/provider-plugin-host.test.ts");
