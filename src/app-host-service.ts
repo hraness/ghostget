@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import { listAuthSnapshots } from "./auth";
 import { canonicalJson, sha256 } from "./canonical-json";
 import { authIncarnationReader } from "./read-projections";
-import { providerPluginRegistry } from "./provider-plugins";
+import { createProviderPluginRegistry } from "./provider-plugin-registry";
+import xPlugin from "./plugins/x-web/plugin";
 import { version } from "../package.json";
 import { APP_HOST_MAX_ACCOUNTS, type AppHostAccount, type AppHostData, type AppHostRequest } from "./app-host-protocol";
 import { confirmAppHostDecision, type AppHostDecision } from "./app-host-confirmation";
@@ -11,6 +12,9 @@ import { browserChoices } from "./control/browser-choices";
 import { Connections } from "./control/connections";
 import { ControlError } from "./control/validation";
 import type { ControlEnvironment } from "./control/web-policy";
+
+// This host admits only X account connections; other product providers stay lazy.
+const providerPluginRegistry = createProviderPluginRegistry([xPlugin]);
 
 type Begin = Extract<AppHostRequest, { action: "connection.begin" }>;
 type Attempt = {

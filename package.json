@@ -643,6 +643,7 @@
     "src/control/interface-json.ts",
     "src/control/interface-schema.ts",
     "src/control/approval-client.ts",
+    "src/control/owner.ts",
     "src/control/helper.ts",
     "src/control/helper-client.ts",
     "src/control/control-response.ts",
@@ -682,7 +683,8 @@
     "src/app-host-transport.ts",
     "src/app-host-validation.ts",
     "src/app-host.ts",
-    "docs/native-app-host.md"
+    "docs/native-app-host.md",
+    "native-runtime-profiles.json"
   ],
   "scripts": {
     "check:theme": "bun scripts/check-paper-theme.mjs",
@@ -704,7 +706,7 @@
     "test:standalone": "bun run scripts/standalone-smoke.ts",
     "test:package": "bun run ./scripts/package-smoke.ts",
     "test:npm-release": "bun test --no-orphans --timeout 45000 --max-concurrency 1 ./scripts/release-ref-authority.test.ts ./scripts/npm-release-workflow.test.ts ./scripts/github-release-artifact.test.ts ./scripts/ci-pr-gate.test.ts ./scripts/release-provider-outcome.test.ts ./scripts/github-release-publish-model.test.ts ./scripts/npm-publish-model.test.ts",
-    "check:static": "bun run typecheck && bun run check:effect && bun run website:check && bun run test:npm-release",
+    "check:static": "bun run typecheck && bun run check:native-runtime && bun run check:effect && bun run website:check && bun run test:npm-release",
     "check:package": "bun run build && bun run test:package",
     "check:macos": "bun run ./scripts/ci-macos-check.ts",
     "check:cost-surfaces": "bun ./scripts/check-cost-surfaces.mjs",
@@ -722,7 +724,8 @@
     "kb:search": "bunx --bun --package @hraness/wordcell@0.24.0 wordcell search --root kb --mode exact --selected-passage",
     "prepack": "bun run check",
     "check:effect": "bun scripts/check-effect-architecture.ts",
-    "generate:og": "bun scripts/generate-og.tsx"
+    "generate:og": "bun scripts/generate-og.tsx",
+    "check:native-runtime": "bun scripts/native-runtime-profile.ts --check && bun test --no-orphans --timeout 60000 scripts/native-runtime-profile.test.ts"
   },
   "dependencies": {
     "@1password/sdk": "0.5.0",

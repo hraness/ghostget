@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "profiles": {
+    "app-host-x-macos-arm64": {
+      "entrypoint": "src/app-host.ts",
+      "target": "darwin-arm64",
+      "packages": [
+        {
+          "name": "@hraness/local-custody",
+          "version": "0.9.1",
+          "exclude": [
+            "dist/rust-artifacts/local-custody/darwin-x64",
+            "dist/rust-artifacts/local-custody/linux-x64"
+          ]
+        },
+        {
+          "name": "@hraness/wordcell",
+          "version": "0.26.3",
+          "exclude": []
+        },
+        {
+          "name": "@steipete/sweet-cookie",
+          "version": "0.4.3",
+          "exclude": []
+        },
+        {
+          "name": "agent-browser",
+          "version": "0.32.3",
+          "exclude": [
+            "bin/agent-browser-darwin-x64",
+            "bin/agent-browser-linux-x64",
+            "bin/agent-browser-linux-arm64",
+            "bin/agent-browser-linux-musl-x64",
+            "bin/agent-browser-linux-musl-arm64",
+            "bin/agent-browser-win32-x64.exe"
+          ]
+        },
+        {
+          "name": "buffer-from",
+          "version": "1.1.2",
+          "exclude": []
+        },
+        {
+          "name": "source-map",
+          "version": "0.6.1",
+          "exclude": []
+        },
+        {
+          "name": "source-map-support",
+          "version": "0.5.21",
+          "exclude": []
+        },
+        {
+          "name": "typescript",
+          "version": "6.0.3",
+          "exclude": []
+        }
+      ]
+    }
+  }
+}

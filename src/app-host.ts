@@ -2,7 +2,7 @@
 import { AppHostService } from "./app-host-service";
 import { admitAppHostState, appHostEnvironment } from "./app-host-state";
 import { appHostFailure, serveAppHost } from "./app-host-transport";
-import { commitControlOwner, inspectControlOwner } from "./control/helper";
+import { commitControlOwner, inspectControlOwner } from "./control/owner";
 import { ControlError } from "./control/validation";
 import type { ControlEnvironment } from "./control/web-policy";
 

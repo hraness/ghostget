@@ -117,3 +117,39 @@ this host. A later publication interface must retain GhostGet's account-scoped
 Allow, fresh plans, durable dispatch/reconciliation and human-required states.
 Background process lifetime does not establish unattended, sleeping-machine or
 locked-screen publication support.
+
+## macOS arm64 runtime projection
+`native-runtime-profiles.json` includes `app-host-x-macos-arm64`, generated with
+`bun scripts/native-runtime-profile.ts --write` and checked by `bun run
+check:native-runtime`. Package membership and versions come automatically from Bun's
+host module graph plus the registry's validated installed-dependency snapshots, plus
+literal declared-dependency metadata references in reached modules. The X-only host
+does not initialize unrelated providers. Owner custody is shared with the general
+control helper without importing its wider service.
+
+This is a packaging projection, not a manual identity allowlist. Ship the complete
+GhostGet source package and each declared dependency's source, data, licenses and
+metadata. Only the exact foreign-platform local-custody and agent-browser artifact
+paths in the generated profile are omitted. The macOS arm64 binaries and artifact
+manifest remain. Native executables must still be inventoried, inspected, signed and
+verified by the consumer's distribution pipeline. Every other native binary is a
+packaging failure, not an implicit exception. The durable built-in contract hash is
+invariant; current source/dependency identity is automatically recomputed for the
+actual installed tree and checked before and after lazy provider loading.
+
+Use a frozen hoisted dependency installation as input; validate exact declared
+versions, copy only this profile, and retain a content inventory for the prepared
+runtime. No runtime install, global CLI, optional embedding/SQLite extensions, or
+PATH discovery is required for X account connection. This profile exposes no posting
+or general browsing API. A future broader host must regenerate and qualify a new
+complete runtime profile before shipping.
+
+The `app-host-x-macos-arm64` profile supports direct X browser-session connection
+verification through the default Sweet Cookie reader. It includes no qualification
+of the optional `HRANESS_LOCAL_APP=1` Ghostget companion route. Native hosts launch
+with a sanitized environment and leave that opt-in unset; the default path may ask
+macOS for browser Keychain access or Safari Full Disk Access. The synthetic package
+check performs no real cookie or Keychain reads. Re-signing a bundled local-custody
+binary changes its digest, so this profile does not assert that an original custody
+manifest remains valid after embedding. Enabling that companion route requires its
+own reviewed binding, complete runtime closure and live qualification.

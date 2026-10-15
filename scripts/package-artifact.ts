@@ -19,6 +19,7 @@ const requiredPaths = Object.freeze([
   "docs/messaging-automation.md",
   "docs/rental-listings.md",
   "docs/native-app-host.md",
+  "native-runtime-profiles.json",
   "package.json",
   "tsconfig.json",
   "dist/apple-photos-client.js",
@@ -93,6 +94,7 @@ const controlPaths = Object.freeze([
   "src/control/cli.ts",
   "src/control/connections.ts",
   "src/control/credential-helper.ts",
+  "src/control/owner.ts",
   "src/control/helper.ts",
   "src/control/helper-client.ts",
   "src/control/control-response.ts",
@@ -226,6 +228,7 @@ function verifyAllowedPath(path: string, type: "directory" | "file", skillName: 
       || path === "docs/imessage-direct-provider.md"
       || path === "docs/rental-listings.md"
       || path === "docs/native-app-host.md"
+      || path === "native-runtime-profiles.json"
       || path === "docs/messaging-automation.md"
       || path === "package.json"
       || path === "tsconfig.json"
