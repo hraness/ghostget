@@ -9,7 +9,7 @@ Launch the packaged Bun runtime with:
 
 ```sh
 GHOSTGET_STATE_HOME='/absolute/product-state/ghostget' \
-  /absolute/runtime/bin/bun --no-env-file --no-install \
+  /absolute/runtime/bin/bun --config=/dev/null --no-env-file --no-install \
   /absolute/runtime/package/src/app-host.ts --app-id com.example.product
 ```
 
@@ -20,6 +20,14 @@ run an install at startup, or update the embedded runtime independently of the
 product. Source packaging is supported; compiling or obfuscating the provider
 closure requires separate qualification. The host never imports CLI startup or
 runs its update check.
+
+Launch with a sanitized environment, without `BUN_CONFIG_FILE`, `BUN_OPTIONS` or
+semantic `NODE_OPTIONS` overrides. On macOS/Linux, the exact single
+`--config=/dev/null` argument disables Bun's local and global config discovery;
+split arguments, aliases, duplicate flags and custom configuration files are
+rejected. This mode has its own runtime closure identity, retains validation of
+the checked package's `bunfig.toml`, and does not change durable provider contract
+identities. It prevents an unrelated user `.bunfig.toml` from affecting the host.
 
 `GHOSTGET_STATE_HOME` must be an absolute private directory. If omitted, the host
 uses `~/Library/Application Support/<app-id>/ghostget`. An empty directory gains
