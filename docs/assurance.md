@@ -414,7 +414,7 @@ The control verbs and TUI share exactly one helper owner per state home; a secon
 
 - Evidenced by stateful model.
 - Source: `src/control/AGENTS.md`: “The control verbs and TUI share one helper owner per state home.”
-- Evidence: `src/control/helper.ts`, `src/control/helper-owner.property.test.ts`, `src/control/helper-client.test.ts`, `src/control/helper-lifecycle.test.ts`, `src/control/tui.test.ts`
+- Evidence: `src/control/helper.ts`, `src/control/owner.ts`, `src/control/helper-owner.property.test.ts`, `src/control/helper-client.test.ts`, `src/control/helper-lifecycle.test.ts`, `src/control/tui.test.ts`
 - Property tests: `src/control/helper-owner.property.test.ts`: “property: at most one live contender holds helper custody across inspect and commit races, crashes, restarts, and unknown owners”
 - Assumptions: `same-user-trusted`, `filesystem-durability`
 - Not verified:

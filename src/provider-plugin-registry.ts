@@ -167,6 +167,15 @@ export type ProviderPluginRegistry = {
   readonly resolveOwnedManifest: (adapterId: string) => GhostgetManifest | undefined;
 };
 
+/** Build tooling may project the already validated dependency graph for packaging. */
+type RuntimePackage = Readonly<{ name: string; version: string; root: string }>;
+const runtimePackagesByRegistry = new WeakMap<ProviderPluginRegistry, readonly RuntimePackage[]>();
+export function providerPluginRuntimePackages(registry: ProviderPluginRegistry): readonly RuntimePackage[] {
+  const packages = runtimePackagesByRegistry.get(registry);
+  if (packages === undefined) throw new Error("runtime package inventory requires an owned registry");
+  return packages;
+}
+
 /** The registry key of one route; `verification/lean` proves it unambiguous for valid parts. */
 export function routeKey(transport: ProviderPluginTransport, surfaceId: string): string {
   return `${transport}:${surfaceId}`;
@@ -3338,7 +3347,7 @@ function createProviderPluginRegistryInternal(
     return resolution;
   };
 
-  return Object.freeze({
+  const registry: ProviderPluginRegistry = Object.freeze({
     list: () => frozenPlugins,
     get: (pluginId: string) => pluginsById.get(pluginId),
     resolveRoute,
@@ -3359,6 +3368,10 @@ function createProviderPluginRegistryInternal(
     listOwnedManifests: () => frozenOwnedManifests,
     resolveOwnedManifest: (adapterId) => ownedManifests.get(adapterId),
   });
+  runtimePackagesByRegistry.set(registry, Object.freeze(
+    [...registryInstalledPackageSnapshots.values()].map(({ name, version, root }) => Object.freeze({ name, version, root })),
+  ));
+  return registry;
 }
 
 /** Build a registry from reviewed built-in/source definitions only. */

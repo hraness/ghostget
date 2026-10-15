@@ -2571,17 +2571,26 @@
 // Retain the reviewed allowances: 12,260,886 + 12,387 + 4,096 = 12,277,369
 // packed; 24,656,731 + 353 + 1,656 = 24,658,740 unpacked. Source CI and
 // canonical Release independently measure and admit the exact archive.
+// The compact native runtime profile adds its generated manifest and the
+// extracted process-owner module: exactly two required files, 656 total.
+// Two clean npm 11.19.0 packs on Node 24.20.0 (zlib 1.2.12), --ignore-scripts
+// on darwin arm64, were byte-identical: 12,262,441 compressed / 24,662,445
+// payload bytes, SHA-256
+// 50922edc765c17a594eea74b720b4707bce038bb4ae87df8174ef9a23488868c.
+// Retain the existing allowances: 12,262,441 + 12,387 + 4,096 = 12,278,924
+// packed; 24,662,445 + 353 + 1,656 = 24,664,454 unpacked. Source CI and
+// canonical Release independently measure and admit the exact archive.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "native app-host over 0.18.92",
+  scope: "native runtime profile over 0.18.92",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   nodeVersion: "24.20.0",
   zlibVersion: "1.2.12",
   platform: "darwin-arm64",
-  archiveSha256: "637abffaf8ebae5f507a88b687db24834ecc8c83088b0941ff344ebd43d01c96",
-  packedBytes: 12_260_886,
-  unpackedBytes: 24_656_731,
-  entryCount: 654,
+  archiveSha256: "50922edc765c17a594eea74b720b4707bce038bb4ae87df8174ef9a23488868c",
+  packedBytes: 12_262_441,
+  unpackedBytes: 24_662_445,
+  entryCount: 656,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,

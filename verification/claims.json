@@ -1481,6 +1481,7 @@
       "status": "evidenced",
       "evidence": [
         "src/control/helper.ts",
+        "src/control/owner.ts",
         "src/control/helper-owner.property.test.ts",
         "src/control/helper-client.test.ts",
         "src/control/helper-lifecycle.test.ts",
