@@ -38,7 +38,7 @@ import { AppHostService } from "./src/app-host-service";
 import { admitAppHostState } from "./src/app-host-state";
 const registry = createProviderPluginRegistry([x]);
 const binding = registry.requireRoute("web-session-api", "x");
-const identity = { contract: registry.contractImplementationHash(binding).toString("hex"), closure: registry.implementationClosureHash(binding) };
+const identity = { contract: registry.contractImplementationHash(binding).toString("hex"), closure: registry.implementationClosureHash(binding), implementation: registry.implementationHash(binding).toString("hex") };
 if (process.env.MUTATE === "package") appendFileSync("node_modules/@hraness/wordcell/package.json", " ");
 if (process.env.MUTATE === "1") appendFileSync("src/providers/x-web-runtime.ts", "\\n// changed after registry snapshot\\n");
 try { await binding.loadRuntime(); } catch (error) { if (process.env.MUTATE !== "0" && /changed|identity|closure/.test(String(error))) process.exit(17); throw error; }
@@ -69,7 +69,8 @@ console.log(JSON.stringify({ ...identity, manifests }));
     expect(identity.contract).toBe(expectedContract); expect(identity.closure).toMatch(/^[a-f0-9]{64}$/);
     const ordinaryIdentity = JSON.parse(ordinary.stdout.toString());
     expect(identity.contract).toBe(ordinaryIdentity.contract);
-    expect(identity.closure).not.toBe(ordinaryIdentity.closure);
+    expect(identity.closure).toBe(ordinaryIdentity.closure);
+    expect(identity.implementation).not.toBe(ordinaryIdentity.implementation);
     expect(run("1").exitCode).toBe(17);
     cpSync(join(repository, "src/providers/x-web-runtime.ts"), join(consumer, "src/providers/x-web-runtime.ts"));
     expect(run("package").exitCode).toBe(17);
