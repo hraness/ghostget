@@ -189,7 +189,7 @@
     },
     {
       "id": "helper-owner-ignores-live-owner",
-      "file": "src/control/helper.ts",
+      "file": "src/control/owner.ts",
       "defect": "A second controller replaces the owner record while its owner is still live.",
       "search": "if(processes.status(owner)!==\"different-or-dead\")throw",
       "replace": "if(false)throw",
@@ -200,7 +200,7 @@
     },
     {
       "id": "helper-owner-ignores-lost-race",
-      "file": "src/control/helper.ts",
+      "file": "src/control/owner.ts",
       "defect": "A contender that lost the owner-record compare-and-swap still believes it holds custody.",
       "search": "if(!acquired)throw new ControlError",
       "replace": "if(false)throw new ControlError",
