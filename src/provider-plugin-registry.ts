@@ -1816,7 +1816,7 @@ function providerPluginPackageDependencyIdentity(
       }
     }
   };
-  const assertNoAmbientRuntimeOverrides = (): void => {
+  const assertNoAmbientRuntimeOverrides = (): boolean => {
     if (
       process.env.BUN_CONFIG_FILE !== undefined
       || process.env.BUN_OPTIONS !== undefined
@@ -1827,7 +1827,15 @@ function providerPluginPackageDependencyIdentity(
     }
     const semanticOption =
       /^(?:(?:--config|--conditions|--cwd|--define|--drop|--extension-order|--feature|--hot|--ignore-dce-annotations|--import|--install|--jsx-factory|--jsx-fragment|--jsx-import-source|--jsx-runtime|--jsx-side-effects|--loader|--main-fields|--no-addons|--no-macros|--prefer-latest|--preload|--preserve-symlinks|--preserve-symlinks-main|--require|--tsconfig-override|--watch)(?:=|$)|-[cdilr](?:=|.|$))/u;
-    if (process.execArgv.some((argument) => semanticOption.test(argument))) {
+    // Bun's exact null-config spelling suppresses config discovery. Split
+    // arguments and aliases do not have the same behavior; never normalize them.
+    const explicitNullConfig =
+      (process.platform === "darwin" || process.platform === "linux")
+      && process.execArgv.filter((argument) => argument === "--config=/dev/null")
+        .length === 1;
+    if (process.execArgv.some((argument) =>
+      semanticOption.test(argument)
+      && !(explicitNullConfig && argument === "--config=/dev/null"))) {
       throw new Error(
         `provider plugin ${plugin.id} refuses Bun loader, define, preload, condition, or tsconfig CLI overrides`,
       );
@@ -1841,6 +1849,7 @@ function providerPluginPackageDependencyIdentity(
         `provider plugin ${plugin.id} refuses semantic NODE_OPTIONS overrides`,
       );
     }
+    return explicitNullConfig;
   };
   const bindProviderPluginExecutionConfig = (): void => {
     let invocationRoot: string;
@@ -1861,8 +1870,11 @@ function providerPluginPackageDependencyIdentity(
         `provider plugin ${plugin.id} must start from the checked Ghostget package or repository root`,
       );
     }
-    assertNoAmbientRuntimeOverrides();
+    const explicitNullConfig = assertNoAmbientRuntimeOverrides();
     addRecord("execution-runtime/bun-version", Bun.version);
+    if (explicitNullConfig) {
+      addRecord("execution-runtime/bun-config-mode", "explicit-null");
+    }
     addRecord(
       "execution-runtime/node-env",
       process.env.NODE_ENV ?? "",
@@ -1887,7 +1899,7 @@ function providerPluginPackageDependencyIdentity(
       xdgConfigHome === undefined || xdgConfigHome === ""
         ? resolve(homedir(), ".bunfig.toml")
         : resolve(xdgConfigHome, ".bunfig.toml");
-    if (existsSync(globalBunfigPath)) {
+    if (!explicitNullConfig && existsSync(globalBunfigPath)) {
       const bytes = readStableDependencyFile(
         globalBunfigPath,
         MAX_PROVIDER_DEPENDENCY_FILE_BYTES,

@@ -3987,6 +3987,92 @@ describe("provider plugin definition and registry", () => {
     }
   });
 
+  test("binds exact explicit-null Bun configuration without admitting ambient overrides", () => {
+    if (process.platform !== "darwin" && process.platform !== "linux") return;
+    const originalExecArgv = [...process.execArgv];
+    const originalEnvironment = Object.fromEntries(
+      ["XDG_CONFIG_HOME", "BUN_CONFIG_FILE", "BUN_OPTIONS", "NODE_OPTIONS"]
+        .map((key) => [key, process.env[key]]),
+    );
+    const directory = mkdtempSync(join(tmpdir(), "wrench-registry-null-bunfig-test-"));
+    const identity = (
+      mutate: (path: string, bytes: Buffer) => Buffer = (_path, bytes) => bytes,
+    ): string => {
+      const registry = createProviderPluginRegistry([
+        pluginDefinition("explicit-null-config"),
+      ], { readDependencySource: (path) => mutate(path, readFileSync(path)) });
+      return registry.implementationHash(
+        registry.requireSessionRoute("explicit-null-config-site"),
+      ).toString("hex");
+    };
+    try {
+      process.env.XDG_CONFIG_HOME = directory;
+      const baseline = identity();
+      Reflect.set(process, "execArgv", [...originalExecArgv, "--config=/dev/null"]);
+      const isolated = identity();
+      expect(isolated).not.toBe(baseline);
+      expect(identity((path, bytes) => path.endsWith("/bunfig.toml")
+        ? Buffer.concat([bytes, Buffer.from("\n# checked config revision\n")])
+        : bytes)).not.toBe(isolated);
+      expect(() => identity((path, bytes) => path.endsWith("/bunfig.toml")
+        ? Buffer.concat([bytes, Buffer.from('\n[define]\nREVIEW_BUILD_VALUE = "true"\n')])
+        : bytes)).toThrow("unsupported runtime configuration");
+      writeFileSync(join(directory, ".bunfig.toml"), 'preload = ["./ambient-preload.ts"]\n');
+      expect(identity()).toBe(isolated);
+
+      for (const [key, value, message] of [
+        ["BUN_CONFIG_FILE", "/dev/null", "refuses ambient Bun configuration overrides"],
+        ["BUN_OPTIONS", "", "refuses ambient Bun configuration overrides"],
+        ["NODE_OPTIONS", "--import=./ambient-preload.ts", "refuses semantic NODE_OPTIONS overrides"],
+      ] as const) {
+        process.env[key] = value;
+        expect(identity).toThrow(message);
+        if (originalEnvironment[key] === undefined) delete process.env[key];
+        else process.env[key] = originalEnvironment[key];
+      }
+
+      Reflect.set(process, "execArgv", originalExecArgv);
+      expect(identity).toThrow("global bunfig.toml contains unsupported runtime configuration");
+    } finally {
+      Reflect.set(process, "execArgv", originalExecArgv);
+      for (const [key, value] of Object.entries(originalEnvironment)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("rejects null-config aliases, duplicates, custom files and mixed semantic overrides", () => {
+    const originalExecArgv = [...process.execArgv];
+    try {
+      for (const arguments_ of [
+        ["--config", "/dev/null"],
+        ["-c=/dev/null"],
+        ["-c/dev/null"],
+        ["-c", "/dev/null"],
+        ["--config=/dev/./null"],
+        ["--config=/tmp/custom-bunfig.toml"],
+        ["--config=/dev/null", "--config=/dev/null"],
+        ["--config=/dev/null", "--config=/tmp/custom-bunfig.toml"],
+        ["--config=/dev/null", "--preload=./ambient-preload.ts"],
+        ["--config=/dev/null", "--define=REVIEW_BUILD_VALUE:true"],
+        ["--config=/dev/null", "--tsconfig-override=./ambient-tsconfig.json"],
+        ["--config=/dev/null", "--loader=.ts:js"],
+        ["--config=/dev/null", "--conditions=custom"],
+      ]) {
+        Reflect.set(process, "execArgv", [...originalExecArgv, ...arguments_]);
+        expect(() => createProviderPluginRegistry([
+          pluginDefinition("null-config-override"),
+        ]), arguments_.join(" ")).toThrow(
+          "refuses Bun loader, define, preload, condition, or tsconfig CLI overrides",
+        );
+      }
+    } finally {
+      Reflect.set(process, "execArgv", originalExecArgv);
+    }
+  });
+
   test("revalidates installed tsconfig extensions before registry startup completes", () => {
     const repositoryRoot = providerPluginRepositoryRoot;
     const rootTsconfig = join(repositoryRoot, "tsconfig.json");

@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
 import { spawn } from "node:child_process";
-import { chmodSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
@@ -128,6 +128,42 @@ test("a real closed stdout pipe drains the app host and releases its owner", asy
     child.kill();
     await exited;
   }
+});
+
+test("the real app host serves isolated accounts with explicit null Bun configuration", () => {
+  if (process.platform !== "darwin") return;
+  const home = root();
+  const state = root();
+  writeFileSync(join(home, "ambient-preload.ts"), 'throw new Error("ambient Bun configuration executed");\n');
+  writeFileSync(join(home, ".bunfig.toml"), `preload = [${JSON.stringify(join(home, "ambient-preload.ts"))}]\n`);
+  const child = Bun.spawnSync([
+    process.execPath, "--config=/dev/null", "--no-env-file", "--no-install",
+    new URL("./app-host.ts", import.meta.url).pathname, "--app-id", "com.example.product",
+  ], {
+    env: { HOME: home, PATH: "/usr/bin:/bin", GHOSTGET_STATE_HOME: state },
+    stdin: Buffer.from([
+      frame("hello", { action: "hello" }),
+      frame("accounts", { action: "accounts.list" }),
+      frame("close", { action: "close" }),
+      "",
+    ].join("\n")),
+    stdout: "pipe", stderr: "pipe", timeout: 20_000,
+  });
+  expect(child.stderr.toString()).toBe("");
+  expect(child.exitCode).toBe(0);
+  const responses = child.stdout.toString().trim().split("\n").map(line => JSON.parse(line));
+  expect(responses).toHaveLength(3);
+  expect(responses.find(response => response.id === "hello")).toMatchObject({
+    protocol: APP_HOST_PROTOCOL, ok: true, data: { kind: "hello", appId: "com.example.product" },
+  });
+  expect(responses.find(response => response.id === "accounts")).toEqual({
+    protocol: APP_HOST_PROTOCOL, id: "accounts", ok: true, data: { kind: "accounts", accounts: [] },
+  });
+  expect(responses.find(response => response.id === "close")).toEqual({
+    protocol: APP_HOST_PROTOCOL, id: "close", ok: true, data: { kind: "success" },
+  });
+  expect(JSON.parse(readFileSync(join(state, "control", "app-host.json"), "utf8"))).toEqual({ schemaVersion: 1, appId: "com.example.product" });
+  expect(existsSync(join(state, "control", "owner.json"))).toBe(false);
 });
 
 test("state admission binds one app, refuses unmarked state, and supports isolated roots", () => {
