@@ -1,6 +1,18 @@
 {
   "version": 1,
   "surfaces": {
+    "local:app-host-identity": {
+      "kind": "authoritative",
+      "retention": "persistent",
+      "owner": "src/app-host-state.ts",
+      "deletion": "docs/native-app-host.md",
+      "source": "One reverse-DNS app namespace marker per product-owned state root; no credentials",
+      "budget": {
+        "maxEntries": 1,
+        "maxBytes": 1024
+      },
+      "expiry": "Removed with the explicit product data deletion flow after its helper has stopped"
+    },
     "local:messaging-group-history-exclusions": {
       "kind": "authoritative",
       "retention": "tombstone",

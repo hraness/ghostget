@@ -26,7 +26,7 @@ of every write that matters. Your agent supplies the model and the plan; GhostGe
 supplies the actions. GhostGet is free, MIT licensed, and runs on macOS and Linux
 with Bun 1.3.14.
 
-[Get started](#install) · [Choose a task](#choose-your-next-task) · [Supported services](https://ghostget.com/docs/reference/provider-capabilities/) · [Docs](https://ghostget.com/docs/tutorials/getting-started/) · [Security](SECURITY.md)
+[Get started](#install) · [Choose a task](#choose-your-next-task) · [Supported services](https://ghostget.com/docs/reference/provider-capabilities/) · [Docs](https://ghostget.com/docs/tutorials/getting-started/) · [Native app host](docs/native-app-host.md) · [Security](SECURITY.md)
 
 ## How it works
 

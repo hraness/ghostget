@@ -64,6 +64,8 @@ export type GhostgetAuth =
       readonly id: string;
       readonly kind: "cookie-source";
       readonly source: CookieSource;
+      /** Surface verified by the connection flow; absent on legacy locators. */
+      readonly provider?: ProviderPluginSurfaceId;
       readonly profile?: string;
       readonly subject?: string;
       /** The human handle verified beside the subject, such as "@name". */
@@ -587,12 +589,16 @@ export function parseAuth(value: unknown): GhostgetAuth {
   }
   if (record.kind === "cookie-source") {
     const expected = ["schemaVersion", "id", "kind", "source"];
+    if (record.provider !== undefined) expected.push("provider");
     if (record.profile !== undefined) expected.push("profile");
     if (record.subject !== undefined) expected.push("subject");
     if (record.displayName !== undefined) expected.push("displayName");
     if (!exactKeys(record, expected)) throw new Error("auth record has unsupported fields");
     if (typeof record.source !== "string" || !cookieSources.includes(record.source as CookieSource)) {
       throw new Error("auth record has an invalid cookie source");
+    }
+    if (record.provider !== undefined && !isProviderPluginSurfaceId(record.provider)) {
+      throw new Error("auth record has an invalid cookie-source provider");
     }
     if (record.profile !== undefined && !isSafeString(record.profile, 4_096)) throw new Error("auth record has an invalid profile");
     if (
@@ -613,6 +619,7 @@ export function parseAuth(value: unknown): GhostgetAuth {
       id: record.id,
       kind: "cookie-source",
       source: record.source as CookieSource,
+      ...(record.provider === undefined ? {} : { provider: record.provider as ProviderPluginSurfaceId }),
       ...(typeof record.profile !== "string" ? {} : { profile: record.profile }),
       ...(subject === undefined ? {} : { subject }),
       ...(displayName === undefined ? {} : { displayName }),

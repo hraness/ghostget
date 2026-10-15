@@ -28,7 +28,7 @@ export class Connections {
     if((current===null?null:connectionAccountRevision(current,this.environment))!==request.expectedRevision)throw new ControlError("ACCOUNT_CHANGED","The account changed. Refresh before reconnecting.");
     const created=createAuth(request.id,{source:request.browser,...(request.profile===null?{}:{profile:request.profile})});
     if(created.kind!=="cookie-source")throw new ControlError("CONNECTION_UNSUPPORTED","This provider has no compatible sign-in verifier.");
-    const auth=created;
+    const auth:CookieSourceAuth={...created,provider:provider.surface};
     const binding=this.registry().requireSessionRoute(provider.surface);
     if(!binding.authKinds.includes(auth.kind)||binding.subject.probe===undefined)throw new ControlError("CONNECTION_UNSUPPORTED","This provider has no compatible sign-in verifier.");
     const id=randomUUID();const attempt:Attempt={id,request,current,auth,subject:null,expiresAt:this.now()+600_000,controller:new AbortController(),verifying:false};

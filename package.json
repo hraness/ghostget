@@ -82,10 +82,15 @@
     "./contracts": {
       "types": "./src/contracts.ts",
       "import": "./dist/contracts.js"
+    },
+    "./app-host-protocol": {
+      "types": "./src/app-host-protocol.ts",
+      "import": "./dist/app-host-protocol.js"
     }
   },
   "bin": {
-    "ghostget": "./src/cli.ts"
+    "ghostget": "./src/cli.ts",
+    "ghostget-app-host": "./src/app-host.ts"
   },
   "main": "./dist/index.js",
   "types": "./src/index.ts",
@@ -669,7 +674,15 @@
     "src/control/registry-words.ts",
     "src/control/retire-tray.ts",
     "src/control/status-view.ts",
-    "src/update.ts"
+    "src/update.ts",
+    "src/app-host-confirmation.ts",
+    "src/app-host-protocol.ts",
+    "src/app-host-service.ts",
+    "src/app-host-state.ts",
+    "src/app-host-transport.ts",
+    "src/app-host-validation.ts",
+    "src/app-host.ts",
+    "docs/native-app-host.md"
   ],
   "scripts": {
     "check:theme": "bun scripts/check-paper-theme.mjs",
@@ -679,7 +692,7 @@
     "website:test": "bun test --timeout 60000 ./website ./edge",
     "website:typecheck": "tsc --noEmit --project website/tsconfig.json && tsc --noEmit --project edge/tsconfig.json",
     "website:check": "bun run check:theme && bun run website:typecheck && bun run website:test && bun run website:build",
-    "build": "bun -e 'await (await import(\"node:fs/promises\")).rm(\"./dist\", { recursive: true, force: true })' && bun build ./src/index.ts ./src/client.ts ./src/beeper-client.ts ./src/apple-photos-client.ts ./src/whatsapp-client.ts ./src/omni-client.ts ./src/messaging.ts ./src/messaging-automation-api.ts ./src/contracts.ts --outdir ./dist --root ./src --target bun --format esm --splitting --packages external",
+    "build": "bun -e 'await (await import(\"node:fs/promises\")).rm(\"./dist\", { recursive: true, force: true })' && bun build ./src/index.ts ./src/client.ts ./src/beeper-client.ts ./src/apple-photos-client.ts ./src/whatsapp-client.ts ./src/omni-client.ts ./src/messaging.ts ./src/messaging-automation-api.ts ./src/contracts.ts ./src/app-host-protocol.ts --outdir ./dist --root ./src --target bun --format esm --splitting --packages external",
     "typecheck": "tsc --noEmit && tsc --noEmit --project verification/tsconfig.json",
     "whatsapp:transport:install": "sh src/scripts/install-whatsapp-protocol.sh",
     "test:unit": "bun test --no-orphans --timeout 180000 --max-concurrency \"${GOMAXPROCS:-4}\" ./src --path-ignore-patterns='**/src/omni-runtime.test.ts'",
