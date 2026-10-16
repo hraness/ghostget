@@ -4,6 +4,9 @@
     "app-host-x-macos-arm64": {
       "entrypoint": "src/app-host.ts",
       "target": "darwin-arm64",
+      "sourceExclude": [
+        "src/assets/messaging-runtime"
+      ],
       "packages": [
         {
           "name": "@hraness/local-custody",

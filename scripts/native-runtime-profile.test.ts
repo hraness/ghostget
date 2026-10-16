@@ -1,17 +1,29 @@
 import { expect, test } from "bun:test";
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { generateNativeRuntimeProfile } from "./native-runtime-profile";
+import { assertSourceExclusionsUnreachable, generateNativeRuntimeProfile } from "./native-runtime-profile";
 import { createProviderPluginRegistry } from "../src/provider-plugin-registry";
 import xPlugin from "../src/plugins/x-web/plugin";
 import { parseRuntimeManifest } from "../src/model";
 
 const repository = resolve(import.meta.dir, "..");
+test("source asset exclusions reject reached dependencies and noncanonical paths", () => {
+  const asset = "src/assets/messaging-runtime/imsg-darwin-arm64.gz";
+  expect(() => assertSourceExclusionsUnreachable(["src/assets/messaging-runtime"], [join(repository, asset)]))
+    .toThrow("reached host dependency");
+  expect(() => assertSourceExclusionsUnreachable([asset], [join(repository, asset)]))
+    .toThrow("reached host dependency");
+  for (const path of ["src", "package.json", "/src/assets", "src/assets/../providers", "src/assets//messaging-runtime", "src/assets\\messaging-runtime"]) {
+    expect(() => assertSourceExclusionsUnreachable([path], [])).toThrow();
+  }
+  expect(() => assertSourceExclusionsUnreachable([asset, asset], [])).toThrow("invalid native runtime source exclusions");
+});
+
 test("generated native projection loads the relocated X runtime and retains identity checks", async () => {
   const profileDocument = JSON.parse(readFileSync(join(repository, "native-runtime-profiles.json"), "utf8"));
   expect(await generateNativeRuntimeProfile()).toEqual(profileDocument);
-  const profile = profileDocument.profiles["app-host-x-macos-arm64"] as { packages: { name: string; version: string; exclude: string[] }[] };
+  const profile = profileDocument.profiles["app-host-x-macos-arm64"] as { sourceExclude: string[]; packages: { name: string; version: string; exclude: string[] }[] };
   const registry = createProviderPluginRegistry([xPlugin]);
   const expectedContract = registry.contractImplementationHash(registry.requireRoute("web-session-api", "x")).toString("hex");
   const expectedManifests = Object.fromEntries(readdirSync(join(repository, "src/assets/adapters/x")).filter(name => name.endsWith(".json")).map(name => [name, parseRuntimeManifest(JSON.parse(readFileSync(join(repository, "src/assets/adapters/x", name), "utf8")), registry).ok]));
@@ -58,8 +70,18 @@ console.log(JSON.stringify({ ...identity, manifests }));
 `);
     const environment = { PATH: "/usr/bin:/bin", HOME: root, XDG_CONFIG_HOME: root, GHOSTGET_STATE_HOME: join(root, "state") };
     const run = (mutate: string, isolated = true) => Bun.spawnSync([process.execPath, ...(isolated ? ["--config=/dev/null"] : []), "--no-env-file", "--no-install", "probe.ts"], { cwd: consumer, env: { ...environment, MUTATE: mutate }, timeout: 20_000 });
+    // Compare the exact registry-owned identity and lazy runtime before and
+    // after dropping source assets. The bundler's static graph alone cannot
+    // prove that implementationSources or runtime file URLs never use them.
+    const complete = run("0", false);
+    expect(complete.stderr.toString()).toBe(""); expect(complete.exitCode).toBe(0);
+    expect(existsSync(join(consumer, "src/assets/messaging-runtime/imsg-darwin-arm64.gz"))).toBe(true);
+    expect(existsSync(join(consumer, "src/assets/messaging-runtime/wacli-darwin-arm64.gz"))).toBe(true);
+    for (const path of profile.sourceExclude) rmSync(join(consumer, path), { recursive: true });
+    expect(existsSync(join(consumer, "src/assets/messaging-runtime"))).toBe(false);
     const ordinary = run("0", false);
     expect(ordinary.stderr.toString()).toBe(""); expect(ordinary.exitCode).toBe(0);
+    expect(JSON.parse(ordinary.stdout.toString())).toEqual(JSON.parse(complete.stdout.toString()));
     writeFileSync(join(root, "ambient-preload.ts"), 'throw new Error("ambient Bun configuration executed");\n');
     writeFileSync(join(root, ".bunfig.toml"), `preload = [${JSON.stringify(join(root, "ambient-preload.ts"))}]\n`);
     const loaded = run("0");

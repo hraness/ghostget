@@ -1,5 +1,5 @@
-import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { existsSync, lstatSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { createRequire } from "node:module";
 import ts from "typescript";
 import { createProviderPluginRegistry, providerPluginRuntimePackages } from "../src/provider-plugin-registry";
@@ -11,6 +11,31 @@ const exclusions: Record<string, readonly string[]> = {
   "agent-browser": ["bin/agent-browser-darwin-x64", "bin/agent-browser-linux-x64", "bin/agent-browser-linux-arm64", "bin/agent-browser-linux-musl-x64", "bin/agent-browser-linux-musl-arm64", "bin/agent-browser-win32-x64.exe"],
   "@hraness/local-custody": ["dist/rust-artifacts/local-custody/darwin-x64", "dist/rust-artifacts/local-custody/linux-x64"],
 };
+// The X-only host never installs the messaging transports. Keep their compressed
+// executables and accompanying resources outside its signed application bundle.
+const sourceExclusions = ["src/assets/messaging-runtime"] as const;
+const repository = realpathSync(resolve(import.meta.dir, ".."));
+
+export function assertSourceExclusionsUnreachable(excluded: readonly string[], inputs: Iterable<string>): void {
+  const reached = [...inputs].map(path => realpathSync(path));
+  if (excluded.length > 64 || new Set(excluded).size !== excluded.length) throw new Error("invalid native runtime source exclusions");
+  for (const name of excluded) {
+    if (!name.startsWith("src/assets/") || name.includes("\\") || name.split("/").some(part => part === "" || part === "." || part === "..")) {
+      throw new Error("native runtime source exclusion must name one contained asset path");
+    }
+    const path = join(repository, name);
+    const metadata = lstatSync(path);
+    const canonical = realpathSync(path);
+    const within = relative(repository, canonical);
+    if (metadata.isSymbolicLink() || (!metadata.isDirectory() && !metadata.isFile()) || isAbsolute(within) || within === ".." || within.startsWith(".." + sep)) {
+      throw new Error("native runtime source exclusion escapes its source package");
+    }
+    if (reached.some(input => input === canonical || input.startsWith(canonical + sep))) {
+      throw new Error("native runtime source exclusion contains a reached host dependency");
+    }
+  }
+}
+
 export async function generateNativeRuntimeProfile(): Promise<unknown> {
   const packages = new Map<string, { name: string; version: string; exclude: readonly string[] }>();
   const admit = (root: string): void => {
@@ -22,6 +47,7 @@ export async function generateNativeRuntimeProfile(): Promise<unknown> {
   for (const dependency of providerPluginRuntimePackages(createProviderPluginRegistry([xPlugin]))) admit(dependency.root);
   const built = await Bun.build({ entrypoints: [resolve(import.meta.dir, "../src/app-host.ts")], target: "bun", write: false, metafile: true });
   if (!built.success || built.metafile === undefined) throw new Error("native host dependency analysis failed");
+  assertSourceExclusionsUnreachable(sourceExclusions, Object.keys(built.metafile.inputs));
   for (const input of Object.keys(built.metafile.inputs)) {
     const path = realpathSync(input);
     if (!path.includes("/node_modules/")) continue;
@@ -49,7 +75,8 @@ export async function generateNativeRuntimeProfile(): Promise<unknown> {
   if (packages.size > 64) throw new Error("native runtime dependency count exceeds its bound");
   for (const name of Object.keys(exclusions)) if (!packages.has(name)) throw new Error(`stale platform exclusion policy ${name}: ${[...packages.keys()].join(",")}`);
   return { schemaVersion: 1, profiles: { "app-host-x-macos-arm64": {
-    entrypoint: "src/app-host.ts", target: "darwin-arm64", packages: [...packages.values()].sort((a, b) => a.name.localeCompare(b.name, "en")),
+    entrypoint: "src/app-host.ts", target: "darwin-arm64", sourceExclude: sourceExclusions,
+    packages: [...packages.values()].sort((a, b) => a.name.localeCompare(b.name, "en")),
   } } };
 }
 
