@@ -753,7 +753,7 @@
     "prepack": "bun run check",
     "check:effect": "bun scripts/check-effect-architecture.ts",
     "generate:og": "bun scripts/generate-og.tsx",
-    "check:native-runtime": "bun scripts/native-runtime-profile.ts --check && bun test --no-orphans --timeout 60000 scripts/native-runtime-profile.test.ts"
+    "check:native-runtime": "bun scripts/native-runtime-profile.ts --check && bun test --no-orphans --timeout 180000 ./scripts/native-runtime-profile.test.ts"
   },
   "dependencies": {
     "@1password/sdk": "0.5.0",

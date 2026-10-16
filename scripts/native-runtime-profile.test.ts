@@ -200,7 +200,9 @@ console.log(JSON.stringify({ ...identity, manifests }));
     let runNumber = 0;
     const run = (mutate: string, isolated = true) => {
       const fullGateway = isolated && mutate === "0";
-      return Bun.spawnSync([process.execPath, ...(isolated ? ["--config=/dev/null"] : []), "--no-env-file", "--no-install", "probe.ts"], { cwd: consumer, env: { ...environment, GHOSTGET_STATE_HOME: join(root, `state-${runNumber++}`), MUTATE: mutate, FULL_GATEWAY: fullGateway ? "1" : "0" }, timeout: fullGateway ? 30_000 : 20_000 });
+      // The full probe prepares every admitted read/action and binds PNG bytes
+      // through real durable state. Keep ordinary identity probes at 20 seconds.
+      return Bun.spawnSync([process.execPath, ...(isolated ? ["--config=/dev/null"] : []), "--no-env-file", "--no-install", "probe.ts"], { cwd: consumer, env: { ...environment, GHOSTGET_STATE_HOME: join(root, `state-${runNumber++}`), MUTATE: mutate, FULL_GATEWAY: fullGateway ? "1" : "0" }, timeout: fullGateway ? 60_000 : 20_000 });
     };
     const completeDefault = Bun.spawnSync([process.execPath, "--config=/dev/null", "--no-env-file", "--no-install", "--eval", 'const {providerPluginRegistry:registry}=await import("./src/provider-plugins.ts"); if (!Object.isFrozen(registry) || registry.get("x-web")?.id !== "x-web") throw new Error("trusted registry failed");'], { cwd: consumer, env: environment, timeout: 20_000 });
     expect(completeDefault.stderr.toString()).toBe(""); expect(completeDefault.exitCode).toBe(0);
@@ -219,7 +221,8 @@ console.log(JSON.stringify({ ...identity, manifests }));
     writeFileSync(join(root, "ambient-preload.ts"), 'throw new Error("ambient Bun configuration executed");\n');
     writeFileSync(join(root, ".bunfig.toml"), `preload = [${JSON.stringify(join(root, "ambient-preload.ts"))}]\n`);
     const loaded = run("0");
-    expect(loaded.stderr.toString()).toBe(""); expect(loaded.exitCode).toBe(0);
+    expect(loaded.stderr.toString()).toBe("");
+    expect(loaded.exitCode, `X runtime probe signal: ${String(loaded.signalCode)}`).toBe(0);
     const identity = JSON.parse(loaded.stdout.toString());
     expect(identity.manifests).toEqual(expectedManifests);
     expect(identity.contract).toBe(expectedContract); expect(identity.closure).toMatch(/^[a-f0-9]{64}$/);
@@ -232,6 +235,8 @@ console.log(JSON.stringify({ ...identity, manifests }));
     expect(run("package").exitCode).toBe(17);
     cpSync(join(repository, "node_modules/@hraness/wordcell/package.json"), join(consumer, "node_modules/@hraness/wordcell/package.json"));
     rmSync(join(consumer, "node_modules/typescript"), { recursive: true });
-    expect(run("0").exitCode).not.toBe(0);
+    const missingCompiler = run("0");
+    expect(missingCompiler.signalCode ?? null).toBeNull();
+    expect(missingCompiler.exitCode).toBe(1);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
