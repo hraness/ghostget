@@ -1058,6 +1058,7 @@ function planKey(environment: Readonly<Record<string, string | undefined>>): Pla
     ).some((entry) =>
       entry.kind === "file"
       && /^[a-f0-9]{64}\.json$/u.test(entry.name)
+      && !invocationPlanWasCancelled(entry.name.slice(0, -5), environment)
     );
     if (existingPlans) {
       throw new Error(
@@ -2735,12 +2736,30 @@ export function loadInvocationPlan(
   digest: string,
   environment: Readonly<Record<string, string | undefined>> = process.env,
 ): StoredPlan {
+  if (invocationPlanWasCancelled(digest, environment)) throw new Error("confirmation plan was cancelled before execution");
   const stored = decryptPlan(
     JSON.parse(readRegularFile(planPath(digest, environment), MAX_ENCRYPTED_PLAN_BYTES, "encrypted plan")) as unknown,
     environment,
   );
   if (stored.digest !== digest) throw new Error("stored plan filename does not match its digest");
   return stored;
+}
+
+function isCancelledInvocationPlan(value: unknown, digest: string): boolean {
+  return isRecord(value) && Object.keys(value).length === 3 && value.schemaVersion === 1
+    && value.kind === "cancelled-before-execution" && value.digest === digest;
+}
+
+export const MAX_CANCELLED_INVOCATION_PLANS = 4_096;
+
+/** Pure observation of the atomic cancellation evidence; never creates state. */
+export function invocationPlanWasCancelled(
+  digest: string,
+  environment: Readonly<Record<string, string | undefined>> = process.env,
+): boolean {
+  const text = readPrivateStateFileIfPresent(planPath(digest, environment), MAX_ENCRYPTED_PLAN_BYTES, "confirmation plan", environment);
+  if (text === null) return false;
+  try { return isCancelledInvocationPlan(JSON.parse(text), digest); } catch { return false; }
 }
 
 export function purgeExpiredPlans(
@@ -2765,6 +2784,8 @@ export function purgeExpiredPlans(
         try {
           // The fixed digest claim serializes expiry, cancellation, and
           // confirmation before the plan or its shared asset bundle changes.
+          // Cancellation may have won after the pre-claim decrypt above.
+          if (invocationPlanWasCancelled(stored.digest, environment)) continue;
           if (removePrivateStateFile(path, environment)) {
             if (
               !planDigestHasRetainingJournal(
@@ -2804,7 +2825,10 @@ function protectedPlanAssetDigests(
     const match = /^([a-f0-9]{64})(?:\.claim)?\.json$/u.exec(
       entry.kind === "file" ? entry.name : "",
     );
-    if (match?.[1] !== undefined) protectedDigests.add(match[1]);
+    if (match?.[1] !== undefined
+      && (entry.name.endsWith(".claim.json") || !invocationPlanWasCancelled(match[1], environment))) {
+      protectedDigests.add(match[1]);
+    }
   }
   const runDirectory = join(ghostgetStateHome(environment), "runs");
   for (const entry of listPrivateStateDirectory(runDirectory, environment)) {
@@ -2889,9 +2913,10 @@ export function listInvocationPlans(
   const directory = planDirectory(environment);
   const plans = listPrivateStateDirectory(directory, environment)
     .filter((entry) => entry.kind === "file" && /^[a-f0-9]{64}\.json$/u.test(entry.name))
-    .map((entry): ListedInvocationPlan => {
+    .map((entry): ListedInvocationPlan | null => {
       const digest = entry.name.slice(0, -5);
       try {
+        if (invocationPlanWasCancelled(digest, environment)) return null;
         const stored = loadInvocationPlan(digest, environment);
         return {
           digest,
@@ -2905,7 +2930,7 @@ export function listInvocationPlans(
       } catch {
         return { digest, invalid: true };
       }
-    });
+    }).filter((plan): plan is ListedInvocationPlan => plan !== null);
   return plans.sort((left, right) => {
     const leftTime = "createdAt" in left ? Date.parse(left.createdAt) : Number.NEGATIVE_INFINITY;
     const rightTime = "createdAt" in right ? Date.parse(right.createdAt) : Number.NEGATIVE_INFINITY;
@@ -2917,6 +2942,29 @@ export function cancelInvocationPlan(
   digest: string,
   environment: Readonly<Record<string, string | undefined>> = process.env,
 ): boolean {
+  return cancelInvocationPlanUnderClaim(digest, environment, false);
+}
+
+/** Explicit cancellation with positive evidence that this plan never entered execution. */
+export function cancelUnstartedInvocationPlan(
+  digest: string,
+  environment: Readonly<Record<string, string | undefined>> = process.env,
+): boolean {
+  // Different plan digests share this capacity claim, so concurrent owners
+  // cannot each consume the last tombstone slot. The ordinary digest claim
+  // still provides the execution/cancellation exclusion.
+  planPath(digest, environment); // Validate the exact digest before any state.
+  repairInterruptedConfirmationClaims(environment);
+  const historyClaim = acquireConfirmationClaim(sha256("ghostget/cancelled-invocation-plan-history/1"), crypto.randomUUID(), environment, new Date());
+  try { return cancelInvocationPlanUnderClaim(digest, environment, true); }
+  finally { releaseConfirmationClaim(historyClaim, environment); }
+}
+
+function cancelInvocationPlanUnderClaim(
+  digest: string,
+  environment: Readonly<Record<string, string | undefined>>,
+  requireUnstarted: boolean,
+): boolean {
   repairInterruptedConfirmationClaims(environment);
   const claim = acquireConfirmationClaim(
     digest,
@@ -2925,10 +2973,34 @@ export function cancelInvocationPlan(
     new Date(),
   );
   try {
-    const removedPlan = removePrivateStateFile(
-      planPath(digest, environment),
-      environment,
-    );
+    const path = planPath(digest, environment);
+    const text = readPrivateStateFileIfPresent(path, MAX_ENCRYPTED_PLAN_BYTES, "confirmation plan", environment);
+    if (text === null) return false;
+    // Never remove terminal cancellation evidence through ordinary cleanup.
+    try { if (isCancelledInvocationPlan(JSON.parse(text), digest)) return requireUnstarted; } catch { /* Validated below for the evidence-producing path. */ }
+    // Hold the same single-confirmer claim through inspection and removal.
+    // Missing receipts alone cannot prove non-dispatch: journals precede I/O.
+    if (requireUnstarted && (
+      listRunJournalSnapshots(environment).some(entry => "invalid" in entry || entry.journal.planDigest === digest)
+      || listRunReceipts(environment).some(entry => "invalid" in entry || entry.planDigest === digest)
+    )) return false;
+    if (requireUnstarted) {
+      const cancellations = listPrivateStateDirectory(planDirectory(environment), environment).filter(entry =>
+        entry.kind === "file" && /^[a-f0-9]{64}\.json$/u.test(entry.name)
+        && invocationPlanWasCancelled(entry.name.slice(0, -5), environment));
+      if (cancellations.length >= MAX_CANCELLED_INVOCATION_PLANS) throw new Error("cancellation history is full; existing recovery evidence was preserved");
+      // Authenticate the encrypted source before replacing it. The fixed claim
+      // excludes confirmation; conditional replacement binds the exact bytes.
+      const stored = decryptPlan(JSON.parse(text), environment);
+      if (stored.digest !== digest) throw new Error("stored plan filename does not match its digest");
+      const replaced = writePrivateJsonIfUnchanged(path, { schemaVersion: 1, kind: "cancelled-before-execution", digest }, {
+        expectedCurrentContentSha256: sha256(text), maximumExpectedCurrentBytes: MAX_ENCRYPTED_PLAN_BYTES,
+      });
+      if (!replaced) throw new Error("confirmation plan changed during cancellation");
+      cleanupPlanAssets(digest, environment);
+      return true;
+    }
+    const removedPlan = removePrivateStateFile(path, environment);
     if (!removedPlan) return false;
     if (!planDigestHasRetainingJournal(digest, environment)) {
       cleanupPlanAssets(digest, environment);
@@ -4032,7 +4104,7 @@ function planAssetsHaveAnotherOwner(
         entry.name === `${journal.planDigest}.json`
       )
     ) {
-      return true;
+      if (!invocationPlanWasCancelled(journal.planDigest, environment)) return true;
     }
     if (
       entry.kind === "file"
@@ -4213,10 +4285,12 @@ export function repairInterruptedConfirmationClaims(
         // plan, so consume any survivor before releasing its ownership claim.
         // Repeating this ordering is safe after a later crash: both receipt
         // projection and absent-plan removal are idempotent.
-        removePrivateStateFile(
-          planPath(claim.claim.digest, environment),
-          environment,
-        );
+        if (!invocationPlanWasCancelled(claim.claim.digest, environment)) {
+          removePrivateStateFile(
+            planPath(claim.claim.digest, environment),
+            environment,
+          );
+        }
         if (releaseConfirmationClaim(claim, environment)) released += 1;
         continue;
       }

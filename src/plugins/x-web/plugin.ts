@@ -14,6 +14,7 @@ import archivedXWebPostsPublishV2Manifest from "../../assets/adapters/x/wrench-w
 import archivedXWebPostsPublishV3Manifest from "../../assets/adapters/x/wrench-web-adapter.v1.9.0.json";
 import archivedXWebArticlesReadV1Manifest from "../../assets/adapters/x/wrench-web-adapter.v1.11.0.json";
 import archivedXWebLongPostPredecessorManifest from "../../assets/adapters/x/wrench-web-adapter.v1.13.0.json";
+import reservedXWebPostsPublishV6Manifest from "../../assets/adapters/x/wrench-web-adapter.v1.18.0.json";
 import archivedXWebContentDeleteV2Manifest from "../../assets/adapters/x/wrench-web-adapter.v1.16.0.json";
 import {
   browserSessionAuthKinds,
@@ -154,7 +155,7 @@ function xArticleDraftV2Dispatches(
 
 const currentOperations = webSessionContractOperations(
   Object.values(webSessionContractDefinitions.x),
-  "653bde258f27f97780929396bfda9acb799266dab659749ec259af0601c2943d",
+  "0bd22112740b05f4797d07dbee277808e4a710d1472d6a4e803ea39a8cf48603",
   {
     "likes.set": [1],
   },
@@ -341,7 +342,7 @@ function archivedXWebPostsPublishOperation(
 function archivedXWebCaptureRequiredOperation(
   manifest: unknown,
   adapterVersion: string,
-  operation: "posts.quote" | "content.delete",
+  operation: "posts.quote" | "content.delete" | "posts.publish",
   implementation: string,
   contractVersion = 1,
 ) {
@@ -377,6 +378,13 @@ function archivedXWebCaptureRequiredOperation(
 
 const operations = Object.freeze([
   ...currentOperations,
+  archivedXWebCaptureRequiredOperation(
+    reservedXWebPostsPublishV6Manifest,
+    "1.18.0",
+    "posts.publish",
+    "Ordered one-to-four PNG/JPEG or single MP4 upload requires live qualification of immutable ordered media and exact created-post readback",
+    6,
+  ),
   archivedArticlesReadOperation,
   archivedArticleDraftOperation,
   archivedXWebPostsPublishOperation(
@@ -418,7 +426,7 @@ const operations = Object.freeze([
 export const xWebPlugin = defineProviderPlugin({
   apiVersion: 1,
   id: "x-web",
-  version: "1.5.0",
+  version: "1.6.0",
   displayName: "X Authenticated Web",
   sourceKind: "built-in",
   implementationSources: webImplementationSources(import.meta.url, [
@@ -427,6 +435,9 @@ export const xWebPlugin = defineProviderPlugin({
     ["kernel/browser.ts", "../../browser.ts"],
     ["kernel/article-draft-document.ts", "../../article-draft-document.ts"],
     ["kernel/article-draft-images.ts", "../../article-draft-images.ts"],
+    ["providers/x-web-model.ts", "../../providers/x-web-model.ts"],
+    ["providers/x-web-media.ts", "../../providers/x-web-media.ts"],
+    ["providers/x-web-social-actions.ts", "../../providers/x-web-social-actions.ts"],
     ["providers/x-web.ts", "../../providers/x-web.ts"],
     ["providers/x-web-runtime.ts", "../../providers/x-web-runtime.ts"],
     ["providers/x-transaction-id.ts", "../../providers/x-transaction-id.ts"],

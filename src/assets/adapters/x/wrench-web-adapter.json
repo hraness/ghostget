@@ -1,7 +1,7 @@
 {
  "schemaVersion": 4,
  "id": "x-web",
- "version": "1.17.0",
+ "version": "1.18.1",
  "displayName": "X (Authenticated Web API)",
  "surfaceId": "x",
  "origins": [
@@ -745,6 +745,113 @@
     "site": "x",
     "action": "articles.publish",
     "contractVersion": 4,
+    "timeoutMs": 60000,
+    "maxOutputBytes": 2097152
+   }
+  },
+  "explore.read": {
+   "description": "Capture-required contract: Read a distinct Trending or personalized Today news Explore page; current provider section identity and continuation require capture.",
+   "risk": "R1",
+   "sideEffect": "none",
+   "idempotency": "none",
+   "dedupeWindowMs": 0,
+   "input": {
+    "properties": {
+     "source": {
+      "type": "string",
+      "enum": [
+       "trending",
+       "today-news"
+      ],
+      "description": "Exact bounded source for this X operation"
+     },
+     "target": {
+      "type": "string",
+      "maxLength": 4096,
+      "description": "Exact bounded target for this X operation"
+     },
+     "cursor": {
+      "type": "string",
+      "maxLength": 4096,
+      "description": "Exact bounded cursor for this X operation"
+     },
+     "limit": {
+      "type": "number",
+      "minimum": 1,
+      "maximum": 50,
+      "description": "Exact bounded limit for this X operation"
+     }
+    },
+    "required": [
+     "source"
+    ]
+   },
+   "webSession": {
+    "site": "x",
+    "action": "explore.read",
+    "contractVersion": 1,
+    "timeoutMs": 60000,
+    "maxOutputBytes": 2097152
+   }
+  },
+  "notifications.list": {
+   "description": "Capture-required contract: Read notification events without dispatching acknowledgement mutations; current response normalization requires capture.",
+   "risk": "R1",
+   "sideEffect": "none",
+   "idempotency": "none",
+   "dedupeWindowMs": 0,
+   "input": {
+    "properties": {
+     "cursor": {
+      "type": "string",
+      "maxLength": 4096,
+      "description": "Exact bounded cursor for this X operation"
+     },
+     "limit": {
+      "type": "number",
+      "minimum": 1,
+      "maximum": 50,
+      "description": "Exact bounded limit for this X operation"
+     }
+    },
+    "required": []
+   },
+   "webSession": {
+    "site": "x",
+    "action": "notifications.list",
+    "contractVersion": 1,
+    "timeoutMs": 60000,
+    "maxOutputBytes": 2097152
+   }
+  },
+  "relationships.follow.set": {
+   "description": "Capture-required contract: Set the current account following relationship for one exact numeric target; current first-party request and independent readback require qualification.",
+   "risk": "R2",
+   "sideEffect": "Changes the following relationship of this exact account and target.",
+   "idempotency": "local-at-most-once",
+   "dedupeWindowMs": 86400000,
+   "input": {
+    "properties": {
+     "user_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 19,
+      "description": "Exact numeric subject to follow or unfollow"
+     },
+     "following": {
+      "type": "boolean",
+      "description": "Exact desired relationship state"
+     }
+    },
+    "required": [
+     "user_id",
+     "following"
+    ]
+   },
+   "webSession": {
+    "site": "x",
+    "action": "relationships.follow.set",
+    "contractVersion": 1,
     "timeoutMs": 60000,
     "maxOutputBytes": 2097152
    }

@@ -1674,6 +1674,54 @@ describe("derivation session path defenses", () => {
     ), "conflicting duplicate cookie identities");
   });
 
+  test("keeps unambiguous host-only and Domain cookie namespaces and their original attributes", async () => {
+    const target = new URL("https://studio.example.com/");
+    const base = {
+      name: "session", value: "fixture-only", domain: "studio.example.com", path: "/",
+      secure: true, httpOnly: true, sameSite: "Lax" as const, expires: 4_000_000_000,
+    };
+    const host = { ...base, hostOnly: true };
+    const domain = { ...base, hostOnly: false, httpOnly: false, sameSite: "Strict" as const, expires: 3_999_999_999 };
+    const auth = { schemaVersion: 1 as const, id: "fixture", kind: "cookie-source" as const, source: "chrome" as const, profile: "Default" };
+    for (const cookies of [[host, domain], [domain, host], [host, domain, host, domain]]) {
+      const commands = await derivationCookieCommands(auth, target, [], () => Promise.resolve({ cookies, warnings: [] }));
+      expect(commands).toHaveLength(2);
+      expect(commands.find((command) => command.includes("--url"))).toEqual([
+        "cookies", "set", "session", "fixture-only", "--url", target.origin, "--path", "/",
+        "--httpOnly", "--secure", "--sameSite", "Lax", "--expires", "4000000000",
+      ]);
+      expect(commands.find((command) => command.includes("--domain"))).toEqual([
+        "cookies", "set", "session", "fixture-only", "--domain", ".studio.example.com", "--path", "/",
+        "--secure", "--sameSite", "Strict", "--expires", "3999999999",
+      ]);
+    }
+  });
+
+  test("rejects ambiguous cross-scope values and conflicting exact-scope attributes before seeding", async () => {
+    const target = new URL("https://studio.example.com/");
+    const original = {
+      name: "session", value: "fixture-only", domain: "studio.example.com", hostOnly: true,
+      path: "/", secure: true, httpOnly: true, sameSite: "Lax" as const, expires: 4_000_000_000,
+    };
+    const auth = { schemaVersion: 1 as const, id: "fixture", kind: "cookie-source" as const, source: "chrome" as const, profile: "Default" };
+    for (const conflict of [
+      { ...original, hostOnly: false, value: "different-fixture" },
+      { ...original, value: "different-fixture" },
+      { ...original, expires: original.expires - 1 },
+      { ...original, httpOnly: false },
+      { ...original, secure: false },
+      { ...original, sameSite: "Strict" as const },
+    ]) {
+      for (const cookies of [[original, conflict], [conflict, original]]) {
+        await expectRejectedWith(derivationCookieCommands(auth, target, [], () => Promise.resolve({ cookies, warnings: [] })),
+          "conflicting duplicate cookie identities");
+      }
+      await expectRejectedWith(derivationCookieCommands(auth, target, [new URL("https://accounts.example.com/")], (_options, url) =>
+        Promise.resolve({ cookies: [url.origin === target.origin ? original : conflict], warnings: [] })),
+      "conflicting duplicate cookie identities");
+    }
+  });
+
   test("rejects multi-origin cookie seeding unless the auth stays in a contained fresh browser", async () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), "wrench-cookie-origins-test-")));
     const ghostgetState = join(root, "io-state");

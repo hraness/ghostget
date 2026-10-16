@@ -8,10 +8,19 @@ import { createHash } from "node:crypto";
  */
 
 import { hasExactKeys } from "../contracts-shape.js";
+import { canonicalJson } from "../canonical-json";
+export { xWebWorkspaceReadSupport, parseXWebNotificationPage, parseXWebExplorePage } from "./x-web-workspace-reads";
 import {
   projectContactDirectionStats,
   type ContactDirectionStatsProjection,
 } from "./contact-projection.js";
+import {
+  parseXSocialPost,
+  projectXSocialPost,
+  projectXSocialProfile,
+  type XSocialPost,
+  type XSocialProfile,
+} from "./x-web-model.js";
 
 export type XWebOperationType = "query" | "mutation";
 
@@ -738,7 +747,7 @@ function rejectCreateTweetAiDisclosureFields(
   }
 }
 
-function validateCreateTweetVariables(operationId: XWebMutationOperationId, variables: JsonRecord): void {
+function validateCreateTweetVariables(operationId: XWebMutationOperationId, variables: JsonRecord, publishMediaLimit: 1 | 4 = 1): void {
   rejectCreateTweetAiDisclosureFields(variables, operationId);
   const relationKey = operationId === "replies.create" || operationId === "threads.reply"
     ? "reply"
@@ -756,13 +765,17 @@ function validateCreateTweetVariables(operationId: XWebMutationOperationId, vari
     throw new Error(`X ${operationId} media left the reviewed shape`);
   }
   if (operationId === "posts.publish") {
-    if (media.media_entities.length > 1) {
-      throw new Error("X posts.publish supports at most one reviewed image or video");
+    if (media.media_entities.length > publishMediaLimit) {
+      throw new Error(publishMediaLimit === 1 ? "X posts.publish supports at most one reviewed image or video"
+        : "X posts.publish supports at most four reviewed images or one video");
     }
-    if (media.media_entities.length === 1) {
-      const entity = record(media.media_entities[0], "X posts.publish media entity");
+    const mediaIds = new Set<string>();
+    for (const item of media.media_entities) {
+      const entity = record(item, "X posts.publish media entity");
       exactMutationKeys(entity, ["media_id", "tagged_users"], "X posts.publish media entity");
       exactMutationPostId(entity.media_id, "X posts.publish media entity ID");
+      if (mediaIds.has(String(entity.media_id))) throw new Error("X posts.publish media IDs must be unique");
+      mediaIds.add(String(entity.media_id));
       if (!Array.isArray(entity.tagged_users) || entity.tagged_users.length !== 0) {
         throw new Error("X posts.publish media tagged_users must be empty");
       }
@@ -1016,6 +1029,7 @@ function validateRichArticleUpdateVariables(operationId: XWebMutationOperationId
 export function authorizeXWebMutationRequest(
   operationId: XWebMutationOperationId,
   input: XWebGraphQlBindingInput,
+  options: { readonly postsPublishContractVersion?: 6 } = {},
 ): XWebGraphQlBinding {
   const expectedName = mutationOperationNames[operationId];
   if (expectedName === undefined) throw new Error("X mutation operation is not allowlisted");
@@ -1032,7 +1046,8 @@ export function authorizeXWebMutationRequest(
   );
   if (body.queryId !== binding.queryId) throw new Error(`X ${operationId} body queryId drifted`);
   const variables = record(body.variables, `X ${operationId} variables`);
-  if (expectedName === "CreateTweet") validateCreateTweetVariables(operationId, variables);
+  if (expectedName === "CreateTweet") validateCreateTweetVariables(operationId, variables,
+    options.postsPublishContractVersion === 6 ? 4 : 1);
   else if (operationId === "articles.create") validateRichArticleCreateVariables(variables);
   else if (operationId === "articles.title" || operationId === "articles.content") {
     validateRichArticleUpdateVariables(operationId, variables);
@@ -1085,6 +1100,7 @@ export type XWebProfileStats = {
     readonly bio: string | null;
     readonly websiteUrl: string | null;
   };
+  readonly profile: XSocialProfile;
 };
 
 export function normalizeXWebProfileHandle(value: unknown): string {
@@ -1274,6 +1290,7 @@ export function projectXWebProfileStats(
       bio,
       websiteUrl,
     }),
+    profile: projectXSocialProfile(result),
   });
 }
 
@@ -1686,6 +1703,8 @@ export type XWebNormalizedTweet = {
   readonly typename: "Tweet" | "TweetWithVisibilityResults" | "TweetPreviewDisplay";
   readonly legacy: Readonly<JsonRecord> | null;
   readonly author: XWebNormalizedTweetAuthor;
+  /** Public rich fields are projected before URT wrappers and placements are discarded. */
+  readonly social: XSocialPost;
 };
 
 export type XWebNormalizedUnavailable = {
@@ -1707,6 +1726,7 @@ export type XWebNormalizedUser = {
   readonly name: string | null;
   readonly followsViewer: boolean | null;
   readonly followedByViewer: boolean | null;
+  readonly profile: XSocialProfile | null;
 };
 
 export type XWebNormalizedOther = {
@@ -1942,6 +1962,7 @@ function normalizeTimelineUserItem(
     : record(result.relationship_perspectives, `${label}.relationship_perspectives`);
   return Object.freeze({
     kind: "user",
+    profile: coreHandle === null && legacyHandle === null ? null : projectXSocialProfile({ ...result, ...(core === null ? {} : { core: { ...core, name: coreName } }), ...(legacy === null ? {} : { legacy: { ...legacy, name: legacyName } }) }),
     entryId,
     moduleEntryId,
     sortIndex,
@@ -2003,6 +2024,14 @@ function normalizeItemContent(
   const legacy = unwrapped.result.legacy === undefined || unwrapped.result.legacy === null
     ? null
     : Object.freeze(record(unwrapped.result.legacy, `X URT tweet ${entryId}.legacy`));
+  const author = projectXWebTweetAuthor(unwrapped.result, legacy, `X URT tweet ${entryId}`);
+  // Preserve the existing empty-text behavior of ID-only readback records. A
+  // supplied note or legacy text is always validated, never silently replaced.
+  const richTweet = legacy?.full_text === undefined && unwrapped.result.note_tweet == null
+    ? { ...unwrapped.result, legacy: { ...legacy, full_text: "" } }
+    : unwrapped.result;
+  const richResult = richTweet === unwrapped.result ? result
+    : result === unwrapped.result ? richTweet : { ...result, tweet: richTweet };
   return Object.freeze({
     kind: "tweet",
     entryId,
@@ -2011,7 +2040,8 @@ function normalizeItemContent(
     tweetId,
     typename: unwrapped.typename as XWebNormalizedTweet["typename"],
     legacy,
-    author: projectXWebTweetAuthor(unwrapped.result, legacy, `X URT tweet ${entryId}`),
+    author,
+    social: projectXSocialPost(richResult, item),
   });
 }
 
@@ -2156,6 +2186,13 @@ const X_FEED_POST_KEYS = Object.freeze([
   "saved",
   "metrics",
   "url",
+  "modelVersion",
+  "content",
+  "media",
+  "moderation",
+  "quote",
+  "repost",
+  "promotion",
 ] as const);
 
 export type XWebProjectedPostMetrics = {
@@ -2165,21 +2202,7 @@ export type XWebProjectedPostMetrics = {
   readonly bookmarks: number | null;
 };
 
-export type XWebProjectedPost = {
-  readonly kind: "post";
-  readonly id: string;
-  readonly text: string;
-  readonly createdAt: string | null;
-  readonly authorId: string | null;
-  readonly authorUsername: string | null;
-  readonly authorName: string | null;
-  readonly replyToPostId: string | null;
-  readonly liked: boolean | null;
-  readonly reposted: boolean | null;
-  readonly saved: boolean | null;
-  readonly metrics: XWebProjectedPostMetrics;
-  readonly url: string;
-};
+export type XWebProjectedPost = XSocialPost;
 
 export type XWebBookmarkExportRecord = {
   readonly post_id: string;
@@ -2196,15 +2219,33 @@ export type XWebBookmarkExportPage = {
   readonly feed: "bookmarks";
   readonly items: readonly XWebBookmarkExportRecord[];
   readonly posts: readonly XWebProjectedPost[];
+  readonly entries?: readonly XWebFeedEntry[];
+  readonly entriesTruncated?: boolean;
   readonly cursor: string | null;
   readonly terminatedDirections: readonly string[];
 };
 
 export type XWebFeedPage = {
   readonly posts: readonly XWebProjectedPost[];
+  readonly entries: readonly XWebFeedEntry[];
+  readonly entriesTruncated: boolean;
   readonly cursor: string | null;
   readonly terminatedDirections: readonly string[];
 };
+
+/** Unknown object IDs remain unknown; occurrence IDs are never parsed as IDs. */
+export type XWebUnavailableEntry = {
+  readonly kind: "unavailable";
+  readonly id: string;
+  readonly postId: null;
+  readonly reason: string | null;
+};
+export type XWebFeedEntry =
+  | { readonly kind: "post"; readonly id: string; readonly post: XWebProjectedPost }
+  | XWebUnavailableEntry;
+export type XWebContactEntry =
+  | { readonly kind: "profile"; readonly id: string; readonly profile: XSocialProfile }
+  | XWebUnavailableEntry;
 
 /** Admit TAB, LF, and CR in tweet bodies. Headers and cursors stay on hasAsciiControl. */
 function hasForbiddenPublicTextControl(value: string): boolean {
@@ -2229,20 +2270,6 @@ function optionalBoundedText(value: unknown, label: string, maximum: number): st
     throw new Error(`${label} must be bounded public text`);
   }
   return value;
-}
-
-function optionalBoolean(value: unknown, label: string): boolean | null {
-  if (value === undefined || value === null) return null;
-  if (typeof value !== "boolean") throw new Error(`${label} must be a boolean`);
-  return value;
-}
-
-function optionalMetric(value: unknown, label: string): number | null {
-  if (value === undefined || value === null) return null;
-  if (!Number.isSafeInteger(value) || (value as number) < 0) {
-    throw new Error(`${label} must be an exact nonnegative safe integer`);
-  }
-  return value as number;
 }
 
 function optionalCursor(value: unknown, label: string): string | null {
@@ -2275,31 +2302,7 @@ export function projectXWebFeedPost(
   item: XWebNormalizedTimelineItem,
 ): XWebProjectedPost | null {
   if (item.kind !== "tweet") return null;
-  const legacy = item.legacy;
-  const createdAt = optionalBoundedText(legacy?.created_at, "X post createdAt", 128);
-  const text = typeof legacy?.full_text === "string"
-    ? requireBoundedPublicText(legacy.full_text, "X post text", 32_768)
-    : "";
-  return Object.freeze({
-    kind: "post",
-    id: item.tweetId,
-    text,
-    createdAt,
-    authorId: item.author.id,
-    authorUsername: item.author.username,
-    authorName: item.author.name,
-    replyToPostId: optionalTweetId(legacy?.in_reply_to_status_id_str, "X post replyToPostId"),
-    liked: optionalBoolean(legacy?.favorited, "X post liked"),
-    reposted: optionalBoolean(legacy?.retweeted, "X post reposted"),
-    saved: optionalBoolean(legacy?.bookmarked, "X post saved"),
-    metrics: Object.freeze({
-      replies: optionalMetric(legacy?.reply_count, "X post reply_count"),
-      reposts: optionalMetric(legacy?.retweet_count, "X post retweet_count"),
-      likes: optionalMetric(legacy?.favorite_count, "X post favorite_count"),
-      bookmarks: optionalMetric(legacy?.bookmark_count, "X post bookmark_count"),
-    }),
-    url: xWebStatusUrl(item.tweetId),
-  });
+  return item.social;
 }
 
 export function projectXWebBookmarkExportRecord(
@@ -2332,10 +2335,29 @@ export function projectXWebFeedPage(
     normalized.cursors.bottom !== null,
     "X feed page",
   );
+  const entries: XWebFeedEntry[] = normalized.items.flatMap((item): XWebFeedEntry[] => {
+    if (item.kind === "tweet") return [Object.freeze({ kind: "post", id: item.tweetId, post: item.social })];
+    if (item.kind === "unavailable") return [projectXWebUnavailableEntry(item.entryId, item.reason)];
+    return [];
+  });
+  // Keep the legacy posts contract, while never suggesting a continuation that
+  // would skip an unavailable occurrence omitted from the additive view.
+  const entriesTruncated = entries.length > limit;
   return Object.freeze({
     posts: Object.freeze(page.items),
-    cursor: page.truncated ? null : normalized.cursors.bottom?.value ?? null,
+    entries: Object.freeze(entries.slice(0, limit)), entriesTruncated,
+    cursor: page.truncated || entriesTruncated ? null : normalized.cursors.bottom?.value ?? null,
     terminatedDirections: normalized.terminatedDirections,
+  });
+}
+
+function projectXWebUnavailableEntry(occurrenceId: string, reason: string | null): XWebUnavailableEntry {
+  if (occurrenceId.length < 1 || occurrenceId.length > 512 || hasAsciiControl(occurrenceId)) {
+    throw new Error("X unavailable occurrence ID must be a bounded identifier");
+  }
+  return Object.freeze({
+    kind: "unavailable", id: occurrenceId, postId: null,
+    reason: reason === null ? null : requireBoundedPublicText(reason, "X unavailable reason", 10_000),
   });
 }
 
@@ -2364,7 +2386,10 @@ export type XWebProjectedUser = ContactDirectionStatsProjection & {
 };
 
 export type XWebContactPage = {
+  readonly profiles: readonly XSocialProfile[];
   readonly users: readonly XWebProjectedUser[];
+  readonly entries: readonly XWebContactEntry[];
+  readonly entriesTruncated: boolean;
   readonly cursor: string | null;
   readonly terminatedDirections: readonly string[];
 };
@@ -2399,9 +2424,19 @@ export function projectXWebContactPage(
     normalized.cursors.bottom !== null,
     "X contact collection page",
   );
+  const entries = normalized.items.flatMap((item): XWebContactEntry[] => {
+    if (item.kind === "unavailable") return [projectXWebUnavailableEntry(item.entryId, item.reason)];
+    if (item.kind !== "user") return [];
+    // A valid user with an omitted handle still occupies its source position.
+    if (item.profile === null) return [projectXWebUnavailableEntry(item.entryId, null)];
+    return [Object.freeze({ kind: "profile", id: item.userId, profile: item.profile })];
+  });
+  const entriesTruncated = entries.length > limit;
   return Object.freeze({
     users: Object.freeze(page.items),
-    cursor: page.truncated ? null : normalized.cursors.bottom?.value ?? null,
+    profiles: Object.freeze(normalized.items.flatMap(item => item.kind === "user" && item.profile !== null && page.items.some(user => user.providerId === item.userId) ? [item.profile] : [])),
+    entries: Object.freeze(entries.slice(0, limit)), entriesTruncated,
+    cursor: page.truncated || entriesTruncated ? null : normalized.cursors.bottom?.value ?? null,
     terminatedDirections: normalized.terminatedDirections,
   });
 }
@@ -2415,6 +2450,8 @@ export function projectXWebBookmarkExportPage(
     feed: "bookmarks",
     items: Object.freeze(page.posts.map(projectXWebBookmarkExportRecord)),
     posts: page.posts,
+    ...(page.entriesTruncated || page.entries.some(entry => entry.kind === "unavailable")
+      ? { entries: page.entries, entriesTruncated: page.entriesTruncated } : {}),
     cursor: page.cursor,
     terminatedDirections: page.terminatedDirections,
   });
@@ -2423,33 +2460,7 @@ export function projectXWebBookmarkExportPage(
 function parseXWebProjectedPost(value: unknown, label: string): XWebProjectedPost {
   const post = record(value, label);
   exactKeys(post, X_FEED_POST_KEYS, label);
-  if (post.kind !== "post") throw new Error(`${label}.kind must be post`);
-  const id = exactTweetId(post.id, `${label}.id`);
-  const url = requiredString(post, "url", label);
-  if (url !== xWebStatusUrl(id)) throw new Error(`${label}.url must be the status permalink for id`);
-  const metrics = record(post.metrics, `${label}.metrics`);
-  exactKeys(metrics, ["replies", "reposts", "likes", "bookmarks"], `${label}.metrics`);
-  const text = requireBoundedPublicText(post.text, `${label}.text`, 32_768);
-  return Object.freeze({
-    kind: "post",
-    id,
-    text,
-    createdAt: optionalBoundedText(post.createdAt, `${label}.createdAt`, 128),
-    authorId: optionalTweetId(post.authorId, `${label}.authorId`),
-    authorUsername: optionalAuthorHandle(post.authorUsername, `${label}.authorUsername`),
-    authorName: optionalAuthorName(post.authorName, `${label}.authorName`),
-    replyToPostId: optionalTweetId(post.replyToPostId, `${label}.replyToPostId`),
-    liked: optionalBoolean(post.liked, `${label}.liked`),
-    reposted: optionalBoolean(post.reposted, `${label}.reposted`),
-    saved: optionalBoolean(post.saved, `${label}.saved`),
-    metrics: Object.freeze({
-      replies: optionalMetric(metrics.replies, `${label}.metrics.replies`),
-      reposts: optionalMetric(metrics.reposts, `${label}.metrics.reposts`),
-      likes: optionalMetric(metrics.likes, `${label}.metrics.likes`),
-      bookmarks: optionalMetric(metrics.bookmarks, `${label}.metrics.bookmarks`),
-    }),
-    url,
-  });
+  return parseXSocialPost(post);
 }
 
 export function parseXWebBookmarkExportRecord(value: unknown): XWebBookmarkExportRecord {
@@ -2475,10 +2486,13 @@ export function parseXWebBookmarkExportRecord(value: unknown): XWebBookmarkExpor
 
 export function parseXWebBookmarkExportPage(value: unknown): XWebBookmarkExportPage {
   const page = record(value, "X bookmark export page");
-  exactKeys(page, X_BOOKMARK_EXPORT_PAGE_KEYS, "X bookmark export page");
+  const hasEntries = Object.hasOwn(page, "entries");
+  const hasTruncation = Object.hasOwn(page, "entriesTruncated");
+  if (hasEntries !== hasTruncation) throw new Error("X bookmark export page additive entries omitted their truncation state");
+  exactKeys(page, [...X_BOOKMARK_EXPORT_PAGE_KEYS, ...(hasEntries ? ["entries", "entriesTruncated"] : [])], "X bookmark export page");
   if (page.feed !== "bookmarks") throw new Error("X bookmark export page.feed must be bookmarks");
-  if (!Array.isArray(page.items)) throw new Error("X bookmark export page.items must be an array");
-  if (!Array.isArray(page.posts)) throw new Error("X bookmark export page.posts must be an array");
+  if (!Array.isArray(page.items) || page.items.length > 100) throw new Error("X bookmark export page.items must be a bounded array");
+  if (!Array.isArray(page.posts) || page.posts.length > 100) throw new Error("X bookmark export page.posts must be a bounded array");
   if (page.items.length !== page.posts.length) {
     throw new Error("X bookmark export page items and posts must have the same length");
   }
@@ -2505,11 +2519,45 @@ export function parseXWebBookmarkExportPage(value: unknown): XWebBookmarkExportP
   if (new Set(ids).size !== ids.length) {
     throw new Error("X bookmark export page contained duplicate post_id values");
   }
+  const cursor = optionalCursor(page.cursor, "X bookmark export page.cursor");
+  let entries: readonly XWebFeedEntry[] | undefined;
+  if (hasEntries) {
+    if (!Array.isArray(page.entries) || page.entries.length > 100 || typeof page.entriesTruncated !== "boolean"
+      || page.entriesTruncated && (cursor !== null || page.entries.length === 0)) {
+      throw new Error("X bookmark export page additive entries escaped their bounds or continuation state");
+    }
+    const seen = new Set<string>();
+    let postIndex = 0;
+    entries = Object.freeze(page.entries.map((value): XWebFeedEntry => {
+      const entry = record(value, "X bookmark export page entry");
+      if (entry.kind === "post") {
+        exactKeys(entry, ["kind", "id", "post"], "X bookmark post entry");
+        const post = parseXSocialPost(entry.post);
+        if (entry.id !== post.id || postIndex >= posts.length || canonicalJson(post) !== canonicalJson(posts[postIndex++])) {
+          throw new Error("X bookmark entries did not bind the projected posts in order");
+        }
+        const identity = `post:${post.id}`;
+        if (seen.has(identity)) throw new Error("X bookmark entries repeated an occurrence");
+        seen.add(identity);
+        return Object.freeze({ kind: "post", id: post.id, post });
+      }
+      exactKeys(entry, ["kind", "id", "postId", "reason"], "X bookmark unavailable entry");
+      if (entry.kind !== "unavailable" || entry.postId !== null || typeof entry.id !== "string"
+        || entry.reason !== null && typeof entry.reason !== "string") throw new Error("X bookmark unavailable entry is unsupported");
+      const unavailable = projectXWebUnavailableEntry(entry.id, entry.reason as string | null);
+      const identity = `unavailable:${unavailable.id}`;
+      if (seen.has(identity)) throw new Error("X bookmark entries repeated an occurrence");
+      seen.add(identity);
+      return unavailable;
+    }));
+    if (page.entriesTruncated === false && postIndex !== posts.length) throw new Error("X bookmark entries omitted a projected post");
+  }
   return Object.freeze({
     feed: "bookmarks",
     items: Object.freeze(items),
     posts: Object.freeze(posts),
-    cursor: optionalCursor(page.cursor, "X bookmark export page.cursor"),
+    ...(entries === undefined ? {} : { entries, entriesTruncated: page.entriesTruncated as boolean }),
+    cursor,
     terminatedDirections: Object.freeze([...page.terminatedDirections]),
   });
 }

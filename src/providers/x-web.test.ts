@@ -704,6 +704,14 @@ describe("strict GraphQL operation/path/query-ID binding", () => {
       descriptor: resolved,
       body: body([{ media_id: "12345", tagged_users: [] }]),
     })).toThrow("text-only");
+    const bound = (ids: readonly string[]) => ({ method: "POST" as const, url: graphqlUrl(resolved), descriptor: resolved,
+      body: body(ids.map(media_id => ({ media_id, tagged_users: [] }))) });
+    expect(authorizeXWebMutationRequest("posts.publish", bound(["12345", "12346", "12347", "12348"]),
+      { postsPublishContractVersion: 6 })).toMatchObject({ operationName: "CreateTweet" });
+    expect(() => authorizeXWebMutationRequest("posts.publish", bound(["12345", "12346", "12347", "12348", "12349"]),
+      { postsPublishContractVersion: 6 })).toThrow("at most four");
+    expect(() => authorizeXWebMutationRequest("posts.publish", bound(["12345", "12345"]),
+      { postsPublishContractVersion: 6 })).toThrow("unique");
   });
 
   test("rejects CreateTweet AI or content-disclosure fields and nonempty annotations", () => {
@@ -1038,6 +1046,13 @@ describe("X exact profile projection", () => {
         displayName: "Hraness",
         bio: "Public bio",
         websiteUrl: "https://hraness.com/",
+      },
+      profile: {
+        modelVersion: 1, id: "123456789", handle: "hraness", displayName: "Hraness",
+        bio: "Public bio", bioContent: { text: "Public bio", source: "profile", offsetEncoding: "utf16", entities: { status: "unknown", mentions: [], hashtags: [], cashtags: [], links: [] } }, websiteUrl: "https://hraness.com/", joinedAt: null, location: null,
+        verification: { verified: null, blueVerified: null, type: null },
+        counts: { followers: 1234, following: 56 }, relationship: { following: null, followedBy: null },
+        url: "https://x.com/hraness",
       },
     });
   });
@@ -1502,6 +1517,11 @@ describe("X bookmark export projection", () => {
       saved: null,
       metrics: { replies: null, reposts: null, likes: null, bookmarks: null },
       url: "https://x.com/i/status/800",
+      modelVersion: 1,
+      content: { text: "bookmarked post", source: "legacy", offsetEncoding: "utf16", entities: { status: "unknown", mentions: [], hashtags: [], cashtags: [], links: [] } },
+      media: { status: "unknown", items: [] }, moderation: { status: "unknown", labels: [] },
+      quote: { status: "unknown", postId: null, post: null }, repost: { status: "unknown", postId: null, post: null },
+      promotion: { status: "unknown", source: null },
     });
     expect(projectXWebBookmarkExportRecord(post!)).toEqual({
       post_id: "800",
@@ -1523,6 +1543,48 @@ describe("X bookmark export projection", () => {
       kind: "tweet",
       author: { id: null, username: null, name: null },
     });
+  });
+
+  test("projects full note entities, quoted media and visibility/promotion evidence before URT fields are discarded", () => {
+    const raw = {
+      __typename: "TweetWithVisibilityResults",
+      tweet: {
+        __typename: "Tweet", rest_id: "810",
+        legacy: { full_text: "truncated…", quoted_status_id_str: "809", is_quote_status: true },
+        note_tweet: { note_tweet_results: { result: {
+          text: "Full note @Hraness #Rust", entity_set: {
+            user_mentions: [{ indices: [10, 18], screen_name: "Hraness", id_str: "42" }],
+            hashtags: [{ indices: [19, 24], text: "Rust" }],
+          },
+        } } },
+        quoted_status_result: { result: {
+          __typename: "Tweet", rest_id: "809", legacy: {
+            full_text: "Quoted media", extended_entities: { media: [{
+              id_str: "11", type: "photo", media_url_https: "https://pbs.twimg.com/media/quoted.jpg",
+            }] },
+          },
+        } },
+      },
+      tweet_interstitial: { display_type: "Sensitive", text: { text: "Sensitive content" } },
+    };
+    const response = bookmarksResponse({
+      entryId: "tweet-810", content: { entryType: "TimelineTimelineItem", itemContent: {
+        itemType: "TimelineTweet", promotedMetadata: { private_field: "not public" }, tweet_results: { result: raw },
+      } },
+    });
+    const page = projectXWebBookmarkExportPage(response, 10);
+    const post = page.posts[0]!;
+    expect(post.text).toBe("Full note @Hraness #Rust");
+    expect(post.content.source).toBe("note");
+    expect(post.content.entities.mentions).toEqual([{ start: 10, end: 18, handle: "hraness", userId: "42" }]);
+    expect(post.content.entities.hashtags).toEqual([{ start: 19, end: 24, tag: "Rust" }]);
+    expect(post.quote.post?.media.items[0]?.url).toBe("https://pbs.twimg.com/media/quoted.jpg");
+    expect(post.moderation.labels).toEqual([{ kind: "interstitial", source: "visibility.tweet_interstitial", text: "Sensitive content", reason: "Sensitive" }]);
+    expect(post.promotion).toEqual({ status: "present", source: "promotedMetadata" });
+    expect(page.items[0]!.text).toBe(post.text);
+    expect(parseXWebBookmarkExportPage(JSON.parse(JSON.stringify(page)))).toEqual(page);
+    expect(JSON.stringify(page)).not.toContain("private_field");
+    expect(JSON.stringify(page)).not.toContain("tweet_results");
   });
 
   test("fails closed when author ids or handles disagree", () => {
@@ -1672,6 +1734,81 @@ describe("X bookmark export projection", () => {
       timelineItemEntry("tweet-1", tweetResult("21")),
       timelineItemEntry("tweet-2", tweetResult("22")),
     ), 1)).toThrow("no continuation cursor was exposed");
+  });
+
+  test("additive feed entries preserve ordered distinct unavailable occurrences without inventing post IDs", () => {
+    const response = bookmarksResponse(
+      timelineItemEntry("unavailable-first", { __typename: "TweetUnavailable", reason: "Protected\ncontent" }),
+      timelineItemEntry("tweet-middle", tweetResult("21")),
+      timelineItemEntry("unavailable-last", null),
+      cursorEntry("cursor-bottom", "Bottom", "next-feed-page"),
+    );
+    const page = projectXWebFeedPage("feeds.bookmarks", response, 3);
+    expect(page.posts.map(post => post.id)).toEqual(["21"]);
+    expect(page.entries).toEqual([
+      { kind: "unavailable", id: "unavailable-first", postId: null, reason: "Protected\ncontent" },
+      { kind: "post", id: "21", post: page.posts[0] },
+      { kind: "unavailable", id: "unavailable-last", postId: null, reason: null },
+    ]);
+    expect(page.entriesTruncated).toBeFalse();
+    expect(page.cursor).toBe("next-feed-page");
+    const truncated = projectXWebFeedPage("feeds.bookmarks", response, 1);
+    expect(truncated.posts.map(post => post.id)).toEqual(["21"]);
+    expect(truncated.entries).toEqual([page.entries[0]!]);
+    expect(truncated.entriesTruncated).toBeTrue();
+    expect(truncated.cursor).toBeNull();
+    expect(Object.isFrozen(page.entries)).toBeTrue();
+    expect(() => projectXWebFeedPage("feeds.bookmarks", bookmarksResponse(
+      timelineItemEntry("unavailable", { __typename: "TweetUnavailable", reason: "x".repeat(10_001) }),
+    ), 1)).toThrow("X unavailable reason");
+  });
+
+  test("additive unavailable overflow does not break legacy feed pages lacking continuation", () => {
+    const page = projectXWebFeedPage("feeds.bookmarks", bookmarksResponse(
+      timelineItemEntry("unavailable", null),
+      timelineItemEntry("tweet", tweetResult("21")),
+    ), 1);
+    expect(page.posts.map(post => post.id)).toEqual(["21"]);
+    expect(page.entries).toEqual([{ kind: "unavailable", id: "unavailable", postId: null, reason: null }]);
+    expect(page.entriesTruncated).toBeTrue();
+    expect(page.cursor).toBeNull();
+  });
+
+  test("bookmark exports roundtrip additive unavailable entries and retain legacy pages unchanged", () => {
+    const response = bookmarksResponse(
+      timelineItemEntry("unavailable-first", { __typename: "TweetUnavailable", reason: "Protected" }),
+      timelineItemEntry("tweet-middle", tweetResult("21")),
+      timelineItemEntry("unavailable-last", null),
+      cursorEntry("cursor-bottom", "Bottom", "next-bookmark-page"),
+    );
+    const page = projectXWebBookmarkExportPage(response, 3);
+    expect(page.entries?.map(entry => [entry.kind, entry.id])).toEqual([
+      ["unavailable", "unavailable-first"], ["post", "21"], ["unavailable", "unavailable-last"],
+    ]);
+    expect(page.entriesTruncated).toBeFalse();
+    expect(parseXWebBookmarkExportPage(JSON.parse(JSON.stringify(page)))).toEqual(page);
+    const { entries: _entries, entriesTruncated: _truncated, ...legacy } = page;
+    expect(parseXWebBookmarkExportPage(legacy)).toEqual(legacy);
+    const truncated = projectXWebBookmarkExportPage(response, 1);
+    expect(truncated.entries).toEqual([page.entries![0]!]);
+    expect(truncated.entriesTruncated).toBeTrue();
+    expect(truncated.posts.map(post => post.id)).toEqual(["21"]);
+    expect(parseXWebBookmarkExportPage(truncated)).toEqual(truncated);
+    expect(Object.hasOwn(projectXWebBookmarkExportPage(bookmarksResponse(
+      timelineItemEntry("tweet", tweetResult("21")),
+    ), 1), "entries")).toBeFalse();
+    for (const malformed of [
+      { ...legacy, entries: page.entries },
+      { ...legacy, entriesTruncated: false },
+      { ...page, entriesTruncated: "false" },
+      { ...page, entriesTruncated: true },
+      { ...page, entries: [page.entries![0], page.entries![0], page.entries![1]] },
+      { ...page, entries: [page.entries![0], { ...page.entries![1]!, id: "22" }, page.entries![2]] },
+      { ...page, entries: [page.entries![0], page.entries![2]] },
+      { ...page, entries: [{ ...page.entries![0]!, postId: "21" }, page.entries![1], page.entries![2]] },
+      { ...page, entries: [{ ...page.entries![0]!, extra: true }, page.entries![1], page.entries![2]] },
+      { ...page, entries: Array.from({ length: 101 }, () => page.entries![0]) },
+    ]) expect(() => parseXWebBookmarkExportPage(malformed)).toThrow();
   });
 
   test("keeps user and search feed pages on public-text and over-limit cursor contracts", () => {
@@ -2067,6 +2204,11 @@ describe("X bookmark export projection", () => {
     ]);
     expect(page.cursor).toBe("contacts-next");
     expect(page.terminatedDirections).toEqual(["Top"]);
+    expect(page.entries.map(entry => [entry.kind, entry.id])).toEqual([
+      ["profile", "41"], ["unavailable", "user-42"], ["profile", "43"],
+    ]);
+    expect(page.entries[1]).toEqual({ kind: "unavailable", id: "user-42", postId: null, reason: "Suspended" });
+    expect(page.entriesTruncated).toBeFalse();
     const followingPage = projectXWebContactPage("contacts.following", contactsResponse, 10);
     expect(followingPage.users).toEqual(page.users);
     const truncated = projectXWebContactPage("contacts.followers", contactsResponse, 1);
@@ -2179,7 +2321,28 @@ describe("X bookmark export projection", () => {
           },
         },
       },
-    }, 10)).toThrow("relationship_perspectives.following");
+    }, 10)).toThrow("X viewer following must be boolean");
+  });
+
+  test("additive contact entries retain missing handles and unavailable users as distinct source occurrences", () => {
+    const response = { data: { user: { result: { __typename: "User", rest_id: "123", timeline: { timeline: timeline(
+      timelineUserEntry("41", { result: { __typename: "User", rest_id: "41", core: { name: "No handle" } } }),
+      timelineUserEntry("42", { result: { __typename: "UserUnavailable", reason: "Suspended" } }),
+      timelineUserEntry("43", { result: null }),
+    ) } } } } };
+    const page = projectXWebContactPage("contacts.followers", response, 3);
+    expect(page.users.map(user => user.providerId)).toEqual(["41"]);
+    expect(page.profiles).toEqual([]);
+    expect(page.entries).toEqual([
+      { kind: "unavailable", id: "user-41", postId: null, reason: null },
+      { kind: "unavailable", id: "user-42", postId: null, reason: "Suspended" },
+      { kind: "unavailable", id: "user-43", postId: null, reason: null },
+    ]);
+    const truncated = projectXWebContactPage("contacts.followers", response, 1);
+    expect(truncated.users.map(user => user.providerId)).toEqual(["41"]);
+    expect(truncated.entries).toEqual([page.entries[0]!]);
+    expect(truncated.entriesTruncated).toBeTrue();
+    expect(truncated.cursor).toBeNull();
   });
 });
 

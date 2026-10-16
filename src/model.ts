@@ -357,6 +357,8 @@ export const genericSemanticRisks = {
   "contacts.search": "R1",
   "contacts.read": "R1",
   "feeds.read": "R1",
+  "explore.read": "R1",
+  "notifications.list": "R1",
   "messaging.list": "R1",
   "messaging.search": "R1",
   "messaging.read": "R1",

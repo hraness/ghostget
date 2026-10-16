@@ -16,6 +16,8 @@ export const semanticOperationNames = [
   "contacts.search",
   "contacts.read",
   "feeds.read",
+  "explore.read",
+  "notifications.list",
   "messaging.list",
   "messaging.search",
   "messaging.read",
@@ -144,6 +146,8 @@ const operationMeanings = {
   "contacts.search": "Search one bounded provider-defined contact candidate window",
   "contacts.read": "Read one exact account-bound contact identity",
   "feeds.read": "Read one explicitly selected bounded feed or timeline",
+  "explore.read": "Read one bounded provider-defined trending or personalized news collection",
+  "notifications.list": "Read one bounded collection of provider notification events",
   "messaging.list": "List one bounded provider-visible inbox or message-event collection",
   "messaging.search": "Search one bounded provider-visible conversation candidate window",
   "messaging.read": "Read one explicitly targeted conversation",
@@ -273,6 +277,8 @@ function buildOperationMatrix(groups: OperationGroups): OperationPolicyMatrix {
   // subscriber operations are opt-in for the same reason: only a surface with a
   // reviewed audience list has them.
   for (const name of [
+    "explore.read",
+    "notifications.list",
     "profiles.read",
     "organizations.read",
     "contacts.list",
@@ -634,7 +640,7 @@ export const socialPlatformCatalog = {
     displayName: "X",
     originPolicy: exactOrigins("https://x.com"),
     operations: buildOperationMatrix({
-      R1: ["content.read", "content.clip", "profiles.read", "contacts.list", "messaging.read", "comments.read", "posts.read", "media.read", "articles.read"],
+      R1: ["content.read", "content.clip", "profiles.read", "contacts.list", "messaging.read", "comments.read", "posts.read", "media.read", "articles.read", "explore.read", "notifications.list"],
       R2: ["likes.set", "relationships.follow.set", "content.save", "articles.draft.save", "communities.membership.set"],
       R3: [
         "messaging.send",

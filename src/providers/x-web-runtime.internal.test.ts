@@ -14,7 +14,7 @@ import type { BrowserSession } from "../browser";
 import { canonicalJson } from "../canonical-json";
 import type { OperationInput, WebSessionRecipe } from "../model";
 import { OperationDeadlineError } from "../operation-deadline";
-import type { WebSessionDispatchEvent } from "../web-session";
+import type { WebSessionDispatchEvent, WebSessionProviderAcceptedMutationTargetEvent } from "../web-session";
 import { embedPngChunk, encodePixelsOnlyPng, scrubXUploadImage } from "./x-image-provenance";
 import { X_UNLABELED_COPY_POLICY_ERROR } from "./x-made-with-ai";
 import {
@@ -485,6 +485,186 @@ function xRecipe(action: WebSessionRecipe["action"], contractVersion = 1): WebSe
     maxOutputBytes: 2 * 1024 * 1024,
   };
 }
+
+describe("X multi-image@6 publish and recovery", () => {
+  function result(text: string, ids: readonly string[]): unknown {
+    const media = ids.map((id, index) => ({ id_str: id, type: "photo", url: `https://t.co/media${index}` }));
+    return { rest_id: CREATED_POST_ID, legacy: {
+      full_text: text + media.map(item => ` ${item.url}`).join(""), user_id_str: VIEWER_ID,
+      entities: { media }, extended_entities: { media },
+    } };
+  }
+  function transport(calls: CapturedRequest[], ids: readonly string[], bytes: Uint8Array,
+    readbackIds: readonly string[] = ids, failUpload = -1): XWebRuntimeDependencies {
+    let upload = -1;
+    return dependencies(calls, request => {
+      if (request.url.href === "https://x.com/home") return new Response(homeHtml(), { headers: { "content-type": "text/html" } });
+      if (request.url.href === MAIN_URL) return new Response(mainBundle(
+        descriptor("Viewer", VIEWER_QUERY_ID, "query"),
+        descriptor("CreateTweet", "5pUpVEnRC2yGK7jaguF11w", "mutation"),
+        descriptor("TweetResultByRestId", "CxpIrb-Lt2oBpojNjvDatg", "query"),
+      ), { headers: { "content-type": "application/javascript" } });
+      if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
+      if (request.url.hostname === "upload.x.com") {
+        const command = request.url.searchParams.get("command");
+        if (command === "INIT") {
+          upload++;
+          if (upload === failUpload) return new Response("fixture upload failure", { status: 503 });
+          expect(request.url.searchParams.get("media_type")).toBe("image/png");
+          expect(request.url.searchParams.get("media_category")).toBe("tweet_image");
+          return jsonResponse({ expires_after_secs: 86400, media_id: Number(ids[upload]), media_id_string: ids[upload], media_key: `3_${ids[upload]}` });
+        }
+        if (command === "APPEND") return new Response(null, { status: 204 });
+        if (command === "FINALIZE") return jsonResponse({ expires_after_secs: 86400,
+          media_id: Number(ids[upload]), media_id_string: ids[upload], media_key: `3_${ids[upload]}`,
+          size: bytes.byteLength, image: { h: 1, image_type: "image/png", w: 1 } });
+      }
+      if (request.url.pathname.endsWith("/CreateTweet")) {
+        const body = JSON.parse(request.body ?? "null");
+        expect(body.variables.media.media_entities).toEqual(ids.map(id => ({ media_id: id, tagged_users: [] })));
+        return jsonResponse({ data: { create_tweet: { tweet_results: { result: result("Ordered photos", ids) } } } });
+      }
+      if (request.url.pathname.endsWith("/TweetResultByRestId")) return jsonResponse({ data: { tweetResult: { result: result("Ordered photos", readbackIds) } } });
+      throw new Error("Unexpected fixture media request");
+    });
+  }
+  function input(count: number): OperationInput {
+    return { body: "Ordered photos", media: Array.from({ length: count }, (_, index) => ({ kind: "file" as const, reference: `photo-${index}` })),
+      media_types: Array.from({ length: count }, () => "image/png") };
+  }
+  for (const count of [1, 2, 4]) test(`publishes ${count} ordered plan-bound photos, binds accepted IDs and reconciles with reads only`, async () => {
+    const root = mkdtempSync(join(tmpdir(), "ghostget-x-multi-publish-"));
+    const bytes = encodePixelsOnlyPng({ width: 1, height: 1, rgba: Uint8Array.of(1, 2, 3, 255) });
+    const paths = Array.from({ length: count }, (_, index) => join(root, `${index}.png`));
+    paths.forEach(path => writeFileSync(path, bytes, { mode: 0o600 }));
+    const ids = paths.map((_, index) => String(12345 + index));
+    const calls: CapturedRequest[] = [];
+    const accepted: WebSessionProviderAcceptedMutationTargetEvent[] = [];
+    let admissions = 0;
+    try {
+      const execution = await executeXWebOperation(xRecipe("posts.publish", 6), input(count), xAuth, {
+        dependencies: transport(calls, ids, bytes), fileResolver: async files => {
+          expect(files.map(file => file.reference)).toEqual(paths.map((_, index) => `photo-${index}`)); return paths;
+        }, beforeDispatch: async () => { admissions++; expect(calls.filter(call => call.url.searchParams.get("command") === "FINALIZE")).toHaveLength(count); },
+        afterProviderAcceptedMutationTarget: async event => { accepted.push(event); },
+      });
+      expect(execution).toMatchObject({ status: "succeeded", dispatch: { planned: 1, started: 1, verified: 1 } });
+      expect(admissions).toBe(1);
+      expect(accepted[0]?.target.identifier).toBe(canonicalJson({ postId: CREATED_POST_ID, mediaIds: ids }));
+      const reads: CapturedRequest[] = [];
+      await expect(readXWebPublishedMutationTarget(xRecipe("posts.publish", 6), input(count), xAuth, accepted[0]!.target.identifier,
+        { dependencies: transport(reads, ids, bytes) })).resolves.toEqual({ present: true, postId: CREATED_POST_ID });
+      expect(reads.every(request => request.method === "GET")).toBeTrue();
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+  test("a later failed upload admits no CreateTweet and an untrusted ordered readback never settles", async () => {
+    const root = mkdtempSync(join(tmpdir(), "ghostget-x-multi-failure-"));
+    const bytes = encodePixelsOnlyPng({ width: 1, height: 1, rgba: Uint8Array.of(1, 2, 3, 255) });
+    const paths = [join(root, "one.png"), join(root, "two.png")]; paths.forEach(path => writeFileSync(path, bytes));
+    const ids = ["12345", "12346"];
+    try {
+      for (const failUpload of [1, -1]) {
+        const calls: CapturedRequest[] = [];
+        const execution = await executeXWebOperation(xRecipe("posts.publish", 6), input(2), xAuth, {
+          dependencies: transport(calls, ids, bytes, [...ids].reverse(), failUpload), fileResolver: async () => paths,
+        });
+        expect(execution.status).toBe(failUpload === 1 ? "failed" : "indeterminate");
+        expect(calls.filter(request => request.url.pathname.endsWith("/CreateTweet"))).toHaveLength(failUpload === 1 ? 0 : 1);
+      }
+      for (const actual of [[...ids].reverse(), [ids[0]!], [ids[0]!, "99999"]]) {
+        const calls: CapturedRequest[] = [];
+        await expect(readXWebPublishedMutationTarget(xRecipe("posts.publish", 6), input(2), xAuth,
+          canonicalJson({ postId: CREATED_POST_ID, mediaIds: ids }), { dependencies: transport(calls, ids, bytes, actual) })).rejects.toThrow("confirmed media upload");
+        expect(calls.every(request => request.method === "GET")).toBeTrue();
+      }
+      const calls: CapturedRequest[] = [];
+      for (const mediaIds of [[ids[0], ids[0]], [ids[0]], [...ids, "99999"]]) {
+        await expect(readXWebPublishedMutationTarget(xRecipe("posts.publish", 6), input(2), xAuth,
+          canonicalJson({ postId: CREATED_POST_ID, mediaIds }), { dependencies: transport(calls, ids, bytes) })).rejects.toThrow();
+      }
+      expect(calls).toHaveLength(0);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+});
+
+describe("X quote, repost and guarded follow integration", () => {
+  test("quote settlement requires exact content, author, source and created identity from an independent read", async () => {
+    for (const drift of ["none", "text", "author", "source", "identity"] as const) {
+      const calls: CapturedRequest[] = []; let verified = 0;
+      const output = await executeXWebOperation(xRecipe("posts.quote", 2), { body: "Exact quote", post_id: QUOTED_POST_ID }, xAuth, {
+        dependencies: dependencies(calls, request => {
+          if (request.url.href === "https://x.com/home") return new Response(homeHtml(), { headers: { "content-type": "text/html" } });
+          if (request.url.href === MAIN_URL) return new Response(mainBundle(
+            descriptor("Viewer", VIEWER_QUERY_ID, "query"), descriptor("CreateTweet", "5pUpVEnRC2yGK7jaguF11w", "mutation"),
+            descriptor("TweetResultByRestId", "CxpIrb-Lt2oBpojNjvDatg", "query"),
+          ), { headers: { "content-type": "application/javascript" } });
+          if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
+          if (request.url.pathname.endsWith("/CreateTweet")) {
+            expect(JSON.parse(request.body!).variables).toMatchObject({ tweet_text: "Exact quote", attachment_url: `https://x.com/i/status/${QUOTED_POST_ID}` });
+            return jsonResponse(createTweetResponse({ text: "Exact quote", quote: QUOTED_POST_ID }));
+          }
+          if (request.url.pathname.endsWith("/TweetResultByRestId")) return jsonResponse(publishedTweetReadback({
+            text: drift === "text" ? "changed text" : "Exact quote", quote: drift === "source" ? FOCAL_POST_ID : QUOTED_POST_ID,
+            authorId: drift === "author" ? "789" : VIEWER_ID,
+            ...(drift === "identity" ? { extra: { rest_id: FOCAL_POST_ID } } : {}),
+          }));
+          throw new Error("Unexpected quote fixture request");
+        }), afterDispatchVerified: async () => { verified++; },
+      });
+      expect(output.status).toBe(drift === "none" ? "succeeded" : "indeterminate");
+      expect(verified).toBe(drift === "none" ? 1 : 0);
+      expect(calls.filter(request => request.method === "POST")).toHaveLength(1);
+    }
+  });
+  test("repost and unrepost settle from exact source state and bound viewer; failed readback is never replayed", async () => {
+    for (const reposted of [true, false]) for (const drift of ["none", "target", "state", "actor", "mutation-target"] as const) {
+      const calls: CapturedRequest[] = []; let reads = 0; let mutated = false;
+      const output = await executeXWebOperation(xRecipe("posts.repost", 2), { post_id: FOCAL_POST_ID, reposted }, xAuth, {
+        dependencies: dependencies(calls, request => {
+          if (request.url.href === "https://x.com/home") return new Response(homeHtml(), { headers: { "content-type": "text/html" } });
+          if (request.url.href === MAIN_URL) return new Response(mainBundle(
+            descriptor("Viewer", VIEWER_QUERY_ID, "query"), descriptor("CreateRetweet", "mbRO74GrOvSfRcJnlMapnQ", "mutation"),
+            descriptor("DeleteRetweet", "ZyZigVsNiFO6v1dEks1eWg", "mutation"),
+            descriptor("TweetResultByRestId", "CxpIrb-Lt2oBpojNjvDatg", "query"),
+          ), { headers: { "content-type": "application/javascript" } });
+          if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse(mutated && drift === "actor" ? "789" : VIEWER_ID));
+          if (request.url.pathname.endsWith("/TweetResultByRestId")) {
+            expect(JSON.parse(request.url.searchParams.get("variables")!).tweetId).toBe(FOCAL_POST_ID);
+            const second = reads++ > 0;
+            return jsonResponse({ data: { tweetResult: { result: { rest_id: second && drift === "target" ? QUOTED_POST_ID : FOCAL_POST_ID,
+              legacy: { retweeted: second && drift !== "state" ? reposted : !reposted } } } } });
+          }
+          if (request.url.pathname.endsWith(reposted ? "/CreateRetweet" : "/DeleteRetweet")) {
+            expect(JSON.parse(request.body!).variables).toEqual(reposted ? { tweet_id: FOCAL_POST_ID, dark_request: false }
+              : { source_tweet_id: FOCAL_POST_ID, dark_request: false });
+            mutated = true; const source = drift === "mutation-target" ? QUOTED_POST_ID : FOCAL_POST_ID;
+            return jsonResponse({ data: reposted ? { create_retweet: { retweet_results: { result: { rest_id: CREATED_POST_ID,
+              retweeted_status_result: { result: { rest_id: source } } } } } }
+              : { unretweet: { source_tweet_results: { result: { rest_id: source } } } } });
+          }
+          throw new Error("Unexpected repost fixture request");
+        }),
+      });
+      expect(output).toMatchObject({ status: drift === "none" ? "succeeded" : "indeterminate", dispatchStarted: true,
+        dispatch: { planned: 1, started: 1, verified: drift === "none" ? 1 : 0 } });
+      expect(calls.filter(request => request.method === "POST")).toHaveLength(1);
+    }
+  });
+  test("follow remains a zero-effect pre-dispatch failure until numeric target evidence is reviewed", async () => {
+    const calls: CapturedRequest[] = [];
+    const execution = await executeXWebOperation(xRecipe("relationships.follow.set", 1), { user_id: "123", following: true }, xAuth, {
+      dependencies: dependencies(calls, request => {
+        if (request.url.href === "https://x.com/home") return new Response(homeHtml(), { headers: { "content-type": "text/html" } });
+        if (request.url.href === MAIN_URL) return new Response(mainBundle(descriptor("Viewer", VIEWER_QUERY_ID, "query")), { headers: { "content-type": "application/javascript" } });
+        if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
+        throw new Error("Unreviewed follow route must not run");
+      }),
+    });
+    expect(execution).toMatchObject({ status: "failed", dispatchStarted: false, dispatch: { planned: 1, started: 0, verified: 0 } });
+    expect(calls.every(request => request.method === "GET")).toBeTrue();
+    expect(calls.some(request => request.url.pathname.includes("friendships"))).toBeFalse();
+  });
+});
 
 async function rejectionMessage(action: Promise<unknown>): Promise<string> {
   try {
@@ -4994,9 +5174,11 @@ describe("X authenticated internal-API runtime", () => {
         "transaction:eval",
         "transaction:close",
         "transaction:cleanup",
+        "viewer",
         "before-dispatch",
         "mutation",
         "final-readback",
+        "viewer",
         "after-verified",
       ]);
       expect(calls.map((call) => `${call.method} ${call.url.pathname}`)).toEqual([
@@ -5004,8 +5186,10 @@ describe("X authenticated internal-API runtime", () => {
         "GET /responsive-web/client-web/main.abcdef12.js",
         `GET /i/api/graphql/${VIEWER_QUERY_ID}/Viewer`,
         "GET /i/api/graphql/CxpIrb-Lt2oBpojNjvDatg/TweetResultByRestId",
+        `GET /i/api/graphql/${VIEWER_QUERY_ID}/Viewer`,
         `POST ${mutationPath}`,
         "GET /i/api/graphql/CxpIrb-Lt2oBpojNjvDatg/TweetResultByRestId",
+        `GET /i/api/graphql/${VIEWER_QUERY_ID}/Viewer`,
       ]);
     }
   });
@@ -5252,6 +5436,25 @@ describe("X content.delete", () => {
     expect(mutations(calls)).toHaveLength(0);
   });
 
+  test("deletes media posts reviewed with either exact displayed text or its bound caption", async () => {
+    const mediaUrl = "https://t.co/fixture";
+    const displayed = `${text} ${mediaUrl}`;
+    for (const expectedText of [displayed, text]) {
+      const calls: CapturedRequest[] = [];
+      const result = await executeXWebOperation(xRecipe("content.delete", 3), { post_id: CREATED_POST_ID, expected_text: expectedText }, xAuth, {
+        dependencies: dependencies(calls, deleteHandler({
+          state: { deleted: false },
+          present: deleted => deleted ? { data: {} } : { data: { tweetResult: { result: {
+            ...publishedTweetResult({ text: displayed }),
+            legacy: { ...publishedTweetResult({ text: displayed }).legacy, entities: { media: [{ url: mediaUrl }] } },
+          } } } },
+        })),
+      });
+      expect(result).toMatchObject({ status: "succeeded", dispatch: { planned: 1, started: 1, verified: 1 } });
+      expect(mutations(calls)).toHaveLength(1);
+    }
+  });
+
   for (const [name, present] of [
     ["another account authored it", () => publishedTweetReadback({ text, authorId: "999000999" })],
     ["the text differs", () => publishedTweetReadback({ text: "different text" })],
@@ -5305,5 +5508,28 @@ describe("X content.delete", () => {
     await expect(executeXWebOperation(xRecipe("content.delete", 2), input, xAuth, {
       dependencies: dependencies([], deleteHandler({ state: { deleted: false } })),
     })).rejects.toThrow();
+  });
+});
+
+describe("X deferred workspace reads", () => {
+  test("refuses every unqualified read before cookies, transport or browser startup", async () => {
+    const cases: readonly { action: WebSessionRecipe["action"]; input: OperationInput }[] = [
+      { action: "feeds.read", input: { feed: "user-replies", user_id: VIEWER_ID } },
+      { action: "feeds.read", input: { feed: "user-highlights", user_id: VIEWER_ID } },
+      { action: "feeds.read", input: { feed: "likes" } },
+      { action: "notifications.list", input: { limit: 50 } },
+      { action: "explore.read", input: { source: "trending" } },
+      { action: "explore.read", input: { source: "today-news", target: "fixture-section" } },
+    ];
+    let effects = 0;
+    const forbidden = (): never => { effects += 1; throw new Error("Unqualified read touched an external capability"); };
+    for (const entry of cases) {
+      const result = await executeXWebOperation(xRecipe(entry.action), entry.input, xAuth, {
+        dependencies: { acquireCookies: forbidden, fetch: forbidden, createBrowserSession: forbidden },
+      });
+      expect(result).toMatchObject({ status: "failed", dispatchStarted: false, dispatch: { planned: 0, started: 0, verified: 0 } });
+      expect(result.error).toContain("capture-required");
+    }
+    expect(effects).toBe(0);
   });
 });

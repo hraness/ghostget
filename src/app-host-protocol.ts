@@ -1,9 +1,12 @@
-/** Account-only transport for a product-owned GhostGet subprocess. */
+import type { AppHostXData, AppHostXRequest } from "./app-host-x-protocol";
+/** Bounded product transport. Credentials stay inside GhostGet. */
 export const APP_HOST_PROTOCOL = "ghostget.app-host/1" as const;
-export const APP_HOST_MAX_FRAME_BYTES = 16_384;
+export const APP_HOST_MAX_FRAME_BYTES = 131_072;
+export const APP_HOST_MAX_RESPONSE_BYTES = 2_097_152;
 export const APP_HOST_MAX_ACCOUNTS = 32;
 
 export type AppHostRequest =
+  | AppHostXRequest
   | { readonly action: "hello" | "accounts.list" | "browsers.list" | "close" }
   | { readonly action: "connection.begin"; readonly browser: "chrome" | "safari"; readonly profile: string | null; readonly id: string | null; readonly expectedRevision: string | null }
   | { readonly action: "connection.verify" | "connection.cancel"; readonly attemptId: string }
@@ -29,7 +32,8 @@ export type AppHostAccount = {
   readonly disconnectDigest: string;
 };
 export type AppHostData =
-  | { readonly kind: "hello"; readonly version: string; readonly appId: string; readonly capabilities: readonly ["x-browser-connections"]; readonly nativeConfirmation: "ghostget-dialog" }
+  | AppHostXData
+  | { readonly kind: "hello"; readonly version: string; readonly appId: string; readonly capabilities: readonly ["x-browser-connections", "x-workspace-v1"]; readonly nativeConfirmation: "ghostget-dialog" }
   | { readonly kind: "accounts"; readonly accounts: readonly AppHostAccount[] }
   | { readonly kind: "browsers"; readonly browsers: readonly { readonly key: string; readonly label: string; readonly browser: "chrome" | "safari"; readonly profile: string | null }[] }
   | { readonly kind: "connection"; readonly attemptId: string; readonly id: string; readonly status: "awaiting-sign-in" | "verified"; readonly subject: string | null; readonly displayName: string | null; readonly commitDigest: string | null }

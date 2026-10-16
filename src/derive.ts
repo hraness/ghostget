@@ -3541,6 +3541,8 @@ function sameCookie(left: StrictCookie, right: StrictCookie): boolean {
  * Read every explicit origin before emitting any secret-bearing stdin command.
  * Exact duplicate cookies are injected once; an identity collision with any
  * differing value or attribute fails before the browser receives a cookie.
+ * Keep the reader's host-only and Domain namespaces separate. Their values
+ * must still agree when both would supply the same effective cookie name.
  */
 export async function derivationCookieCommands(
   auth: Extract<GhostgetAuth, { readonly kind: "cookie-source" | "cookies-file" }>,
@@ -3553,6 +3555,7 @@ export async function derivationCookieCommands(
     string,
     { readonly cookie: StrictCookie; readonly target: URL }
   >();
+  const effective = new Map<string, StrictCookie>();
   for (const cookieTarget of targets) {
     const result = await reader({
       cookieSources: auth.kind === "cookie-source" ? [auth.source] : [],
@@ -3562,7 +3565,12 @@ export async function derivationCookieCommands(
       ...(cookieOrigins.length === 0 ? {} : { requireExplicitCookieScope: true }),
     }, cookieTarget);
     for (const cookie of result.cookies) {
-      const identity = `${cookie.name}\0${cookie.domain}\0${cookie.path}`;
+      const effectiveIdentity = `${cookie.name}\0${cookie.domain}\0${cookie.path}`;
+      const overlapping = effective.get(effectiveIdentity);
+      if (overlapping !== undefined && overlapping.value !== cookie.value) {
+        throw new Error("cookie origins returned conflicting duplicate cookie identities");
+      }
+      const identity = `${effectiveIdentity}\0${cookie.hostOnly ? "host" : "domain"}`;
       const previous = selected.get(identity);
       if (previous !== undefined) {
         if (!sameCookie(previous.cookie, cookie)) {
@@ -3571,6 +3579,7 @@ export async function derivationCookieCommands(
         continue;
       }
       selected.set(identity, { cookie, target: cookieTarget });
+      effective.set(effectiveIdentity, cookie);
     }
   }
   return Object.freeze([...selected.values()].flatMap(({ cookie, target: cookieTarget }) =>

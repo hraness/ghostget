@@ -6,6 +6,8 @@ import { createProviderPluginRegistry } from "./provider-plugin-registry";
 import xPlugin from "./plugins/x-web/plugin";
 import { version } from "../package.json";
 import { APP_HOST_MAX_ACCOUNTS, type AppHostAccount, type AppHostData, type AppHostRequest } from "./app-host-protocol";
+import { AppHostXService } from "./app-host-x-service";
+import type { AppHostXRequest } from "./app-host-x-protocol";
 import { confirmAppHostDecision, type AppHostDecision } from "./app-host-confirmation";
 import { connectionAccountSnapshotRevisions, ensureConnectionAccountIncarnations } from "./control/account-revision";
 import { browserChoices } from "./control/browser-choices";
@@ -28,6 +30,7 @@ type ServiceOptions = {
   readonly connections?: Connections;
   readonly confirm?: (decision: AppHostDecision, signal: AbortSignal) => Promise<boolean>;
   readonly now?: () => number;
+  readonly confirmX?: (review: string, signal: AbortSignal) => Promise<boolean>;
 };
 
 /** Internal implementation. Native clients use the subprocess wire only. */
@@ -40,12 +43,14 @@ export class AppHostService {
   private readonly decisions = new Set<AbortController>();
   private busy = false;
   private closed = false;
+  private readonly x: AppHostXService;
 
   constructor(readonly appId: string, private readonly environment: ControlEnvironment, options: ServiceOptions = {}) {
     this.connections = options.connections ?? new Connections(environment, () => providerPluginRegistry);
     this.confirm = options.confirm ?? confirmAppHostDecision;
     this.now = options.now ?? Date.now;
     ensureConnectionAccountIncarnations(environment);
+    this.x = new AppHostXService(environment, providerPluginRegistry, (id, revision) => this.account(id, revision), options.confirmX, this.now);
   }
 
   private accounts(): AppHostAccount[] {
@@ -94,9 +99,10 @@ export class AppHostService {
 
   async handle(request: AppHostRequest): Promise<AppHostData> {
     if (this.closed) throw new ControlError("HOST_CLOSED", "The app host has closed.");
+    if (request.action.startsWith("x.")) return this.x.handle(request as AppHostXRequest);
     if (request.action === "close") { this.close(); return { kind: "success" }; }
     if (request.action === "connection.cancel") { this.cancel(request.attemptId); return { kind: "success" }; }
-    if (request.action === "hello") return { kind: "hello", version, appId: this.appId, capabilities: ["x-browser-connections"], nativeConfirmation: "ghostget-dialog" };
+    if (request.action === "hello") return { kind: "hello", version, appId: this.appId, capabilities: ["x-browser-connections", "x-workspace-v1"], nativeConfirmation: "ghostget-dialog" };
     if (request.action === "browsers.list") return { kind: "browsers", browsers: browserChoices(this.environment) };
     if (request.action === "accounts.list") {
       const accounts = this.accounts().map(account => {
@@ -177,6 +183,7 @@ export class AppHostService {
 
   close(): void {
     this.closed = true;
+    this.x.close();
     for (const id of this.attempts.keys()) this.cancel(id);
     for (const decision of this.decisions) decision.abort();
     this.disconnectProofs.clear();

@@ -1,5 +1,5 @@
 import type { Readable } from "node:stream";
-import { APP_HOST_MAX_FRAME_BYTES, APP_HOST_PROTOCOL, type AppHostData, type AppHostRequest, type AppHostResponse } from "./app-host-protocol";
+import { APP_HOST_MAX_FRAME_BYTES, APP_HOST_MAX_RESPONSE_BYTES, APP_HOST_PROTOCOL, type AppHostData, type AppHostRequest, type AppHostResponse } from "./app-host-protocol";
 import { parseAppHostFrame } from "./app-host-validation";
 import { ControlError } from "./control/validation";
 
@@ -22,7 +22,7 @@ export async function serveAppHost(input: Readable, write: (line: string) => voi
   const emit = (response: AppHostResponse): void => {
     if (!outputOpen) return;
     const line = `${JSON.stringify(response)}\n`;
-    const output = Buffer.byteLength(line) <= APP_HOST_MAX_FRAME_BYTES ? line
+    const output = Buffer.byteLength(line) <= APP_HOST_MAX_RESPONSE_BYTES ? line
       : `${JSON.stringify(appHostFailure(response.id, new ControlError("RESPONSE_TOO_LARGE", "The response exceeds this app host's limit.")))}\n`;
     try { write(output); }
     catch { outputOpen = false; stop(); }
@@ -38,7 +38,7 @@ export async function serveAppHost(input: Readable, write: (line: string) => voi
       if (usedIds.has(id)) throw new ControlError("DUPLICATE_REQUEST", "Use a new request ID for each operation.");
       if (usedIds.size >= 4096) { emit(appHostFailure(id, new ControlError("SESSION_LIMIT", "Reopen the app host before sending more requests."))); stop(); return; }
       usedIds.add(id);
-      if (active.size >= 8 && frame.request.action !== "close" && frame.request.action !== "connection.cancel") {
+      if (active.size >= 8 && frame.request.action !== "close" && frame.request.action !== "connection.cancel" && frame.request.action !== "x.action.cancel") {
         throw new ControlError("HOST_BUSY", "The app host has too many active requests.");
       }
       const operation = (async (): Promise<void> => {

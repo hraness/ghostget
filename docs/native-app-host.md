@@ -1,8 +1,10 @@
 # Native app host
 
-A macOS product can run a pinned GhostGet package as an account-only subprocess.
-The first host supports X connections from existing Chrome profiles or Safari.
-It does not expose publishing, grants, the administrative socket, or credentials.
+A macOS product can run a pinned GhostGet package as a subprocess for X account
+connections and a closed X workspace API. Connections use existing Chrome
+profiles or Safari. Workspace calls read profiles and posts, stage media and
+prepare actions for GhostGet's own confirmation. The host does not expose raw
+requests, grants, the administrative socket, or credentials.
 The design record is [#598](https://github.com/hraness/ghostget/issues/598).
 
 Launch the packaged Bun runtime with:
@@ -51,12 +53,13 @@ Swift/Rust clients. Each stdin line is a UTF-8 JSON object:
 Stdout contains only response frames:
 
 ```json
-{"protocol":"ghostget.app-host/1","id":"request-1","ok":true,"data":{"kind":"hello","version":"PACKAGE_VERSION","appId":"com.example.product","capabilities":["x-browser-connections"],"nativeConfirmation":"ghostget-dialog"}}
+{"protocol":"ghostget.app-host/1","id":"request-1","ok":true,"data":{"kind":"hello","version":"PACKAGE_VERSION","appId":"com.example.product","capabilities":["x-browser-connections","x-workspace-v1"],"nativeConfirmation":"ghostget-dialog"}}
 ```
 
 Failures contain `ok: false`, `code`, and `message` instead of `data`. An invalid
 frame uses ID `invalid`; a startup failure uses `startup`. Clients should show
-safe error text and branch on codes. Frames are at most 16 KiB, at most eight
+safe error text and branch on codes. Requests are at most 128 KiB and responses
+at most 2 MiB. At most eight
 requests may be active, and request IDs cannot repeat in one host session. Start
 a new host after 4,096 requests. Unknown fields and actions are rejected.
 
@@ -111,6 +114,49 @@ injected identity probes or confirmation results establish lifecycle invariants,
 not real-browser qualification. Existing cookie-helper identity provisioning is
 preserved; this entrypoint does not claim a new notarized embedded-custody design.
 
+## X workspace
+
+`src/app-host-x-protocol.ts` defines the workspace request and response union.
+Every call includes the current `accountId` and `expectedAccountRevision` from
+`accounts.list`. Reconnection invalidates earlier cursors, media and decisions.
+`x.capabilities` reports available operations and reasons for unavailable ones;
+the host capability alone does not promise every provider route works.
+
+- `x.profile.get`, `x.post.get` and `x.feed.list` return versioned public-content
+  models. Feed sources include Home, Following, a profile's feeds, likes,
+  bookmarks, followers and following accounts. Unsupported sources fail before
+  provider access. Pagination tokens bind the account revision and read inputs.
+- `x.notifications.list` and `x.explore.list` are separate closed requests.
+  Explore accepts `trending` or `today-news`. A new request name does not enable
+  a route without its provider capture and review.
+- `x.media.prepare` accepts absolute local paths for PNG, JPEG or MP4 files,
+  returning temporary opaque attachment IDs and file metadata. Nonempty alt
+  text remains rejected until its provider contract is qualified. The observed
+  publication route accepts text and one PNG or MP4; ordered images and JPEG
+  remain a separate guarded successor. Media capability records distinguish
+  these variants. The client never sends upload URLs or provider media IDs.
+- `x.action.prepare` accepts a closed intent, resolves its targets and saves a
+  GhostGet invocation plan. Its result contains an opaque preparation ID,
+  digest and review. `x.action.commit` names that same preparation and digest;
+  GhostGet displays a fixed native dialog with Cancel as its default. The caller
+  cannot provide approval, confirmation text or a raw operation name.
+- `x.action.cancel` releases a pending preparation. Its `preparationId` may also
+  be a returned `plan-<digest>` recovery handle, explicitly cancelling an unused
+  preparation after restart. It succeeds only when the normal single-confirmer
+  claim and absence of execution journals and receipts prove no execution began.
+  It never cancels or replays a dispatched write. `x.action.status` checks a
+  returned recovery ticket or run ID. An uncertain write is not automatically
+  retried. Inspect its result before preparing another action. Capability, status
+  and feed reads do not sweep expired plans or remove their assets. Status reports
+  denied only with durable positive cancellation evidence. Expiry and missing
+  receipts alone leave an action uncertain.
+
+Post and profile text preserve provider entity ranges in UTF-16 units: mentions,
+hashtags, cashtags and expanded links remain distinct. Posts retain ordered media,
+quote and repost references, promotion metadata and visible moderation labels.
+Missing promotion or flag information means unknown, never a claim that no label
+exists. DTOs contain no cookies, request headers or private provider responses.
+
 ## Retention and future work
 
 The app namespace marker is at most 1 KiB, saved accounts are capped at 32, and
@@ -120,9 +166,27 @@ until the product's explicit local-data deletion flow stops the helper and
 removes its exact product-owned directory. Ordinary disconnect removes only the
 selected auth record and invalidates its auth incarnation.
 
-Scheduling, feeds, SQLite projections and external job idempotency are not in
-this host. A later publication interface must retain GhostGet's account-scoped
-Allow, fresh plans, durable dispatch/reconciliation and human-required states.
+Workspace recovery tickets retain only the plan digest, operation, account
+revision and hashed auth binding in `app-host-x-actions/`, at most 16 KiB per
+ticket and 4,096 tickets per product state directory (64 MiB maximum). At capacity,
+new unique preparations fail with `ACTION_HISTORY_LIMIT`; existing identical
+tickets and status reads remain available. Nothing is evicted, including
+unresolved recovery evidence. They survive helper restart and cannot authorize
+dispatch. Disconnect invalidates their account binding. The product's explicit
+stopped-helper data deletion flow removes them with the exact product-owned state
+directory. Do not delete tickets to retry an uncertain write.
+
+Explicit unused-plan cancellation atomically replaces the exact encrypted plan
+with a digest-only cancellation tombstone while holding its confirmation claim.
+Confirmation cannot load or recreate that digest afterward, including after a
+crash. At most 4,096 tombstones of 256 bytes each are retained per state home
+(1 MiB maximum). They survive ordinary cancellation, expiry and asset cleanup;
+full history refuses new cancellations without removing evidence. Only the
+explicit stopped-product data deletion flow removes these terminal records.
+
+Scheduling, product SQLite projections and external job idempotency are not in
+this host. Workspace actions retain GhostGet's fresh plans, durable
+dispatch/reconciliation and native human confirmation.
 Background process lifetime does not establish unattended, sleeping-machine or
 locked-screen publication support.
 
@@ -148,9 +212,9 @@ actual installed tree and checked before and after lazy provider loading.
 Use a frozen hoisted dependency installation as input; validate exact declared
 versions, copy only this profile, and retain a content inventory for the prepared
 runtime. No runtime install, global CLI, optional embedding/SQLite extensions, or
-PATH discovery is required for X account connection. This profile exposes no posting
-or general browsing API. A future broader host must regenerate and qualify a new
-complete runtime profile before shipping.
+PATH discovery is required. The workspace host uses the same X-only projection;
+regenerate and check it after changing the reached module graph, and qualify
+the complete prepared runtime before shipping. It exposes no general browsing API.
 
 The `app-host-x-macos-arm64` profile supports direct X browser-session connection
 verification through the default Sweet Cookie reader. It includes no qualification
