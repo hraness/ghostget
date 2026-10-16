@@ -24,6 +24,7 @@ const RELEASE_CONTROL_PATHS = Object.freeze([
   "scripts/release-source-ci.ts",
   "scripts/npm-provenance-identity.ts",
   "scripts/npm-package-identity.ts",
+  "scripts/npm-installed-signatures.mjs",
   "scripts/github-release-artifact.ts",
   "scripts/github-release-publish.ts",
   "scripts/package-artifact.ts",
