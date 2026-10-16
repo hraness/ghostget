@@ -408,11 +408,20 @@ verify, attest, and publish jobs. It is checkout-free, runs no product source or
 a bounded propagation window until `npm view` reports the exact candidate
 version (OIDC provenance publishing is asynchronous on the registry side),
 downloads the registry tarball and metadata, and runs
-`scripts/npm-package-identity.ts`
-against the canonical asset plus `npm audit signatures --include-attestations`
-through `scripts/npm-provenance-identity.ts`, which binds the registry publish
-and SLSA attestations to the tag push, the verified commit, and
-`.github/workflows/release.yml`. Only after that admission is
+`scripts/npm-package-identity.ts` against the canonical asset. After the full
+ordinary clean npm install, `scripts/npm-installed-signatures.mjs` uses pinned
+npm's Arborist inventory and version-three lockfile to classify every installed
+package by its own resolved origin. It verifies every installed non-dev npm
+registry package with Pacote's registry-signature and present-attestation
+verification using Sigstore TUF registry keys. Missing signatures, invalid
+attestations, ambiguous origins and coordinate or integrity drift fail closed.
+GitHub source packages and bundles remain explicitly inventoried under the
+existing source, dependency and enclosing-artifact admission. An incoming
+registry peer requirement cannot turn a GitHub-only fork into a registry
+coordinate. The exact Ghostget root must also bind the canonical SHA-512 and
+verified attestations. `scripts/npm-provenance-identity.ts` then binds its
+registry publish and SLSA attestations to the tag push, the verified commit,
+and `.github/workflows/release.yml`. Only after that admission is
 `@hraness/ghostget@<version>` an available registry coordinate.
 
 An ambiguous npm write is readback and diagnosis work, never a blind retry.

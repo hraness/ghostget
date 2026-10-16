@@ -1324,11 +1324,11 @@ Before publishing, ambient npm_config_tag is absent, user/global/project npm con
 
 #### `npm-admit-registry-identity-provenance`
 
-@hraness/ghostget@<version> is advertised as available only after admit_npm proves the registry tarball matches the canonical archive and npm audit signatures binds publish and SLSA attestations to the tag push, verified commit and release.yml, within a bounded propagation window.
+@hraness/ghostget@<version> is advertised as available only after admit_npm proves the registry tarball matches the canonical archive, pinned Pacote and Sigstore TUF verify signatures and present attestations for every installed non-dev registry-origin package from its lock-bound actual inventory, and strict identity checks bind the root publish and SLSA attestations to the tag push, verified commit and release.yml within a bounded propagation window.
 
 - Evidenced by example test.
 - Source: `AGENTS.md`: “Require the exact public registry package and its npm provenance to match the canonical archive in `admit_npm` before advertising registry availability”
-- Evidence: `scripts/npm-release-workflow.test.ts`
+- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/npm-installed-signatures.mjs`
 - Assumptions: `github-api`, `sigstore`, `npm-registry`
 - Not verified: No property test covers this law yet; only the enumerated example cases are checked.
 

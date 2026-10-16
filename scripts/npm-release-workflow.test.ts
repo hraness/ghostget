@@ -22,6 +22,7 @@ import {
   repairPackageMeasurement,
 } from "./package-budget.js";
 import { verifyNpmPackageIdentity } from "./npm-package-identity.js";
+import { installedSignatureInventory, trustedNpmRegistryKeys, verifyInstalledRegistrySignatures } from "./npm-installed-signatures.mjs";
 import {
   verifyNpmProvenanceIdentity,
   type NpmProvenanceIdentityInput,
@@ -2984,6 +2985,11 @@ describe("verified npm provenance identity", () => {
         runAttempt: 2,
         runId: 123456,
       });
+      await writeFile(auditJson, `${JSON.stringify({ ...auditFixture(), inventory: {
+        registryPackages: [{ name: "@hraness/ghostget", version }],
+        nonRegistryPackages: [{ name: "source-only-fixture", kind: "non-registry" }],
+      } })}\n`, "utf8");
+      await expect(verifyNpmProvenanceIdentity(input)).resolves.toEqual({ runAttempt: 2, runId: 123456 });
       await expect(verifyNpmProvenanceIdentity({
         ...input,
         expectedVersion: "9007199254740992.0.0",
@@ -3084,7 +3090,12 @@ describe("automatic npm publication from the tag Release", () => {
     expect(admitNpmSource).toContain("--expected-event push");
     expect(admitNpmSource).toContain('--expected-ref "refs/tags/$VERIFIED_TAG"');
     expect(admitNpmSource).toContain("--expected-workflow-path .github/workflows/release.yml");
-    expect(admitNpmSource).toContain("npm audit signatures --json --include-attestations --omit=dev");
+    expect(admitNpmSource).toContain('npm install "@hraness/ghostget@$version" --ignore-scripts --no-audit --no-fund');
+    expect(admitNpmSource).toContain("node ./scripts/npm-installed-signatures.mjs");
+    expect(admitNpmSource).toContain('--consumer-directory "$consumer_directory"');
+    expect(admitNpmSource).toContain('--registry-archive "$registry_directory/$archive_name"');
+    expect(admitNpmSource).toContain('--npm-root "$(npm root --global)/npm"');
+    expect(admitNpmSource).not.toMatch(/npm audit signatures|legacy-peer-deps|--omit=optional|--omit=peer|continue-on-error/u);
     expect(admitNpmSource).toContain("propagation_deadline=$((SECONDS + 840))");
     expect(admitNpmSource).toContain("sleep 20");
     expect(admitNpmSource).toContain('npm view "@hraness/ghostget@$version" version');
@@ -3356,5 +3367,145 @@ exit 98
     } finally {
       await rm(root, { force: true, recursive: true });
     }
+  });
+});
+
+describe("complete installed npm signature admission", () => {
+  const rootName = "@hraness/ghostget";
+  const rootVersion = "0.18.95";
+  const rootLocation = `node_modules/${rootName}`;
+  const sri = (value: string) => `sha512-${createHash("sha512").update(value).digest("base64")}`;
+  const canonicalIntegrity = sri("canonical Ghostget bytes");
+  const publicKey = generateKeyPairSync("ec", { namedCurve: "prime256v1" }).publicKey.export({ type: "spki", format: "der" }).toString("base64");
+  const keyDocument = { keys: [{ keyId: "SHA256:fixture", publicKey: { rawBytes: publicKey, validFor: { end: "2099-01-01T00:00:00Z" } } }] };
+  function fixture() {
+    const registryRow = (name: string, version: string, integrity = sri(name)) => ({ name, version, location: `node_modules/${name}`,
+      resolved: `https://registry.npmjs.org/${name}/-/${name.split("/").at(-1)}-${version}.tgz`, integrity,
+      link: false, workspace: false, dev: false, inBundle: false, bundler: null });
+    const rows: Record<string, unknown>[] = [registryRow(rootName, rootVersion, canonicalIntegrity), registryRow("@hraness/oh", "0.12.0"),
+      { name: "@tobilu/qmd", version: "2.8.3-hraness.1", location: "node_modules/@tobilu/qmd",
+        resolved: "https://github.com/hraness/qmd/releases/download/v2.8.3-hraness.1/hraness-qmd-2.8.3-hraness.1.tgz", integrity: sri("fork bytes"),
+        link: false, workspace: false, dev: false, inBundle: false, bundler: null }];
+    const packages: Record<string, Record<string, unknown>> = Object.fromEntries(rows.map(row => [String(row.location), {
+      version: row.version, resolved: row.resolved, integrity: row.integrity,
+    }]));
+    packages["node_modules/absent-optional"] = { version: "1.0.0", optional: true,
+      resolved: "https://registry.npmjs.org/absent-optional/-/absent-optional-1.0.0.tgz", integrity: sri("not installed") };
+    return { rows, lock: { lockfileVersion: 3, packages } };
+  }
+  function services(calls: Array<{ spec: string; options: Record<string, unknown> }>,
+    mutate: (manifest: Record<string, unknown>) => void = () => {}) {
+    return { initTUF: async (options: Record<string, unknown>) => {
+      expect(options).toMatchObject({ cachePath: "/tmp/isolated-tuf", retry: { retries: 2 }, timeout: 30_000 });
+      return { getTarget: async (target: string) => { expect(target).toBe("registry.npmjs.org/keys.json"); return JSON.stringify(keyDocument); } };
+    }, manifest: async (spec: string, options: Record<string, unknown>) => {
+      calls.push({ spec, options });
+      const target = fixture().rows.find(row => `${row.name}@${row.version}` === spec)!;
+      const manifest: Record<string, unknown> = { name: target.name, version: target.version, _id: spec,
+        _resolved: target.resolved, _integrity: target.integrity, _signatures: [{ keyid: "SHA256:fixture", sig: "verified-by-pacote" }] };
+      if (target.name === rootName) Object.assign(manifest, { dist: { attestations: { url: "https://registry.npmjs.org/-/npm/v1/attestations/root" } },
+        _attestations: { url: "https://registry.npmjs.org/-/npm/v1/attestations/root" },
+        _attestationBundles: [{ predicateType: "https://slsa.dev/provenance/v1", bundle: {} }] });
+      mutate(manifest);
+      return manifest;
+    } };
+  }
+  test("the GitHub-only fork on a registry peer edge never becomes a nonexistent registry coordinate", async () => {
+    const { rows, lock } = fixture();
+    const inventory = installedSignatureInventory(rows, lock, rootVersion, canonicalIntegrity);
+    const calls: Array<{ spec: string; options: Record<string, unknown> }> = [];
+    const receipt = await verifyInstalledRegistrySignatures(inventory, services(calls), "/tmp/isolated-tuf");
+    expect(calls.map(call => call.spec)).toEqual(["@hraness/ghostget@0.18.95", "@hraness/oh@0.12.0"]);
+    expect(inventory.nonRegistryPackages.map((row: { name: string }) => row.name)).toEqual(["@tobilu/qmd"]);
+    expect(receipt.verified).toHaveLength(1);
+    expect(receipt.invalid).toEqual([]); expect(receipt.missing).toEqual([]);
+    for (const call of calls) {
+      expect(call.options).toMatchObject({ registry: "https://registry.npmjs.org/", verifySignatures: true, verifyAttestations: true,
+        before: null, cache: "/tmp/isolated-tuf/npm-cache", tufCache: "/tmp/isolated-tuf" });
+      expect(call.options["//registry.npmjs.org/:_keys"]).toHaveLength(1);
+      expect(call.options.integrity).toBe(inventory.registryPackages.find((row: { name: string; version: string }) => `${row.name}@${row.version}` === call.spec)!.integrity);
+    }
+  });
+  test("installed coordinates, actual origins, lock integrity and the canonical root cannot drift", () => {
+    for (const mutate of [
+      (value: ReturnType<typeof fixture>) => { value.rows[0]!.version = "0.18.94"; },
+      (value: ReturnType<typeof fixture>) => { value.rows[0]!.integrity = sri("other bytes"); value.lock.packages[rootLocation]!.integrity = sri("other bytes"); },
+      (value: ReturnType<typeof fixture>) => { value.rows[0]!.resolved = "https://other.invalid/root.tgz"; value.lock.packages[rootLocation]!.resolved = "https://other.invalid/root.tgz"; },
+      (value: ReturnType<typeof fixture>) => { value.rows[0]!.link = true; },
+      (value: ReturnType<typeof fixture>) => { value.rows[0]!.workspace = true; },
+      (value: ReturnType<typeof fixture>) => { value.rows.push(value.rows[0]!); },
+      (value: ReturnType<typeof fixture>) => { delete value.lock.packages[rootLocation]; },
+      (value: ReturnType<typeof fixture>) => { value.lock.lockfileVersion = 2; },
+      (value: ReturnType<typeof fixture>) => { value.rows[2]!.resolved = null; value.lock.packages[String(value.rows[2]!.location)]!.resolved = null; },
+    ]) {
+      const value = fixture(); mutate(value);
+      expect(() => installedSignatureInventory(value.rows, value.lock, rootVersion, canonicalIntegrity)).toThrow();
+    }
+  });
+  test("unsigned registry packages, changed manifests and every present-invalid attestation fail", async () => {
+    for (const mutate of [
+      (manifest: Record<string, unknown>) => { manifest._signatures = []; },
+      (manifest: Record<string, unknown>) => { manifest._resolved = "https://other.invalid/changed.tgz"; },
+      (manifest: Record<string, unknown>) => { manifest._integrity = sri("changed"); },
+      (manifest: Record<string, unknown>) => { manifest.name = "other"; },
+      (manifest: Record<string, unknown>) => { manifest.version = "0.0.0"; },
+      (manifest: Record<string, unknown>) => { manifest._id = "other@0.0.0"; },
+      (manifest: Record<string, unknown>) => { manifest.dist = { attestations: {} }; delete manifest._attestations; },
+      (manifest: Record<string, unknown>) => { manifest.dist = { attestations: {} }; manifest._attestationBundles = []; },
+      (_manifest: Record<string, unknown>) => { throw Object.assign(new Error("invalid signature"), { code: "EINTEGRITYSIGNATURE" }); },
+      (_manifest: Record<string, unknown>) => { throw Object.assign(new Error("invalid attestation"), { code: "EATTESTATIONVERIFY" }); },
+    ]) {
+      const value = fixture(); const inventory = installedSignatureInventory(value.rows, value.lock, rootVersion, canonicalIntegrity);
+      await expect(verifyInstalledRegistrySignatures(inventory, services([], mutate), "/tmp/isolated-tuf")).rejects.toThrow("verification failed");
+    }
+  });
+  test("root attestations remain mandatory although dependencies may have no attestations", async () => {
+    const value = fixture(); const inventory = installedSignatureInventory(value.rows, value.lock, rootVersion, canonicalIntegrity);
+    await expect(verifyInstalledRegistrySignatures(inventory, services([], manifest => {
+      delete manifest.dist; delete manifest._attestations; delete manifest._attestationBundles;
+    }), "/tmp/isolated-tuf")).rejects.toThrow("root has no verified attestations");
+  });
+  test("bundled packages without an independent origin must bind an admitted enclosing artifact", () => {
+    const value = fixture();
+    const nested = `${rootLocation}/node_modules/bundled`;
+    value.rows.push({ name: "bundled", version: "1.0.0", location: nested, resolved: null, integrity: null,
+      link: false, workspace: false, dev: false, inBundle: true, bundler: rootLocation });
+    value.lock.packages[nested] = { version: "1.0.0", inBundle: true };
+    expect(installedSignatureInventory(value.rows, value.lock, rootVersion, canonicalIntegrity).nonRegistryPackages).toHaveLength(2);
+    value.rows.at(-1)!.bundler = "node_modules/unadmitted";
+    expect(() => installedSignatureInventory(value.rows, value.lock, rootVersion, canonicalIntegrity)).toThrow("no admitted enclosing source");
+  });
+  test("trusted TUF keys reject missing, conflicting, malformed or noncanonical public keys", () => {
+    expect(trustedNpmRegistryKeys(keyDocument)).toHaveLength(1);
+    for (const value of [null, {}, { keys: [] }, { keys: [...keyDocument.keys,
+      { ...keyDocument.keys[0], publicKey: { rawBytes: publicKey, validFor: { end: "2098-01-01T00:00:00Z" } } }] },
+      { keys: [{ keyId: "key", publicKey: { rawBytes: "private invalid key" } }] },
+      { keys: [{ keyId: "key", publicKey: { rawBytes: publicKey, validFor: { end: 12 } } }] }]) {
+      expect(() => trustedNpmRegistryKeys(value)).toThrow();
+    }
+  });
+  test("npm TUF target's duplicate key IDs deduplicate only identical PEM and expiry projections", () => {
+    const original = keyDocument.keys[0]!;
+    expect(trustedNpmRegistryKeys({ keys: [original, { ...original,
+      publicKey: { ...original.publicKey, validFor: { start: "2022-12-01T00:00:00.000Z", end: original.publicKey.validFor.end } } }, original] }))
+      .toHaveLength(1);
+    const otherKey = generateKeyPairSync("ec", { namedCurve: "prime256v1" }).publicKey.export({ type: "spki", format: "der" }).toString("base64");
+    expect(() => trustedNpmRegistryKeys({ keys: [original, { ...original, publicKey: { ...original.publicKey, rawBytes: otherKey } }] }))
+      .toThrow("conflicting verification material");
+  });
+  test("property: each additional lock-bound registry package is included exactly once regardless of source peers", () => {
+    assertProperty(fc.property(fc.uniqueArray(fc.integer({ min: 1, max: 9_999 }), { maxLength: 30 }), numbers => {
+      const value = fixture();
+      for (const number of numbers) {
+        const name = `fixture-${number}`; const target = `node_modules/${name}`;
+        const row = { name, version: "1.0.0", location: target, resolved: `https://registry.npmjs.org/${name}/-/${name}-1.0.0.tgz`,
+          integrity: sri(name), link: false, workspace: false, dev: false, inBundle: false, bundler: null };
+        value.rows.push(row); value.lock.packages[target] = { version: row.version, resolved: row.resolved, integrity: row.integrity };
+      }
+      const inventory = installedSignatureInventory(value.rows, value.lock, rootVersion, canonicalIntegrity);
+      expect(inventory.registryPackages.length).toBe(numbers.length + 2);
+      expect(new Set(inventory.registryPackages.map((row: { location: string }) => row.location)).size).toBe(numbers.length + 2);
+      expect(inventory.nonRegistryPackages).toHaveLength(1);
+    }), { numRuns: 100 });
   });
 });
