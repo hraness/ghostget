@@ -556,11 +556,11 @@ consumer-handoff workflow.
 
 The authenticated-web X adapter also returns rich posts with matching mention,
 hashtag, cashtag, and link ranges, ordered media, profile metadata, and visible
-warning text. Its expanded likes, profile replies and highlights, Trending,
-Today's News, and notification reads have source and fixture coverage; forward
-live verification and native provider checks remain pending. Individual news
-stories and the new follow, quote, repost, and multiple-image write contracts
-remain guarded.
+warning text. Live reads have verified likes, profile replies and highlights,
+Trending cards and a selected trend’s posts, Today’s News cards, and
+notifications. Installed native-app provider qualification remains separate.
+Individual news stories and the new follow, quote, repost, and multiple-image
+write contracts remain guarded.
 See the [X adapter guide](skills/ghostget/references/x-adapter.md) for exact
 support and confirmation requirements.
 

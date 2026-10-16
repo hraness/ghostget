@@ -11,9 +11,9 @@ Historical entries retain their original delivery coordinates.
 
 X native consumers can read rich posts and profiles, liked posts, profile replies
 and highlights, Trending, Today’s News cards and notifications through the typed
-app-host interface. The profile reply and highlight readers use current
-first-party routes with deterministic fixture coverage; forward live
-verification and native provider checks remain pending.
+app-host interface. Live semantic reads have verified likes, profile replies
+and highlights, Trending cards and a selected trend’s posts, Today’s News cards,
+and notifications. Installed native-app provider qualification remains separate.
 Five rich read contracts move to v2 while historical v1 routes remain readable.
 Posts retain matching full/note text and entities, ordered media, quoted and
 reposted content, visible moderation details, promotion evidence and unavailable

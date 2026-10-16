@@ -155,11 +155,11 @@ Article Draft. Following, user, List, and search remain declared modes of the
 observed `feeds.read` contract; check `ghostget capabilities x-web --json` for the
 installed input schema and let current preflight fail closed on revision drift.
 
-The expanded likes, profile replies and highlights, Trending, Today's News, and
-notifications routes have reviewed first-party source and deterministic
-projection tests. A successful fixture test does not establish current live
-account behavior. Their forward live verification and native provider checks
-remain pending. Today's News returns the personalized initial card list;
+Live semantic reads have also verified likes, profile replies and highlights,
+Trending cards and a selected trend’s posts, Today’s News cards, and
+notifications. These routes retain reviewed first-party source and deterministic
+projection tests. Installed native-app provider qualification remains separate.
+Today’s News returns the personalized initial card list;
 opening an individual news story and news pagination remain unavailable.
 Profile replies and highlights use the fixed `UserRepliesTimeline` and
 `UserHighlightsTweets` readers with at most 50 entries per page. Each request
