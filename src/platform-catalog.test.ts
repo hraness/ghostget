@@ -30,6 +30,8 @@ const r1Operations = new Set<SemanticOperationName>([
   "contacts.search",
   "contacts.read",
   "feeds.read",
+  "explore.read",
+  "notifications.list",
   "messaging.list",
   "messaging.search",
   "messaging.read",

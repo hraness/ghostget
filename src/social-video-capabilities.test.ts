@@ -24,9 +24,11 @@ function operation(
   plugin: { readonly bindings: readonly { readonly surfaceId: string; readonly operations: readonly Operation[] }[] },
   surfaceId: string,
   name: "content.delete" | "media.publish" | "posts.publish",
+  contractVersion?: number,
 ): Operation {
   const matches = binding(plugin, surfaceId).operations.filter((candidate) =>
-    candidate.name === name);
+    candidate.name === name
+    && (contractVersion === undefined || candidate.contractVersion === contractVersion));
   const result = matches.sort((left, right) =>
     right.contractVersion - left.contractVersion)[0];
   if (result === undefined) throw new Error(`missing ${surfaceId} ${name}`);
@@ -48,10 +50,21 @@ describe("social video provider contracts", () => {
       [xOfficialPlugin, "x"],
       [linkedinOfficialPlugin, "linkedin"],
     ] as const) {
-      const publish = operation(plugin, surfaceId, "posts.publish");
+      const publish = operation(plugin, surfaceId, "posts.publish", plugin === xWebPlugin ? 5 : undefined);
       expect(publish.state).toBe("observed");
       expect(fileMediaTypes(publish.input.properties.media)).toContain("video/mp4");
     }
+  });
+
+  test("keeps the expanded X media reservation separate from its executable MP4 contract", () => {
+    const executable = operation(xWebPlugin, "x", "posts.publish", 5);
+    expect(executable).toMatchObject({ contractVersion: 5, state: "observed", risk: "R3", dispatch: "single" });
+    expect(fileMediaTypes(executable.input.properties.media)).toEqual(["image/png", "video/mp4"]);
+
+    const reservation = operation(xWebPlugin, "x", "posts.publish");
+    expect(reservation).toMatchObject({ contractVersion: 6, state: "capture-required", risk: "R3", dispatch: "single" });
+    expect(reservation.input.properties.media).toMatchObject({ type: "array", minItems: 1, maxItems: 4 });
+    expect(fileMediaTypes(reservation.input.properties.media)).toEqual(["image/png", "image/jpeg", "video/mp4"]);
   });
 
   test("reserves one bounded MP4 route for every remaining requested web surface", () => {

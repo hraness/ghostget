@@ -92,6 +92,18 @@
           "regression": "the known drive-letter difference through a backslash leaves both sides refusing the input"
         }
       ]
+    },
+    "x-web-contacts/truncated-occurrences": {
+      "file": "src/providers/x-web-runtime.property.test.ts",
+      "entries": [
+        {
+          "kind": "counterexample",
+          "seed": 575818214,
+          "path": "2:2:1:4:9:12:14:13:15:1:1:10:1:1:6:0:1:4:3",
+          "origin": "Required PR #608 run 38931033884 shrank two unavailable user occurrences with limit one; the old property expected continuation despite truncating the additive occurrence view.",
+          "regression": "contact unavailable occurrences clear continuation when truncated (CI seed 575818214)"
+        }
+      ]
     }
   }
 }
