@@ -263,6 +263,8 @@ describe("single-process bundled adapter generation sync", () => {
       "x-web@1.14.0",
       "x-web@1.15.0",
       "x-web@1.16.0",
+      "x-web@1.17.0",
+      "x-web@1.18.0",
       "x-web@1.2.0",
       "x-web@1.3.0",
       "x-web@1.4.0",
@@ -742,7 +744,7 @@ describe("single-process bundled adapter generation sync", () => {
     expect(selected.manifest.operations["content.delete"]).toBeDefined();
     expect(selected.manifest.operations["feeds.read"]).toMatchObject({
       risk: "R1",
-      webSession: { action: "feeds.read", contractVersion: 1 },
+      webSession: { action: "feeds.read", contractVersion: 2 },
     });
   });
 
@@ -832,7 +834,7 @@ describe("single-process bundled adapter generation sync", () => {
     expect(feed).toMatchObject({
       risk: "R1",
       state: "observed",
-      webSessionContractVersion: 1,
+      webSessionContractVersion: 2,
     });
     expect(feed?.input?.properties?.feed?.enum).toContain("bookmarks");
     expect(view.adapters[0]?.operations.some((operation) =>

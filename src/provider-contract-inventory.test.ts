@@ -83,6 +83,28 @@ const predecessorSubstackReaders = [
   "e4ba73882eb3f5bf489c88861cdd1fedd790a55af027e03ff5a07b526b8f0f5f",
   "96a992faae17420dc2ec74c9d22903bb7973f69d3f0de198800d357480651269",
 ];
+const predecessorXWriter = "4588a6fa7e0f73b4321402d217c2ea1c99c0533cbf32c2e7d38737eb62340234";
+const predecessorXReaders = [
+  "bcf7411c6ac01b16dc2a602b9928f8d0f9f5fd3ac0901d2ef197b72a8f763d31",
+  "ebba20c72150dcef1eb21d3a1ea02a1dee91f8654c1f33621e5217faabf2be25",
+  "c9e10ff1af5d4f102cfc73bc5b7def23a41db7cba978f516b0bc515616b6506c",
+  "e3e73a938b442339034d4484ac6984f9c6beb612fff10d01a499bf326fd1b15a",
+  "bcf7411c6ac01b16dc2a602b9928f8d0f9f5fd3ac0901d2ef197b72a8f763d31",
+  "ebba20c72150dcef1eb21d3a1ea02a1dee91f8654c1f33621e5217faabf2be25",
+  "c9e10ff1af5d4f102cfc73bc5b7def23a41db7cba978f516b0bc515616b6506c",
+  "7b791fe596a286034bf89257434572c267031cae16d3bef422188c32f7c5a539",
+  "8ebee7a6e32e2e55f185379615ecb55ec4b494cc91e45ffa05b1534bd4941c78",
+  "d3cbabe754717ad18f06cb3b434eb87cbfcb6105c97e88c81653606d5916f4ea",
+  "8cdc6996e77125b4435586126442aae33fedf7ea27f788bddd01f39efe4f8a09",
+  "e464e4e97ed3cbf430c2008251e45e0024508c64357325882718cba31e6bf9ea",
+  "03d906c92bfb5c30eb2d66e161ec67f7a081efa75e2a210a62b117df70b2af00",
+  "54589eaf65c7de95442dcff6a81327d0a32ec38f58560769e7b807519db10eeb",
+];
+const currentOnlyXCoordinates = new Set([
+  "relationships.follow.set@1", "explore.read@1", "notifications.list@1",
+  "feeds.read@2", "profiles.read@2", "contacts.list@2", "posts.read@2",
+  "comments.read@2", "posts.publish@6",
+]);
 let acceptedLegacy = true;
 let rejectedUnknown = true;
 function stableJson(value) {
@@ -174,6 +196,7 @@ function isCurrentOnlyRow(row) {
       && (row[2] === "comments.create" || row[2] === "replies.create" || row[2] === "content.delete"))
     || (row[0] === "web-session-api" && row[1] === "youtube" && (row[2] === "replies.create" || row[2] === "comments.create" || row[2] === "content.delete") && row[3] === 2)
     || (row[0] === "web-session-api" && row[1] === "x" && row[2] === "content.delete" && row[3] === 3)
+    || (row[0] === "web-session-api" && row[1] === "x" && currentOnlyXCoordinates.has(row[2] + "@" + row[3]))
     || (row[0] === "web-session-api" && row[1] === "substack" && row[2].startsWith("subscribers."))
     || (row[0] === "web-session-api" && row[1] === "twitch")
     || (row[0] === "web-session-api" && row[1] === "webmcp")
@@ -202,13 +225,17 @@ for (const plugin of registry.list()) {
             && !(contractVersion === 2 && (operation.name === "comments.create" || operation.name === "replies.create" || operation.name === "content.delete"));
           const isPredecessorSubstack = binding.surfaceId === "substack" && !operation.name.startsWith("subscribers.");
           const isPredecessorHackerNews = binding.surfaceId === "hacker-news";
+          const isPredecessorX = binding.transport === "web-session-api" && binding.surfaceId === "x"
+            && !isCurrentOnlyRow([binding.transport, binding.surfaceId, operation.name, contractVersion]);
           const legacyImplementations = isPredecessorReddit
             ? predecessorRedditReaders.map((hash) => Buffer.from(hash, "hex"))
             : isPredecessorSubstack
               ? predecessorSubstackReaders.map((hash) => Buffer.from(hash, "hex"))
               : isPredecessorHackerNews
                 ? predecessorHackerNewsReaders.map((hash) => Buffer.from(hash, "hex"))
-                : registeredLegacyImplementations;
+                : isPredecessorX
+                  ? predecessorXReaders.map((hash) => Buffer.from(hash, "hex"))
+                  : registeredLegacyImplementations;
           if (binding.transport === "provider-api") {
           const contract = providerContracts.getProviderContract({
             provider: binding.surfaceId,
@@ -266,7 +293,9 @@ for (const plugin of registry.list()) {
               ? legacyHash(contract, Buffer.from(predecessorSubstackWriter, "hex"), true)
               : isPredecessorHackerNews
                 ? legacyHash(contract, Buffer.from(predecessorHackerNewsWriter, "hex"), true)
-                : webContracts.webSessionContractHash(contract, registry);
+                : isPredecessorX
+                  ? legacyHash(contract, Buffer.from(predecessorXWriter, "hex"), true)
+                  : webContracts.webSessionContractHash(contract, registry);
           acceptedLegacy &&= webContracts.isCompatibleWebSessionContractHash(contract, currentHash, registry);
           const includePredecessorInventory = appendCurrentRow([binding.transport, binding.surfaceId, operation.name, contractVersion,
             currentHash]);
@@ -326,6 +355,61 @@ for (const legacy of legacyRows) {
   });
 }
 currentOnlyRows.sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
+
+// Independently derive x-web 1.5.0's closed route scope from its frozen
+// adapter and every archive retained by that plugin, rather than importing
+// the production identity allowlist under test.
+const predecessorXManifest = (await import(${JSON.stringify(moduleUrl("assets/adapters/x/wrench-web-adapter.v1.17.0.json"))})).default;
+const predecessorXCoordinates = new Set(Object.entries(predecessorXManifest.operations)
+  .map(([name, operation]) => name + "@" + operation.webSession.contractVersion));
+for (const [operation, version, adapterVersion] of [
+  ["articles.draft.save", 1, "1.4.0"], ["articles.read", 1, "1.11.0"],
+  ["posts.publish", 2, "1.7.0"], ["posts.publish", 3, "1.9.0"],
+  ["posts.publish", 4, "1.13.0"], ["posts.quote", 1, "1.13.0"],
+  ["content.delete", 1, "1.13.0"], ["content.delete", 2, "1.16.0"],
+]) {
+  const archive = (await import(${JSON.stringify(moduleUrl("assets/adapters/x/"))}
+    + "wrench-web-adapter.v" + adapterVersion + ".json")).default;
+  if (archive.operations[operation].webSession.contractVersion !== version) {
+    throw new Error("X predecessor archive changed its frozen route version");
+  }
+  predecessorXCoordinates.add(operation + "@" + version);
+}
+predecessorXCoordinates.add("likes.set@1");
+const predecessorXAliases = [...new Set([predecessorXWriter, ...predecessorXReaders])].sort();
+const xBinding = registry.resolveSessionRoute("x");
+if (xBinding === undefined) throw new Error("X binding is missing");
+let priorXRoutes = 0;
+let addedXRoutes = 0;
+let preservedXAliases = true;
+let rejectedAddedXAliases = true;
+for (const operation of xBinding.operations) {
+  for (const contractVersion of operation.contractVersions) {
+    const coordinate = operation.name + "@" + contractVersion;
+    const aliases = registry.legacyContractImplementationHashes(xBinding, operation.name, contractVersion)
+      .map(hash => hash.toString("hex")).sort();
+    const contract = webContracts.getWebSessionContract({
+      site: "x", action: operation.name, contractVersion,
+      timeoutMs: 60_000, maxOutputBytes: 2 * 1024 * 1024,
+    }, registry);
+    if (predecessorXCoordinates.has(coordinate)) {
+      priorXRoutes++;
+      preservedXAliases &&= JSON.stringify(aliases) === JSON.stringify(predecessorXAliases);
+      preservedXAliases &&= predecessorXAliases.every(hash =>
+        webContracts.isCompatibleWebSessionContractHash(contract, legacyHash(contract, Buffer.from(hash, "hex"), true), registry));
+    } else if (currentOnlyXCoordinates.has(coordinate)) {
+      addedXRoutes++;
+      rejectedAddedXAliases &&= aliases.length === 0;
+      rejectedAddedXAliases &&= predecessorXAliases.every(hash =>
+        !webContracts.isCompatibleWebSessionContractHash(contract, legacyHash(contract, Buffer.from(hash, "hex"), true), registry));
+    } else {
+      throw new Error("X contract route lies outside the frozen predecessor and workspace inventories");
+    }
+  }
+}
+if (priorXRoutes !== predecessorXCoordinates.size || addedXRoutes !== currentOnlyXCoordinates.size) {
+  throw new Error("X contract inventory omitted a frozen predecessor or workspace route");
+}
 process.stdout.write(JSON.stringify({
   rows: rows.length,
   sha256: createHash("sha256").update(JSON.stringify(rows)).digest("hex"),
@@ -339,6 +423,7 @@ process.stdout.write(JSON.stringify({
   ),
   acceptedLegacy,
   rejectedUnknown,
+  xCompatibilityScope: { priorRoutes: priorXRoutes, addedRoutes: addedXRoutes, preservedAliases: preservedXAliases, rejectedAddedAliases: rejectedAddedXAliases },
 }));
 `;
 
@@ -379,8 +464,8 @@ describe("durable provider contract inventory", () => {
       expect(inventory).toEqual({
         rows: 326,
         sha256: predecessorDefaultInventorySha256,
-        currentOnlyRows: 94,
-        currentOnlySha256: "213ab3a2db967469dd03b1e4183cbade73ac39a79534a106d23b489682f33771",
+        currentOnlyRows: 103,
+        currentOnlySha256: "2fe99dfdb7ac16e2c40bf3d832fa9d955363a5fbb75ba31603135106d3857607",
         automationRows: [
           ["linked-device", "whatsapp", "messaging.automation.read", 1],
           ["linked-device", "whatsapp", "messaging.automation.send.attachment", 1],
@@ -426,6 +511,7 @@ describe("durable provider contract inventory", () => {
         legacySha256: predecessorLegacyInventorySha256,
         acceptedLegacy: true,
         rejectedUnknown: true,
+        xCompatibilityScope: { priorRoutes: 28, addedRoutes: 9, preservedAliases: true, rejectedAddedAliases: true },
       });
     }
   });
