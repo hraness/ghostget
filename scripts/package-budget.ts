@@ -2604,17 +2604,28 @@
 // were byte-identical:12,368,063 packed /25,136,008 payload /680 entries,
 // SHA2567f275f2fbd404a9e9ccea30fb93d10c9c3e07097fb2fea4b0dc5e849b4f663f9.
 // Preserve the prior platform projections and portability/payload allowances.
+// The merged 0.18.95 X workspace retains the upstream media/PDF SDK and adds
+// 13 published source files; rebuilt entries and chunks keep that net delta.
+// Two clean npm 11.19.0 packs on Node 24.20.0 (zlib 1.2.12), --ignore-scripts
+// on darwin arm64, were byte-identical: 12,428,097 compressed / 25,392,071
+// payload bytes, 693 files/entries, SHA-256
+// 309d6aefbd02e44a4f7ab01059a5dfb07adcfa51fd4dcf05ed6c711b7358c604.
+// Both snapshots came from source commit 4569224fe6d9062d70c74b5f34b3b070c7b9dd6e
+// including its committed dist. Every packed byte and mode matches its Git blob.
+// Retain the existing allowances: 12,428,097 + 12,387 + 4,096 = 12,444,580
+// packed; 25,392,071 + 353 + 1,656 = 25,394,080 unpacked. Source CI and the
+// canonical Release independently measure and admit their exact archives.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "ephemeral media and PDF acquisition 0.18.94",
+  scope: "X workspace native integration 0.18.95",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   nodeVersion: "24.20.0",
   zlibVersion: "1.2.12",
   platform: "darwin-arm64",
-  archiveSha256: "7f275f2fbd404a9e9ccea30fb93d10c9c3e07097fb2fea4b0dc5e849b4f663f9",
-  packedBytes: 12_368_063,
-  unpackedBytes: 25_136_008,
-  entryCount: 680,
+  archiveSha256: "309d6aefbd02e44a4f7ab01059a5dfb07adcfa51fd4dcf05ed6c711b7358c604",
+  packedBytes: 12_428_097,
+  unpackedBytes: 25_392_071,
+  entryCount: 693,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,
