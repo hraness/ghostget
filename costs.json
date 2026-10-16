@@ -74,6 +74,20 @@
         "maxBytesPerArchive": 536870912
       },
       "expiry": "Retain manager-referenced archives; cleanup requires proving no installation or running manager references them"
+    },
+    "local:ephemeral-media-acquisition": {
+      "kind": "derived",
+      "retention": "ephemeral",
+      "owner": "src/media/ephemeral-acquire.ts",
+      "source": "Explicit finite media request; account/source digests, private temporary audio/captions/thumbnail, no archive",
+      "deletion": "docs/ephemeral-media.md",
+      "expiry": "Consumer cleanup after copy; unfinished subprocess custody remains explicitly pending for supervised recovery",
+      "budget": {
+        "maxBytes": 536870912,
+        "maxFiles": 256,
+        "maxDurationSeconds": 14400,
+        "maxAcquisitionMs": 3600000
+      }
     }
   },
   "exempt": []

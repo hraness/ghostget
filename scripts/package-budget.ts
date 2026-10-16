@@ -2586,17 +2586,22 @@
 // payload bytes, 657 entries, SHA-256
 // 16cd57588a0276a43554e217ac6b7c4129b1fe36797fa8450a454378e6012b9a.
 // Keep the reviewed platform/portability and payload allowances unchanged.
+// Ephemeral media/PDF SDK0.18.94 adds six source modules and generated entry/chunks.
+// Two independent npm11.19.0 packs on Node24.20.0/zlib1.2.12 darwin-arm64
+// were byte-identical:12,367,493 packed /25,134,993 payload /680 entries,
+// SHA256527936c3bb9ffd0603eb296af19460dba9ce8fb080ec231bd3a20739f2dd13eb.
+// Preserve the prior platform projections and portability/payload allowances.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "capture error classification 0.18.93",
+  scope: "ephemeral media and PDF acquisition 0.18.94",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   nodeVersion: "24.20.0",
   zlibVersion: "1.2.12",
   platform: "darwin-arm64",
-  archiveSha256: "16cd57588a0276a43554e217ac6b7c4129b1fe36797fa8450a454378e6012b9a",
-  packedBytes: 12_264_061,
-  unpackedBytes: 24_668_934,
-  entryCount: 657,
+  archiveSha256: "527936c3bb9ffd0603eb296af19460dba9ce8fb080ec231bd3a20739f2dd13eb",
+  packedBytes: 12_367_493,
+  unpackedBytes: 25_134_993,
+  entryCount: 680,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,

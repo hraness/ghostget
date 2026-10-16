@@ -84,6 +84,7 @@ export interface YtDlpAuthOptions {
   readonly browser?: string;
   readonly inheritConfig: boolean;
   readonly authContextSha256?: string;
+  readonly processGroup?: "owned" | "inherit";
 }
 
 export interface ProbeYtDlpOptions extends YtDlpAuthOptions {
@@ -101,6 +102,10 @@ export interface CaptureYtDlpOptions extends YtDlpAuthOptions {
   readonly caption: CaptionSelection | null;
   readonly persistDescriptiveMetadata: boolean;
   readonly privateRedactions?: readonly string[];
+  /** Ephemeral acquisition may forbid the legacy muxed-video fallback. */
+  readonly audioOnly?: boolean;
+  readonly maximumBytes?: number;
+  readonly timeoutMs?: number;
   readonly signal?: AbortSignal;
 }
 
@@ -226,6 +231,8 @@ function captureIdentityPrintArg(mode: CaptureMode): string {
 
 export function buildYtDlpCaptureArgv(options: CaptureYtDlpOptions): CommandArgv {
   authorizationIdentity(options);
+  if (options.maximumBytes !== undefined && (!Number.isSafeInteger(options.maximumBytes) || options.maximumBytes < 1)) throw new TypeError("invalid media byte limit");
+  if (options.timeoutMs !== undefined && (!Number.isSafeInteger(options.timeoutMs) || options.timeoutMs < 1)) throw new TypeError("invalid media timeout");
   return [
     options.executable,
     ...configurationArgs(options),
@@ -256,7 +263,8 @@ export function buildYtDlpCaptureArgv(options: CaptureYtDlpOptions): CommandArgv
       ? ["--write-description", "--write-thumbnail"]
       : ["--no-write-description", "--no-write-thumbnail"]),
     ...captionArgs(options.caption),
-    ...modeArgs(options.mode),
+    ...(options.audioOnly && options.mode === "audio" ? ["--format", "bestaudio"] : modeArgs(options.mode)),
+    ...(options.maximumBytes === undefined ? [] : ["--max-filesize", String(options.maximumBytes)]),
     "--paths",
     `home:${options.captureDirectory}`,
     "--paths",
@@ -372,7 +380,7 @@ export async function probeWithYtDlp(
   const result = await dependencies.runProcess(buildYtDlpProbeArgv(options), {
     ...(options.signal === undefined ? {} : { signal: options.signal }),
     timeoutMs: PROBE_TIMEOUT_MS,
-    processGroup: true,
+    processGroup: options.processGroup !== "inherit",
     maxStdoutBytes: PROBE_STDOUT_LIMIT_BYTES,
     maxStderrBytes: TOOL_STDERR_LIMIT_BYTES,
     redactions: [
@@ -402,9 +410,9 @@ export async function captureWithYtDlp(
 ): Promise<YtDlpCaptureResult> {
   const result = await dependencies.runProcess(buildYtDlpCaptureArgv(options), {
     ...(options.signal === undefined ? {} : { signal: options.signal }),
-    timeoutMs: CAPTURE_TIMEOUT_MS,
+    timeoutMs: options.timeoutMs ?? CAPTURE_TIMEOUT_MS,
     // yt-dlp starts FFmpeg for HLS and merges. Cancel must stop those too.
-    processGroup: true,
+    processGroup: options.processGroup !== "inherit",
     maxStdoutBytes: CAPTURE_STDOUT_LIMIT_BYTES,
     maxStderrBytes: TOOL_STDERR_LIMIT_BYTES,
     redactions: [

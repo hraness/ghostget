@@ -525,3 +525,17 @@ test("probe and capture prefer the same case-sensitive extractor key", async () 
     identity: { extractor: "Youtube", id: publicId, ext: "mkv" },
   });
 });
+
+test('ephemeral audio forbids muxed fallback and binds size/deadline/supervisor group', async () => {
+  const options = captureOptions({mode:'audio',audioOnly:true,maximumBytes:1024,timeoutMs:3000,processGroup:'inherit'});
+  const argv = buildYtDlpCaptureArgv(options);
+  expect(argv[argv.indexOf('--format')+1]).toBe('bestaudio');
+  expect(argv[argv.indexOf('--max-filesize')+1]).toBe('1024');
+  expect(buildYtDlpCaptureArgv(captureOptions({mode:'audio'}))).toContain('bestaudio/best');
+  const result = await captureWithYtDlp(options, {runProcess:async (_argv, runtime) => {
+    expect(runtime.timeoutMs).toBe(3000); expect(runtime.processGroup).toBe(false);
+    return {ok:true,exitCode:0,command:[],stdout:'WRENCH_MEDIA_CAPTURE_IDENTITY_V1\t{"extractor":"Youtube","id":"abcdefghijk","ext":"m4a"}',stderr:'',stdoutTruncated:false,stderrTruncated:false,elapsedMs:1};
+  }});
+  expect(result.ok).toBe(true);
+  expect(()=>buildYtDlpCaptureArgv(captureOptions({maximumBytes:0}))).toThrow();
+});
