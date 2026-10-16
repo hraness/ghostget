@@ -2582,9 +2582,9 @@
 // canonical Release independently measure and admit the exact archive.
 // Additive capture-error classification adds one published source module.
 // Two clean npm 11.19.0 packs on Node 24.20.0 (zlib 1.2.12), --ignore-scripts
-// on darwin arm64, were byte-identical: 12,264,061 compressed / 24,668,954
+// on darwin arm64, were byte-identical: 12,264,061 compressed / 24,668,934
 // payload bytes, 657 entries, SHA-256
-// 832c7e808c4f9a14ba899ae23aa2bcc7c127c90b2423f7a36e6e1994e0bfb073.
+// 16cd57588a0276a43554e217ac6b7c4129b1fe36797fa8450a454378e6012b9a.
 // Keep the reviewed platform/portability and payload allowances unchanged.
 export const repairPackageMeasurement = Object.freeze({
   scope: "capture error classification 0.18.93",
@@ -2593,9 +2593,9 @@ export const repairPackageMeasurement = Object.freeze({
   nodeVersion: "24.20.0",
   zlibVersion: "1.2.12",
   platform: "darwin-arm64",
-  archiveSha256: "832c7e808c4f9a14ba899ae23aa2bcc7c127c90b2423f7a36e6e1994e0bfb073",
+  archiveSha256: "16cd57588a0276a43554e217ac6b7c4129b1fe36797fa8450a454378e6012b9a",
   packedBytes: 12_264_061,
-  unpackedBytes: 24_668_954,
+  unpackedBytes: 24_668_934,
   entryCount: 657,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

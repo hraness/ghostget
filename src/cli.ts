@@ -1,6 +1,5 @@
 #!/usr/bin/env bun
 
-import { captureErrorOutput } from "./capture-error";
 import { ghostgetBareUsage, ghostgetHelpRequest, hasPdfSignInOptions } from "./usage";
 import { cliStyle, renderCliError } from "./cli-style";
 import { terminalIntro } from "./cli-intro";
@@ -296,7 +295,7 @@ export async function runGhostgetCliProcess(
     process.exitCode = await support.runGhostgetSupportCommand(rawArguments.slice(1), resolvedOutput);
     return;
   }
-  const captureOutput = rawArguments[0] === "pdf" && rawArguments.includes("--json") ? captureErrorOutput(resolvedOutput) : resolvedOutput;
+  const captureOutput = rawArguments[0] === "pdf" && rawArguments.includes("--json") ? (await import("./capture-error")).captureErrorOutput(resolvedOutput) : resolvedOutput;
   if (rawArguments[0] === "pdf" && help === null && hasPdfSignInOptions(rawArguments.slice(1))) {
     const { runSignedInPdfCommand, runWordcellPdfWithDownload } = await import("./pdf-auth");
     process.exitCode = await runSignedInPdfCommand(rawArguments.slice(1), captureOutput, {
