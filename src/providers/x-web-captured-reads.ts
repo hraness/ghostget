@@ -60,7 +60,16 @@ function notificationPostId(value: unknown): string | null {
 
 function notificationTime(value: unknown): string | null {
   if (value === undefined || value === null) return null;
-  if (typeof value !== "string" || !/^\d{1,16}$/u.test(value)) throw new Error("X notification timestamp is invalid");
+  if (typeof value !== "string") throw new Error("X notification timestamp is invalid");
+  // Current TimelineNotification responses carry canonical UTC ISO text under
+  // the historical timestamp_ms field. Retain the observed integer-ms variant.
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(value)) {
+    const milliseconds = Date.parse(value);
+    if (!Number.isSafeInteger(milliseconds) || milliseconds < 0 || milliseconds > 8_640_000_000_000_000
+      || new Date(milliseconds).toISOString() !== value) throw new Error("X notification timestamp is invalid");
+    return value;
+  }
+  if (!/^\d{1,16}$/u.test(value)) throw new Error("X notification timestamp is invalid");
   const milliseconds = Number(value);
   if (!Number.isSafeInteger(milliseconds) || milliseconds > 8_640_000_000_000_000) throw new Error("X notification timestamp escaped its bound");
   return new Date(milliseconds).toISOString();

@@ -33,9 +33,9 @@ function trendingResponse(...entries: unknown[]) {
   return { data: { timeline: { timeline: { instructions: [{ type: "TimelineAddEntries", entries }] } } } };
 }
 
-function notificationEntry(id = "notification-fixture", icon = "heart_icon") {
+function notificationEntry(id = "notification-fixture", icon = "heart_icon", timestamp = "1700000000000") {
   return { entryId: `occurrence-${id}`, content: { entryType: "TimelineTimelineItem", itemContent: {
-    __typename: "TimelineNotification", itemType: "TimelineNotification", id, notification_icon: icon, timestamp_ms: "1700000000000",
+    __typename: "TimelineNotification", itemType: "TimelineNotification", id, notification_icon: icon, timestamp_ms: timestamp,
     rich_message: { text: "Fixture liked your post", entities: [] },
     template: {
       from_users: [{ __typename: "TimelineNotificationUserRef", user_results: { result: {
@@ -99,6 +99,18 @@ describe("reviewed NewsSidebar Relay shape", () => {
 });
 
 describe("captured read-only X notifications", () => {
+  test("accepts only observed integer milliseconds or canonical UTC ISO timestamps without inferring read state", () => {
+    for (const [timestamp, expected] of [["0", "1970-01-01T00:00:00.000Z"], ["1700000000000", "2023-11-14T22:13:20.000Z"], ["2020-02-29T12:34:56.789Z", "2020-02-29T12:34:56.789Z"]]) {
+      const page = projectXWebNotificationsReadPage(notificationsResponse(notificationEntry("fixture", "heart_icon", timestamp!)), "123", 20);
+      expect(page.entries[0]).toMatchObject({ kind: "notification", notification: { createdAt: expected, read: null } });
+    }
+    for (const timestamp of ["2020-02-30T12:34:56.789Z", "2020-02-29T25:34:56.789Z", "2020-02-29T12:34:56Z", "2020-02-29T12:34:56.789+00:00", "1969-12-31T23:59:59.999Z", "tomorrow", "1700000000000.5", "1.7e12", "9000000000000000"]) {
+      expect(() => projectXWebNotificationsReadPage(notificationsResponse(notificationEntry("fixture", "heart_icon", timestamp)), "123", 20)).toThrow("timestamp");
+    }
+    const numeric = notificationEntry(); Object.assign(numeric.content.itemContent, { timestamp_ms: 1700000000000 });
+    expect(() => projectXWebNotificationsReadPage(notificationsResponse(numeric), "123", 20)).toThrow("timestamp");
+  });
+
   test("constructs one exact All query without polling, acknowledgement or target overrides", () => {
     expect(buildXWebNotificationsReadRequest("123", 20)).toEqual({
       subject: "123", operationId: "notifications.all", operationName: "NotificationsTimeline", method: "GET",
