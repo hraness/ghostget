@@ -668,6 +668,31 @@ describe("strict GraphQL operation/path/query-ID binding", () => {
     })).toThrow("mutations require POST");
   });
 
+  test("keeps historical repost variables separate from the guarded current ordinary-target shape", () => {
+    for (const enabled of [true, false]) {
+      const operationId = enabled ? "reposts.enable" : "reposts.disable";
+      const resolved = descriptor(enabled ? "CreateRetweet" : "DeleteRetweet", { features: [], toggles: [] });
+      const key = enabled ? "tweet_id" : "source_tweet_id";
+      const bound = (variables: unknown) => ({ method: "POST" as const, url: graphqlUrl(resolved), descriptor: resolved,
+        body: { variables, features: {}, queryId: resolved.queryId } });
+      const current = { [key]: "9876543210123456789" };
+      const historical = { ...current, dark_request: false };
+      expect(authorizeXWebMutationRequest(operationId, bound(historical))).toMatchObject({ operationName: resolved.operationName });
+      expect(() => authorizeXWebMutationRequest(operationId, bound(current))).toThrow("dark_request");
+      expect(authorizeXWebMutationRequest(operationId, bound(current), { postsRepostContractVersion: 2 }))
+        .toMatchObject({ operationName: resolved.operationName });
+      expect(() => authorizeXWebMutationRequest(operationId, bound(historical), { postsRepostContractVersion: 2 })).toThrow("dark_request");
+      for (const variables of [{ [key]: 123 }, { [key]: "1".repeat(20) }, { [key]: "123&other=456" },
+        { [enabled ? "source_tweet_id" : "tweet_id"]: "123" }, { ...current, engagement_request: {} },
+        { ...current, impression_id: "123" }, { ...current, queryId: resolved.queryId }]) {
+        expect(() => authorizeXWebMutationRequest(operationId, bound(variables), { postsRepostContractVersion: 2 })).toThrow();
+      }
+      for (const dark_request of [undefined, true, null, "false"]) {
+        expect(() => authorizeXWebMutationRequest(operationId, bound({ ...current, dark_request }))).toThrow("dark_request");
+      }
+    }
+  });
+
   test("authorizes one exact posts.publish media entity and rejects media on other CreateTweet routes", () => {
     const resolved = descriptor("CreateTweet");
     const features = Object.fromEntries(resolved.metadata.featureSwitches.map((name) => [name, false]));

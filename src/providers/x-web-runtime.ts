@@ -57,7 +57,7 @@ import {
 } from "./read-failure";
 import { scrubXUploadImage } from "./x-image-provenance";
 import { parseXWebMediaInput, readBoundXWebMedia, type XWebMediaType } from "./x-web-media";
-import { executeXWebFollowSet } from "./x-web-social-actions";
+import { executeXWebFollowSet, parseXWebRepostInput, xWebRepostVariables } from "./x-web-social-actions";
 import { hasExactKeys } from "../contracts-shape.js";
 import {
   rejectXTweetMadeWithAiLabel,
@@ -135,6 +135,7 @@ export type XWebRuntimeDependencies = Partial<WebSessionNetworkDependencies>
 
 type XBootstrap = {
   readonly postsPublishContractVersion?: 6;
+  readonly postsRepostContractVersion?: 2;
   readonly auth: GhostgetAuth;
   readonly client: WebSessionClient;
   readonly html: string;
@@ -720,6 +721,8 @@ async function bootstrapX(
     auth,
     ...(recipe.action === "posts.publish" && recipe.contractVersion === 6
       ? { postsPublishContractVersion: 6 as const } : {}),
+    ...(recipe.action === "posts.repost" && recipe.contractVersion === 2
+      ? { postsRepostContractVersion: 2 as const } : {}),
     client,
     html,
     mainUrl,
@@ -963,7 +966,10 @@ async function graphQl(
     mutationBinding = authorizeXWebMutationRequest(
       mutationOperation,
       { url, method, descriptor, ...(body === undefined ? {} : { body }) },
-      bootstrap.postsPublishContractVersion === 6 ? { postsPublishContractVersion: 6 } : {},
+      {
+        ...(bootstrap.postsPublishContractVersion === 6 ? { postsPublishContractVersion: 6 as const } : {}),
+        ...(bootstrap.postsRepostContractVersion === 2 ? { postsRepostContractVersion: 2 as const } : {}),
+      },
     );
   } else if (readOperation === undefined) {
     assertExactXWebGraphQlBinding({ url, method, descriptor, ...(body === undefined ? {} : { body }) });
@@ -3652,9 +3658,11 @@ async function executeDesiredState(
     : kind === "bookmark"
       ? enabled ? "CreateBookmark" : "DeleteBookmark"
       : enabled ? "CreateRetweet" : "DeleteRetweet";
-  const variables = kind === "repost" && !enabled
-    ? { source_tweet_id: id, dark_request: false }
-    : kind === "repost" ? { tweet_id: id, dark_request: false } : { tweet_id: id };
+  // The archived @1 request retains its original shape; only the explicit
+  // guarded @2 branch consumes the current ordinary-target variables.
+  const variables = kind !== "repost" ? { tweet_id: id }
+    : recipe.contractVersion === 2 ? xWebRepostVariables({ post_id: id, reposted: enabled })
+      : enabled ? { tweet_id: id, dark_request: false } : { source_tweet_id: id, dark_request: false };
   let started = 0;
   let verified = 0;
   try {
@@ -3736,6 +3744,12 @@ export async function executeXWebOperation(
 ): Promise<WebSessionExecution> {
   // Close source-specific inputs and contract versions before acquiring auth,
   // resolving bundles, or starting a browser.
+  if (recipe.action === "posts.repost") {
+    if (recipe.contractVersion !== 1 && recipe.contractVersion !== 2) {
+      throw new Error("X repost changes support only posts.repost@1 or the guarded posts.repost@2");
+    }
+    if (recipe.contractVersion === 2) parseXWebRepostInput(input);
+  }
   const deferredRead = deferredXWebWorkspaceRead(recipe.action, input);
   if (recipe.action === "feeds.read" && input.feed === "user-reposts" && recipe.contractVersion !== 3
     || recipe.action === "explore.read" && input.source === "today-news" && input.target !== undefined && recipe.contractVersion !== 2) {

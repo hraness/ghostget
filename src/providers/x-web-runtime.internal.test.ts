@@ -616,10 +616,10 @@ describe("X quote, repost and guarded follow integration", () => {
       expect(calls.filter(request => request.method === "POST")).toHaveLength(1);
     }
   });
-  test("repost and unrepost settle from exact source state and bound viewer; failed readback is never replayed", async () => {
-    for (const reposted of [true, false]) for (const drift of ["none", "target", "state", "actor", "mutation-target"] as const) {
+  test("historical and guarded current reposts bind their own variables and never replay failed readback", async () => {
+    for (const version of [1, 2]) for (const reposted of [true, false]) for (const drift of ["none", "target", "state", "actor", "mutation-target"] as const) {
       const calls: CapturedRequest[] = []; let reads = 0; let mutated = false;
-      const output = await executeXWebOperation(xRecipe("posts.repost", 2), { post_id: FOCAL_POST_ID, reposted }, xAuth, {
+      const output = await executeXWebOperation(xRecipe("posts.repost", version), { post_id: FOCAL_POST_ID, reposted }, xAuth, {
         dependencies: dependencies(calls, request => {
           if (request.url.href === "https://x.com/home") return new Response(homeHtml(), { headers: { "content-type": "text/html" } });
           if (request.url.href === MAIN_URL) return new Response(mainBundle(
@@ -635,8 +635,10 @@ describe("X quote, repost and guarded follow integration", () => {
               legacy: { retweeted: second && drift !== "state" ? reposted : !reposted } } } } });
           }
           if (request.url.pathname.endsWith(reposted ? "/CreateRetweet" : "/DeleteRetweet")) {
-            expect(JSON.parse(request.body!).variables).toEqual(reposted ? { tweet_id: FOCAL_POST_ID, dark_request: false }
-              : { source_tweet_id: FOCAL_POST_ID, dark_request: false });
+            expect(JSON.parse(request.body!).variables).toEqual({
+              [reposted ? "tweet_id" : "source_tweet_id"]: FOCAL_POST_ID,
+              ...(version === 1 ? { dark_request: false } : {}),
+            });
             mutated = true; const source = drift === "mutation-target" ? QUOTED_POST_ID : FOCAL_POST_ID;
             return jsonResponse({ data: reposted ? { create_retweet: { retweet_results: { result: { rest_id: CREATED_POST_ID,
               retweeted_status_result: { result: { rest_id: source } } } } } }
@@ -650,19 +652,42 @@ describe("X quote, repost and guarded follow integration", () => {
       expect(calls.filter(request => request.method === "POST")).toHaveLength(1);
     }
   });
+  test("unknown repost versions and malformed current inputs refuse before auth or provider access", async () => {
+    let effects = 0;
+    const forbidden = async (): Promise<never> => { effects++; throw new Error("must not acquire authority"); };
+    const dependencies: XWebRuntimeDependencies = { acquireCookies: forbidden, fetch: forbidden, createBrowserSession: forbidden };
+    for (const version of [0, 3, -1, 1.5, Number.NaN]) {
+      await expect(executeXWebOperation(xRecipe("posts.repost", version), { post_id: FOCAL_POST_ID, reposted: true }, xAuth,
+        { dependencies })).rejects.toThrow("support only");
+    }
+    for (const input of [{ post_id: FOCAL_POST_ID }, { post_id: FOCAL_POST_ID, reposted: "true" },
+      { post_id: "1".repeat(20), reposted: true }, { post_id: "123&other=456", reposted: true },
+      { post_id: FOCAL_POST_ID, reposted: true, dark_request: false },
+      { post_id: FOCAL_POST_ID, reposted: true, engagement_request: "unreviewed" }]) {
+      await expect(executeXWebOperation(xRecipe("posts.repost", 2), input, xAuth, { dependencies })).rejects.toThrow();
+    }
+    expect(effects).toBe(0);
+  });
+
   test("follow remains a zero-effect pre-dispatch failure until numeric target evidence is reviewed", async () => {
-    const calls: CapturedRequest[] = [];
-    const execution = await executeXWebOperation(xRecipe("relationships.follow.set", 1), { user_id: "123", following: true }, xAuth, {
-      dependencies: dependencies(calls, request => {
-        if (request.url.href === "https://x.com/home") return new Response(homeHtml(), { headers: { "content-type": "text/html" } });
-        if (request.url.href === MAIN_URL) return new Response(mainBundle(descriptor("Viewer", VIEWER_QUERY_ID, "query")), { headers: { "content-type": "application/javascript" } });
-        if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
-        throw new Error("Unreviewed follow route must not run");
-      }),
-    });
-    expect(execution).toMatchObject({ status: "failed", dispatchStarted: false, dispatch: { planned: 1, started: 0, verified: 0 } });
-    expect(calls.every(request => request.method === "GET")).toBeTrue();
-    expect(calls.some(request => request.url.pathname.includes("friendships"))).toBeFalse();
+    for (const following of [true, false]) for (const includeUnreviewedDescriptor of [true, false]) {
+      const calls: CapturedRequest[] = []; let transactionBrowsers = 0;
+      const execution = await executeXWebOperation(xRecipe("relationships.follow.set", 1), { user_id: "123", following }, xAuth, {
+        dependencies: dependencies(calls, request => {
+          if (request.url.href === "https://x.com/home") return new Response(homeHtml(), { headers: { "content-type": "text/html" } });
+          if (request.url.href === MAIN_URL) return new Response(mainBundle(descriptor("Viewer", VIEWER_QUERY_ID, "query"),
+            ...(includeUnreviewedDescriptor ? [descriptor("UserByRestId", "UnreviewedUserQuery", "query")] : [])),
+            { headers: { "content-type": "application/javascript" } });
+          if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
+          throw new Error("Unreviewed follow route must not run");
+        }, { createBrowserSession: async () => { transactionBrowsers++; throw new Error("must not create a transaction browser"); } }),
+      });
+      expect(execution).toMatchObject({ status: "failed", dispatchStarted: false, dispatch: { planned: 1, started: 0, verified: 0 } });
+      expect(calls.every(request => request.method === "GET")).toBeTrue();
+      expect(calls.some(request => request.url.pathname.includes("friendships"))).toBeFalse();
+      expect(calls.some(request => request.url.pathname.endsWith("/UserByRestId"))).toBeFalse();
+      expect(transactionBrowsers).toBe(0);
+    }
   });
 });
 

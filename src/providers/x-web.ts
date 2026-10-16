@@ -827,12 +827,12 @@ function validateDeleteTweetVariables(variables: JsonRecord): void {
   if (variables.dark_request !== false) throw new Error("X content.delete dark_request must be false");
 }
 
-function validateDesiredStateVariables(operationId: XWebMutationOperationId, variables: JsonRecord): void {
+function validateDesiredStateVariables(operationId: XWebMutationOperationId, variables: JsonRecord, repostContractVersion: 1 | 2 = 1): void {
   if (operationId.startsWith("reposts.")) {
     const key = operationId === "reposts.enable" ? "tweet_id" : "source_tweet_id";
-    exactMutationKeys(variables, [key, "dark_request"], `X ${operationId} variables`);
+    exactMutationKeys(variables, repostContractVersion === 2 ? [key] : [key, "dark_request"], `X ${operationId} variables`);
     exactMutationPostId(variables[key], `X ${operationId} target`);
-    if (variables.dark_request !== false) throw new Error(`X ${operationId} dark_request must be false`);
+    if (repostContractVersion === 1 && variables.dark_request !== false) throw new Error(`X ${operationId} dark_request must be false`);
     return;
   }
   exactMutationKeys(variables, ["tweet_id"], `X ${operationId} variables`);
@@ -1049,7 +1049,7 @@ function validateRichArticleUpdateVariables(operationId: XWebMutationOperationId
 export function authorizeXWebMutationRequest(
   operationId: XWebMutationOperationId,
   input: XWebGraphQlBindingInput,
-  options: { readonly postsPublishContractVersion?: 6 } = {},
+  options: { readonly postsPublishContractVersion?: 6; readonly postsRepostContractVersion?: 2 } = {},
 ): XWebGraphQlBinding {
   const expectedName = mutationOperationNames[operationId];
   if (expectedName === undefined) throw new Error("X mutation operation is not allowlisted");
@@ -1073,7 +1073,7 @@ export function authorizeXWebMutationRequest(
     validateRichArticleUpdateVariables(operationId, variables);
   }
   else if (operationId === "content.delete") validateDeleteTweetVariables(variables);
-  else validateDesiredStateVariables(operationId, variables);
+  else validateDesiredStateVariables(operationId, variables, options.postsRepostContractVersion === 2 ? 2 : 1);
   exactBooleanMap(body.features, descriptor.metadata.featureSwitches, `X ${operationId} features`);
   if (descriptor.metadata.fieldToggles.length > 0) {
     exactBooleanMap(body.fieldToggles, descriptor.metadata.fieldToggles, `X ${operationId} fieldToggles`);
