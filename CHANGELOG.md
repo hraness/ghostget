@@ -7,6 +7,23 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.96
+
+X can read the dedicated profile repost timeline and open a selected Today’s News
+story feed. Story pages resolve the exact returned story and provider timeline
+on every page; cursors refuse a changed actor, story or timeline.
+
+- `feeds.read@3` and `explore.read@2` preserve prior contract versions and their
+  durable identities. Native consumers receive opaque account-bound selections
+  for Trending searches and News stories.
+- Native app startup upgrades recognized historical bundled X adapters through
+  the conditional generation installer, preserving account and action evidence.
+  Custom or newer installed adapters are not replaced.
+- Current follow/repost variable builders have focused regression coverage;
+  their new public write contracts remain inactive. Expanded media publication,
+  media replies/quotes and quote/repost/follow activation still require their
+  separate live qualification.
+
 ## 0.18.95
 
 X native consumers can read rich posts and profiles, liked posts, profile replies

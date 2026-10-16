@@ -144,7 +144,12 @@ export class AppHostXService {
   }
   private async read(account: AppHostAccount, operation: string, input: OperationInput): Promise<Record<string, unknown>> {
     this.requireSupported(operation);
-    const invocation = this.runtime.prepareReadInvocation("x-web", operation, input, account.id, this.environment, this.registry);
+    let invocation: ReturnType<Runtime["prepareReadInvocation"]>;
+    try { invocation = this.runtime.prepareReadInvocation("x-web", operation, input, account.id, this.environment, this.registry); }
+    catch (error) {
+      if (error instanceof ControlError) throw error;
+      throw new ControlError("X_READ_PREPARATION_FAILED", "X could not prepare this read. Review the installed X interface and account connection before retrying.");
+    }
     const result = await this.runtime.executeReadInvocation(invocation, { headed: false, registry: this.registry, environment: this.environment, signal: this.controller.signal });
     if (this.closed) throw new ControlError("HOST_CLOSED", "The app host has closed.");
     this.requireAccount(account.id, account.revision);

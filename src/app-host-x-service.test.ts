@@ -16,6 +16,7 @@ import { listPrivateStateDirectory, type PrivateStateDirectoryEntry } from "./st
 import { assertAsyncProperty, fc } from "./test-support";
 import { xWebPlugin } from "./plugins/x-web/plugin";
 import currentXManifest from "./assets/adapters/x/wrench-web-adapter.json";
+import { appHostFailure } from "./app-host-transport";
 
 type Runtime = NonNullable<ConstructorParameters<typeof AppHostXService>[5]>;
 const revision = "a".repeat(64), planDigest = "b".repeat(64);
@@ -219,6 +220,23 @@ test("exact post reads consume the provider's single-post projection and bind it
   await expect(f.handle({ action: "x.post.get", postId: "43" })).rejects.toThrow("requested post");
   f.setOutput({ posts: [post] });
   await expect(f.handle({ action: "x.post.get", postId: "42" })).rejects.toThrow();
+});
+
+test("read preparation failures have an explicit safe category and never execute a provider", async () => {
+  const account: AppHostAccount = { id: "fixture", provider: "x", subject: "123", displayName: "@fixture", browser: "chrome", profile: "Default", revision, status: "configured", identityVerification: "at-connection", disconnectDigest: "d".repeat(64) };
+  let executions = 0;
+  const runtime = { prepareReadInvocation: () => { throw new Error("private state path and account detail"); }, executeReadInvocation: async () => { executions++; throw new Error("must not execute"); } } as unknown as Runtime;
+  const service = new AppHostXService({}, providerPluginRegistry, () => account, undefined, undefined, runtime);
+  services.push(service);
+  for (const request of [{ action: "x.explore.list", source: "trending", target: null, cursor: null, limit: 20 }, { action: "x.notifications.list", cursor: null, limit: 20 }] as const) {
+    let failure: unknown;
+    try { await service.handle({ ...request, accountId: account.id, expectedAccountRevision: revision }); }
+    catch (error) { failure = error; }
+    const wire = appHostFailure("fixture", failure);
+    expect(wire).toMatchObject({ ok: false, code: "X_READ_PREPARATION_FAILED" });
+    expect(JSON.stringify(wire)).not.toContain("private state path");
+  }
+  expect(executions).toBe(0);
 });
 
 test("rich feed pages retain unavailable occurrences and distinguish bounded partial output", async () => {

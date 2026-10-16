@@ -7,6 +7,7 @@ import xPlugin from "./plugins/x-web/plugin";
 import { version } from "../package.json";
 import { APP_HOST_MAX_ACCOUNTS, type AppHostAccount, type AppHostData, type AppHostRequest } from "./app-host-protocol";
 import { AppHostXService } from "./app-host-x-service";
+import { upgradeAppHostXAdapter } from "./app-host-adapter";
 import type { AppHostXRequest } from "./app-host-x-protocol";
 import { confirmAppHostDecision, type AppHostDecision } from "./app-host-confirmation";
 import { connectionAccountSnapshotRevisions, ensureConnectionAccountIncarnations } from "./control/account-revision";
@@ -49,6 +50,7 @@ export class AppHostService {
     this.connections = options.connections ?? new Connections(environment, () => providerPluginRegistry);
     this.confirm = options.confirm ?? confirmAppHostDecision;
     this.now = options.now ?? Date.now;
+    upgradeAppHostXAdapter(environment, providerPluginRegistry);
     ensureConnectionAccountIncarnations(environment);
     this.x = new AppHostXService(environment, providerPluginRegistry, (id, revision) => this.account(id, revision), options.confirmX, this.now);
   }

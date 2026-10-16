@@ -40,6 +40,14 @@ process and this same product root. Do not run a second helper against it. The
 existing private control owner lock is held until owned work settles; this host
 creates no control sockets.
 
+At startup, the host conditionally upgrades an installed X adapter only when its
+manifest matches an archived bundled distribution. This installs the adapter
+metadata shipped inside the product; it does not download code. Custom, newer
+and portable-plugin adapters remain owner-controlled. Accounts and action
+evidence retain their identities. A pending plan bound to the old manifest
+cannot dispatch after the upgrade; inspect its status or cancel an unused plan
+through the normal recovery actions.
+
 ## Wire
 
 `@hraness/ghostget/app-host-protocol` exports the versioned wire types and bounds.
@@ -131,6 +139,10 @@ the host capability alone does not promise every provider route works.
 - `x.notifications.list` and `x.explore.list` are separate closed requests.
   Explore accepts `trending` or `today-news`. A new request name does not enable
   a route without its provider capture and review.
+  Returned cards may include an opaque `target`. Send that exact target with
+  its original source to read a Trending search or News story. Preserve it on
+  continuation; it is bound to the account revision and expires with the host
+  session. Clients must not construct search queries or story/timeline IDs.
 - `x.media.prepare` accepts absolute local paths for PNG, JPEG or MP4 files,
   returning temporary opaque attachment IDs and file metadata. Nonempty alt
   text remains rejected until its provider contract is qualified. The observed
