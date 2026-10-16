@@ -132,6 +132,20 @@
         "maxBytes": 1048576
       },
       "expiry": "Never expired or replaced by a new plan. Full history refuses new proof without erasing existing recovery evidence; removed only with the stopped product-owned state directory."
+    },
+    "local:ephemeral-media-acquisition": {
+      "kind": "derived",
+      "retention": "ephemeral",
+      "owner": "src/media/ephemeral-acquire.ts",
+      "source": "Explicit finite media request; account/source digests, private temporary audio/captions/thumbnail, no archive",
+      "deletion": "docs/ephemeral-media.md",
+      "expiry": "Consumer cleanup after copy; unfinished subprocess custody remains explicitly pending for supervised recovery",
+      "budget": {
+        "maxBytes": 536870912,
+        "maxFiles": 256,
+        "maxDurationSeconds": 14400,
+        "maxAcquisitionMs": 3600000
+      }
     }
   },
   "exempt": []

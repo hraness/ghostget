@@ -3,7 +3,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, 
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { assertSourceExclusionsUnreachable, generateNativeRuntimeProfile, resolveNativeRuntimePackageRoot } from "./native-runtime-profile";
-import { createProviderPluginRegistry } from "../src/provider-plugin-registry";
+import { createProviderPluginRegistry, providerPluginRuntimePackages } from "../src/provider-plugin-registry";
 import xPlugin from "../src/plugins/x-web/plugin";
 import { parseRuntimeManifest } from "../src/model";
 
@@ -67,8 +67,9 @@ test("generated native projection loads the relocated X runtime and retains iden
   try {
     const consumer = join(root, "consumer"); mkdirSync(consumer);
     for (const path of ["src", "package.json", "tsconfig.json", "bunfig.toml"]) cpSync(join(repository, path), join(consumer, path), { recursive: true });
+    const runtimeRoots = new Map(providerPluginRuntimePackages(registry).map(dependency => [dependency.name, dependency.root]));
     for (const dependency of profile.packages) {
-      const source = join(repository, "node_modules", dependency.name);
+      const source = runtimeRoots.get(dependency.name) ?? join(repository, "node_modules", dependency.name);
       expect(JSON.parse(readFileSync(join(source, "package.json"), "utf8")).version).toBe(dependency.version);
       const target = join(consumer, "node_modules", dependency.name);
       mkdirSync(dirname(target), { recursive: true });
@@ -77,7 +78,7 @@ test("generated native projection loads the relocated X runtime and retains iden
     }
     writeFileSync(join(consumer, "probe.ts"), `
 import { appendFileSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
-import { createProviderPluginRegistry } from "./src/provider-plugin-registry";
+import { createProviderPluginRegistry, providerPluginRuntimePackages } from "./src/provider-plugin-registry";
 import x from "./src/plugins/x-web/plugin";
 import { parseRuntimeManifest } from "./src/model";
 import { createClassifiedCookieRecordReader } from "./src/cookie-access";

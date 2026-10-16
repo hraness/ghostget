@@ -7,7 +7,7 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
-## 0.18.94
+## 0.18.95
 
 X native consumers can read rich posts and profiles, liked posts, profile replies
 and highlights, Trending, Today’s News cards and notifications through the typed
@@ -36,6 +36,19 @@ fixture values for captured request fields.
 Multiple-image/JPEG publication, media replies and quotes, following changes,
 reposts, quotes and News story-detail feeds remain
 unavailable until their separate provider qualification completes.
+## 0.18.94
+
+Local-library consumers can acquire one finite media item into a verified,
+temporary stage without retaining a source archive.
+
+- Add the `media-acquisition` SDK boundary with bounded audio, timed captions,
+  thumbnails, cancellation, ownership receipts and explicit cleanup recovery.
+- Resolve a selected saved browser account exactly and revalidate its snapshot
+  before returning content. Unsupported account types never fall back to an
+  anonymous request. Callers may explicitly prefer audio for local transcription.
+- Add the `pdf-acquisition` SDK boundary backed by Wordcell's structured PDF
+  extraction, preserving its typed errors, extraction evidence and limits.
+
 
 ## 0.18.93
 

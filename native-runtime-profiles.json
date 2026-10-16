@@ -18,7 +18,7 @@
         },
         {
           "name": "@hraness/wordcell",
-          "version": "0.26.3",
+          "version": "0.27.0",
           "exclude": []
         },
         {
@@ -46,6 +46,11 @@
         {
           "name": "effect",
           "version": "3.22.1",
+          "exclude": []
+        },
+        {
+          "name": "entities",
+          "version": "7.0.1",
           "exclude": []
         },
         {
