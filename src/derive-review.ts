@@ -2,12 +2,13 @@ import { MAX_HAR_ENTRIES } from "./har";
 import {
   analyzeInternalHarValue,
   INTERNAL_HAR_REVIEW_BOUNDS,
-  isReviewedLinkedInArticleRoute,
+  internalHarReviewTraversalDepth,
   isReviewedInternalDynamicMapField,
   isReviewedTwitchGraphQlRoute,
   parseBoundedInternalHarUrl,
   reviewedInternalFieldNameForUrl,
   reviewedXGraphQlVariableFieldName,
+  reviewedXContractEvidenceRoute,
   type BoundedInternalHarUrl,
   type InternalHarCandidate,
 } from "./har-internal";
@@ -22,7 +23,6 @@ const MAX_MATCHES_PER_FIXTURE = 100;
 const MAX_FIELD_NAMES = 50;
 const MAX_FIELD_NAME_CHARACTERS = 128;
 const MAX_WALK_NODES = 10_000;
-const MAX_WALK_DEPTH = INTERNAL_HAR_REVIEW_BOUNDS.maxTraversalDepth;
 const MAX_ARRAY_ITEMS = INTERNAL_HAR_REVIEW_BOUNDS.maxArrayItems;
 const MAX_OBJECT_ENTRIES = INTERNAL_HAR_REVIEW_BOUNDS.maxObjectEntries;
 const MAX_OBJECT_KEY_INSPECTIONS = INTERNAL_HAR_REVIEW_BOUNDS.maxObjectEntries;
@@ -464,10 +464,14 @@ function walkJson(
   state.visited += 1;
   matchPrimitive(state, value, location);
   if (Array.isArray(value)) {
-    const items = value.slice(0, MAX_ARRAY_ITEMS);
+    const indexedMedia = state.xGraphQlRequest
+      && reviewedXContractEvidenceRoute(state.url) === "create"
+      && (location === "request.body.variables.media.media_entities"
+        || /^response\.body\.data\.create_tweet\.tweet_results\.result(?:\.tweet)?\.legacy\.(?:extended_entities|entities)\.media$/u.test(location));
+    const items = value.slice(0, indexedMedia ? 4 : MAX_ARRAY_ITEMS);
     if (value.length > items.length) truncateEveryFixture(state);
     for (let index = 0; index < items.length; index += 1) {
-      walkJson(state, items[index], `${location}[]`, depth + 1, false, "structural");
+      walkJson(state, items[index], `${location}[${indexedMedia ? index : ""}]`, depth + 1, false, "structural");
       if (
         state.visited >= MAX_WALK_NODES
         && items.slice(index + 1).some((candidate) => hasSearchableContent(state, candidate))
@@ -684,9 +688,7 @@ function matchEntryProbes(
       && url.origin === "https://x.com"
       && /^\/i\/api\/graphql\/[A-Za-z0-9_-]{20,64}\/[A-Z][A-Za-z0-9_]{2,100}$/u.test(url.pathname),
     url,
-    maximumDepth: isReviewedLinkedInArticleRoute(url)
-      ? INTERNAL_HAR_REVIEW_BOUNDS.maxLinkedInArticleTraversalDepth
-      : MAX_WALK_DEPTH,
+    maximumDepth: internalHarReviewTraversalDepth(url),
     visited: 0,
   };
 

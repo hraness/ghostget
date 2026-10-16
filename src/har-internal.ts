@@ -54,6 +54,7 @@ export const INTERNAL_HAR_REVIEW_BOUNDS = Object.freeze({
   maxTotalRevisions: 20_000,
   maxTraversalDepth: 8,
   maxLinkedInArticleTraversalDepth: 12,
+  maxXContractEvidenceTraversalDepth: 16,
   maxUrlCharacters: 4_096 + (2 * 1024 * 1024) + 8_192,
 } as const);
 
@@ -177,6 +178,31 @@ const reviewedTwitchGraphQlOperationNames: ReadonlySet<string> = new Set([
   "ChannelRoot_AboutPanel",
   "TopNav_CurrentUser",
 ] as const);
+
+// Presentation-only vocabulary for two first-party evidence exchanges. This
+// does not register a query revision, admit a request, or expose any values.
+const reviewedXContractEvidenceFieldNames: ReadonlySet<string> = new Set([
+  "__typename", "attachment_url", "core", "create_tweet", "entities",
+  "extended_entities", "follow_request_sent", "following", "full_text",
+  "id_str", "legacy", "media_entities", "media_id", "media_key",
+  "relationship_perspectives", "rest_id", "tagged_users", "tweet",
+  "tweet_results", "tweet_text", "type", "user", "userId", "user_results",
+  "withSafetyModeUserFields",
+]);
+
+export function reviewedXContractEvidenceRoute(url: URL): "create" | "profile" | null {
+  if (url.origin !== "https://x.com" || url.username !== "" || url.password !== "") return null;
+  const match = /^\/i\/api\/graphql\/[A-Za-z0-9_-]{20,64}\/(CreateTweet|UserByRestId)$/u.exec(url.pathname);
+  return match === null ? null : match[1] === "CreateTweet" ? "create" : "profile";
+}
+
+export function internalHarReviewTraversalDepth(url: URL): number {
+  return reviewedXContractEvidenceRoute(url) !== null
+    ? INTERNAL_HAR_REVIEW_BOUNDS.maxXContractEvidenceTraversalDepth
+    : isReviewedLinkedInArticleRoute(url)
+      ? INTERNAL_HAR_REVIEW_BOUNDS.maxLinkedInArticleTraversalDepth
+      : INTERNAL_HAR_REVIEW_BOUNDS.maxTraversalDepth;
+}
 
 /** Exact schema vocabulary reviewed only for LinkedIn's native Article route. */
 const reviewedLinkedInArticleFieldNames: ReadonlySet<string> = new Set([
@@ -363,6 +389,12 @@ export function isReviewedLinkedInArticleRoute(url: URL): boolean {
 }
 
 export function reviewedInternalFieldNameForUrl(url: URL, value: string): string {
+  if (
+    reviewedXContractEvidenceRoute(url) !== null
+    && safeFieldName.test(value)
+    && !sensitiveName.test(value)
+    && reviewedXContractEvidenceFieldNames.has(value)
+  ) return value;
   if (
     isReviewedTwitchGraphQlRoute(url)
     && value.length <= INTERNAL_HAR_REVIEW_BOUNDS.maxFieldNameCharacters
@@ -750,9 +782,7 @@ function requestFields(request: JsonRecord, url: URL): readonly string[] {
       : isReviewedTwitchGraphQlRoute(url)
         ? isReviewedTwitchStructuralContainer
         : undefined,
-    isReviewedLinkedInArticleRoute(url)
-      ? INTERNAL_HAR_REVIEW_BOUNDS.maxLinkedInArticleTraversalDepth
-      : INTERNAL_HAR_REVIEW_BOUNDS.maxTraversalDepth,
+    internalHarReviewTraversalDepth(url),
   );
   const xGraphQl = reviewedXGraphQlRoute(url);
   if (
@@ -862,9 +892,7 @@ function responseFields(response: unknown, url: URL): readonly string[] {
         : isReviewedTwitchGraphQlRoute(url)
           ? isReviewedTwitchStructuralContainer
           : undefined,
-      isReviewedLinkedInArticleRoute(url)
-        ? INTERNAL_HAR_REVIEW_BOUNDS.maxLinkedInArticleTraversalDepth
-        : INTERNAL_HAR_REVIEW_BOUNDS.maxTraversalDepth,
+      internalHarReviewTraversalDepth(url),
     );
     if (fields.size >= INTERNAL_HAR_REVIEW_BOUNDS.maxFieldPaths) break;
   }

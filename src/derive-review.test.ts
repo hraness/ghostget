@@ -8,6 +8,81 @@ import {
 
 const targetOrigin = "https://example.com";
 
+function xContractEvidenceHar(operation = "CreateTweet", mediaCount = 2, origin = "https://x.com"): unknown {
+  const media = Array.from({ length: mediaCount }, (_, index) => ({ id_str: String(700 + index), type: "photo" }));
+  const variables = operation === "UserByRestId"
+    ? { userId: "123", withSafetyModeUserFields: true }
+    : { tweet_text: "fixture post", media: { media_entities: media.map(item => ({ media_id: item.id_str, tagged_users: [] })) } };
+  const profile = { __typename: "User", rest_id: "123", core: { screen_name: "fixture_handle" },
+    relationship_perspectives: { following: false, follow_request_sent: false } };
+  return { log: { entries: [{
+    request: { method: operation === "UserByRestId" ? "GET" : "POST",
+      url: `${origin}/i/api/graphql/abcdefghijklmnopqrstuv/${operation}`
+        + (operation === "UserByRestId" ? `?variables=${encodeURIComponent(JSON.stringify(variables))}` : ""),
+      postData: operation === "UserByRestId" ? undefined : { mimeType: "application/json", text: JSON.stringify({ variables }) } },
+    response: { status: 200, content: { mimeType: "application/json", text: JSON.stringify({ data: operation === "UserByRestId"
+      ? { user: { result: profile } }
+      : { create_tweet: { tweet_results: { result: { rest_id: "456", core: { user_results: { result: profile } },
+        legacy: { full_text: "fixture post", extended_entities: { media } },
+        byId: { "private-map-key": { rest_id: "private-map-value" } },
+        credential: { rest_id: "private-credential-value" } } } } } }) } },
+  }] } };
+}
+
+describe("bounded X contract evidence review", () => {
+  const fixtures = { actor: "123", post: "456", text: "fixture post", first: "700", second: "701",
+    map: "private-map-value", credential: "private-credential-value" };
+  test("retains exact public fields and ordered media positions without disclosing fixture values", () => {
+    const result = reviewDerivationHarValue(xContractEvidenceHar(), "https://x.com", { kind: "entry", entryIndex: 0, fixtures });
+    if (result.kind !== "entry") throw new Error("Expected entry");
+    const matches = new Map(result.fixtureMatches.map(item => [item.label, item]));
+    expect(matches.get("actor")?.locations).toContain("response.body.data.create_tweet.tweet_results.result.core.user_results.result.rest_id");
+    expect(matches.get("post")?.locations).toEqual(["response.body.data.create_tweet.tweet_results.result.rest_id"]);
+    expect(matches.get("first")?.locations).toContain("request.body.variables.media.media_entities[0].media_id");
+    expect(matches.get("first")?.locations).toContain("response.body.data.create_tweet.tweet_results.result.legacy.extended_entities.media[0].id_str");
+    expect(matches.get("second")?.locations).toContain("request.body.variables.media.media_entities[1].media_id");
+    expect(result.fixtureMatches.every(item => !item.truncated)).toBe(true);
+    expect(matches.get("credential")?.locations).toEqual([]);
+    const serialized = JSON.stringify(result);
+    for (const secret of Object.values(fixtures)) expect(serialized).not.toContain(secret);
+    expect(serialized).not.toContain("private-map-key");
+  });
+  test("retains profile numeric-target and relationship schema with exact boolean probes", () => {
+    const result = reviewDerivationHarValue(xContractEvidenceHar("UserByRestId"), "https://x.com", {
+      kind: "entry", entryIndex: 0, fixtures: { actor: "123", enabled: "true", handle: "fixture_handle" },
+    });
+    if (result.kind !== "entry") throw new Error("Expected entry");
+    const matches = new Map(result.fixtureMatches.map(item => [item.label, item]));
+    expect(matches.get("actor")?.locations).toContain("request.query.variables[0].userId");
+    expect(matches.get("actor")?.locations).toContain("response.body.data.user.result.rest_id");
+    expect(matches.get("enabled")?.locations).toEqual(["request.query.variables[0].withSafetyModeUserFields"]);
+    expect(matches.get("handle")?.locations).toEqual(["response.body.data.user.result.core.screen_name"]);
+    expect(result.fixtureMatches.every(item => !item.truncated)).toBe(true);
+  });
+  test("extra media and excessive nesting still report truthful truncation", () => {
+    const result = reviewDerivationHarValue(xContractEvidenceHar("CreateTweet", 5), "https://x.com", { kind: "entry", entryIndex: 0, fixtures });
+    expect(result.kind === "entry" && result.fixtureMatches.every(item => item.truncated)).toBe(true);
+    expect(JSON.stringify(result)).not.toContain("media_entities[4]");
+    let nested: unknown = "deep fixture";
+    for (let index = 0; index < 17; index += 1) nested = { legacy: nested };
+    const deep = reviewDerivationHarValue({ log: { entries: [{
+      request: { method: "POST", url: "https://x.com/i/api/graphql/abcdefghijklmnopqrstuv/CreateTweet" },
+      response: { status: 200, content: { mimeType: "application/json", text: JSON.stringify(nested) } },
+    }] } }, "https://x.com", { kind: "entry", entryIndex: 0, fixtures: { deep: "deep fixture" } });
+    expect(deep.kind === "entry" && deep.fixtureMatches).toEqual([{ label: "deep", locations: [], truncated: true }]);
+  });
+  test("lookalike origins and unreviewed operation names keep default redaction and arrays", () => {
+    for (const [operation, origin] of [["UnreviewedOperation", "https://x.com"], ["CreateTweet", "https://x.com.example.test"]]) {
+      const result = reviewDerivationHarValue(xContractEvidenceHar(operation, 2, origin), origin, { kind: "entry", entryIndex: 0, fixtures });
+      const serialized = JSON.stringify(result);
+      expect(serialized).not.toContain(".media_entities[0]");
+      expect(serialized).not.toContain(".rest_id");
+      expect(serialized).not.toContain("private-map-key");
+      expect(serialized).not.toContain("private-credential-value");
+    }
+  });
+});
+
 function fixtureHar(): unknown {
   const variables = encodeURIComponent(JSON.stringify({ conversation_id: "conversation-fixture-123" }));
   return {
