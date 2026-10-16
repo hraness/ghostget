@@ -22,6 +22,8 @@ const importSpecifiers = [
   "@hraness/ghostget/messaging-automation",
   "@hraness/ghostget/contracts",
   "@hraness/ghostget/app-host-protocol",
+  "@hraness/ghostget/media-acquisition",
+  "@hraness/ghostget/pdf-acquisition",
 ];
 const binNames = ["ghostget"];
 const packageDiscoveryKeywords = [

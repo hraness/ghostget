@@ -7,6 +7,20 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.94
+
+Local-library consumers can acquire one finite media item into a verified,
+temporary stage without retaining a source archive.
+
+- Add the `media-acquisition` SDK boundary with bounded audio, timed captions,
+  thumbnails, cancellation, ownership receipts and explicit cleanup recovery.
+- Resolve a selected saved browser account exactly and revalidate its snapshot
+  before returning content. Unsupported account types never fall back to an
+  anonymous request. Callers may explicitly prefer audio for local transcription.
+- Add the `pdf-acquisition` SDK boundary backed by Wordcell's structured PDF
+  extraction, preserving its typed errors, extraction evidence and limits.
+
+
 ## 0.18.93
 
 Capture failures in JSON output now include a versioned `captureError` classification.

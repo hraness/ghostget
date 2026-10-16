@@ -37,6 +37,8 @@
       "@hraness/ghostget/contracts": [
         "./src/contracts.ts"
       ],
+      "@hraness/ghostget/media-acquisition": ["./src/media-acquisition.ts"],
+      "@hraness/ghostget/pdf-acquisition": ["./src/pdf-acquisition.ts"],
       "@hraness/ghostget/app-host-protocol": [
         "./src/app-host-protocol.ts"
       ],

@@ -129,8 +129,15 @@ function canonicalJsonSerializations(value) {
   const legacy = legacyCanonicalJson(value);
   return legacy === current ? [current] : [current, legacy];
 }
+function canonicalJsonFileSerializations(value) {
+  return canonicalJsonSerializations(value).map((serialization) => `${serialization}
+`);
+}
 function isCanonicalJsonText(text, value) {
   return canonicalJsonSerializations(value).includes(text);
+}
+function isCanonicalJsonFileText(content, value) {
+  return canonicalJsonFileSerializations(value).includes(content);
 }
 function canonicalJsonSha256Variants(value) {
   return canonicalJsonSerializations(value).map((serialization) => sha256(serialization));
@@ -142,4 +149,4 @@ function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
 }
 
-export { canonicalJson, isCanonicalJsonText, canonicalJsonSha256Variants, canonicalJsonSha256Matches, sha256 };
+export { canonicalJson, isCanonicalJsonText, isCanonicalJsonFileText, canonicalJsonSha256Variants, canonicalJsonSha256Matches, sha256 };

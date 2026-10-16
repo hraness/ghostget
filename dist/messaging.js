@@ -14,12 +14,12 @@ import {
   GHOSTGET_MESSAGING_RECEIPT_BINDING_V2_CONTRACT_ID,
   parseGhostgetMessagingContextBindingV1,
   parseGhostgetMessagingContextBindingV2
-} from "./index-kxkhqzam.js";
+} from "./index-3tc3rw83.js";
 import {
   canonicalJson,
   canonicalJsonSha256Matches,
   sha256
-} from "./index-xa1qz35x.js";
+} from "./index-pqsan2cn.js";
 import"./index-z1w83f81.js";
 
 // src/messaging.ts

@@ -35,6 +35,24 @@ function tool(): Record<string, unknown> {
 }
 
 describe("local CLI tool identity", () => {
+  test("rejects the CodeQL repeated prerelease attack without ambiguous regex matching", () => {
+    const version = "0.0.0-0." + "--.".repeat(38) + "!";
+    expect(version.length).toBeLessThanOrEqual(128);
+    expect(() => parseLocalCliToolIdentityV1({ ...tool(), version })).toThrow("version is malformed");
+    for (const version of ["0.0.0-0.--.--", "1.2.3-alpha.01a+001.build", "1.2.3+001", "1.2.3--"])
+      expect(parseLocalCliToolIdentityV1({ ...tool(), version }).version).toBe(version);
+    for (const version of ["1.2.3-01", "1.2.3-alpha..beta", "1.2.3+", "1.2.3+build+extra", "1.2.3-", "01.2.3"])
+      expect(() => parseLocalCliToolIdentityV1({ ...tool(), version })).toThrow("version is malformed");
+  });
+
+  test("property: numeric prerelease labels reject leading zeroes while build labels retain them", () => {
+    assertProperty(fc.property(fc.integer({ min: 0, max: 1_000_000 }), number => {
+      const digits = String(number);
+      expect(parseLocalCliToolIdentityV1({ ...tool(), version: `1.2.3-${digits}+0${digits}` }).version).toBe(`1.2.3-${digits}+0${digits}`);
+      expect(() => parseLocalCliToolIdentityV1({ ...tool(), version: `1.2.3-0${digits}` })).toThrow("version is malformed");
+    }), { numRuns: 100 });
+  });
+
   test("canonicalizes artifact order and round trips the exact identity", () => {
     const forward = parseLocalCliToolIdentityV1(tool());
     const reversedValue = tool();

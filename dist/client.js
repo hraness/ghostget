@@ -10,7 +10,7 @@ import {
   canonicalJsonSha256Matches,
   canonicalJsonSha256Variants,
   sha256
-} from "./index-xa1qz35x.js";
+} from "./index-pqsan2cn.js";
 import"./index-z1w83f81.js";
 
 // src/client.ts

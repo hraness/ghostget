@@ -29,7 +29,7 @@ const expectedClosureRuntimeDependencies = Object.freeze({
   "@hraness/accounts-cli": "github:hraness/accounts-cli#v0.1.3",
   "@hraness/cli-update": "https://github.com/hraness/cli-update/releases/download/v0.1.1/hraness-cli-update-0.1.1.tgz",
   "@hraness/desktop-foundation": "https://github.com/hraness/desktop-foundation/releases/download/v0.9.0/hraness-desktop-foundation-0.9.0.tgz",
-  "@hraness/wordcell": "https://github.com/hraness/wordcell/releases/download/v0.26.3/hraness-wordcell-0.26.3.tgz",
+  "@hraness/wordcell": "https://github.com/hraness/wordcell/releases/download/v0.27.0/hraness-wordcell-0.27.0.tgz",
   "@hraness/local-custody": "https://github.com/hraness/local-custody/releases/download/v0.9.1/hraness-local-custody-0.9.1.tgz",
   "@hraness/message-like-me": "github:hraness/textbutler#83453cc7c17b49bb53fdfd89ccb69b8b44b30af1",
   "@hraness/support-foundation": "github:hraness/support-foundation#8bb514d24b79dc3f305390700ae312cab88e7ad2",
@@ -45,9 +45,9 @@ const expectedClosureRuntimeDependencies = Object.freeze({
 const reviewedWordcellDynamicResolverKeyFile = "dist/index-4knsp9qj.js";
 const reviewedWordcellDynamicResolverSha256 =
   "7e717af9b45ad412086f23c8089c50b396dbed62f84c6282abe58b9e070c82a8";
-const reviewedWordcellDynamicCallSiteKeyFile = "dist/index-ncwzmsge.js";
+const reviewedWordcellDynamicCallSiteKeyFile = "dist/index-nwdzhj1h.js";
 const reviewedWordcellDynamicCallSiteSha256 =
-  "bf76afe02a2762c196604ac4cb8f3072384caddd268bf6b4eb8533d12ebe5f30";
+  "d6d6f8145e5a458f3de2969322eafef7c2c98615dea5c3acdcdbf15fde4780c7";
 const archivedAdapterNamePattern =
   /^wrench(?:-web)?-adapter\.v([0-9]+\.[0-9]+\.[0-9]+)\.json$/u;
 const MAX_PACKED_ARCHIVED_UPGRADE_FAMILIES = 32;
@@ -64,6 +64,8 @@ const publicImportSpecifiers = Object.freeze([
   "@hraness/ghostget/messaging-automation",
   "@hraness/ghostget/contracts",
   "@hraness/ghostget/app-host-protocol",
+  "@hraness/ghostget/media-acquisition",
+  "@hraness/ghostget/pdf-acquisition",
 ]);
 
 const packageRoot = resolve(import.meta.dir, "..");
@@ -455,9 +457,9 @@ async function resolveReviewedWordcellDynamicKeyFile(root: string): Promise<stri
     "clean consumer @hraness/wordcell manifest",
     await Bun.file(join(root, "package.json")).json(),
   );
-  if (manifest.version !== "0.26.3") {
+  if (manifest.version !== "0.27.0") {
     throw new Error(
-      `clean consumer resolved @hraness/wordcell@${String(manifest.version)}, expected 0.26.3`,
+      `clean consumer resolved @hraness/wordcell@${String(manifest.version)}, expected 0.27.0`,
     );
   }
   // Wordcell's bundler splits the reviewed dynamic-resolution surface across
@@ -489,7 +491,7 @@ async function resolveReviewedWordcellDynamicKeyFile(root: string): Promise<stri
     )
   ) {
     throw new Error(
-      `clean consumer @hraness/wordcell@0.26.3 dynamic-resolution modules differ from the reviewed resolver ${reviewedWordcellDynamicResolverKeyFile} and call site ${reviewedWordcellDynamicCallSiteKeyFile}`,
+      `clean consumer @hraness/wordcell@0.27.0 dynamic-resolution modules differ from the reviewed resolver ${reviewedWordcellDynamicResolverKeyFile} and call site ${reviewedWordcellDynamicCallSiteKeyFile}`,
     );
   }
   return resolver.keyFile;
@@ -873,14 +875,14 @@ try {
         name: "@hraness/wordcell",
         root: installedWordcellRoot,
         sha256: reviewedWordcellDynamicResolverSha256,
-        version: "0.26.3",
+        version: "0.27.0",
       }),
       assertInstalledClosurePackage({
         keyFile: reviewedWordcellDynamicCallSiteKeyFile,
         name: "@hraness/wordcell",
         root: installedWordcellRoot,
         sha256: reviewedWordcellDynamicCallSiteSha256,
-        version: "0.26.3",
+        version: "0.27.0",
       }),
       assertInstalledClosurePackage({
         keyFile: "dist/private-paths.js",
