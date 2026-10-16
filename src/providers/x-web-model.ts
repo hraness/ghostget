@@ -45,7 +45,7 @@ export type XSocialMedia = {
   }[];
 };
 export type XSocialModerationLabel = {
-  readonly kind: "sensitive" | "interstitial" | "ai-disclosure";
+  readonly kind: "sensitive" | "interstitial" | "ai-disclosure" | "visibility-nudge" | "limited-action" | "media-warning" | "appeal" | "community-note";
   readonly source: string;
   readonly text: string | null;
   readonly reason: string | null;
@@ -267,29 +267,39 @@ function splitSurrogate(value: string, offset: number): boolean {
     && value.charCodeAt(offset) >= 0xdc00 && value.charCodeAt(offset) <= 0xdfff;
 }
 
-function range(entity: RecordValue, body: string, label: string): XSocialEntityRange {
+function scalarBoundaries(body: string): readonly number[] {
+  const boundaries = [0];
+  let offset = 0;
+  // X's first-party text renderer converts provider scalar offsets to UTF-16
+  // before slicing. Public DTOs already carry UTF-16 and never use this map.
+  for (const scalar of body) { offset += scalar.length; boundaries.push(offset); }
+  return boundaries;
+}
+
+function range(entity: RecordValue, body: string, label: string, boundaries: readonly number[] | null): XSocialEntityRange {
   const indices = array(entity.indices, `${label}.indices`, 2);
   const [start, end] = indices;
   if (indices.length !== 2 || typeof start !== "number" || typeof end !== "number"
     || !Number.isSafeInteger(start) || !Number.isSafeInteger(end)
-    || start < 0 || end <= start || end > body.length
-    || splitSurrogate(body, start) || splitSurrogate(body, end)) {
-    throw new Error(`${label} must have an in-bounds UTF16 range`);
+    || start < 0 || end <= start || end > (boundaries === null ? body.length : boundaries.length - 1)
+    || boundaries === null && (splitSurrogate(body, start) || splitSurrogate(body, end))) {
+    throw new Error(`${label} must have an in-bounds ${boundaries === null ? "UTF16" : "provider scalar"} range`);
   }
-  return { start, end };
+  return boundaries === null ? { start, end } : { start: boundaries[start]!, end: boundaries[end]! };
 }
 
-function projectText(tweet: RecordValue, legacy: RecordValue | null): XSocialText {
+function projectText(tweet: RecordValue, legacy: RecordValue | null, indices: "scalar" | "utf16" = "scalar"): XSocialText {
   const note = optionalRecord(tweet.note_tweet, "X note_tweet");
   const results = note === null ? null : optionalRecord(note.note_tweet_results, "X note_tweet_results");
   const full = results === null ? null : optionalRecord(results.result, "X note result");
   const body = full === null ? text(legacy?.full_text, "X post text") : text(full.text, "X note text");
   // Never pair note text with ranges from the truncated legacy preview.
   const entities = optionalRecord(full === null ? legacy?.entities : full.entity_set, "X selected text entities");
+  const boundaries = indices === "scalar" ? scalarBoundaries(body) : null;
   const ranges: XSocialEntityRange[] = [];
   const makeRange = (value: unknown, label: string): { entity: RecordValue; selected: XSocialEntityRange; slice: string } => {
     const entity = record(value, label);
-    const selected = range(entity, body, label);
+    const selected = range(entity, body, label, boundaries);
     ranges.push(selected);
     return { entity, selected, slice: body.slice(selected.start, selected.end) };
   };
@@ -395,26 +405,90 @@ function unwrapTweet(value: unknown): { tweet: RecordValue; wrappers: readonly R
 
 function projectModeration(tweet: RecordValue, legacy: RecordValue | null, wrappers: readonly RecordValue[]): XSocialModeration {
   const labels: XSocialModerationLabel[] = [];
+  const add = (kind: XSocialModerationLabel["kind"], source: string, value: string | null, reason: string | null): void => {
+    if (labels.length >= 32) throw new Error("X moderation labels exceeded their bound");
+    labels.push(Object.freeze({ kind, source, text: value, reason }));
+  };
+  const visibleText = (value: unknown): string | null => {
+    const candidate = typeof value === "string" ? value : optionalRecord(value, "X moderation rich text")?.text;
+    return optionalText(candidate, "X moderation visible text", 10_000, true);
+  };
   if (flag(legacy?.possibly_sensitive, "X possibly_sensitive") === true) {
-    labels.push(Object.freeze({ kind: "sensitive", source: "legacy.possibly_sensitive", text: null, reason: null }));
+    add("sensitive", "legacy.possibly_sensitive", null, null);
   }
   for (const [index, owner] of [tweet, ...wrappers].entries()) {
-    const annotation = optionalRecord(owner.tweet_interstitial, "X tweet interstitial");
-    if (annotation !== null) {
-      const nestedText = optionalRecord(annotation.text, "X interstitial text");
-      labels.push(Object.freeze({
-        kind: "interstitial", source: index === 0 ? "tweet_interstitial" : "visibility.tweet_interstitial",
-        text: optionalText(nestedText?.text, "X interstitial text", 10_000, true),
-        reason: optionalText(annotation.display_type, "X interstitial display type", 256),
-      }));
+    const prefix = index === 0 ? "" : "visibility.";
+    // The current GraphQL formatter uses camelCase. Retain the older admitted
+    // spelling as a separate source instead of silently preferring either one.
+    for (const spelling of ["tweet_interstitial", "tweetInterstitial"] as const) {
+      const annotation = optionalRecord(owner[spelling], "X tweet interstitial");
+      if (annotation === null) continue;
+      const reason = agree(optionalText(annotation.display_type, "X interstitial display type", 256), optionalText(annotation.displayType, "X interstitial display type", 256), "X interstitial display type");
+      add("interstitial", `${prefix}${spelling}`, visibleText(annotation.text), reason);
+      const reveal = visibleText(annotation.revealText);
+      if (reveal !== null) add("interstitial", `${prefix}${spelling}.revealText`, reveal, reason);
+    }
+    for (const field of ["softInterventionPivot", "softIntervention"] as const) {
+      const pivot = optionalRecord(owner[field], "X soft intervention pivot");
+      if (pivot !== null) add("interstitial", `${prefix}${field}`, visibleText(pivot.text), "SoftIntervention");
+    }
+    const nudge = optionalRecord(owner.tweetVisibilityNudge, "X visibility nudge");
+    for (const [position, value] of array(nudge?.tweet_visibility_nudge_actions ?? [], "X visibility nudge actions", 32).entries()) {
+      const action = record(value, "X visibility nudge action");
+      const payload = optionalRecord(action.tweet_visibility_nudge_action_payload, "X visibility nudge payload");
+      if (payload === null || !payload.subheading) continue;
+      const reason = optionalText(action.tweet_visibility_nudge_action_type, "X visibility nudge action type", 256);
+      for (const field of ["heading", "subheading", "post_cta_text"] as const) {
+        const value = visibleText(payload[field]);
+        if (value !== null) add("visibility-nudge", `${prefix}tweetVisibilityNudge.tweet_visibility_nudge_actions[${position}].${field}`, value, reason);
+      }
+    }
+    for (const field of ["limitedActionResults", "limited_action_results"] as const) {
+      const limited = optionalRecord(owner[field], "X limited action results");
+      for (const [position, value] of array(limited?.limited_actions ?? [], "X limited actions", 32).entries()) {
+        const action = record(value, "X limited action");
+        const reason = optionalText(action.action, "X limited action type", 256);
+        const prompt = optionalRecord(action.prompt, "X limited action prompt");
+        const reviewed = prompt?.__typename === "BasicLimitedActionPrompt" || prompt?.__typename === "CtaLimitedActionPrompt";
+        const path = `${prefix}${field}.limited_actions[${position}]`;
+        add("limited-action", path, reviewed ? visibleText(prompt.headline) : null, reason);
+        const subtext = reviewed ? visibleText(prompt.subtext) : null;
+        if (subtext !== null) add("limited-action", `${path}.prompt.subtext`, subtext, reason);
+      }
+    }
+    const media = optionalRecord(owner.mediaVisibilityResults, "X media visibility results");
+    const blur = optionalRecord(media?.blurred_image_interstitial, "X blurred media interstitial");
+    if (blur !== null) {
+      const reason = optionalText(blur.interstitial_action, "X media interstitial action", 256);
+      add("media-warning", `${prefix}mediaVisibilityResults.blurred_image_interstitial`, visibleText(blur.text), reason);
+      const title = visibleText(blur.title);
+      if (title !== null) add("media-warning", `${prefix}mediaVisibilityResults.blurred_image_interstitial.title`, title, reason);
+    }
+    const appeal = optionalRecord(owner.appealable, "X appealable label");
+    if (appeal !== null) {
+      const policy = optionalText(appeal.policy, "X appeal policy", 256);
+      const prompt = optionalRecord(appeal.prompt, "X appeal prompt");
+      add("appeal", `${prefix}appealable`, visibleText(prompt?.shorttext), policy === "Unspecified" ? null : policy);
+      const violation = optionalText(appeal.violation_of_level, "X appeal violation level", 256);
+      if (violation !== null) add("appeal", `${prefix}appealable.violation_of_level`, null, violation);
+      const report = optionalText(prompt?.report_source, "X appeal report source", 256);
+      if (report !== null) add("appeal", `${prefix}appealable.prompt.report_source`, null, report);
+    }
+    const communityNote = optionalRecord(owner.birdwatch_pivot, "X Community Note pivot");
+    if (communityNote !== null) {
+      // has_birdwatch_notes can include notes that are not visible. Only the
+      // formatter's actual visible pivot establishes this label's presence.
+      add("community-note", `${prefix}birdwatch_pivot`, visibleText(communityNote.subtitle), null);
+      const footer = visibleText(communityNote.footer);
+      if (footer !== null) add("community-note", `${prefix}birdwatch_pivot.footer`, footer, null);
     }
     if (flag(owner.made_with_ai, "X made_with_ai") === true || flag(owner.ai_generated, "X ai_generated") === true) {
-      labels.push(Object.freeze({ kind: "ai-disclosure", source: "tweet.ai_disclosure", text: null, reason: null }));
+      add("ai-disclosure", "tweet.ai_disclosure", null, null);
     }
     const disclosure = owner.content_disclosure;
     if (disclosure !== undefined && disclosure !== null) {
       const label = typeof disclosure === "string" ? disclosure : record(disclosure, "X content disclosure").label;
-      labels.push(Object.freeze({ kind: "ai-disclosure", source: "content_disclosure", text: optionalText(label, "X disclosure label", 1_000), reason: null }));
+      add("ai-disclosure", "content_disclosure", optionalText(label, "X disclosure label", 1_000), null);
     }
   }
   return Object.freeze({ status: labels.length === 0 ? "unknown" : "present", labels: Object.freeze(labels) });
@@ -640,10 +714,10 @@ function parseTextDto(value: unknown, profile = false): XSocialText {
     });
   }
   const selected = entities.status === "available" ? raw : undefined;
-  if (profile) return Object.freeze({ ...projectText({}, { full_text: content.text, entities: selected }), source: "profile" });
+  if (profile) return Object.freeze({ ...projectText({}, { full_text: content.text, entities: selected }, "utf16"), source: "profile" });
   return content.source === "legacy"
-    ? projectText({}, { full_text: content.text, entities: selected })
-    : projectText({ note_tweet: { note_tweet_results: { result: { text: content.text, entity_set: selected } } } }, null);
+    ? projectText({}, { full_text: content.text, entities: selected }, "utf16")
+    : projectText({ note_tweet: { note_tweet_results: { result: { text: content.text, entity_set: selected } } } }, null, "utf16");
 }
 
 function parseMediaDto(value: unknown): XSocialPostSnapshot["media"] {
@@ -682,7 +756,7 @@ function parseModerationDto(value: unknown): XSocialModeration {
   const labels = array(moderation.labels, "X moderation labels", 32).map((value): XSocialModerationLabel => {
     const label = record(value, "X moderation label");
     exactKeys(label, ["kind", "source", "text", "reason"], "X moderation label");
-    if (label.kind !== "sensitive" && label.kind !== "interstitial" && label.kind !== "ai-disclosure") throw new Error("X moderation label kind is unreviewed");
+    if (label.kind !== "sensitive" && label.kind !== "interstitial" && label.kind !== "ai-disclosure" && label.kind !== "visibility-nudge" && label.kind !== "limited-action" && label.kind !== "media-warning" && label.kind !== "appeal" && label.kind !== "community-note") throw new Error("X moderation label kind is unreviewed");
     return Object.freeze({ kind: label.kind, source: opaqueId(label.source, "X moderation source"), text: optionalText(label.text, "X moderation text", 10_000, true), reason: optionalText(label.reason, "X moderation reason", 256) });
   });
   if ((moderation.status === "unknown") !== (labels.length === 0)) throw new Error("X moderation DTO status disagreed with labels");

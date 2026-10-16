@@ -55,9 +55,9 @@ describe("X rich post model", () => {
     expect(Object.isFrozen(post.metrics)).toBeTrue();
   });
 
-  test("binds UTF16 mention, hashtag, cashtag and URL ranges after a surrogate pair", () => {
+  test("converts provider scalar mention, hashtag, cashtag and URL ranges to UTF16", () => {
     const body = "🦀 @Hraness #Rust $RUST https://t.co/a";
-    const entity = (token: string) => [body.indexOf(token), body.indexOf(token) + token.length];
+    const entity = (token: string) => [Array.from(body.slice(0, body.indexOf(token))).length, Array.from(body.slice(0, body.indexOf(token) + token.length)).length];
     const post = projectXSocialPost(tweet({ full_text: body, entities: {
       user_mentions: [{ indices: entity("@Hraness"), screen_name: "Hraness", id_str: "42" }],
       hashtags: [{ indices: entity("#Rust"), text: "Rust" }], symbols: [{ indices: entity("$RUST"), text: "RUST" }],
@@ -72,10 +72,23 @@ describe("X rich post model", () => {
     });
   });
 
+  test("note text scalar offsets convert once and serialized UTF16 offsets stay exact", () => {
+    const post = projectXSocialPost(tweet({ full_text: "preview @wrong" }, {
+      note_tweet: { note_tweet_results: { result: { text: "🦀🦀 @Fixture", entity_set: {
+        user_mentions: [{ indices: [3, 11], screen_name: "Fixture", id_str: "42" }],
+      } } } },
+    }));
+    expect(post.content).toMatchObject({ source: "note", offsetEncoding: "utf16", entities: { mentions: [{ start: 5, end: 13, handle: "fixture" }] } });
+    expect(parseXSocialPost(JSON.parse(JSON.stringify(post)))).toEqual(post);
+    const changed = JSON.parse(JSON.stringify(post));
+    changed.content.entities.mentions[0].start = 1;
+    expect(() => parseXSocialPost(changed)).toThrow("in-bounds UTF16");
+  });
+
   test("link entity tokens round-trip exactly while navigation URLs may normalize", () => {
     for (const token of ["https://example.com", "https://example.com/", "https://Example.COM:443", "HTTPS://Example.COM:443/A?x=1#Part", "http://Example.COM:80/path"]) {
       const post = projectXSocialPost(tweet({ full_text: "🦀 " + token, entities: { urls: [
-        { indices: [3, 3 + token.length], url: token, expanded_url: token },
+        { indices: [2, 2 + token.length], url: token, expanded_url: token },
       ] } }));
       expect(post.content.entities.links[0]?.url).toBe(token);
       expect(post.content.entities.links[0]?.expandedUrl).toBe(new URL(token).href);
@@ -258,6 +271,83 @@ describe("X rich post model", () => {
     expect(() => projectXSocialPost(wrapped)).toThrow("bound");
   });
 
+  test("preserves the current camelCase interstitial and its separate reveal text", () => {
+    const raw = { __typename: "TweetWithVisibilityResults", tweet: tweet(), tweetInterstitial: {
+      __typename: "ContextualTweetInterstitial", displayType: "NonCompliant", text: { text: "Post visibility is limited" },
+      revealText: { text: "View post", entities: [{ never_return: "raw-rich-entity" }] }, unreviewed: "private-not-returned",
+    } };
+    const post = projectXSocialPost(raw);
+    expect(post.moderation).toEqual({ status: "present", labels: [
+      { kind: "interstitial", source: "visibility.tweetInterstitial", text: "Post visibility is limited", reason: "NonCompliant" },
+      { kind: "interstitial", source: "visibility.tweetInterstitial.revealText", text: "View post", reason: "NonCompliant" },
+    ] });
+    expect(parseXSocialPost(JSON.parse(JSON.stringify(post)))).toEqual(post);
+    expect(JSON.stringify(post)).not.toContain("private-not-returned");
+    expect(JSON.stringify(post)).not.toContain("raw-rich-entity");
+    expect(() => projectXSocialPost({ ...raw, tweetInterstitial: { ...raw.tweetInterstitial, display_type: "Different" } })).toThrow("disagreed");
+  });
+
+  test("omits nudges the provider does not render without a subheading", () => {
+    for (const subheading of [undefined, null, ""]) {
+      const value = projectXSocialPost(tweet({}, { tweetVisibilityNudge: { tweet_visibility_nudge_actions: [{ tweet_visibility_nudge_action_type: "ShowNudge", tweet_visibility_nudge_action_payload: {
+        heading: "Hidden heading", post_cta_text: "Hidden action", ...(subheading === undefined ? {} : { subheading }),
+      } }] } }));
+      expect(value.moderation.status).toBe("unknown");
+      expect(value.moderation.labels).toEqual([]);
+    }
+  });
+
+  test("keeps only proven visible nudge, restriction, media and appeal details", () => {
+    const raw = { __typename: "TweetWithVisibilityResults", tweet: tweet(),
+      softInterventionPivot: { text: "Get context", url: { url: "not-a-provider-endpoint" } },
+      tweetVisibilityNudge: { tweet_visibility_nudge_actions: [{ tweet_visibility_nudge_action_type: "ShowNudge", tweet_visibility_nudge_action_payload: {
+        heading: "Read before sharing", subheading: { text: "This post needs context" }, post_cta_text: { text: "Learn more" }, cta_url: "private-unused-url",
+      } }] },
+      limitedActionResults: { limited_actions: [{ action: "Repost", prompt: { __typename: "BasicLimitedActionPrompt", headline: { text: "Sharing is limited" }, subtext: { text: "Learn why" } } }] },
+      mediaVisibilityResults: { blurred_image_interstitial: { interstitial_action: "Show", title: "Sensitive media", text: "Media is blurred", opacity: 0.8 } },
+      appealable: { policy: "AbusiveBehavior", violation_of_level: "Tweet", prompt: { report_source: "Provider", shorttext: { text: "Policy violation" } } },
+    };
+    const post = projectXSocialPost(raw);
+    expect(post.moderation.labels.map(label => [label.kind, label.text, label.reason])).toEqual([
+      ["interstitial", "Get context", "SoftIntervention"],
+      ["visibility-nudge", "Read before sharing", "ShowNudge"], ["visibility-nudge", "This post needs context", "ShowNudge"], ["visibility-nudge", "Learn more", "ShowNudge"],
+      ["limited-action", "Sharing is limited", "Repost"], ["limited-action", "Learn why", "Repost"],
+      ["media-warning", "Media is blurred", "Show"], ["media-warning", "Sensitive media", "Show"],
+      ["appeal", "Policy violation", "AbusiveBehavior"], ["appeal", null, "Tweet"], ["appeal", null, "Provider"],
+    ]);
+    expect(post.moderation.labels[5]?.source).toBe("visibility.limitedActionResults.limited_actions[0].prompt.subtext");
+    expect(parseXSocialPost(JSON.parse(JSON.stringify(post)))).toEqual(post);
+    expect(JSON.stringify(post)).not.toContain("private-unused-url");
+    expect(JSON.stringify(post)).not.toContain("not-a-provider-endpoint");
+    expect(projectXSocialPost(tweet({}, { has_birdwatch_notes: true })).moderation.status).toBe("unknown");
+    expect(projectXSocialPost(tweet({}, { tweetVisibilityNudge: { tweet_visibility_nudge_actions: [] }, limitedActionResults: { limited_actions: [] } })).moderation.status).toBe("unknown");
+    const preview = projectXSocialPost({ __typename: "TweetPreviewDisplay", tweet: tweet(), limited_action_results: { limited_actions: [{ action: "Reply" }] } });
+    expect(preview.moderation.labels).toEqual([{ kind: "limited-action", source: "visibility.limited_action_results.limited_actions[0]", text: null, reason: "Reply" }]);
+    expect(projectXSocialPost(tweet({}, { softIntervention: { text: "Additional context" } })).moderation.labels[0]).toEqual({ kind: "interstitial", source: "softIntervention", text: "Additional context", reason: "SoftIntervention" });
+  });
+
+  test("bounds visible flag text and the aggregate label count without dumping unknown prompts", () => {
+    const unknown = projectXSocialPost(tweet({}, { limitedActionResults: { limited_actions: [{ action: "Reply", prompt: { __typename: "FuturePrompt", headline: { text: "not-reviewed" } } }] } }));
+    expect(unknown.moderation.labels).toEqual([{ kind: "limited-action", source: "limitedActionResults.limited_actions[0]", text: null, reason: "Reply" }]);
+    expect(() => projectXSocialPost(tweet({}, { tweetInterstitial: { text: { text: "x".repeat(10_001) } } }))).toThrow("bounded");
+    expect(() => projectXSocialPost(tweet({}, { limitedActionResults: { limited_actions: Array.from({ length: 17 }, () => ({ action: "Reply", prompt: { __typename: "BasicLimitedActionPrompt", headline: { text: "Heading" }, subtext: { text: "Subtext" } } })) } }))).toThrow("labels exceeded");
+    expect(() => projectXSocialPost(tweet({}, { tweetVisibilityNudge: { tweet_visibility_nudge_actions: Array.from({ length: 33 }, () => ({})) } }))).toThrow("array bound");
+  });
+
+  test("Community Notes require an actual pivot and preserve only reviewed visible text", () => {
+    const post = projectXSocialPost(tweet({}, { birdwatch_pivot: {
+      subtitle: { text: "Readers added context", entities: [{ raw_unused: "not-returned" }] }, footer: { text: "Learn more about Community Notes" },
+      note: { rest_id: "711", language: "en", unreviewed: "private-unused" }, destinationUrl: "not-a-transport-endpoint",
+    } }));
+    expect(post.moderation).toEqual({ status: "present", labels: [
+      { kind: "community-note", source: "birdwatch_pivot", text: "Readers added context", reason: null },
+      { kind: "community-note", source: "birdwatch_pivot.footer", text: "Learn more about Community Notes", reason: null },
+    ] });
+    expect(parseXSocialPost(JSON.parse(JSON.stringify(post)))).toEqual(post);
+    expect(JSON.stringify(post)).not.toContain("not-returned"); expect(JSON.stringify(post)).not.toContain("private-unused");
+    expect(projectXSocialPost(tweet({}, { has_birdwatch_notes: true })).moderation.status).toBe("unknown");
+  });
+
   test("serialized rich posts preserve notes, media, moderation, references and placement exactly", () => {
     const quoted = { ...tweet({ full_text: "quoted @Hraness", entities: { user_mentions: [{ indices: [7, 15], screen_name: "Hraness" }] } }), rest_id: "799" };
     const post = projectXSocialPost({
@@ -285,13 +375,13 @@ describe("X rich post model", () => {
     expect(() => parseXSocialPost({ ...post, content: { ...post.content, entities: { ...post.content.entities, cookies: "never" } } })).toThrow("exactly");
   });
 
-  test("property: a UTF16 prefix preserves exact selected mention indices and identity", () => {
+  test("property: scalar provider indices become exact UTF16 mention ranges and round-trip once", () => {
     assertProperty(fc.property(
       fc.array(fc.constantFrom("🦀", "A", "é", "中", " "), { maxLength: 40 }).map((parts) => parts.join("")),
       fc.stringMatching(/^[A-Za-z][A-Za-z0-9_]{0,14}$/u),
       (prefix, username) => {
         const body = `${prefix}@${username}`;
-        const post = projectXSocialPost(tweet({ full_text: body, entities: { user_mentions: [{ indices: [prefix.length, body.length], screen_name: username, id_str: "42" }] } }));
+        const post = projectXSocialPost(tweet({ full_text: body, entities: { user_mentions: [{ indices: [Array.from(prefix).length, Array.from(body).length], screen_name: username, id_str: "42" }] } }));
         const mention = post.content.entities.mentions[0]!;
         expect(parseXSocialPost(JSON.parse(JSON.stringify(post)))).toEqual(post);
         expect(body.slice(mention.start, mention.end)).toBe(`@${username}`);
@@ -329,7 +419,7 @@ describe("X rich profile model", () => {
 
   test("binds modern and legacy bio entities to UTF16 description ranges", () => {
     const body = "😀 @somebody #Build $TEST https://t.co/example";
-    const entity = (part: string) => [body.indexOf(part), body.indexOf(part) + part.length];
+    const entity = (part: string) => [Array.from(body.slice(0, body.indexOf(part))).length, Array.from(body.slice(0, body.indexOf(part) + part.length)).length];
     const entities = {
       user_mentions: [{ indices: entity("@somebody"), screen_name: "Somebody", id_str: "99" }],
       hashtags: [{ indices: entity("#Build"), text: "Build" }],

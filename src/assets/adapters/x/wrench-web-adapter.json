@@ -1,7 +1,7 @@
 {
  "schemaVersion": 4,
  "id": "x-web",
- "version": "1.18.1",
+ "version": "1.19.0",
  "displayName": "X (Authenticated Web API)",
  "surfaceId": "x",
  "origins": [
@@ -33,7 +33,7 @@
    "webSession": {
     "site": "x",
     "action": "profiles.read",
-    "contractVersion": 1,
+    "contractVersion": 2,
     "timeoutMs": 60000,
     "maxOutputBytes": 2097152
    }
@@ -74,13 +74,13 @@
    "webSession": {
     "site": "x",
     "action": "contacts.list",
-    "contractVersion": 1,
+    "contractVersion": 2,
     "timeoutMs": 60000,
     "maxOutputBytes": 4194304
    }
   },
   "feeds.read": {
-   "description": "Observed contract: read one complete bounded X For You, Following, user, List, search, or bookmarks provider page through its current captured first-party GraphQL query; bookmarks pages emit stable export items keyed by post_id plus a next-page cursor; user/List responses must echo the requested identity and an over-limit page fails without exposing its end cursor.",
+   "description": "Read a bounded rich X For You, Following, profile posts/replies/highlights, List, search, bookmarks or viewer-owned Likes page through fixed reviewed queries. Preserve full text and matching entities, ordered media, moderation, promotion and unavailable occurrences. Bind each collection request and any echoed identity; never infer a reply collection target from conversation-parent authors.",
    "risk": "R1",
    "sideEffect": "none",
    "idempotency": "none",
@@ -96,7 +96,10 @@
        "user",
        "list",
        "search",
-       "bookmarks"
+       "bookmarks",
+       "likes",
+       "user-replies",
+       "user-highlights"
       ]
      },
      "user_id": {
@@ -137,7 +140,7 @@
    "webSession": {
     "site": "x",
     "action": "feeds.read",
-    "contractVersion": 1,
+    "contractVersion": 2,
     "timeoutMs": 60000,
     "maxOutputBytes": 4194304
    }
@@ -164,7 +167,7 @@
    "webSession": {
     "site": "x",
     "action": "posts.read",
-    "contractVersion": 1,
+    "contractVersion": 2,
     "timeoutMs": 60000,
     "maxOutputBytes": 2097152
    }
@@ -203,7 +206,7 @@
    "webSession": {
     "site": "x",
     "action": "comments.read",
-    "contractVersion": 1,
+    "contractVersion": 2,
     "timeoutMs": 60000,
     "maxOutputBytes": 4194304
    }
@@ -750,7 +753,7 @@
    }
   },
   "explore.read": {
-   "description": "Capture-required contract: Read a distinct Trending or personalized Today news Explore page; current provider section identity and continuation require capture.",
+   "description": "Observed viewer-bound Trending and selected trend search, plus separate Today’s News cards. Story detail and news pagination remain unavailable.",
    "risk": "R1",
    "sideEffect": "none",
    "idempotency": "none",
@@ -795,7 +798,7 @@
    }
   },
   "notifications.list": {
-   "description": "Capture-required contract: Read notification events without dispatching acknowledgement mutations; current response normalization requires capture.",
+   "description": "Observed viewer-bound All notification timeline with typed actor/target references; does not acknowledge notifications or update last-seen state.",
    "risk": "R1",
    "sideEffect": "none",
    "idempotency": "none",

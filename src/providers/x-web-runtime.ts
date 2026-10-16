@@ -23,7 +23,9 @@ import type {
   WebSessionRecipe,
 } from "../model";
 import { OperationDeadlineError } from "../operation-deadline";
-import { deferredXWebWorkspaceRead } from "./x-web-workspace-reads";
+import { deferredXWebWorkspaceRead, xWebWorkspaceReadSupport } from "./x-web-workspace-reads";
+import { buildXWebProfileFeedReadRequest, projectXWebProfileFeedReadPage } from "./x-web-profile-feeds";
+import { buildXWebLikesReadRequest, projectXWebLikesReadPage, buildXWebExplorePageReadRequest, selectXWebTrendingTimeline, buildXWebTrendingReadRequest, projectXWebTrendingReadPage, buildXWebNotificationsReadRequest, projectXWebNotificationsReadPage, buildXWebNewsReadRequest, projectXWebNewsReadPage, parseXWebNewsRelayBundleDescriptors, parseXWebDiscoveryTarget } from "./x-web-captured-reads";
 import {
   canonicalJson,
   isCanonicalJsonText,
@@ -481,6 +483,7 @@ export function parseXWebBundleDescriptors(value: string): readonly XWebBundleQu
       }),
     }));
   }
+  descriptors.push(...parseXWebNewsRelayBundleDescriptors(value));
   if (descriptors.length < 1) throw new Error("X first-party bundle contained no reviewed query descriptors");
   return Object.freeze(descriptors);
 }
@@ -1162,7 +1165,24 @@ function assertFeedTargetBound(
   }
 }
 
-async function readFeed(bootstrap: XBootstrap, input: OperationInput): Promise<unknown> {
+async function readFeed(bootstrap: XBootstrap, input: OperationInput, viewer: Viewer): Promise<unknown> {
+  if (input.feed === "user-replies" || input.feed === "user-highlights") {
+    const source = input.feed === "user-replies" ? "profile-replies" : "profile-highlights";
+    const limit = integerInput(input, "limit", DEFAULT_LIMIT, 1, 50);
+    const request = buildXWebProfileFeedReadRequest(source, postId(input.user_id, "input.user_id"), limit,
+      optionalStringInput(input, "cursor") ?? null,
+      { withVoice: featureValue(bootstrap, "voice_consumption_enabled"), withCommunity: featureValue(bootstrap, "c9s_enabled") });
+    const descriptor = await resolveDescriptor(bootstrap, request.operationName, "query");
+    const response = await graphQl(bootstrap, descriptor, request.variables, request.method, request.operationId);
+    return projectXWebProfileFeedReadPage(response, request.variables.userId, source, limit);
+  }
+
+  if (input.feed === "likes") {
+    const request = buildXWebLikesReadRequest(viewer.id, integerInput(input, "limit", DEFAULT_LIMIT, 1, 50), optionalStringInput(input, "cursor") ?? null);
+    const descriptor = await resolveDescriptor(bootstrap, request.operationName, "query");
+    const response = await graphQl(bootstrap, descriptor, request.variables, request.method, request.operationId);
+    return projectXWebLikesReadPage(response, viewer.id, integerInput(input, "limit", DEFAULT_LIMIT, 1, 50));
+  }
   const request = feedRequest(bootstrap, input);
   const descriptor = await resolveDescriptor(bootstrap, request.operationName, "query");
   const response = await graphQl(bootstrap, descriptor, request.variables, request.method, request.operationId);
@@ -3716,7 +3736,7 @@ export async function executeXWebOperation(
   // A bundle name or a UI route is not qualification. Refuse these proposed
   // reads before acquiring auth, resolving bundles, or starting a browser.
   const deferredRead = deferredXWebWorkspaceRead(recipe.action, input);
-  if (deferredRead !== null) {
+  if (deferredRead !== null && !xWebWorkspaceReadSupport[deferredRead.surface]) {
     return {
       status: "failed", output: null, finalUrl: null,
       dispatchStarted: false, dispatch: { planned: 0, started: 0, verified: 0 },
@@ -3763,13 +3783,14 @@ export async function executeXWebOperation(
     throw error;
   }
   if (recipe.action === "feeds.read") {
+    let viewer: Viewer;
     try {
-      await requireBoundViewer(bootstrap, auth);
+      viewer = await requireBoundViewer(bootstrap, auth);
     } catch (error) {
       return failedXFeedRead(error, input, "identity");
     }
     try {
-      const output = await readFeed(bootstrap, input);
+      const output = await readFeed(bootstrap, input, viewer);
       return {
         status: "succeeded",
         output,
@@ -3780,6 +3801,46 @@ export async function executeXWebOperation(
     } catch (error) {
       return failedXFeedRead(error, input, "target");
     }
+  }
+  if (recipe.action === "explore.read" && input.source === "trending") {
+    const viewer = await requireBoundViewer(bootstrap, auth);
+    if (deferredRead?.target !== null && deferredRead?.target !== undefined) {
+      // The application resolves an opaque selection before this boundary.
+      // Reuse the reviewed search operation, with no caller-selected route.
+      const target = parseXWebDiscoveryTarget(JSON.parse(deferredRead.target) as unknown);
+      const output = record(await readFeed(bootstrap, {
+        feed: "search", query: target.value, limit: deferredRead.limit,
+        ...(deferredRead.cursor === null ? {} : { cursor: deferredRead.cursor }),
+      }, viewer), "X Trending selected search output");
+      return { status: "succeeded", output: { ...output, source: "trending" },
+        finalUrl: `${X_ORIGIN}/search?q=${encodeURIComponent(target.value)}`,
+        dispatchStarted: false, dispatch: { planned: 0, started: 0, verified: 0 } };
+    }
+    const initial = buildXWebExplorePageReadRequest(viewer.id);
+    const initialDescriptor = await resolveDescriptor(bootstrap, initial.operationName, "query");
+    const configuration = await graphQl(bootstrap, initialDescriptor, initial.variables, initial.method, initial.operationId);
+    const target = selectXWebTrendingTimeline(configuration);
+    const limit = integerInput(input, "limit", DEFAULT_LIMIT, 1, 50);
+    const request = buildXWebTrendingReadRequest(viewer.id, target.value, limit, optionalStringInput(input, "cursor") ?? null);
+    const descriptor = await resolveDescriptor(bootstrap, request.operationName, "query");
+    const response = await graphQl(bootstrap, descriptor, request.variables, request.method, request.operationId);
+    return { status: "succeeded", output: projectXWebTrendingReadPage(response, viewer.id, target.value, limit), finalUrl: `${X_ORIGIN}/explore/tabs/trending`, dispatchStarted: false, dispatch: { planned: 0, started: 0, verified: 0 } };
+  }
+  if (recipe.action === "explore.read" && input.source === "today-news") {
+    const viewer = await requireBoundViewer(bootstrap, auth);
+    const request = buildXWebNewsReadRequest(viewer.id);
+    const descriptor = await resolveDescriptor(bootstrap, request.operationName, "query");
+    const response = await graphQl(bootstrap, descriptor, request.variables, request.method, request.operationId);
+    return { status: "succeeded", output: projectXWebNewsReadPage(response, viewer.id, deferredRead!.limit),
+      finalUrl: `${X_ORIGIN}/explore`, dispatchStarted: false, dispatch: { planned: 0, started: 0, verified: 0 } };
+  }
+  if (recipe.action === "notifications.list") {
+    const viewer = await requireBoundViewer(bootstrap, auth);
+    const limit = integerInput(input, "limit", DEFAULT_LIMIT, 1, 50);
+    const request = buildXWebNotificationsReadRequest(viewer.id, limit, optionalStringInput(input, "cursor") ?? null);
+    const descriptor = await resolveDescriptor(bootstrap, request.operationName, "query");
+    const response = await graphQl(bootstrap, descriptor, request.variables, request.method, request.operationId);
+    return { status: "succeeded", output: projectXWebNotificationsReadPage(response, viewer.id, limit), finalUrl: `${X_ORIGIN}/notifications`, dispatchStarted: false, dispatch: { planned: 0, started: 0, verified: 0 } };
   }
   if (recipe.action === "profiles.read") {
     try {

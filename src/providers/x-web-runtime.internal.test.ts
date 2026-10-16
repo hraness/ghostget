@@ -5439,14 +5439,15 @@ describe("X content.delete", () => {
   test("deletes media posts reviewed with either exact displayed text or its bound caption", async () => {
     const mediaUrl = "https://t.co/fixture";
     const displayed = `${text} ${mediaUrl}`;
+    const base = publishedTweetResult({ text: displayed }) as { readonly legacy: Readonly<Record<string, unknown>> };
     for (const expectedText of [displayed, text]) {
       const calls: CapturedRequest[] = [];
       const result = await executeXWebOperation(xRecipe("content.delete", 3), { post_id: CREATED_POST_ID, expected_text: expectedText }, xAuth, {
         dependencies: dependencies(calls, deleteHandler({
           state: { deleted: false },
           present: deleted => deleted ? { data: {} } : { data: { tweetResult: { result: {
-            ...publishedTweetResult({ text: displayed }),
-            legacy: { ...publishedTweetResult({ text: displayed }).legacy, entities: { media: [{ url: mediaUrl }] } },
+            ...base,
+            legacy: { ...base.legacy, entities: { media: [{ url: mediaUrl }] } },
           } } } },
         })),
       });
@@ -5511,24 +5512,105 @@ describe("X content.delete", () => {
   });
 });
 
-describe("X deferred workspace reads", () => {
-  test("refuses every unqualified read before cookies, transport or browser startup", async () => {
-    const cases: readonly { action: WebSessionRecipe["action"]; input: OperationInput }[] = [
-      { action: "feeds.read", input: { feed: "user-replies", user_id: VIEWER_ID } },
-      { action: "feeds.read", input: { feed: "user-highlights", user_id: VIEWER_ID } },
-      { action: "feeds.read", input: { feed: "likes" } },
-      { action: "notifications.list", input: { limit: 50 } },
-      { action: "explore.read", input: { source: "trending" } },
-      { action: "explore.read", input: { source: "today-news", target: "fixture-section" } },
-    ];
-    let effects = 0;
-    const forbidden = (): never => { effects += 1; throw new Error("Unqualified read touched an external capability"); };
-    for (const entry of cases) {
-      const result = await executeXWebOperation(xRecipe(entry.action), entry.input, xAuth, {
-        dependencies: { acquireCookies: forbidden, fetch: forbidden, createBrowserSession: forbidden },
+describe("X captured workspace reads", () => {
+  test("profile replies and highlights use current routes, preserving other-author parents", async () => {
+    for (const [feed, operationName, queryId] of [["user-replies", "UserRepliesTimeline", "X9Te-FyiGcoV2qNrnx9w3w"], ["user-highlights", "UserHighlightsTweets", "Ducf_uu7enyuuE2kjOwFcw"]] as const) {
+      const calls: CapturedRequest[] = [];
+      const result = await executeXWebOperation(xRecipe("feeds.read", 2), { feed, user_id: VIEWER_ID, limit: 20 }, xAuth, {
+        dependencies: dependencies(calls, request => {
+          if (request.url.href === "https://x.com/home") return new Response(homeHtml({ featureSwitch: { user: { config: { voice_consumption_enabled: { value: true }, c9s_enabled: { value: true } } } } }), { headers: { "content-type": "text/html" } });
+          if (request.url.href === MAIN_URL) return new Response(mainBundle(descriptor("Viewer", VIEWER_QUERY_ID, "query"), descriptor(operationName, queryId, "query")), { headers: { "content-type": "application/javascript" } });
+          if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
+          if (request.url.pathname.endsWith("/" + operationName)) {
+            expect(request.method).toBe("GET");
+            expect(JSON.parse(request.url.searchParams.get("variables")!)).toEqual({ userId: VIEWER_ID, count: 20, includePromotedContent: true, withVoice: true, ...(feed === "user-replies" ? { withCommunity: true } : {}) });
+            return jsonResponse(userFeedResponse(VIEWER_ID, tweetEntry("991", "Conversation parent", "12345")));
+          }
+          throw new Error("Unexpected X request");
+        }),
       });
-      expect(result).toMatchObject({ status: "failed", dispatchStarted: false, dispatch: { planned: 0, started: 0, verified: 0 } });
-      expect(result.error).toContain("capture-required");
+      expect(result).toMatchObject({ status: "succeeded", output: { posts: [{ id: "991", text: "Conversation parent" }] }, dispatchStarted: false });
+      expect(calls.every(call => call.method === "GET")).toBeTrue();
+    }
+  });
+
+  test("selected Trending search reuses only the reviewed search route", async () => {
+    const calls: CapturedRequest[] = [];
+    const target = canonicalJson({ source: "trending", kind: "search", value: "#fixture" });
+    const result = await executeXWebOperation(xRecipe("explore.read"), { source: "trending", target, limit: 2, cursor: "next-fixture" }, xAuth, {
+      dependencies: dependencies(calls, request => {
+        if (request.url.href === "https://x.com/home") return new Response(homeHtml(), { headers: { "content-type": "text/html" } });
+        if (request.url.href === MAIN_URL) return new Response(mainBundle(descriptor("Viewer", VIEWER_QUERY_ID, "query"), descriptor("SearchTimeline", SEARCH_TIMELINE_QUERY_ID, "query")), { headers: { "content-type": "application/javascript" } });
+        if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
+        if (request.url.pathname.endsWith("/SearchTimeline")) {
+          expect(request.method).toBe("POST");
+          expect(JSON.parse(request.body!).variables).toEqual({ rawQuery: "#fixture", count: 2, querySource: "typed_query", product: "Latest", cursor: "next-fixture" });
+          return jsonResponse(searchFeedResponse(tweetEntry("991", "Selected topic")));
+        }
+        throw new Error("Unexpected X request");
+      }),
+    });
+    expect(result).toMatchObject({ status: "succeeded", output: { source: "trending", posts: [{ id: "991" }] }, dispatchStarted: false });
+    expect(calls.filter(call => call.method === "POST").map(call => call.url.pathname.split("/").at(-1))).toEqual(["SearchTimeline"]);
+  });
+
+  test("Today's News resolves the separate narrow Relay descriptor and fixed topic", async () => {
+    const calls: CapturedRequest[] = [];
+    const newsBundle = "https://abs.twimg.com/responsive-web/client-web/loader.NewsSidebar.abcdef1a.js";
+    const result = await executeXWebOperation(xRecipe("explore.read"), { source: "today-news", limit: 1 }, xAuth, {
+      dependencies: dependencies(calls, request => {
+        if (request.url.href === "https://x.com/home") return new Response(`${homeHtml()}<script>p.u=e=>({31770:"loader.NewsSidebar"})[e]||e)+"."+({31770:"abcdef1"})[e]+"a.js"</script>`, { headers: { "content-type": "text/html" } });
+        if (request.url.href === MAIN_URL) return new Response(mainBundle(descriptor("Viewer", VIEWER_QUERY_ID, "query")), { headers: { "content-type": "application/javascript" } });
+        if (request.url.href === newsBundle) return new Response('params:{id:"I3V_Tt32aTZdw7cBdKUJbg",metadata:{},name:"useStoryTopicQuery",operationKind:"query",text:null}', { headers: { "content-type": "application/javascript" } });
+        if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
+        if (request.url.pathname.endsWith("/useStoryTopicQuery")) {
+          expect(request.method).toBe("GET");
+          expect(JSON.parse(request.url.searchParams.get("variables")!)).toEqual({ limit: 3, rest_id: "Top Stories" });
+          expect(request.url.searchParams.has("features")).toBeFalse();
+          return jsonResponse({ data: { story_topic: { stories: { items: [{ trend_results: { result: { __typename: "AiTrend", rest_id: "story-fixture", id: "opaque-fixture", core: { name: "Today's fixture", hook: "News details", category: "Technology" }, post_count: 23 } } }] } } } });
+        }
+        throw new Error("Unexpected X request");
+      }),
+    });
+    expect(result).toMatchObject({ status: "succeeded", output: { source: "today-news", entries: [{ kind: "trend", id: "story-fixture", trend: { source: "todays-news", title: "Today's fixture", postCount: 23 } }], cursor: null }, dispatchStarted: false });
+    expect(calls.every(call => call.method === "GET")).toBeTrue();
+  });
+
+  test("malformed discovery selections fail before auth or transport", async () => {
+    let effects = 0;
+    const forbidden = (): never => { effects += 1; throw new Error("Unexpected external effect"); };
+    for (const input of [{ source: "today-news", target: "guessed" }, { source: "today-news", cursor: "guessed" }, { source: "trending", target: "https://x.com/search?q=x" }, { source: "trending", target: canonicalJson({ source: "today-news", kind: "story", value: "x" }) }]) {
+      await expect(executeXWebOperation(xRecipe("explore.read"), input, xAuth, { dependencies: { acquireCookies: forbidden, fetch: forbidden, createBrowserSession: forbidden } })).rejects.toThrow();
+    }
+    expect(effects).toBe(0);
+  });
+
+  test("reads only the bound viewer's likes through the observed route with no mutations", async () => {
+    const calls: CapturedRequest[] = [];
+    const result = await executeXWebOperation(xRecipe("feeds.read", 2), { feed: "likes", limit: 20 }, xAuth, {
+      dependencies: dependencies(calls, request => {
+        if (request.url.href === "https://x.com/home") return new Response(homeHtml(), { headers: { "content-type": "text/html" } });
+        if (request.url.href === MAIN_URL) return new Response(mainBundle(descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"), descriptor("Likes", "mu4us66Q6RRNOywVQhGtRg", "query")), { headers: { "content-type": "application/javascript" } });
+        if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
+        if (request.url.pathname.endsWith("/Likes")) {
+          expect(request.method).toBe("GET");
+          expect(JSON.parse(request.url.searchParams.get("variables")!)).toEqual({ userId: VIEWER_ID, count: 20, includePromotedContent: false, withClientEventToken: false, withBirdwatchNotes: false, withVoice: true });
+          return jsonResponse(userFeedResponse(VIEWER_ID, tweetEntry("991", "Liked post from another author", "12345")));
+        }
+        throw new Error("Unexpected X request");
+      }),
+    });
+    expect(result).toMatchObject({ status: "succeeded", output: { posts: [{ id: "991", text: "Liked post from another author" }] }, dispatchStarted: false });
+    expect(calls.every(call => call.method === "GET")).toBeTrue();
+  });
+});
+
+describe("X profile read input admission", () => {
+  test("refuses unreviewed profile inputs before cookies, transport or browser startup", async () => {
+    let effects = 0;
+    const forbidden = (): never => { effects += 1; throw new Error("Unexpected external effect"); };
+    for (const input of [{ feed: "user-replies", user_id: VIEWER_ID, sortByMostLiked: true }, { feed: "user-highlights", user_id: "@fixture" }, { feed: "user-replies", user_id: VIEWER_ID, limit: 51 }]) {
+      await expect(executeXWebOperation(xRecipe("feeds.read", 2), input, xAuth, { dependencies: { acquireCookies: forbidden, fetch: forbidden, createBrowserSession: forbidden } })).rejects.toThrow();
     }
     expect(effects).toBe(0);
   });

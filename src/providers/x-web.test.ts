@@ -1747,7 +1747,7 @@ describe("X bookmark export projection", () => {
     expect(page.posts.map(post => post.id)).toEqual(["21"]);
     expect(page.entries).toEqual([
       { kind: "unavailable", id: "unavailable-first", postId: null, reason: "Protected\ncontent" },
-      { kind: "post", id: "21", post: page.posts[0] },
+      { kind: "post", id: "21", post: page.posts[0]! },
       { kind: "unavailable", id: "unavailable-last", postId: null, reason: null },
     ]);
     expect(page.entriesTruncated).toBeFalse();
@@ -2495,4 +2495,18 @@ describe("desired-state mutation response validation", () => {
       response: { data: {} },
     })).toThrow("not reviewed");
   });
+});
+
+
+test("local unread-state URT instructions neither discard entries nor imply a read acknowledgement", () => {
+  const empty = normalizeXWebUrtTimeline({ instructions: [
+    { type: "TimelineAddEntries", entries: [timelineItemEntry("tweet-123", { __typename: "Tweet", rest_id: "123", legacy: { full_text: "Fixture post" } })] },
+    { type: "TimelineClearEntriesUnreadState" },
+    { type: "TimelineMarkEntriesUnreadGreaterThanSortIndex", sort_index: "1234567890" },
+    { type: "TimelineAddEntries", entries: [] },
+  ] });
+  expect(empty.items).toMatchObject([{ kind: "tweet", tweetId: "123" }]);
+  expect(empty.cursors.bottom).toBeNull();
+  expect(empty.terminatedDirections).toEqual([]);
+  expect(() => normalizeXWebUrtTimeline({ instructions: [{ type: "TimelineAcknowledgeNotifications" }] })).toThrow("not reviewed");
 });

@@ -22,19 +22,23 @@ function page(source: string, items: readonly unknown[]) {
 describe("X workspace read qualification", () => {
   test("new sources remain distinct and unavailable until captured; reposts is a supported filtered view", () => {
     expect(xWebWorkspaceReadSupport["profile-reposts"]).toBeTrue();
-    for (const source of ["profile-replies", "profile-highlights", "likes", "notifications", "trending", "today-news"] as const) {
-      expect(xWebWorkspaceReadSupport[source]).toBeFalse();
+    expect(xWebWorkspaceReadSupport.likes).toBeTrue();
+    expect(xWebWorkspaceReadSupport.trending).toBeTrue();
+    expect(xWebWorkspaceReadSupport.notifications).toBeTrue();
+    expect(xWebWorkspaceReadSupport["today-news"]).toBeTrue();
+    for (const source of ["profile-replies", "profile-highlights"] as const) {
+      expect(xWebWorkspaceReadSupport[source]).toBeTrue();
     }
     expect(Object.isFrozen(xWebWorkspaceReadSupport)).toBeTrue();
   });
 
   test("recognizes only deferred reads with bounded source-specific input", () => {
-    expect(deferredXWebWorkspaceRead("feeds.read", { feed: "user-replies", user_id: "123", limit: 100, cursor: "next" }))
-      .toEqual({ surface: "profile-replies", target: "123", limit: 100, cursor: "next" });
+    expect(deferredXWebWorkspaceRead("feeds.read", { feed: "user-replies", user_id: "123", limit: 50, cursor: "next" }))
+      .toEqual({ surface: "profile-replies", target: "123", limit: 50, cursor: "next" });
     expect(deferredXWebWorkspaceRead("feeds.read", { feed: "user-highlights", user_id: "123" })?.surface).toBe("profile-highlights");
     expect(deferredXWebWorkspaceRead("feeds.read", { feed: "likes" })?.target).toBeNull();
     expect(deferredXWebWorkspaceRead("notifications.list", {})?.surface).toBe("notifications");
-    expect(deferredXWebWorkspaceRead("explore.read", { source: "today-news", target: "section-fixture" })?.surface).toBe("today-news");
+    expect(deferredXWebWorkspaceRead("explore.read", { source: "today-news" })?.surface).toBe("today-news");
     expect(deferredXWebWorkspaceRead("feeds.read", { feed: "user", user_id: "123" })).toBeNull();
     expect(deferredXWebWorkspaceRead("likes.set", { post_id: "123", liked: true })).toBeNull();
   });
@@ -47,6 +51,14 @@ describe("X workspace read qualification", () => {
       expect(() => deferredXWebWorkspaceRead("explore.read", input)).toThrow();
     }
     expect(() => deferredXWebWorkspaceRead("notifications.list", { acknowledge: true })).toThrow();
+    for (const target of ["section", '{"source":"today-news","kind":"search","value":"x"}', '{"kind":"search","source":"trending","value":"x","extra":true}', '{"kind":"story","source":"trending","value":"x"}', '{ "kind":"search","source":"trending","value":"x"}']) {
+      expect(() => deferredXWebWorkspaceRead("explore.read", { source: "trending", target })).toThrow();
+    }
+    const target = '{"kind":"search","source":"trending","value":"#fixture"}';
+    expect(deferredXWebWorkspaceRead("explore.read", { source: "trending", target })?.target).toBe(target);
+    for (const input of [{ source: "today-news", target }, { source: "today-news", cursor: "next" }]) {
+      expect(() => deferredXWebWorkspaceRead("explore.read", input)).toThrow();
+    }
   });
 });
 

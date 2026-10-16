@@ -289,6 +289,16 @@ function twitchGraphQlHar(options: {
 }
 
 describe("private derivation review", () => {
+  test("matches explicit empty-string fixtures exactly without exposing credential subtrees", () => {
+    const result = reviewDerivationHarValue(jsonExchangeHar({ payload: { text: "", absent: null, number: 0, enabled: false, cookie: { text: "" }, auth: { text: "" } } }), targetOrigin, {
+      kind: "entry", entryIndex: 0, fixtures: parseDerivationReviewFixtures({ empty: "" }),
+    });
+    if (result.kind !== "entry") throw new Error("wrong review kind");
+    const match = result.fixtureMatches.find(value => value.label === "empty");
+    expect(match?.locations).toHaveLength(1);
+    expect(match?.locations.join(" ")).not.toMatch(/cookie|auth/u);
+    expect(parseDerivationReviewFixtures({ empty: "" })).toEqual({ empty: "" });
+  });
   test("reviews exact-route Twitch text/plain JSON fixtures without exposing values or credential subtrees", () => {
     const fixtureValues = {
       request_channel: "private-request-channel-login",

@@ -2736,11 +2736,10 @@ export function loadInvocationPlan(
   digest: string,
   environment: Readonly<Record<string, string | undefined>> = process.env,
 ): StoredPlan {
-  if (invocationPlanWasCancelled(digest, environment)) throw new Error("confirmation plan was cancelled before execution");
-  const stored = decryptPlan(
-    JSON.parse(readRegularFile(planPath(digest, environment), MAX_ENCRYPTED_PLAN_BYTES, "encrypted plan")) as unknown,
-    environment,
-  );
+  const text = readRegularFile(planPath(digest, environment), MAX_ENCRYPTED_PLAN_BYTES, "encrypted plan");
+  const value: unknown = JSON.parse(text);
+  if (Buffer.byteLength(text) <= MAX_CANCELLED_INVOCATION_PLAN_BYTES && isCancelledInvocationPlan(value, digest)) throw new Error("confirmation plan was cancelled before execution");
+  const stored = decryptPlan(value, environment);
   if (stored.digest !== digest) throw new Error("stored plan filename does not match its digest");
   return stored;
 }
@@ -2751,6 +2750,7 @@ function isCancelledInvocationPlan(value: unknown, digest: string): boolean {
 }
 
 export const MAX_CANCELLED_INVOCATION_PLANS = 4_096;
+const MAX_CANCELLED_INVOCATION_PLAN_BYTES = 256;
 
 /** Pure observation of the atomic cancellation evidence; never creates state. */
 export function invocationPlanWasCancelled(
@@ -2758,7 +2758,7 @@ export function invocationPlanWasCancelled(
   environment: Readonly<Record<string, string | undefined>> = process.env,
 ): boolean {
   const text = readPrivateStateFileIfPresent(planPath(digest, environment), MAX_ENCRYPTED_PLAN_BYTES, "confirmation plan", environment);
-  if (text === null) return false;
+  if (text === null || Buffer.byteLength(text) > MAX_CANCELLED_INVOCATION_PLAN_BYTES) return false;
   try { return isCancelledInvocationPlan(JSON.parse(text), digest); } catch { return false; }
 }
 
@@ -2977,7 +2977,13 @@ function cancelInvocationPlanUnderClaim(
     const text = readPrivateStateFileIfPresent(path, MAX_ENCRYPTED_PLAN_BYTES, "confirmation plan", environment);
     if (text === null) return false;
     // Never remove terminal cancellation evidence through ordinary cleanup.
-    try { if (isCancelledInvocationPlan(JSON.parse(text), digest)) return requireUnstarted; } catch { /* Validated below for the evidence-producing path. */ }
+    try {
+      if (Buffer.byteLength(text) <= MAX_CANCELLED_INVOCATION_PLAN_BYTES && isCancelledInvocationPlan(JSON.parse(text), digest)) {
+        return requireUnstarted
+          && !listRunJournalSnapshots(environment).some(entry => "invalid" in entry || entry.journal.planDigest === digest)
+          && !listRunReceipts(environment).some(entry => "invalid" in entry || entry.planDigest === digest);
+      }
+    } catch { /* Validated below for the evidence-producing path. */ }
     // Hold the same single-confirmer claim through inspection and removal.
     // Missing receipts alone cannot prove non-dispatch: journals precede I/O.
     if (requireUnstarted && (
@@ -2985,9 +2991,14 @@ function cancelInvocationPlanUnderClaim(
       || listRunReceipts(environment).some(entry => "invalid" in entry || entry.planDigest === digest)
     )) return false;
     if (requireUnstarted) {
-      const cancellations = listPrivateStateDirectory(planDirectory(environment), environment).filter(entry =>
-        entry.kind === "file" && /^[a-f0-9]{64}\.json$/u.test(entry.name)
-        && invocationPlanWasCancelled(entry.name.slice(0, -5), environment));
+      const directory = planDirectory(environment);
+      const snapshot = snapshotPrivateStateDirectory(directory, environment);
+      if (snapshot.identity === null) throw new Error("confirmation plan directory disappeared");
+      const names = snapshot.entries.filter(entry => entry.kind === "file" && /^[a-f0-9]{64}\.json$/u.test(entry.name)).map(entry => entry.name);
+      const cancellations = readPrivateStateFilesBatched(directory, names, { maximumBytesPerFile: MAX_CANCELLED_INVOCATION_PLAN_BYTES, environment, expectedDirectoryIdentity: snapshot.identity }).filter(file => {
+        if (file.status !== "present") return false;
+        try { return isCancelledInvocationPlan(JSON.parse(file.content), file.name.slice(0, -5)); } catch { return false; }
+      });
       if (cancellations.length >= MAX_CANCELLED_INVOCATION_PLANS) throw new Error("cancellation history is full; existing recovery evidence was preserved");
       // Authenticate the encrypted source before replacing it. The fixed claim
       // excludes confirmation; conditional replacement binds the exact bytes.

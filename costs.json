@@ -112,7 +112,10 @@
         "maxMediaFiles": 16,
         "maxMediaBytes": 536870912,
         "mediaTTLSeconds": 600,
-        "maxRunBindings": 128
+        "maxRunBindings": 128,
+        "maxDiscoveryTargets": 128,
+        "maxDiscoveryTargetCharacters": 4096,
+        "discoveryTargetTTLSeconds": 600
       },
       "expiry": "Expired during subsequent commands; unused plans cancelled and staged files removed on graceful host close. Runtime encrypted plans and durable receipts retain their existing lifecycle.",
       "deletion": "src/app-host-x-service.ts"

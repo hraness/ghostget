@@ -239,8 +239,8 @@ function parseReviewFixtures(
     }
     if (typeof fixture !== "string") throw new Error(`review fixture ${label} must be a string`);
     const bytes = Buffer.byteLength(fixture, "utf8");
-    if (bytes < 1 || bytes > MAX_FIXTURE_VALUE_BYTES) {
-      throw new Error(`review fixture ${label} must contain 1-${MAX_FIXTURE_VALUE_BYTES} UTF-8 bytes`);
+    if (bytes > MAX_FIXTURE_VALUE_BYTES) {
+      throw new Error(`review fixture ${label} must contain 0-${MAX_FIXTURE_VALUE_BYTES} UTF-8 bytes`);
     }
     totalBytes += bytes + Buffer.byteLength(label, "utf8");
     if (totalBytes > MAX_FIXTURE_BYTES) throw new Error(`review fixtures exceed ${MAX_FIXTURE_BYTES} UTF-8 bytes`);

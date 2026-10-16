@@ -123,8 +123,10 @@ Every call includes the current `accountId` and `expectedAccountRevision` from
 the host capability alone does not promise every provider route works.
 
 - `x.profile.get`, `x.post.get` and `x.feed.list` return versioned public-content
-  models. Feed sources include Home, Following, a profile's feeds, likes,
-  bookmarks, followers and following accounts. Unsupported sources fail before
+  models. Feed sources include Home, Following, profile posts, replies and
+  highlights, likes, bookmarks, followers and following accounts. The reply and
+  highlight readers have source and fixture coverage; forward live verification
+  and native provider checks remain pending. Unsupported sources fail before
   provider access. Pagination tokens bind the account revision and read inputs.
 - `x.notifications.list` and `x.explore.list` are separate closed requests.
   Explore accepts `trending` or `today-news`. A new request name does not enable

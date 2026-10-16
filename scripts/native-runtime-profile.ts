@@ -16,6 +16,67 @@ const exclusions: Record<string, readonly string[]> = {
 const sourceExclusions = ["src/assets/messaging-runtime"] as const;
 const repository = realpathSync(resolve(import.meta.dir, ".."));
 
+type NativePackage = { readonly name: string; readonly version: string; readonly dependencies: Readonly<Record<string, string>> };
+const packageName = /^(?:@[A-Za-z0-9][A-Za-z0-9._-]*\/)?[A-Za-z0-9][A-Za-z0-9._-]*$/u;
+function validPackageName(value: string): boolean {
+  return value.length <= 214 && packageName.test(value) && !/[\u0000-\u001f\u007f]/u.test(value);
+}
+function validPackageVersion(value: unknown): value is string {
+  if (typeof value !== "string" || value.length > 128) return false;
+  const parts = /^(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:-([0-9A-Za-z.-]+))?(?:\+([0-9A-Za-z.-]+))?$/u.exec(value);
+  return parts !== null && parts[0] === value
+    && (parts[1] === undefined || parts[1].split(".").every(part => /^[0-9A-Za-z-]+$/u.test(part) && !/^0[0-9]+$/u.test(part)))
+    && (parts[2] === undefined || parts[2].split(".").every(part => /^[0-9A-Za-z-]+$/u.test(part)));
+}
+function readNativePackage(root: string, allowSubpath: boolean): NativePackage | null {
+  const path = join(root, "package.json");
+  const metadata = lstatSync(path);
+  if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size > 1_048_576) throw new Error("native runtime dependency manifest is not a bounded regular file");
+  const text = readFileSync(path, "utf8");
+  if (Buffer.byteLength(text) > 1_048_576) throw new Error("native runtime dependency manifest exceeds its byte bound");
+  const value: unknown = JSON.parse(text);
+  if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error("native runtime dependency manifest must be an object");
+  const manifest = value as Record<string, unknown>;
+  const hasName = Object.hasOwn(manifest, "name"), hasVersion = Object.hasOwn(manifest, "version");
+  if (!hasName && !hasVersion && allowSubpath) return null;
+  if (!hasName || !hasVersion || typeof manifest.name !== "string" || !validPackageName(manifest.name) || !validPackageVersion(manifest.version)) {
+    throw new Error("native runtime dependency manifest has an invalid name or version");
+  }
+  const dependencies: Record<string, string> = {};
+  if (manifest.dependencies !== undefined) {
+    if (typeof manifest.dependencies !== "object" || manifest.dependencies === null || Array.isArray(manifest.dependencies)) throw new Error("native runtime dependency declarations must be an object");
+    for (const [name, constraint] of Object.entries(manifest.dependencies)) {
+      if (!validPackageName(name) || typeof constraint !== "string" || constraint.length === 0 || constraint.length > 4096 || /[\u0000-\u001f\u007f]/u.test(constraint)) {
+        throw new Error("native runtime dependency declaration is malformed");
+      }
+      Object.defineProperty(dependencies, name, { value: constraint, enumerable: true });
+    }
+  }
+  return { name: manifest.name, version: manifest.version, dependencies };
+}
+
+/** Subpath package.json files may describe module formats without owning a package identity. */
+export function resolveNativeRuntimePackageRoot(input: string): string {
+  const path = realpathSync(input);
+  const marker = sep + "node_modules" + sep;
+  const start = path.lastIndexOf(marker);
+  if (start < 0) throw new Error("dependency is outside a node_modules package");
+  const parts = path.slice(start + marker.length).split(sep);
+  const count = parts[0]?.startsWith("@") ? 2 : 1;
+  if (parts.length <= count || parts.slice(0, count).some(part => part.length === 0)) throw new Error("dependency has no package boundary");
+  const boundary = path.slice(0, start + marker.length) + parts.slice(0, count).join(sep);
+  let directory = dirname(path);
+  for (;;) {
+    if (existsSync(join(directory, "package.json"))) {
+      if (readNativePackage(directory, directory !== boundary) !== null) return directory;
+    }
+    if (directory === boundary) throw new Error("dependency package root has no valid identity");
+    const parent = dirname(directory);
+    if (parent === directory || !directory.startsWith(boundary + sep)) throw new Error("dependency has no contained package identity");
+    directory = parent;
+  }
+}
+
 export function assertSourceExclusionsUnreachable(excluded: readonly string[], inputs: Iterable<string>): void {
   const reached = [...inputs].map(path => realpathSync(path));
   if (excluded.length > 64 || new Set(excluded).size !== excluded.length) throw new Error("invalid native runtime source exclusions");
@@ -39,7 +100,8 @@ export function assertSourceExclusionsUnreachable(excluded: readonly string[], i
 export async function generateNativeRuntimeProfile(): Promise<unknown> {
   const packages = new Map<string, { name: string; version: string; exclude: readonly string[] }>();
   const admit = (root: string): void => {
-    const parsed = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as { name: string; version: string };
+    const parsed = readNativePackage(root, false);
+    if (parsed === null) throw new Error("native runtime dependency has no package identity");
     const previous = packages.get(parsed.name);
     if (previous !== undefined && previous.version !== parsed.version) throw new Error("native runtime has multiple package versions");
     packages.set(parsed.name, { name: parsed.name, version: parsed.version, exclude: exclusions[parsed.name] ?? [] });
@@ -51,18 +113,14 @@ export async function generateNativeRuntimeProfile(): Promise<unknown> {
   for (const input of Object.keys(built.metafile.inputs)) {
     const path = realpathSync(input);
     if (!path.includes("/node_modules/")) continue;
-    let directory = dirname(path);
-    while (!existsSync(join(directory, "package.json"))) {
-      const parent = dirname(directory);
-      if (parent === directory) throw new Error("dependency has no package identity");
-      directory = parent;
-    }
+    const directory = resolveNativeRuntimePackageRoot(path);
     admit(directory);
     // Some dependencies resolve package directories from literal configuration,
     // outside import/require syntax (wordcell's browser adapter is one example).
     // Project every literal declared-dependency reference in the reached module.
-    const manifest = JSON.parse(readFileSync(join(directory, "package.json"), "utf8")) as { dependencies?: Record<string, string> };
-    const declared = new Set(Object.keys(manifest.dependencies ?? {}));
+    const manifest = readNativePackage(directory, false);
+    if (manifest === null) throw new Error("native runtime dependency has no package identity");
+    const declared = new Set(Object.keys(manifest.dependencies));
     const tree = ts.createSourceFile(path, readFileSync(path, "utf8"), ts.ScriptTarget.Latest, true);
     const visit = (node: ts.Node): void => {
       if (ts.isStringLiteralLike(node) && declared.has(node.text)) {

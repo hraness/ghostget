@@ -292,6 +292,10 @@ export const xWebQueryDescriptorEvidenceSnapshot = Object.freeze({
   currentBundleResolutionRequired: true,
   mainBundleUrl: "https://abs.twimg.com/responsive-web/client-web/main.ec728870257106e0a.js",
   descriptors: Object.freeze([
+    { operationName: "useStoryTopicQuery", operationType: "query", queryId: "I3V_Tt32aTZdw7cBdKUJbg", sourceChunk: "loader.NewsSidebar.8f265480c1cb63dda.js", observedOn: "2026-10-16", metadataSha256: "643d5437104296e21d906ecb15b2c96ad278f20cfc4af53b12bb6069bd853726" },
+    { operationName: "ExplorePage", operationType: "query", queryId: "BMib5Px-wibex8mYlOUhmQ", sourceChunk: "main.3d37ce891242075fa.js", observedOn: "2026-10-16", metadataSha256: "e100273168465653ceafeaff394ca1e2b7236d5d2cbea9238ce39c572d62ceaf" },
+    { operationName: "GenericTimelineById", operationType: "query", queryId: "cW93hZ3nlNYbYcUROF5r5A", sourceChunk: "main.3d37ce891242075fa.js", observedOn: "2026-10-16", metadataSha256: "e100273168465653ceafeaff394ca1e2b7236d5d2cbea9238ce39c572d62ceaf" },
+    { operationName: "Likes", operationType: "query", queryId: "mu4us66Q6RRNOywVQhGtRg", sourceChunk: "main.3d37ce891242075fa.js", observedOn: "2026-10-16", metadataSha256: "e100273168465653ceafeaff394ca1e2b7236d5d2cbea9238ce39c572d62ceaf" },
     { operationName: "HomeTimeline", operationType: "query", queryId: "V0wMxbYBxdrkfmV3kJSyRQ", sourceChunk: "shared~bundle.Compose~bundle.HomeTimeline~bundle.LoggedInMain.47781478b7ea71d8a.js", observedOn: "2026-10-08", metadataSha256: "e100273168465653ceafeaff394ca1e2b7236d5d2cbea9238ce39c572d62ceaf" },
     { operationName: "HomeLatestTimeline", operationType: "query", queryId: "5URyiXQyz6_8NZnoV37OVQ", sourceChunk: "shared~bundle.Compose~bundle.HomeTimeline~bundle.LoggedInMain.47781478b7ea71d8a.js", observedOn: "2026-10-08", metadataSha256: "e100273168465653ceafeaff394ca1e2b7236d5d2cbea9238ce39c572d62ceaf" },
     { operationName: "ListLatestTweetsTimeline", operationType: "query", queryId: "wD-euF_1WoOc5VygdYIhYA", sourceChunk: "shared~JetfuelWrapper~bundle.AudioSpaceDetail~bundle.AudioSpaceDiscovery~bundle.AudioSpacebarScreen~bundle.Bi.7c65839bdb079a6ca.js", observedOn: "2026-10-08", metadataSha256: "e100273168465653ceafeaff394ca1e2b7236d5d2cbea9238ce39c572d62ceaf" },
@@ -299,11 +303,13 @@ export const xWebQueryDescriptorEvidenceSnapshot = Object.freeze({
     { operationName: "Bookmarks", operationType: "query", queryId: "OAtFv0SIZt6v3rZsF4gvJA", sourceChunk: "shared~bundle.BookmarkFolders~bundle.Bookmarks.cdf420f8928d5b0ea.js", observedOn: "2026-10-08", metadataSha256: "e100273168465653ceafeaff394ca1e2b7236d5d2cbea9238ce39c572d62ceaf" },
     { operationName: "BookmarkSearchTimeline", operationType: "query", queryId: "BYZi2BctI_PPWPtVIARwNQ", sourceChunk: "main.ec728870257106e0a.js", observedOn: "2026-10-08", metadataSha256: "e100273168465653ceafeaff394ca1e2b7236d5d2cbea9238ce39c572d62ceaf" },
     { operationName: "SearchTimeline", operationType: "query", queryId: "ph2fARFabkwfxqmSKQ1OPw", sourceChunk: "main.ec728870257106e0a.js", observedOn: "2026-10-08", metadataSha256: "e100273168465653ceafeaff394ca1e2b7236d5d2cbea9238ce39c572d62ceaf" },
-    { operationName: "NotificationsTimeline", operationType: "query", queryId: "4TuDRWeusve2-BH2IqldBg", sourceChunk: "bundle.Notifications.923c22e958f2c738a.js", observedOn: "2026-10-08", metadataSha256: "e100273168465653ceafeaff394ca1e2b7236d5d2cbea9238ce39c572d62ceaf" },
+    { operationName: "NotificationsTimeline", operationType: "query", queryId: "EUX2EwvgT4f9F7sC4A59Eg", sourceChunk: "bundle.Notifications.578b4c19f06938f2a.js", observedOn: "2026-10-16", metadataSha256: "e100273168465653ceafeaff394ca1e2b7236d5d2cbea9238ce39c572d62ceaf" },
     { operationName: "TweetDetail", operationType: "query", queryId: "z-3ZLa-NQ8Sp09diHkJNBg", sourceChunk: "main.ec728870257106e0a.js", observedOn: "2026-10-08", metadataSha256: "e100273168465653ceafeaff394ca1e2b7236d5d2cbea9238ce39c572d62ceaf" },
     { operationName: "TweetResultByRestId", operationType: "query", queryId: "CxpIrb-Lt2oBpojNjvDatg", sourceChunk: "main.ec728870257106e0a.js", observedOn: "2026-10-08", metadataSha256: "bb5e9f10943b8dc5298e58304ddda51a09f747d5f22815ac395da6dfa8dc7604" },
     { operationName: "TweetResultsByRestIds", operationType: "query", queryId: "pF6RH9M_gT7suFJL2zsJSQ", sourceChunk: "main.ec728870257106e0a.js", observedOn: "2026-10-08", metadataSha256: "bb5e9f10943b8dc5298e58304ddda51a09f747d5f22815ac395da6dfa8dc7604" },
     { operationName: "UserTweets", operationType: "query", queryId: "P4MigfQQcQgVgHNg1_H5lA", sourceChunk: "main.ec728870257106e0a.js", observedOn: "2026-10-08", metadataSha256: "e100273168465653ceafeaff394ca1e2b7236d5d2cbea9238ce39c572d62ceaf" },
+    { operationName: "UserRepliesTimeline", operationType: "query", queryId: "X9Te-FyiGcoV2qNrnx9w3w", sourceChunk: "main.3d37ce891242075fa.js", observedOn: "2026-10-16", metadataSha256: "e100273168465653ceafeaff394ca1e2b7236d5d2cbea9238ce39c572d62ceaf" },
+    { operationName: "UserHighlightsTweets", operationType: "query", queryId: "Ducf_uu7enyuuE2kjOwFcw", sourceChunk: "main.3d37ce891242075fa.js", observedOn: "2026-10-16", metadataSha256: "e100273168465653ceafeaff394ca1e2b7236d5d2cbea9238ce39c572d62ceaf" },
     { operationName: "UserTweetsAndReplies", operationType: "query", queryId: "D6LBfPh1ENcZP2wxliZ9Og", sourceChunk: "main.ec728870257106e0a.js", observedOn: "2026-10-08", metadataSha256: "e100273168465653ceafeaff394ca1e2b7236d5d2cbea9238ce39c572d62ceaf" },
     { operationName: "UserMedia", operationType: "query", queryId: "6KUGvSJgYSsXxLZstwsjdQ", sourceChunk: "main.ec728870257106e0a.js", observedOn: "2026-10-08", metadataSha256: "e100273168465653ceafeaff394ca1e2b7236d5d2cbea9238ce39c572d62ceaf" },
     { operationName: "FavoriteTweet", operationType: "mutation", queryId: "lI07N6Otwv1PhnEgXILM7A", sourceChunk: "main.ec728870257106e0a.js", observedOn: "2026-10-08", metadataSha256: "643d5437104296e21d906ecb15b2c96ad278f20cfc4af53b12bb6069bd853726" },
@@ -332,6 +338,8 @@ type XWebGraphQlReadDefinition = {
     | "feeds.read"
     | "posts.read"
     | "profiles.read"
+    | "explore.read"
+    | "notifications.list"
     | "contacts.list";
   readonly risk: "R1";
   readonly transport: "graphql-query";
@@ -361,11 +369,16 @@ export type XWebSemanticOperationDefinition =
   | XWebDesiredStateDefinition;
 
 export const xWebSemanticOperationRegistry = Object.freeze({
+  "explore.news": { semanticOperation: "explore.read", risk: "R1", transport: "graphql-query", operationName: "useStoryTopicQuery", operationType: "query", responseRoot: ["story_topic"] },
+  "explore.page": { semanticOperation: "explore.read", risk: "R1", transport: "graphql-query", operationName: "ExplorePage", operationType: "query", responseRoot: ["explore_page"] },
+  "explore.timeline": { semanticOperation: "explore.read", risk: "R1", transport: "graphql-query", operationName: "GenericTimelineById", operationType: "query", responseRoot: ["timeline", "timeline"] },
+  "notifications.all": { semanticOperation: "notifications.list", risk: "R1", transport: "graphql-query", operationName: "NotificationsTimeline", operationType: "query", responseRoot: ["viewer_v2", "user_results", "result", "notification_timeline", "timeline"] },
   "feeds.for-you": { semanticOperation: "feeds.read", risk: "R1", transport: "graphql-query", operationName: "HomeTimeline", operationType: "query", responseRoot: ["home", "home_timeline_urt"] },
   "feeds.following": { semanticOperation: "feeds.read", risk: "R1", transport: "graphql-query", operationName: "HomeLatestTimeline", operationType: "query", responseRoot: ["home", "home_timeline_urt"] },
   "feeds.list-latest": { semanticOperation: "feeds.read", risk: "R1", transport: "graphql-query", operationName: "ListLatestTweetsTimeline", operationType: "query", responseRoot: ["list", "tweets_timeline", "timeline"] },
   "feeds.list-ranked": { semanticOperation: "feeds.read", risk: "R1", transport: "graphql-query", operationName: "ListRankedTweetsTimeline", operationType: "query", responseRoot: ["list", "tweets_timeline", "timeline"] },
   "feeds.bookmarks": { semanticOperation: "feeds.read", risk: "R1", transport: "graphql-query", operationName: "Bookmarks", operationType: "query", responseRoot: ["bookmark_timeline_v2", "timeline"] },
+  "feeds.likes": { semanticOperation: "feeds.read", risk: "R1", transport: "graphql-query", operationName: "Likes", operationType: "query", responseRoot: ["user", "result", "timeline", "timeline"] },
   "feeds.bookmark-search": { semanticOperation: "feeds.read", risk: "R1", transport: "graphql-query", operationName: "BookmarkSearchTimeline", operationType: "query", responseRoot: ["bookmark_search_timeline", "timeline"] },
   "feeds.search": { semanticOperation: "feeds.read", risk: "R1", transport: "graphql-query", operationName: "SearchTimeline", operationType: "query", responseRoot: ["search_by_raw_query", "search_timeline", "timeline"] },
   "feeds.notifications": { semanticOperation: "feeds.read", risk: "R1", transport: "graphql-query", operationName: "NotificationsTimeline", operationType: "query", responseRoot: ["viewer_v2", "user_results", "result", "notification_timeline", "timeline"] },
@@ -375,6 +388,8 @@ export const xWebSemanticOperationRegistry = Object.freeze({
   "posts.detail": { semanticOperation: "posts.read", risk: "R1", transport: "graphql-query", operationName: "TweetDetail", operationType: "query", responseRoot: ["threaded_conversation_with_injections_v2"] },
   "posts.by-id": { semanticOperation: "posts.read", risk: "R1", transport: "graphql-query", operationName: "TweetResultByRestId", operationType: "query", responseRoot: ["tweetResult", "result"] },
   "posts.by-ids": { semanticOperation: "posts.read", risk: "R1", transport: "graphql-query", operationName: "TweetResultsByRestIds", operationType: "query", responseRoot: ["tweetResult"] },
+  "feeds.user-replies": { semanticOperation: "feeds.read", risk: "R1", transport: "graphql-query", operationName: "UserRepliesTimeline", operationType: "query", responseRoot: ["user", "result", "timeline", "timeline"] },
+  "feeds.user-highlights": { semanticOperation: "feeds.read", risk: "R1", transport: "graphql-query", operationName: "UserHighlightsTweets", operationType: "query", responseRoot: ["user", "result", "timeline", "timeline"] },
   "feeds.user": { semanticOperation: "feeds.read", risk: "R1", transport: "graphql-query", operationName: "UserTweets", operationType: "query", responseRoot: ["user", "result", "timeline", "timeline"] },
   "messaging.primary": { semanticOperation: "messaging.list", risk: "R1", transport: "legacy-dm-read", inbox: "primary" },
   "messaging.requests": { semanticOperation: "messaging.list", risk: "R1", transport: "legacy-dm-read", inbox: "requests" },
@@ -2081,6 +2096,11 @@ export function normalizeXWebUrtTimeline(value: unknown): XWebNormalizedTimeline
         throw new Error(`${label}.entryIds must be a string array`);
       }
       for (const entryId of instruction.entryIds) entries.delete(entryId);
+    } else if (type === "TimelineClearEntriesUnreadState" || type === "TimelineMarkEntriesUnreadGreaterThanSortIndex") {
+      // These are instructions for X's local unread-state reducer, not remote
+      // acknowledgement requests. Reading preserves unknown notification read
+      // state and performs no corresponding provider mutation.
+      continue;
     } else if (type === "TimelineClearCache") {
       entries.clear();
     } else if (type === "TimelineTerminateTimeline") {

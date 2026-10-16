@@ -439,6 +439,7 @@ var knownStateRoots = new Map;
 var stateDirectoryNames = [
   "adapter-generations",
   "adapters",
+  "app-host-x-actions",
   "auth",
   "browser-snapshots",
   "captures",

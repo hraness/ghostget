@@ -3844,7 +3844,27 @@ describe("provider plugin definition and registry", () => {
 
       writeFileSync(
         pluginPath,
+        'import "../../provider-plugin-lazy-registry";\nexport const plugin = true;\n',
+      );
+      const lazyBaseline = identity(undefined).hash;
+      const lazyChanged = identity("/src/provider-plugin-lazy-registry.ts");
+      expect(lazyChanged.changed).toBeTrue();
+      expect(lazyChanged.hash).not.toBe(lazyBaseline);
+
+      writeFileSync(
+        pluginPath,
         'import "../../provider-plugins";\nexport const plugin = true;\n',
+      );
+      expect(() => identity(undefined)).toThrow(
+        "imports the private process-wide provider catalog",
+      );
+      writeFileSync(
+        join(directory, "catalog-alias.ts"),
+        'export { providerPluginRegistry } from "../../provider-plugins";\n',
+      );
+      writeFileSync(
+        pluginPath,
+        'import "./catalog-alias";\nexport const plugin = true;\n',
       );
       expect(() => identity(undefined)).toThrow(
         "imports the private process-wide provider catalog",

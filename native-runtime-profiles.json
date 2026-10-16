@@ -44,6 +44,11 @@
           "exclude": []
         },
         {
+          "name": "effect",
+          "version": "3.22.1",
+          "exclude": []
+        },
+        {
           "name": "source-map",
           "version": "0.6.1",
           "exclude": []

@@ -8,6 +8,7 @@ import { parseAppHostXRequest } from "./app-host-x-validation";
 import type { AppHostAccount } from "./app-host-protocol";
 import type { AppHostXData, AppHostXMedia, AppHostXRequest } from "./app-host-x-protocol";
 import type { StoredPlan } from "./runtime";
+import { parseRuntimeManifest, validateOperationInput } from "./model";
 import { providerPluginRegistry } from "./provider-plugins";
 import { canonicalJson } from "./canonical-json";
 import { projectXSocialPost } from "./providers/x-web-model";
@@ -18,6 +19,19 @@ import currentXManifest from "./assets/adapters/x/wrench-web-adapter.json";
 
 type Runtime = NonNullable<ConstructorParameters<typeof AppHostXService>[5]>;
 const revision = "a".repeat(64), planDigest = "b".repeat(64);
+const manifest = (() => {
+  const parsed = parseRuntimeManifest(currentXManifest, providerPluginRegistry);
+  if (!parsed.ok) throw new Error(parsed.issues.join("; "));
+  return parsed.value;
+})();
+function runtimeInput(adapter: string, operation: string, input: unknown) {
+  expect(adapter).toBe(manifest.id);
+  const definition = manifest.operations[operation];
+  if (definition === undefined) throw new Error("Unknown fixture operation");
+  const parsed = validateOperationInput(definition.input, input, manifest.origins);
+  if (!parsed.ok) throw new Error(parsed.issues.join("; "));
+  return parsed.value;
+}
 const binding = { accountId: "fixture", expectedAccountRevision: revision };
 type WithoutBinding<T> = T extends unknown ? Omit<T, keyof typeof binding> : never;
 const services: AppHostXService[] = [];
@@ -43,9 +57,9 @@ function fixture(options: { tickets?: AppHostXActionTickets; deniedPlans?: Set<s
   const memory = new Map<string, AppHostXActionTicket>();
   const tickets = options.tickets ?? { save: (ticket: AppHostXActionTicket) => { if (ticketFailure) throw new Error("ticket write refused"); memory.set(ticket.digest, ticket); }, read: (digest: string) => memory.get(digest) ?? null };
   const runtime = {
-    prepareReadInvocation: (_adapter: string, operation: string, input: unknown) => { inputs.push({ operation, input }); return { auth, readProjectionAuthIdentityHash: currentIncarnation }; },
+    prepareReadInvocation: (adapter: string, operation: string, input: unknown) => { runtimeInput(adapter, operation, input); inputs.push({ operation, input }); return { auth, readProjectionAuthIdentityHash: currentIncarnation }; },
     executeReadInvocation: async () => { await readDelay(); return { receipt: { status: "succeeded" }, output }; },
-    prepareInvocation: (_adapter: string, operation: string, input: unknown) => { inputs.push({ operation, input }); return { input, operation }; },
+    prepareInvocation: (adapter: string, operation: string, input: unknown) => { const checked = runtimeInput(adapter, operation, input); inputs.push({ operation, input }); return { input: checked, operation }; },
     createAndSaveInvocationPlan: (invocation: { input: unknown; operation: string }) => saved({ digest: planDigest, plan: { input: invocation.input, operation: invocation.operation, auth: { id: account.id, kind: auth.kind, hash: createHash("sha256").update(canonicalJson(auth)).digest("hex"), incarnationHash: currentIncarnation } } } as StoredPlan),
     cancelInvocationPlan: (digest: string) => { cancellations.push(digest); },
     cancelUnstartedInvocationPlan: (digest: string) => { cancellations.push(digest); deniedPlans.add(digest); return true; },
@@ -148,6 +162,7 @@ test("deletion pre-reads the single exact owned post and retains its displayed m
   const post = projectXSocialPost({ __typename: "Tweet", rest_id: "42", legacy: { full_text: text, user_id_str: "123" } });
   f.setOutput({ post });
   expect(await f.handle({ action: "x.action.prepare", intent: { action: "delete", postId: "42", expectedText: text } })).toMatchObject({ kind: "x-action", state: "prepared" });
+  expect(f.inputs).toContainEqual({ operation: "posts.read", input: { post_id: "42" } });
   expect(f.inputs.at(-1)).toEqual({ operation: "content.delete", input: { post_id: "42", expected_text: text } });
   for (const intent of [{ action: "delete", postId: "43", expectedText: text }, { action: "delete", postId: "42", expectedText: "changed" }] as const) {
     await expect(f.handle({ action: "x.action.prepare", intent })).rejects.toThrow("deletion preview");
@@ -161,11 +176,13 @@ test("capabilities and deferred read execution share the qualification gate", as
   const result = await f.handle({ action: "x.capabilities" });
   if (result.kind !== "x-capabilities") throw new Error("wrong capabilities");
   expect(result.capabilities.find(item => item.name === "profile-reposts")?.supported).toBe(true);
-  expect(result.capabilities.find(item => item.name === "likes")?.supported).toBe(false);
+  expect(result.capabilities.find(item => item.name === "likes")?.supported).toBe(true);
   expect(result.capabilities.find(item => item.name === "post-media-images")?.supported).toBe(false);
   expect(result.capabilities.find(item => item.name === "post-media-jpeg")?.supported).toBe(false);
   expect(result.capabilities.find(item => item.name === "post-media-video")?.supported).toBe(true);
-  await expect(f.handle({ ...feed, source: "likes" })).rejects.toThrow("reviewed provider contract");
+  expect(result.capabilities.find(item => item.name === "profile-replies")?.supported).toBe(true);
+  expect(result.capabilities.find(item => item.name === "profile-highlights")?.supported).toBe(true);
+  await expect(f.handle({ action: "x.action.prepare", intent: { action: "repost", postId: "42" } })).rejects.toThrow("reviewed provider contract");
   expect(f.inputs).toHaveLength(0);
 });
 
@@ -225,7 +242,7 @@ test("lost-response tickets reconcile only account-bound durable receipts and ne
   await f.prepare();
   const status = { action: "x.action.status", runId: `plan-${planDigest}` } as const;
   expect(action(await f.handle(status)).state).toBe("uncertain");
-  const receipt = { planDigest, operation: "likes.set", adapter: { id: "x" }, auth: { id: binding.accountId, hash: createHash("sha256").update(canonicalJson(f.auth)).digest("hex") }, status: "succeeded", runId: "01234567-89ab-cdef-0123-456789abcdef" };
+  const receipt = { planDigest, operation: "likes.set", adapter: { id: "x-web" }, auth: { id: binding.accountId, hash: createHash("sha256").update(canonicalJson(f.auth)).digest("hex") }, status: "succeeded", runId: "01234567-89ab-cdef-0123-456789abcdef" };
   f.setReceipts([{ ...receipt, auth: { ...receipt.auth, id: "other" } }]);
   expect(action(await f.handle(status)).state).toBe("uncertain");
   f.setReceipts([receipt]);
@@ -242,7 +259,7 @@ test("cancel and shutdown release unused plans; unsupported operations perform n
   await f.prepare(); f.service.close();
   expect(f.cancellations).toEqual([planDigest, planDigest]);
   const other = fixture();
-  await expect(other.handle({ action: "x.explore.list", source: "trending", target: null, cursor: null, limit: 20 } as never)).rejects.toThrow();
+  await expect(other.handle({ action: "x.action.prepare", intent: { action: "repost", postId: "42" } } as never)).rejects.toThrow("reviewed provider contract");
   expect(other.inputs).toEqual([]);
 });
 
@@ -272,6 +289,16 @@ test("stable-handle cancellation dismisses the matching unused native confirmati
   expect(action(await f.handle({ action: "x.action.cancel", preparationId: prepared.runId! })).state).toBe("denied");
   expect(signal.aborted).toBe(true);
   expect(action(await pending).state).toBe("denied");
+  expect(f.counts().executions).toBe(0);
+});
+
+test("stable-handle cancellation releases unused preparation capacity immediately", async () => {
+  const f = fixture();
+  for (let index = 0; index < 40; index++) {
+    const prepared = await f.prepare();
+    expect(action(await f.handle({ action: "x.action.cancel", preparationId: prepared.runId! })).state).toBe("denied");
+  }
+  expect(action(await f.prepare()).state).toBe("prepared");
   expect(f.counts().executions).toBe(0);
 });
 
@@ -319,7 +346,7 @@ test("executing or uncertain runtime actions are never cancelled as unused plans
 
 test("restart recovery needs the exact saved connection lifetime, even when auth bytes match", async () => {
   const original = fixture(); await original.prepare();
-  const receipt = { planDigest, operation: "likes.set", adapter: { id: "x" }, auth: { id: binding.accountId, hash: createHash("sha256").update(canonicalJson(original.auth)).digest("hex") }, status: "succeeded", runId: "01234567-89ab-cdef-0123-456789abcdef" };
+  const receipt = { planDigest, operation: "likes.set", adapter: { id: "x-web" }, auth: { id: binding.accountId, hash: createHash("sha256").update(canonicalJson(original.auth)).digest("hex") }, status: "succeeded", runId: "01234567-89ab-cdef-0123-456789abcdef" };
   original.service.close();
   const status = { action: "x.action.status", runId: `plan-${planDigest}` } as const;
   const restart = fixture({ tickets: original.tickets }); restart.setReceipts([receipt]);
@@ -402,7 +429,7 @@ test("ticket capacity fails closed without eviction and existing history stays r
   }
   expect(f.cancellations).toEqual([refusedDigest, refusedDigest]);
   expect(f.counts()).toEqual({ confirms: 0, executions: 0 });
-  f.setReceipts([{ planDigest, operation: "likes.set", adapter: { id: "x" }, auth: { id: binding.accountId, hash: original.authHash }, status: "succeeded", runId: "01234567-89ab-cdef-0123-456789abcdef" }]);
+  f.setReceipts([{ planDigest, operation: "likes.set", adapter: { id: "x-web" }, auth: { id: binding.accountId, hash: original.authHash }, status: "succeeded", runId: "01234567-89ab-cdef-0123-456789abcdef" }]);
   expect(action(await f.handle({ action: "x.action.status", runId: prepared.runId! })).state).toBe("completed");
   expect(readdirSync(directory).sort()).toEqual(retainedFiles);
 });
@@ -494,7 +521,7 @@ test("uncertain commit preserves its stable recovery handle across repeated prov
   const committed = action(await original.handle({ action: "x.action.commit", preparationId: prepared.preparationId!, digest: prepared.digest! } as never));
   expect(committed.state).toBe("uncertain");
   expect(committed.runId).toBe(prepared.runId);
-  const receipt = { planDigest, operation: "likes.set", adapter: { id: "x" }, auth: { id: binding.accountId, hash: createHash("sha256").update(canonicalJson(original.auth)).digest("hex") }, status: "indeterminate", runId: "01234567-89ab-cdef-0123-456789abcdef" };
+  const receipt = { planDigest, operation: "likes.set", adapter: { id: "x-web" }, auth: { id: binding.accountId, hash: createHash("sha256").update(canonicalJson(original.auth)).digest("hex") }, status: "indeterminate", runId: "01234567-89ab-cdef-0123-456789abcdef" };
   original.service.close();
   const first = fixture({ environment, realTickets: true }); first.setReceipts([receipt]);
   const recovered = action(await first.handle({ action: "x.action.status", runId: committed.runId! } as never));
@@ -519,22 +546,22 @@ test("publication v6 preserves ordered 1–4 images, one video and text-only inp
   expect(appHostXPublicationInput({ action: "post", text: "hello" }, [], 6)).toEqual({ body: "hello" });
   for (let count = 1; count <= 4; count++) {
     const selected = Array.from({ length: count }, (_, index) => ({ path: `/staged/${index}`, media: attachment(index + 1, index % 2 === 0 ? "image/png" : "image/jpeg") }));
-    expect(appHostXPublicationInput({ action: "post", text: "hello" }, selected, 6)).toEqual({ body: "hello", media: selected.map(item => ({ kind: "file", reference: item.path })), media_types: selected.map(item => item.media.mediaType) });
+    expect(appHostXPublicationInput({ action: "post", text: "hello" }, selected, 6)).toEqual({ body: "hello", media: selected.map(item => item.path), media_types: selected.map(item => item.media.mediaType) });
   }
   const video = { path: "/staged/video", media: attachment(1, "video/mp4") };
-  expect(appHostXPublicationInput({ action: "post", text: "video" }, [video], 6)).toEqual({ body: "video", media: [{ kind: "file", reference: video.path }], media_types: ["video/mp4"] });
+  expect(appHostXPublicationInput({ action: "post", text: "video" }, [video], 6)).toEqual({ body: "video", media: [video.path], media_types: ["video/mp4"] });
   expect(() => appHostXPublicationInput({ action: "post" }, [video, { path: "/staged/image", media: attachment(2) }], 6)).toThrow("four images or one video");
   expect(() => appHostXPublicationInput({ action: "reply", postId: "42" }, [video], 6)).toThrow("reviewed provider contract");
   expect(() => appHostXPublicationInput({ action: "quote", postId: "42" }, [video], 6)).toThrow("reviewed provider contract");
   expect(appHostXPublicationInput({ action: "reply", postId: "42", text: "reply" }, [], 6)).toEqual({ body: "reply", post_id: "42" });
-  expect(appHostXPublicationInput({ action: "post" }, [video], 5)).toEqual({ body: "", media: { kind: "file", reference: video.path }, media_type: "video/mp4" });
+  expect(appHostXPublicationInput({ action: "post" }, [video], 5)).toEqual({ body: "", media: video.path, media_type: "video/mp4" });
   expect(() => appHostXPublicationInput({ action: "post" }, [{ path: "/staged/jpeg", media: attachment(1, "image/jpeg") }], 5)).toThrow("JPEG publishing needs");
   expect(() => appHostXPublicationInput({ action: "post" }, [{ path: "/staged/1", media: attachment(1) }, { path: "/staged/2", media: attachment(2) }], 5)).toThrow("Multiple images need");
 });
 
 test("default publication stays observed while the ordered-media successor is unqualified", async () => {
   const version = currentXManifest.operations["posts.publish"].webSession.contractVersion;
-  const operations = xWebPlugin.bindings.flatMap(binding => binding.operations);
+  const operations = xWebPlugin.bindings.flatMap<{ readonly name: string; readonly contractVersion: number; readonly state: string }>(binding => binding.operations);
   expect(version).toBe(5);
   expect(operations.find(operation => operation.name === "posts.publish" && operation.contractVersion === version)?.state).toBe("observed");
   expect(operations.find(operation => operation.name === "posts.publish" && operation.contractVersion === 6)?.state).toBe("capture-required");

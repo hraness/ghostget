@@ -1,3 +1,5 @@
+import { isCanonicalJsonText } from "../canonical-json";
+import { parseXWebDiscoveryTarget } from "./x-web-captured-reads";
 import type { OperationInput } from "../model";
 import {
   parseXSocialNotification,
@@ -15,15 +17,15 @@ export const xWebWorkspaceReadSupport = Object.freeze({
   "profile-posts": true,
   // A filtered UserTweets page, never an assertion of a complete repost collection.
   "profile-reposts": true,
-  "profile-replies": false,
-  "profile-highlights": false,
-  likes: false,
+  "profile-replies": true,
+  "profile-highlights": true,
+  likes: true,
   bookmarks: true,
   followers: true,
   "following-accounts": true,
-  notifications: false,
-  trending: false,
-  "today-news": false,
+  notifications: true,
+  trending: true,
+  "today-news": true,
 } as const);
 
 export type XWebDeferredRead = {
@@ -69,7 +71,7 @@ export function deferredXWebWorkspaceRead(action: string, input: OperationInput)
     if (feed !== "user-replies" && feed !== "user-highlights" && feed !== "likes") return null;
     keys(input, ["feed", "user_id", "cursor", "limit"], "X profile collection input");
     surface = feed === "user-replies" ? "profile-replies" : feed === "user-highlights" ? "profile-highlights" : "likes";
-    maximum = 100;
+    maximum = 50;
     // Likes is a viewer-owned collection; accepting a different target would
     // imply that X exposes another account's private liked-post collection.
     if (feed === "likes") {
@@ -83,6 +85,15 @@ export function deferredXWebWorkspaceRead(action: string, input: OperationInput)
     if (input.source !== "trending" && input.source !== "today-news") throw new Error("X Explore source must be trending or today-news");
     surface = input.source;
     target = input.target === undefined ? null : bounded(input.target, "X Explore target", 4_096);
+    if (surface === "today-news" && (target !== null || input.cursor !== undefined)) {
+      throw new Error("X Today's News story selection and pagination are not qualified; refresh its source");
+    }
+    if (target !== null) {
+      const selected = parseXWebDiscoveryTarget(JSON.parse(target) as unknown);
+      if (!isCanonicalJsonText(target, selected) || selected.source !== surface || selected.kind !== "search") {
+        throw new Error("X Trending selection must be one canonical reviewed search target");
+      }
+    }
   } else return null;
   const limit = input.limit ?? 20;
   if (!Number.isSafeInteger(limit) || (limit as number) < 1 || (limit as number) > maximum) {

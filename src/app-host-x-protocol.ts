@@ -29,7 +29,7 @@ export type AppHostXEntry =
   | { readonly kind: "post"; readonly id: string; readonly post: XSocialPost }
   | { readonly kind: "profile"; readonly id: string; readonly profile: XSocialProfile }
   | { readonly kind: "notification"; readonly id: string; readonly notification: XSocialNotification }
-  | { readonly kind: "trend"; readonly id: string; readonly trend: XSocialTrend }
+  | { readonly kind: "trend"; readonly id: string; readonly trend: XSocialTrend; readonly target?: string }
   | { readonly kind: "unavailable"; readonly id: string; readonly reason: string | null };
 type Observation = { readonly modelVersion: 1; readonly accountId: string; readonly accountRevision: string; readonly fetchedAt: string };
 export type AppHostXMedia = { readonly mediaId: string; readonly mediaType: "image/png" | "image/jpeg" | "video/mp4"; readonly filename: string | null; readonly byteLength: number | null; readonly sha256: string | null; readonly altText: string | null };

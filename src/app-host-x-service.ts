@@ -18,8 +18,9 @@ import { createPrivateJsonIfAbsent, ensurePrivateStateDirectory, ghostgetStateHo
 type Runtime = Pick<typeof appRuntime, "cancelInvocationPlan" | "cancelUnstartedInvocationPlan" | "invocationPlanWasCancelled" | "confirmInvocation" | "createAndSaveInvocationPlan" | "executeReadInvocation" | "prepareInvocation" | "prepareReadInvocation" | "listRunReceipts" | "readRunReceipt">;
 import { webSessionContractDefinitions } from "./web-session-contract-definitions";
 import { readBoundXWebMedia } from "./providers/x-web-media";
-import { parseXSocialPost, parseXSocialProfile, type XSocialProfile } from "./providers/x-web-model";
+import { parseXSocialPost, parseXSocialProfile, parseXSocialTrend, parseXSocialNotification, type XSocialProfile } from "./providers/x-web-model";
 import { xWebWorkspaceReadSupport } from "./providers/x-web-workspace-reads";
+import { XWebDiscoveryTargetStore, parseXWebDiscoveryTarget } from "./providers/x-web-captured-reads";
 
 type Media = { accountId: string; revision: string; expires: number; path: string; media: AppHostXMedia };
 type Preparation = { accountId: string; revision: string; expires: number; stored: StoredPlan; review: string; phase: "prepared" | "confirming" | "executing" | "settled" | "cancelled"; confirmation: AbortController | null; released: boolean };
@@ -64,15 +65,15 @@ export function appHostXActionTickets(environment: ControlEnvironment, listEntri
 }
 
 /** The publication contract alone chooses the attachment shape. */
-export function appHostXPublicationInput(intent: AppHostXIntent, selected: readonly { path: string; media: AppHostXMedia }[], contractVersion: number): OperationInput {
+export function appHostXPublicationInput(intent: AppHostXIntent, selected: readonly { path: string; media: AppHostXMedia }[], contractVersion: number): Readonly<Record<string, unknown>> {
   if (selected.length > 4 || selected.some(item => item.media.mediaType === "video/mp4") && selected.length !== 1) throw new ControlError("MEDIA_CHANGED", "Choose up to four images or one video.");
   if (selected.length > 0 && intent.action !== "post") throw new ControlError("CAPTURE_REQUIRED", "Media replies and quotes need a reviewed provider contract.");
   const input = { body: intent.text ?? "", ...(intent.postId === undefined ? {} : { post_id: intent.postId }) };
   if (selected.length === 0) return input;
-  if (contractVersion === 6) return { ...input, media: selected.map(item => ({ kind: "file" as const, reference: item.path })), media_types: selected.map(item => item.media.mediaType) };
+  if (contractVersion === 6) return { ...input, media: selected.map(item => item.path), media_types: selected.map(item => item.media.mediaType) };
   if (selected.length !== 1) throw new ControlError("CAPTURE_REQUIRED", "Multiple images need the reviewed array publication contract.");
   if (selected[0]!.media.mediaType === "image/jpeg") throw new ControlError("CAPTURE_REQUIRED", "JPEG publishing needs the reviewed array publication contract. Choose PNG for the current publication route.");
-  return { ...input, media: { kind: "file", reference: selected[0]!.path }, media_type: selected[0]!.media.mediaType };
+  return { ...input, media: selected[0]!.path, media_type: selected[0]!.media.mediaType };
 }
 
 /** Review the immutable plan's bytes, refusing stale or changed staging metadata. */
@@ -103,17 +104,18 @@ export class AppHostXService {
   private staging = 0;
   private readonly cursors = new Map<string, { key: string; value: string; expires: number }>();
   private mediaRoot: string | null = null;
+  private readonly discoveryTargets: XWebDiscoveryTargetStore;
   constructor(private readonly environment: ControlEnvironment, private readonly registry: ProviderPluginRegistry,
     private readonly requireAccount: (id: string, revision: string) => AppHostAccount,
     private readonly confirm: (review: string, signal: AbortSignal) => Promise<boolean> = confirmAppHostXAction,
     private readonly now: () => number = Date.now,
     private readonly runtime: Runtime = appRuntime,
-    private readonly tickets: AppHostXActionTickets = appHostXActionTickets(environment)) {}
+    private readonly tickets: AppHostXActionTickets = appHostXActionTickets(environment)) { this.discoveryTargets = new XWebDiscoveryTargetStore(now); }
 
   close(): void {
     this.closed = true; this.controller.abort();
     for (const value of this.preparations.values()) { try { this.discardPreparation(value); } catch { /* Retained runtime evidence remains authoritative. */ } }
-    this.cursors.clear();
+    this.cursors.clear(); this.discoveryTargets.clear();
     if (this.mediaRoot !== null) rmSync(this.mediaRoot, { recursive: true, force: true });
     this.media.clear(); this.preparations.clear(); this.runs.clear(); this.mediaRoot = null;
   }
@@ -142,7 +144,7 @@ export class AppHostXService {
   }
   private async read(account: AppHostAccount, operation: string, input: OperationInput): Promise<Record<string, unknown>> {
     this.requireSupported(operation);
-    const invocation = this.runtime.prepareReadInvocation("x", operation, input, account.id, this.environment, this.registry);
+    const invocation = this.runtime.prepareReadInvocation("x-web", operation, input, account.id, this.environment, this.registry);
     const result = await this.runtime.executeReadInvocation(invocation, { headed: false, registry: this.registry, environment: this.environment, signal: this.controller.signal });
     if (this.closed) throw new ControlError("HOST_CLOSED", "The app host has closed.");
     this.requireAccount(account.id, account.revision);
@@ -185,6 +187,32 @@ export class AppHostXService {
       const post = record(value);
       if (post.modelVersion !== 1 || typeof post.id !== "string" || typeof post.content !== "object") throw new ControlError("X_MODEL_DRIFT", "X returned an unsupported post model.");
       return { kind: "post", id: post.id as string, post: parseXSocialPost(post) };
+    });
+  }
+  private discoveryEntries(output: Record<string, unknown>, account: AppHostAccount, source: "trending" | "today-news" | "notifications", maximum: number): AppHostXEntry[] {
+    if (output.modelVersion !== 1 || output.source !== source || !Array.isArray(output.entries) || output.entries.length > maximum) throw new ControlError("X_MODEL_DRIFT", "X returned an unsupported discovery page.");
+    const ids = new Set<string>();
+    return output.entries.map(value => {
+      const item = record(value);
+      if (typeof item.id !== "string" || ids.has(item.id)) throw new ControlError("X_MODEL_DRIFT", "X repeated a discovery item identity.");
+      ids.add(item.id);
+      if (item.kind === "post" || item.kind === "unavailable") return this.richEntries({ entries: [item] }, "post", 1)![0]!;
+      if (item.kind === "trend" && source !== "notifications") {
+        if (Object.keys(item).some(key => !["kind", "id", "trend", "target"].includes(key))) throw new ControlError("X_MODEL_DRIFT", "X returned an unsupported trend item.");
+        const trend = parseXSocialTrend(item.trend);
+        if (trend.id !== item.id || trend.source !== (source === "today-news" ? "todays-news" : "trending")) throw new ControlError("X_MODEL_DRIFT", "X returned a mismatched trend.");
+        if (item.target === undefined) return { kind: "trend", id: trend.id, trend };
+        const target = parseXWebDiscoveryTarget(item.target);
+        if (target.source !== source) throw new ControlError("X_MODEL_DRIFT", "X returned a mismatched news target.");
+        return { kind: "trend", id: trend.id, trend, target: this.discoveryTargets.issue({ accountId: account.id, subject: account.subject, revision: account.revision }, target) };
+      }
+      if (item.kind === "notification" && source === "notifications") {
+        if (Object.keys(item).some(key => !["kind", "id", "notification"].includes(key))) throw new ControlError("X_MODEL_DRIFT", "X returned an unsupported notification item.");
+        const notification = parseXSocialNotification(item.notification);
+        if (notification.id !== item.id) throw new ControlError("X_MODEL_DRIFT", "X returned a mismatched notification.");
+        return { kind: "notification", id: notification.id, notification };
+      }
+      throw new ControlError("X_MODEL_DRIFT", "X returned an unsupported discovery item.");
     });
   }
   private async profile(account: AppHostAccount, target: string | null): Promise<XSocialProfile> {
@@ -241,7 +269,7 @@ export class AppHostXService {
         return { ...observation, kind: "x-profile", profile };
       }
       case "x.post.get": {
-        const output = await this.read(account, "posts.read", { post_id: request.postId, limit: 50 });
+        const output = await this.read(account, "posts.read", { post_id: request.postId });
         const post = parseXSocialPost(output.post);
         if (post.id !== request.postId) throw new ControlError("X_MODEL_DRIFT", "X did not return the requested post.");
         return page("post", [{ kind: "post", id: post.id, post }]);
@@ -266,7 +294,16 @@ export class AppHostXService {
         const entries = this.postEntries(output, request.limit);
         return page(request.source, request.source === "profile-reposts" ? entries.filter(entry => entry.kind === "unavailable" || entry.kind === "post" && entry.post.repost.status === "present") : entries, output.cursor ?? null, request.source === "profile-reposts" || output.entriesTruncated === true ? "filtered" : "page");
       }
-      case "x.explore.list": case "x.notifications.list": throw new ControlError("CAPTURE_REQUIRED", "This X discovery surface needs a reviewed provider contract before it can run.");
+      case "x.explore.list": case "x.notifications.list": {
+        const source = request.action === "x.notifications.list" ? "notifications" : request.source;
+        if (!xWebWorkspaceReadSupport[source]) throw new ControlError("CAPTURE_REQUIRED", "This X discovery surface needs a reviewed provider contract before it can run.");
+        const target = request.action === "x.explore.list" && request.target !== null ? this.discoveryTargets.resolve(request.target, { accountId: account.id, subject: account.subject, revision: account.revision }, request.source) : null;
+        const output = await this.read(account, source === "notifications" ? "notifications.list" : "explore.read", {
+          ...(source === "notifications" ? {} : { source }), limit: request.limit,
+          ...(providerCursor === null ? {} : { cursor: providerCursor }), ...(target === null ? {} : { target: canonicalJson(target) }),
+        });
+        return page(source, this.discoveryEntries(output, account, source, request.limit), output.cursor ?? null, output.filtered === true || output.entriesTruncated === true ? "filtered" : "page");
+      }
       case "x.media.prepare": {
         if (this.media.size + this.staging + request.files.length > 16) throw new ControlError("MEDIA_LIMIT", "Remove pending attachments before preparing more files.");
         this.staging += request.files.length;
@@ -297,7 +334,7 @@ export class AppHostXService {
         const input = await this.actionInput(account, request.intent);
         if (this.closed) throw new ControlError("HOST_CLOSED", "The app host has closed.");
         this.requireAccount(account.id, account.revision);
-        const invocation = this.runtime.prepareInvocation("x", operation, input, account.id, this.environment, this.registry);
+        const invocation = this.runtime.prepareInvocation("x-web", operation, input, account.id, this.environment, this.registry);
         stored = this.runtime.createAndSaveInvocationPlan(invocation, this.environment, new Date(this.now()), this.registry);
         this.requireAccount(account.id, account.revision);
         const id = randomUUID();
@@ -318,10 +355,11 @@ export class AppHostXService {
           const digest = request.preparationId.slice(5);
           this.requireCurrentTicket(account, digest);
           const denied = this.runtime.cancelUnstartedInvocationPlan(digest, this.environment);
-          if (denied) for (const pending of this.preparations.values()) {
+          if (denied) for (const [id, pending] of this.preparations) {
             if (pending.stored.digest === digest && pending.accountId === account.id && pending.revision === account.revision
               && (pending.phase === "prepared" || pending.phase === "confirming")) {
               pending.phase = "cancelled"; pending.released = true; pending.confirmation?.abort();
+              this.preparations.delete(id);
             }
           }
           return actionResult(denied ? "denied" : "uncertain", null, digest, null, request.preparationId);
@@ -367,7 +405,7 @@ export class AppHostXService {
           const digest = request.runId.slice(5);
           const ticket = this.requireCurrentTicket(account, digest);
           const history = this.runtime.listRunReceipts(this.environment);
-          const receipts = history.filter(receipt => !("invalid" in receipt) && receipt.planDigest === digest && receipt.adapter.id === "x" && receipt.operation === ticket.operation && receipt.auth.id === account.id && receipt.auth.hash === ticket.authHash);
+          const receipts = history.filter(receipt => !("invalid" in receipt) && receipt.planDigest === digest && receipt.adapter.id === "x-web" && receipt.operation === ticket.operation && receipt.auth.id === account.id && receipt.auth.hash === ticket.authHash);
           if (this.runtime.invocationPlanWasCancelled(digest, this.environment)) {
             return actionResult(receipts.length === 0 && !history.some(receipt => "invalid" in receipt) ? "denied" : "uncertain", null, digest, null, request.runId);
           }
@@ -396,7 +434,7 @@ export class AppHostXService {
   private requireCurrentTicket(account: AppHostAccount, digest: string): AppHostXActionTicket {
     const ticket = this.requireTicket(account, digest);
     // Local identity preparation only; no live profile lookup or handle needed.
-    const invocation = this.runtime.prepareReadInvocation("x", "feeds.read", { feed: "following", limit: 1 }, account.id, this.environment, this.registry);
+    const invocation = this.runtime.prepareReadInvocation("x-web", "feeds.read", { feed: "following", limit: 1 }, account.id, this.environment, this.registry);
     const authHash = createHash("sha256").update(canonicalJson(invocation.auth)).digest("hex");
     if (invocation.readProjectionAuthIdentityHash !== ticket.incarnationHash || authHash !== ticket.authHash) throw new ControlError("RUN_NOT_FOUND", "This action belongs to a different account connection. Inspect it in GhostGet before retrying.");
     return ticket;
@@ -410,14 +448,14 @@ export class AppHostXService {
       return selected;
     });
   }
-  private async actionInput(account: AppHostAccount, intent: AppHostXIntent): Promise<OperationInput> {
+  private async actionInput(account: AppHostAccount, intent: AppHostXIntent): Promise<Readonly<Record<string, unknown>>> {
     if (intent.action === "post" || intent.action === "reply" || intent.action === "quote") {
       const contract = webSessionContractDefinitions.x["posts.publish"];
       return appHostXPublicationInput(intent, this.selectedMedia(account, intent), contract.contractVersion);
     }
     if (intent.action === "follow" || intent.action === "unfollow") return { user_id: intent.subject!, following: intent.action === "follow" };
     if (intent.action === "delete") {
-      const output = await this.read(account, "posts.read", { post_id: intent.postId!, limit: 50 });
+      const output = await this.read(account, "posts.read", { post_id: intent.postId! });
       const post = parseXSocialPost(output.post);
       if (post.id !== intent.postId || post.authorId !== account.subject || intent.expectedText !== undefined && intent.expectedText !== post.text) throw new ControlError("DELETE_CHANGED", "The current post does not match this account and deletion preview.");
       return { post_id: intent.postId!, expected_text: post.text };

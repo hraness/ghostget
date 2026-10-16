@@ -7,6 +7,36 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.94
+
+X native consumers can read rich posts and profiles, liked posts, profile replies
+and highlights, Trending, Today’s News cards and notifications through the typed
+app-host interface. The profile reply and highlight readers use current
+first-party routes with deterministic fixture coverage; forward live
+verification and native provider checks remain pending.
+Five rich read contracts move to v2 while historical v1 routes remain readable.
+Posts retain matching full/note text and entities, ordered media, quoted and
+reposted content, visible moderation details, promotion evidence and unavailable
+occurrences. Provider Unicode offsets convert to UTF-16 before entering the
+public model. Notifications reads do not acknowledge notifications.
+
+Native consumers can prepare, confirm, cancel and inspect exact account-bound
+X actions. Uncertain results retain a durable recovery handle without replay.
+Cancelling an unused plan atomically retains proof that it cannot execute;
+missing or expired plans alone do not imply cancellation. Media preparation
+passes opaque file references through normal manifest validation before binding
+immutable plan assets.
+
+The default provider registry now initializes on first use, so an X-only native
+runtime can prepare reads and actions without loading excluded messaging assets.
+The relocation check exercises the installed manifest, gateway preparation,
+receipts and cancellation. Derivation reviews also accept explicit empty-string
+fixture values for captured request fields.
+
+Multiple-image/JPEG publication, media replies and quotes, following changes,
+reposts, quotes and News story-detail feeds remain
+unavailable until their separate provider qualification completes.
+
 ## 0.18.93
 
 Capture failures in JSON output now include a versioned `captureError` classification.

@@ -53,7 +53,7 @@ Task: read one Wikipedia article ([Wget](https://en.wikipedia.org/wiki/Wget)).
 One run of each on September 22, 2026, over HTTP with no browser. Tokens are
 estimated at four bytes per token and rounded to the nearest hundred; the
 Markdown is 9.7× smaller than the HTML. Token counts vary by model tokenizer.
-The install and actions in this README refer to release v0.18.93.
+The install and actions in this README refer to release v0.18.94.
 [The thread through hraness](https://hraness.com/writing/the-thread-through-hraness)
 describes how the other Hraness projects share this design.
 
@@ -74,7 +74,7 @@ Install [Bun 1.3.14](https://bun.sh/docs/installation) if needed, then install
 GhostGet and read a public page:
 
 ```sh
-bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.93/hraness-ghostget-0.18.93.tgz
+bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.94/hraness-ghostget-0.18.94.tgz
 ghostget read https://example.com
 ```
 
@@ -95,9 +95,9 @@ which always names the latest published release. Upgrading from Wrench? Read the
 The optional Agent Skill teaches your agent when and how to use GhostGet:
 
 ```sh
-npx skills add hraness/ghostget#v0.18.93
+npx skills add hraness/ghostget#v0.18.94
 # With Bun instead:
-bunx skills add hraness/ghostget#v0.18.93
+bunx skills add hraness/ghostget#v0.18.94
 ```
 
 Start a new agent session, then ask: “Use GhostGet to read https://example.com
@@ -229,7 +229,7 @@ firewall.
 
 ## Built-in provider catalog
 
-This v0.18.93 source tree supports executable actions for 21 services: Beeper,
+This v0.18.94 source tree supports executable actions for 21 services: Beeper,
 Bluesky, ClasificadosOnline, Facebook, Facebook Groups, Facebook Marketplace,
 GitHub, Gmail, Hacker News, Instagram, iMessage, LinkedIn, Reddit, Substack,
 Threads, TikTok, Twitch, WebMCP Registry, WhatsApp, X, and YouTube. LinkedIn
@@ -313,7 +313,7 @@ For that same released coordinate, install GhostGet in an agent or application
 that owns its own model, planning, tool loop, approvals, and interface:
 
 ```sh
-bun add https://github.com/hraness/ghostget/releases/download/v0.18.93/hraness-ghostget-0.18.93.tgz
+bun add https://github.com/hraness/ghostget/releases/download/v0.18.94/hraness-ghostget-0.18.94.tgz
 ```
 
 ```ts
@@ -553,6 +553,16 @@ Substack also exposes owned-publication subscriber totals through
 categorical unavailable value. GhostGet never promotes a rounded profile label
 to an exact metric. The Agent Skill includes the daily collection and
 consumer-handoff workflow.
+
+The authenticated-web X adapter also returns rich posts with matching mention,
+hashtag, cashtag, and link ranges, ordered media, profile metadata, and visible
+warning text. Its expanded likes, profile replies and highlights, Trending,
+Today's News, and notification reads have source and fixture coverage; forward
+live verification and native provider checks remain pending. Individual news
+stories and the new follow, quote, repost, and multiple-image write contracts
+remain guarded.
+See the [X adapter guide](skills/ghostget/references/x-adapter.md) for exact
+support and confirmation requirements.
 
 Normal invocation is the explicit revalidation step. Cache publication has a
 separate outcome from the live read, so a failed refresh or local publication

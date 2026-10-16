@@ -140,10 +140,13 @@ Before private reads or mutations, resolve the current stable X user ID through 
 
 The current registry marks these code-owned reads observed:
 
-- `feeds.read`: one bounded For You, Following, user, List, search, or bookmarks page; bookmarks pages also emit stable `items` keyed by `post_id`;
+- `profiles.read@2`: one exact profile with handle, display name, bio, location, join date, verification, and exact follower/following counts when the provider supplies them;
+- `feeds.read@2`: one bounded For You, Following, user, List, search, bookmarks, or current-viewer likes page; bookmarks pages also emit stable `items` keyed by `post_id`;
 - `contacts.list`: one bounded viewer-bound page of the signed-in account's own `following` or `followers` collection through the current first-party GraphQL queries;
 - `posts.read`: one exact post through the current TweetDetail query;
 - `comments.read`: one bounded TweetDetail conversation/reply page;
+- `explore.read`: Trending cards and their selected post search, or a separate Today's News card list;
+- `notifications.list`: one bounded All notifications page without acknowledging notifications or updating last-seen state;
 - `articles.read@2`: one exact current-viewer-owned private Article Draft.
 
 Authorized direct live evidence for this contract version covers For You,
@@ -152,14 +155,41 @@ Article Draft. Following, user, List, and search remain declared modes of the
 observed `feeds.read` contract; check `ghostget capabilities x-web --json` for the
 installed input schema and let current preflight fail closed on revision drift.
 
-The observed web writes are `likes.set`, `content.save`, and
-`articles.draft.save`, all R2. Like and bookmark evidence comes from prior
+The expanded likes, profile replies and highlights, Trending, Today's News, and
+notifications routes have reviewed first-party source and deterministic
+projection tests. A successful fixture test does not establish current live
+account behavior. Their forward live verification and native provider checks
+remain pending. Today's News returns the personalized initial card list;
+opening an individual news story and news pagination remain unavailable.
+Profile replies and highlights use the fixed `UserRepliesTimeline` and
+`UserHighlightsTweets` readers with at most 50 entries per page. Each request
+binds an exact profile ID; conversation parents may have other authors. A
+repost-only view derived from a profile page is a filtered page, with no
+complete repost collection claim.
+
+The version-two post and feed projections retain note text with matching
+UTF-16 mention, hashtag, cashtag, and link ranges, ordered media, bounded quote
+and repost snapshots, and unavailable occurrences. Promotion belongs to the
+specific feed occurrence. Visible interstitials, action restrictions, media
+warnings, appeals, and Community Notes retain reviewed text fields. Missing
+flag or relationship evidence stays unknown. Community Note labels currently
+carry plain visible text; their rich link entities are not exposed.
+
+The observed R2 web writes are `likes.set`, `content.save`, and
+`articles.draft.save`. Like and bookmark evidence comes from prior
 reversible live fixtures, not the current read-only probes. Preview the exact
 post ID and desired `liked` or `saved` boolean, confirm the returned digest, and
 inspect the receipt. ghostget does not mark either desired-state mutation
 verified until an independent TweetResultByRestId readback matches that
 boolean. Article draft saving uses the separate exact unpublished Article
 readback described above.
+
+The separate observed R3 routes include `posts.publish@5`, text-only
+`replies.create`, and exact authored-post `content.delete@3`. Deletion binds
+the confirmed text and current author before dispatch and verifies the exact
+post's absence afterward. Preview and confirm each exact action. Ordered
+multiple-image publishing, quotes, repost changes, follow/unfollow, and
+threads remain unavailable until their own contracts qualify.
 
 Examples:
 
@@ -170,6 +200,18 @@ ghostget x-web feeds.read \
 
 ghostget x-web feeds.read \
   --input '{"feed":"bookmarks","limit":25}' \
+  --auth x-main --json
+
+ghostget x-web feeds.read \
+  --input '{"feed":"likes","limit":20}' \
+  --auth x-main --json
+
+ghostget x-web explore.read \
+  --input '{"source":"trending","limit":20}' \
+  --auth x-main --json
+
+ghostget x-web notifications.list \
+  --input '{"limit":20}' \
   --auth x-main --json
 
 ghostget x-web contacts.list \
@@ -270,10 +312,9 @@ Return `capture-required` on a missing or ambiguous operation revision, feature 
 The current registry keeps these text/desired-state exchanges capture-required:
 
 - `threads.publish` (`R3`): one confirmed ordered root/self-reply schedule;
-- `replies.create` (`R3`): one text reply bound to an exact parent;
 - `posts.repost` (`R3`): exact desired repost state;
-- `posts.quote` (`R3`): one text quote bound to an exact post.
-- `content.delete` (`R3`): the DeleteTweet descriptor is revision evidence only; keep deletion capture-required until an authorized fixture binds the exact authored target and text, request variables, accepted response, and exact not-found readback.
+- `posts.quote` (`R3`): one text quote bound to an exact post;
+- `relationships.follow.set` (`R2`): exact desired follow or unfollow state.
 
 Current `x-client-transaction-id` generation is code-owned: ghostget resolves the unique wrapper module, exported helper, and lazy-module evidence from the current first-party main bundle, calls that cached helper through one contained private agent-browser session, closes and cleans the session, then places the ephemeral value only on the already-reviewed in-origin mutation request. Drift or bootstrap failure occurs before the durable dispatch boundary and is never retried. This prerequisite does not by itself graduate the contract states listed above.
 
@@ -286,7 +327,8 @@ one CreateTweet dispatch, binds long-form text from `note_tweet` when present,
 durably retains the response-bound post/media target before readback, and polls
 only that exact post through TweetResultByRestId. A live account that cannot
 accept that length fails closed. Prefer one long `posts.publish` over a
-`threads.publish` split. Threads, replies, reposts, quotes, DMs, and Article
+`threads.publish` split. The separate ordered-media `posts.publish@6` remains
+capture-required. Threads, reposts, quotes, DMs, and Article
 publishing remain capture-required. Per-item `threads.publish` maxLength stays
 280 because reply composition and thread-split still use the short-item bound.
 
