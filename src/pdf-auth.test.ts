@@ -697,6 +697,7 @@ describe("runSignedInPdfCommand", () => {
     expect(code).toBe(1);
     expect(JSON.parse(lines.join(""))).toEqual({
       ok: false,
+      captureError: { schemaVersion: 1, code: "unknown", retryable: false },
       error: {
         code: "download-failed",
         message: "The PDF is larger than the 512 MB limit. Pass a larger --max-pdf-bytes to allow it.",
@@ -753,7 +754,7 @@ describe("runSignedInPdfCommand", () => {
     }, { environment: {}, stderrIsTTY: false, runWordcellPdf: async () => 0 });
     expect(code).toBe(2);
     const parsed = JSON.parse(lines.join("")) as { ok: boolean; error: { code: string } };
-    expect(parsed).toMatchObject({ ok: false, error: { code: "usage" } });
+    expect(parsed).toMatchObject({ ok: false, error: { code: "usage" }, captureError: { schemaVersion: 1, code: "invalid-input", retryable: false } });
   });
 });
 

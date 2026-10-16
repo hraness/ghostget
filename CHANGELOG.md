@@ -7,6 +7,13 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.93
+
+Capture failures in JSON output now include a versioned `captureError` classification.
+Typed permission, cancellation and cleanup failures keep their category through
+Wordcell delegation. Legacy fields, recovery handles and exit codes are retained;
+unknown error prose never enables automatic retry. See [capture errors](docs/capture-errors.md).
+
 Fixed X reads failing with "resolved X descriptor contained unsupported field(s): rotatedFrom".
 
 - When X rotated a query ID and the reviewed metadata fingerprint still matched, `x-web` followed the new ID but then rejected its own resolved descriptor in the strict parsers, so every read failed as `contract-drift` until the evidence was refreshed. Both descriptor parsers now accept and validate `rotatedFrom`.
