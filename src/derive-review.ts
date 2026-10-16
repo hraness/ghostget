@@ -359,6 +359,7 @@ type MatchState = {
   readonly fieldNameValueTypes: readonly Set<DerivationReviewFieldValueType>[];
   readonly twitchGraphQlPostExchange: boolean;
   readonly xGraphQlRequest: boolean;
+  readonly xContractEvidenceRoute: ReturnType<typeof reviewedXContractEvidenceRoute>;
   readonly url: URL;
   readonly maximumDepth: number;
   visited: number;
@@ -465,7 +466,7 @@ function walkJson(
   matchPrimitive(state, value, location);
   if (Array.isArray(value)) {
     const indexedMedia = state.xGraphQlRequest
-      && reviewedXContractEvidenceRoute(state.url) === "create"
+      && state.xContractEvidenceRoute === "create"
       && (location === "request.body.variables.media.media_entities"
         || /^response\.body\.data\.create_tweet\.tweet_results\.result(?:\.tweet)?\.legacy\.(?:extended_entities|entities)\.media$/u.test(location));
     const items = value.slice(0, indexedMedia ? 4 : MAX_ARRAY_ITEMS);
@@ -687,6 +688,7 @@ function matchEntryProbes(
       && entry.request.method === "POST"
       && url.origin === "https://x.com"
       && /^\/i\/api\/graphql\/[A-Za-z0-9_-]{20,64}\/[A-Z][A-Za-z0-9_]{2,100}$/u.test(url.pathname),
+    xContractEvidenceRoute: reviewedXContractEvidenceRoute(url),
     url,
     maximumDepth: internalHarReviewTraversalDepth(url),
     visited: 0,

@@ -179,7 +179,7 @@ const reviewedTwitchGraphQlOperationNames: ReadonlySet<string> = new Set([
   "TopNav_CurrentUser",
 ] as const);
 
-// Presentation-only vocabulary for two first-party evidence exchanges. This
+// Presentation-only vocabulary for exact first-party evidence exchanges. This
 // does not register a query revision, admit a request, or expose any values.
 const reviewedXContractEvidenceFieldNames: ReadonlySet<string> = new Set([
   "__typename", "attachment_url", "core", "create_tweet", "entities",
@@ -190,10 +190,33 @@ const reviewedXContractEvidenceFieldNames: ReadonlySet<string> = new Set([
   "withSafetyModeUserFields",
 ]);
 
-export function reviewedXContractEvidenceRoute(url: URL): "create" | "profile" | null {
+const reviewedXQuoteEvidenceFieldNames: ReadonlySet<string> = new Set([
+  "is_quote_status", "quoted_status_id_str", "quoted_status_result",
+]);
+
+const reviewedXRepostTweetFieldNames: ReadonlySet<string> = new Set([
+  "__typename", "core", "id_str", "legacy", "rest_id", "tweet", "user",
+  "user_id_str", "user_results",
+]);
+
+const reviewedXCreateRepostEvidenceFieldNames: ReadonlySet<string> = new Set([
+  "create_retweet", "retweet_results", "retweeted_status_id_str", "retweeted_status_result",
+]);
+
+const reviewedXDeleteRepostEvidenceFieldNames: ReadonlySet<string> = new Set([
+  "source_tweet_results", "unretweet",
+]);
+
+export function reviewedXContractEvidenceRoute(url: URL): "create" | "profile" | "repost-create" | "repost-delete" | null {
   if (url.origin !== "https://x.com" || url.username !== "" || url.password !== "") return null;
-  const match = /^\/i\/api\/graphql\/[A-Za-z0-9_-]{20,64}\/(CreateTweet|UserByRestId)$/u.exec(url.pathname);
-  return match === null ? null : match[1] === "CreateTweet" ? "create" : "profile";
+  const match = /^\/i\/api\/graphql\/[A-Za-z0-9_-]{20,64}\/(CreateTweet|UserByRestId|CreateRetweet|DeleteRetweet)$/u.exec(url.pathname);
+  switch (match?.[1]) {
+    case "CreateTweet": return "create";
+    case "UserByRestId": return "profile";
+    case "CreateRetweet": return "repost-create";
+    case "DeleteRetweet": return "repost-delete";
+    default: return null;
+  }
 }
 
 export function internalHarReviewTraversalDepth(url: URL): number {
@@ -389,11 +412,18 @@ export function isReviewedLinkedInArticleRoute(url: URL): boolean {
 }
 
 export function reviewedInternalFieldNameForUrl(url: URL, value: string): string {
+  const xRoute = reviewedXContractEvidenceRoute(url);
   if (
-    reviewedXContractEvidenceRoute(url) !== null
+    xRoute !== null
     && safeFieldName.test(value)
     && !sensitiveName.test(value)
-    && reviewedXContractEvidenceFieldNames.has(value)
+    && (
+      ((xRoute === "create" || xRoute === "profile") && reviewedXContractEvidenceFieldNames.has(value))
+      || (xRoute === "create" && reviewedXQuoteEvidenceFieldNames.has(value))
+      || ((xRoute === "repost-create" || xRoute === "repost-delete") && reviewedXRepostTweetFieldNames.has(value))
+      || (xRoute === "repost-create" && reviewedXCreateRepostEvidenceFieldNames.has(value))
+      || (xRoute === "repost-delete" && reviewedXDeleteRepostEvidenceFieldNames.has(value))
+    )
   ) return value;
   if (
     isReviewedTwitchGraphQlRoute(url)
