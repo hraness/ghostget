@@ -1,6 +1,7 @@
 import { describe, expect, spyOn, test } from "bun:test";
 import * as RunJournalStore from "./run-journal";
 import * as PrivateStorage from "./storage";
+import { currentProcessStartIdentity } from "./process-identity";
 import {
   createCipheriv,
   createDecipheriv,
@@ -60,7 +61,10 @@ import {
 } from "./run-journal";
 import {
   PLAN_TTL_MS,
+  MAX_CANCELLED_INVOCATION_PLANS,
   cancelInvocationPlan,
+  cancelUnstartedInvocationPlan,
+  invocationPlanWasCancelled,
   confirmInvocation,
   createAndSaveInvocationPlan,
   createInvocationPlan,
@@ -73,6 +77,7 @@ import {
   readRunReceipt,
   releaseReconciledRunRecovery,
   repairInterruptedRunJournals,
+  repairInterruptedConfirmationClaims,
   saveInvocationPlan,
   type StoredPlan,
 } from "./runtime";
@@ -113,6 +118,17 @@ function state(): TestState {
   const directory = mkdtempSync(join(tmpdir(), "wrench-runtime-test-"));
   chmodSync(directory, 0o700);
   return { directory, environment: { GHOSTGET_STATE_HOME: directory } };
+}
+
+function createLiveTestConfirmationClaim(digest: string, testState: TestState): string {
+  const now = new Date();
+  const path = join(testState.directory, "plans", `${digest}.claim.json`);
+  writePrivateJson(path, {
+    schemaVersion: 1, digest, runId: randomUUID(),
+    owner: { pid: process.pid, token: randomUUID(), ...currentProcessStartIdentity(), leaseUntil: new Date(now.getTime() + 60_000).toISOString() },
+    createdAt: now.toISOString(),
+  });
+  return path;
 }
 
 async function holdReadProjectionAdmissionInChild(
@@ -1586,6 +1602,164 @@ describe("encrypted confirmation plans", () => {
     } finally {
       rmSync(testState.directory, { recursive: true, force: true });
     }
+  });
+
+  test("unstarted cancellation atomically leaves terminal proof that cannot become a plan again", () => {
+    const testState = state();
+    try {
+      installFixture(testState);
+      const stored = createInvocationPlan(prepared(testState));
+      const path = saveInvocationPlan(stored, testState.environment);
+      expect(invocationPlanWasCancelled(stored.digest, testState.environment)).toBeFalse();
+      expect(cancelUnstartedInvocationPlan(stored.digest, testState.environment)).toBeTrue();
+      expect(JSON.parse(readFileSync(path, "utf8"))).toEqual({ schemaVersion: 1, kind: "cancelled-before-execution", digest: stored.digest });
+      expect(invocationPlanWasCancelled(stored.digest, testState.environment)).toBeTrue();
+      expect(() => loadInvocationPlan(stored.digest, testState.environment)).toThrow("cancelled before execution");
+      expect(() => saveInvocationPlan(stored, testState.environment)).toThrow("cancelled before execution");
+      expect(cancelInvocationPlan(stored.digest, testState.environment)).toBeFalse();
+      expect(cancelUnstartedInvocationPlan(stored.digest, testState.environment)).toBeTrue();
+      expect(listInvocationPlans(testState.environment)).toEqual([]);
+      purgeExpiredPlans(testState.environment, new Date(Date.now() + PLAN_TTL_MS * 2));
+      expect(invocationPlanWasCancelled(stored.digest, testState.environment)).toBeTrue();
+    } finally { rmSync(testState.directory, { recursive: true, force: true }); }
+  });
+
+  test("unstarted cancellation refuses execution history and corrupt evidence without removing the plan", () => {
+    for (const history of ["journal", "receipt"] as const) {
+      const testState = state();
+      try {
+        installFixture(testState);
+        const stored = createInvocationPlan(prepared(testState));
+        const path = saveInvocationPlan(stored, testState.environment);
+        const directory = join(testState.directory, history === "journal" ? "run-journals" : "runs");
+        mkdirSync(directory, { recursive: true, mode: 0o700 });
+        writeFileSync(join(directory, `${randomUUID()}.json`), "not-json\n", { mode: 0o600 });
+        expect(cancelUnstartedInvocationPlan(stored.digest, testState.environment)).toBeFalse();
+        expect(existsSync(path)).toBeTrue();
+        expect(invocationPlanWasCancelled(stored.digest, testState.environment)).toBeFalse();
+      } finally { rmSync(testState.directory, { recursive: true, force: true }); }
+    }
+  });
+
+  test("unstarted cancellation refuses a live competing confirmation claim before execution begins", async () => {
+    const testState = state();
+    try {
+      installFixture(testState);
+      const stored = createAndSaveInvocationPlan(prepared(testState, "competing confirmation claim"), testState.environment);
+      const planPath = join(testState.directory, "plans", `${stored.digest}.json`);
+      const encrypted = readFileSync(planPath, "utf8");
+      const claimPath = createLiveTestConfirmationClaim(stored.digest, testState);
+      expect(repairInterruptedConfirmationClaims(testState.environment)).toMatchObject({ invalid: 0, active: 1 });
+      expect(() => cancelUnstartedInvocationPlan(stored.digest, testState.environment)).toThrow("already being confirmed");
+      expect(readFileSync(planPath, "utf8")).toBe(encrypted);
+      expect(invocationPlanWasCancelled(stored.digest, testState.environment)).toBeFalse();
+      expect(existsSync(claimPath)).toBeTrue();
+      unlinkSync(claimPath); // Release only this test's exact synthetic owner.
+      let dispatches = 0;
+      const result = await confirmInvocation(stored.digest, {
+        headed: false, environment: testState.environment,
+        executeProvider: providerExecutor(execution(), () => { dispatches++; }),
+      });
+      expect(dispatches).toBe(1);
+      expect(result.receipt.status).toBe("submitted");
+    } finally { rmSync(testState.directory, { recursive: true, force: true }); }
+  });
+
+  test("unstarted cancellation winning after the initial plan read prevents confirmation dispatch", async () => {
+    const testState = state();
+    try {
+      installFixture(testState);
+      const stored = createAndSaveInvocationPlan(prepared(testState, "cancellation wins before confirmation claim"), testState.environment);
+      const claimPath = join(testState.directory, "plans", `${stored.digest}.claim.json`);
+      const now = new Date();
+      const timestamp = now.toISOString.bind(now);
+      let cancelled = false, dispatches = 0;
+      // The existing clock seam is serialized when acquireConfirmationClaim
+      // constructs createdAt, after the initial load and before claim creation.
+      now.toISOString = () => {
+        if (!cancelled) {
+          cancelled = true;
+          expect(existsSync(claimPath)).toBeFalse();
+          expect(cancelUnstartedInvocationPlan(stored.digest, testState.environment)).toBeTrue();
+        }
+        return timestamp();
+      };
+      await expect(confirmInvocation(stored.digest, {
+        headed: false, environment: testState.environment, now,
+        executeProvider: providerExecutor(execution(), () => { dispatches++; }),
+      })).rejects.toThrow("cancelled before execution");
+      expect(cancelled).toBeTrue();
+      expect(dispatches).toBe(0);
+      expect(invocationPlanWasCancelled(stored.digest, testState.environment)).toBeTrue();
+      expect(listRunReceipts(testState.environment)).toEqual([]);
+      expect(RunJournalStore.listRunJournalSnapshots(testState.environment)).toEqual([]);
+      expect(existsSync(claimPath)).toBeFalse();
+    } finally { rmSync(testState.directory, { recursive: true, force: true }); }
+  });
+
+  test("unstarted cancellation refuses valid matching journal or receipt history without changing the plan", async () => {
+    for (const retained of ["journal", "receipt"] as const) {
+      const testState = state();
+      try {
+        installFixture(testState);
+        const stored = createAndSaveInvocationPlan(prepared(testState, `retain matching ${retained}`), testState.environment);
+        const result = await confirmInvocation(stored.digest, {
+          headed: false, environment: testState.environment, executeProvider: providerExecutor(),
+        });
+        expect(result.receipt.planDigest).toBe(stored.digest);
+        const planPath = saveInvocationPlan(stored, testState.environment);
+        unlinkSync(join(testState.directory, retained === "journal" ? "runs" : "run-journals", `${result.receipt.runId}.json`));
+        const encrypted = readFileSync(planPath, "utf8");
+        expect(cancelUnstartedInvocationPlan(stored.digest, testState.environment)).toBeFalse();
+        expect(readFileSync(planPath, "utf8")).toBe(encrypted);
+        expect(loadInvocationPlan(stored.digest, testState.environment)).toEqual(stored);
+        expect(invocationPlanWasCancelled(stored.digest, testState.environment)).toBeFalse();
+      } finally { rmSync(testState.directory, { recursive: true, force: true }); }
+    }
+  });
+
+  test("unstarted cancellation serializes different plan owners through the shared capacity claim", () => {
+    const testState = state();
+    try {
+      installFixture(testState);
+      const first = createAndSaveInvocationPlan(prepared(testState, "first cancellation owner"), testState.environment);
+      const second = createAndSaveInvocationPlan(prepared(testState, "second cancellation owner"), testState.environment);
+      const historyDigest = sha256("ghostget/cancelled-invocation-plan-history/1");
+      const claimPath = createLiveTestConfirmationClaim(historyDigest, testState);
+      expect(repairInterruptedConfirmationClaims(testState.environment)).toMatchObject({ invalid: 0, active: 1 });
+      for (const stored of [first, second]) {
+        expect(() => cancelUnstartedInvocationPlan(stored.digest, testState.environment)).toThrow("already being confirmed");
+        expect(loadInvocationPlan(stored.digest, testState.environment)).toEqual(stored);
+        expect(invocationPlanWasCancelled(stored.digest, testState.environment)).toBeFalse();
+      }
+      unlinkSync(claimPath); // The synthetic competing capacity owner released.
+      expect(cancelUnstartedInvocationPlan(first.digest, testState.environment)).toBeTrue();
+      expect(cancelUnstartedInvocationPlan(second.digest, testState.environment)).toBeTrue();
+      expect(invocationPlanWasCancelled(first.digest, testState.environment)).toBeTrue();
+      expect(invocationPlanWasCancelled(second.digest, testState.environment)).toBeTrue();
+      expect(PrivateStorage.listPrivateStateDirectory(join(testState.directory, "plans"), testState.environment).some(entry => entry.name.endsWith(".claim.json"))).toBeFalse();
+    } finally { rmSync(testState.directory, { recursive: true, force: true }); }
+  });
+
+  test("unstarted cancellation at its history cap preserves plans and keeps existing proof readable", () => {
+    const testState = state();
+    try {
+      installFixture(testState);
+      const stored = createAndSaveInvocationPlan(prepared(testState, "full cancellation history"), testState.environment);
+      const directory = join(testState.directory, "plans");
+      const planPath = join(directory, `${stored.digest}.json`);
+      const encrypted = readFileSync(planPath, "utf8");
+      const digests = Array.from({ length: MAX_CANCELLED_INVOCATION_PLANS }, (_, index) => (index + 1).toString(16).padStart(64, "0"));
+      for (const digest of digests) {
+        writeFileSync(join(directory, `${digest}.json`), canonicalJson({ schemaVersion: 1, kind: "cancelled-before-execution", digest }) + "\n", { mode: 0o600, flag: "wx" });
+      }
+      expect(() => cancelUnstartedInvocationPlan(stored.digest, testState.environment)).toThrow("cancellation history is full");
+      expect(readFileSync(planPath, "utf8")).toBe(encrypted);
+      expect(loadInvocationPlan(stored.digest, testState.environment)).toEqual(stored);
+      expect(invocationPlanWasCancelled(stored.digest, testState.environment)).toBeFalse();
+      expect(cancelUnstartedInvocationPlan(digests[0]!, testState.environment)).toBeTrue();
+      expect(invocationPlanWasCancelled(digests[0]!, testState.environment)).toBeTrue();
+    } finally { rmSync(testState.directory, { recursive: true, force: true }); }
   });
 
   test("round-trips a bounded long-form article near the contract maximum", () => {

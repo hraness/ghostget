@@ -1,7 +1,7 @@
 {
  "schemaVersion": 4,
  "id": "x-web",
- "version": "1.17.0",
+ "version": "1.19.0",
  "displayName": "X (Authenticated Web API)",
  "surfaceId": "x",
  "origins": [
@@ -33,7 +33,7 @@
    "webSession": {
     "site": "x",
     "action": "profiles.read",
-    "contractVersion": 1,
+    "contractVersion": 2,
     "timeoutMs": 60000,
     "maxOutputBytes": 2097152
    }
@@ -74,13 +74,13 @@
    "webSession": {
     "site": "x",
     "action": "contacts.list",
-    "contractVersion": 1,
+    "contractVersion": 2,
     "timeoutMs": 60000,
     "maxOutputBytes": 4194304
    }
   },
   "feeds.read": {
-   "description": "Observed contract: read one complete bounded X For You, Following, user, List, search, or bookmarks provider page through its current captured first-party GraphQL query; bookmarks pages emit stable export items keyed by post_id plus a next-page cursor; user/List responses must echo the requested identity and an over-limit page fails without exposing its end cursor.",
+   "description": "Read a bounded rich X For You, Following, profile posts/replies/highlights, List, search, bookmarks or viewer-owned Likes page through fixed reviewed queries. Preserve full text and matching entities, ordered media, moderation, promotion and unavailable occurrences. Bind each collection request and any echoed identity; never infer a reply collection target from conversation-parent authors.",
    "risk": "R1",
    "sideEffect": "none",
    "idempotency": "none",
@@ -96,7 +96,10 @@
        "user",
        "list",
        "search",
-       "bookmarks"
+       "bookmarks",
+       "likes",
+       "user-replies",
+       "user-highlights"
       ]
      },
      "user_id": {
@@ -137,7 +140,7 @@
    "webSession": {
     "site": "x",
     "action": "feeds.read",
-    "contractVersion": 1,
+    "contractVersion": 2,
     "timeoutMs": 60000,
     "maxOutputBytes": 4194304
    }
@@ -164,7 +167,7 @@
    "webSession": {
     "site": "x",
     "action": "posts.read",
-    "contractVersion": 1,
+    "contractVersion": 2,
     "timeoutMs": 60000,
     "maxOutputBytes": 2097152
    }
@@ -203,7 +206,7 @@
    "webSession": {
     "site": "x",
     "action": "comments.read",
-    "contractVersion": 1,
+    "contractVersion": 2,
     "timeoutMs": 60000,
     "maxOutputBytes": 4194304
    }
@@ -745,6 +748,113 @@
     "site": "x",
     "action": "articles.publish",
     "contractVersion": 4,
+    "timeoutMs": 60000,
+    "maxOutputBytes": 2097152
+   }
+  },
+  "explore.read": {
+   "description": "Observed viewer-bound Trending and selected trend search, plus separate Today’s News cards. Story detail and news pagination remain unavailable.",
+   "risk": "R1",
+   "sideEffect": "none",
+   "idempotency": "none",
+   "dedupeWindowMs": 0,
+   "input": {
+    "properties": {
+     "source": {
+      "type": "string",
+      "enum": [
+       "trending",
+       "today-news"
+      ],
+      "description": "Exact bounded source for this X operation"
+     },
+     "target": {
+      "type": "string",
+      "maxLength": 4096,
+      "description": "Exact bounded target for this X operation"
+     },
+     "cursor": {
+      "type": "string",
+      "maxLength": 4096,
+      "description": "Exact bounded cursor for this X operation"
+     },
+     "limit": {
+      "type": "number",
+      "minimum": 1,
+      "maximum": 50,
+      "description": "Exact bounded limit for this X operation"
+     }
+    },
+    "required": [
+     "source"
+    ]
+   },
+   "webSession": {
+    "site": "x",
+    "action": "explore.read",
+    "contractVersion": 1,
+    "timeoutMs": 60000,
+    "maxOutputBytes": 2097152
+   }
+  },
+  "notifications.list": {
+   "description": "Observed viewer-bound All notification timeline with typed actor/target references; does not acknowledge notifications or update last-seen state.",
+   "risk": "R1",
+   "sideEffect": "none",
+   "idempotency": "none",
+   "dedupeWindowMs": 0,
+   "input": {
+    "properties": {
+     "cursor": {
+      "type": "string",
+      "maxLength": 4096,
+      "description": "Exact bounded cursor for this X operation"
+     },
+     "limit": {
+      "type": "number",
+      "minimum": 1,
+      "maximum": 50,
+      "description": "Exact bounded limit for this X operation"
+     }
+    },
+    "required": []
+   },
+   "webSession": {
+    "site": "x",
+    "action": "notifications.list",
+    "contractVersion": 1,
+    "timeoutMs": 60000,
+    "maxOutputBytes": 2097152
+   }
+  },
+  "relationships.follow.set": {
+   "description": "Capture-required contract: Set the current account following relationship for one exact numeric target; current first-party request and independent readback require qualification.",
+   "risk": "R2",
+   "sideEffect": "Changes the following relationship of this exact account and target.",
+   "idempotency": "local-at-most-once",
+   "dedupeWindowMs": 86400000,
+   "input": {
+    "properties": {
+     "user_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 19,
+      "description": "Exact numeric subject to follow or unfollow"
+     },
+     "following": {
+      "type": "boolean",
+      "description": "Exact desired relationship state"
+     }
+    },
+    "required": [
+     "user_id",
+     "following"
+    ]
+   },
+   "webSession": {
+    "site": "x",
+    "action": "relationships.follow.set",
+    "contractVersion": 1,
     "timeoutMs": 60000,
     "maxOutputBytes": 2097152
    }

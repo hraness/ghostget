@@ -1,5 +1,6 @@
 import { APP_HOST_MAX_FRAME_BYTES, APP_HOST_PROTOCOL, type AppHostFrame } from "./app-host-protocol";
 import { digest, identifier, invalid, keys, nullable, oneOf, record, string } from "./control/validation";
+import { parseAppHostXRequest } from "./app-host-x-validation";
 
 export function parseAppHostFrame(line: string): AppHostFrame {
   if (Buffer.byteLength(line) > APP_HOST_MAX_FRAME_BYTES) invalid();
@@ -10,6 +11,7 @@ export function parseAppHostFrame(line: string): AppHostFrame {
   const request = record(value.request);
   const action = request.action;
   const frame = { protocol: APP_HOST_PROTOCOL, id };
+  if (typeof action === "string" && action.startsWith("x.")) return { ...frame, request: parseAppHostXRequest(request) };
   if (action === "hello" || action === "accounts.list" || action === "browsers.list" || action === "close") {
     keys(request, ["action"]);
     return { ...frame, request: { action } };

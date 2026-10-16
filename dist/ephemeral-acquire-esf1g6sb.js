@@ -3023,7 +3023,7 @@ async function acquireEphemeralMedia(request, deps = defaults) {
   const abort = () => controller?.abort();
   try {
     let accountSnapshot;
-    const loadAccount = deps.loadAccount ?? (async (id) => (await import("./auth-ct9b8mxs.js")).loadAuthSnapshot(id));
+    const loadAccount = deps.loadAccount ?? (async (id) => (await import("./auth-mctmvh5a.js")).loadAuthSnapshot(id));
     if (request.accountId !== undefined) {
       if (typeof request.accountId !== "string" || !/^[A-Za-z0-9_.-]{1,128}$/u.test(request.accountId) || request.browser !== undefined || request.authContext !== undefined)
         fail("invalid-input");

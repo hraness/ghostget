@@ -113,4 +113,3 @@ export async function cleanupEphemeralStage(receipt: EphemeralStageReceipt, ackn
     return {status: 'settled'};
   } catch {return {status: 'pending'};}
 }
-

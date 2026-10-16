@@ -164,17 +164,39 @@ test("contact pages never expose a cursor after truncation and project only user
         const content = (entry as { content: { itemContent: { itemType: string; user_results?: { result?: { __typename?: string } } } } }).content.itemContent;
         return content.itemType === "TimelineUser" && content.user_results?.result?.__typename === "User";
       });
+      const contactOccurrences = deduped.filter((entry) =>
+        (entry as { content: { itemContent: { itemType: string } } }).content.itemContent.itemType === "TimelineUser");
       if (realUsers.length > limit && bottomCursor === null) {
         expect(threw).toBe(true);
         return;
       }
       expect(threw).toBe(false);
       expect(page?.users.length).toBe(Math.min(realUsers.length, limit));
-      if (realUsers.length > limit) {
+      expect(page?.entries.length).toBe(Math.min(contactOccurrences.length, limit));
+      expect(page?.entriesTruncated).toBe(contactOccurrences.length > limit);
+      // Unavailable users occupy source positions too. Advancing after their
+      // additive occurrence view truncates would skip unseen rows.
+      if (realUsers.length > limit || contactOccurrences.length > limit) {
         expect(page?.cursor).toBeNull();
       } else {
         expect(page?.cursor ?? null).toBe(bottomCursor);
       }
     },
-  ));
+  ), {}, "x-web-contacts/truncated-occurrences");
+});
+
+test("contact unavailable occurrences clear continuation when truncated (CI seeds 575818214 and 1090870531)", () => {
+  for (const secondId of ["user-1", "user-2"]) {
+    const entries = ["user-0", secondId].map(entryId => ({
+      entryId, sortIndex: "100", content: { entryType: "TimelineTimelineItem", itemContent: {
+        itemType: "TimelineUser", user_results: { result: { __typename: "UserUnavailable" } },
+      } },
+    }));
+    const page = projectXWebContactPage("contacts.following", contactsResponse(entries, " "), 1);
+    expect(page.users).toEqual([]);
+    expect(page.profiles).toEqual([]);
+    expect(page.entries).toEqual([{ kind: "unavailable", id: "user-0", postId: null, reason: null }]);
+    expect(page.entriesTruncated).toBeTrue();
+    expect(page.cursor).toBeNull();
+  }
 });

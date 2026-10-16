@@ -40,6 +40,7 @@ const stateDirectories = new Set([
   "menubar",
   "adapter-generations",
   "adapters",
+  "app-host-x-actions",
   "auth",
   "browser-snapshots",
   "captures",

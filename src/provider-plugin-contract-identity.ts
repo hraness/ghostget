@@ -118,6 +118,34 @@ const SUBSTACK_1_4_BINDING_ROUTE_COORDINATES = Object.freeze([
   "subscribers.import@1",
 ].map((route) => `web-session-api:substack/${route}`));
 
+// Freeze the compatibility relation accepted by x-web 1.5.0: adapter 1.17.0,
+// its retained archived contracts, and likes.set@1. This preserves that exact
+// predecessor scope; it does not reconstruct each older release's ownership.
+// New workspace routes must never inherit these predecessor aliases.
+const X_1_5_ROUTE_COORDINATES = Object.freeze([
+  "articles.draft.save@1", "articles.draft.save@2", "articles.publish@4",
+  "articles.read@1", "articles.read@2", "comments.read@1", "contacts.list@1",
+  "content.delete@1", "content.delete@2", "content.delete@3", "content.save@1",
+  "feeds.read@1", "likes.set@1", "likes.set@2", "messaging.list@1",
+  "messaging.read@1", "messaging.send@1", "posts.publish@2", "posts.publish@3",
+  "posts.publish@4", "posts.publish@5", "posts.quote@1", "posts.quote@2",
+  "posts.read@1", "posts.repost@1", "profiles.read@1", "replies.create@1",
+  "threads.publish@1",
+]);
+const X_1_5_READ_IMPLEMENTATION_SHA256 = Object.freeze([
+  "bcf7411c6ac01b16dc2a602b9928f8d0f9f5fd3ac0901d2ef197b72a8f763d31",
+  "ebba20c72150dcef1eb21d3a1ea02a1dee91f8654c1f33621e5217faabf2be25",
+  "c9e10ff1af5d4f102cfc73bc5b7def23a41db7cba978f516b0bc515616b6506c",
+  "e3e73a938b442339034d4484ac6984f9c6beb612fff10d01a499bf326fd1b15a",
+  "7b791fe596a286034bf89257434572c267031cae16d3bef422188c32f7c5a539",
+  "8ebee7a6e32e2e55f185379615ecb55ec4b494cc91e45ffa05b1534bd4941c78",
+  "d3cbabe754717ad18f06cb3b434eb87cbfcb6105c97e88c81653606d5916f4ea",
+  "8cdc6996e77125b4435586126442aae33fedf7ea27f788bddd01f39efe4f8a09",
+  "e464e4e97ed3cbf430c2008251e45e0024508c64357325882718cba31e6bf9ea",
+  "03d906c92bfb5c30eb2d66e161ec67f7a081efa75e2a210a62b117df70b2af00",
+  "54589eaf65c7de95442dcff6a81327d0a32ec38f58560769e7b807519db10eeb",
+]);
+
 const identities = Object.freeze({
   "microsoft-graph-official": {
     schemaVersion: 1,
@@ -550,28 +578,18 @@ const identities = Object.freeze({
   },
   "x-web": {
     schemaVersion: 1,
-    pluginVersion: "1.5.0",
-    implementationSha256: "4588a6fa7e0f73b4321402d217c2ea1c99c0533cbf32c2e7d38737eb62340234",
-    legacyCurrentReadImplementationSha256: [
-      "7b791fe596a286034bf89257434572c267031cae16d3bef422188c32f7c5a539",
-      "8ebee7a6e32e2e55f185379615ecb55ec4b494cc91e45ffa05b1534bd4941c78",
-      "d3cbabe754717ad18f06cb3b434eb87cbfcb6105c97e88c81653606d5916f4ea",
-      "8cdc6996e77125b4435586126442aae33fedf7ea27f788bddd01f39efe4f8a09",
-      "e464e4e97ed3cbf430c2008251e45e0024508c64357325882718cba31e6bf9ea",
-      "03d906c92bfb5c30eb2d66e161ec67f7a081efa75e2a210a62b117df70b2af00",
-      "54589eaf65c7de95442dcff6a81327d0a32ec38f58560769e7b807519db10eeb",
-    ],
-    legacyReadImplementationSha256: {
-      test: "bcf7411c6ac01b16dc2a602b9928f8d0f9f5fd3ac0901d2ef197b72a8f763d31",
-      production: "ebba20c72150dcef1eb21d3a1ea02a1dee91f8654c1f33621e5217faabf2be25",
-      development: "c9e10ff1af5d4f102cfc73bc5b7def23a41db7cba978f516b0bc515616b6506c",
-    },
-    legacyE71ReadImplementationSha256: {
-      default: "e3e73a938b442339034d4484ac6984f9c6beb612fff10d01a499bf326fd1b15a",
-      test: "bcf7411c6ac01b16dc2a602b9928f8d0f9f5fd3ac0901d2ef197b72a8f763d31",
-      production: "ebba20c72150dcef1eb21d3a1ea02a1dee91f8654c1f33621e5217faabf2be25",
-      development: "c9e10ff1af5d4f102cfc73bc5b7def23a41db7cba978f516b0bc515616b6506c",
-    },
+    pluginVersion: "1.6.0",
+    implementationSha256: "0ebaf735cda26b2f42eb54951d92cf6694dcca2d6232349d26a3bfdf4153d0c4",
+    legacyCurrentReadImplementationSha256: [],
+    legacyDistributionReadImplementationSha256: [{
+      implementationSha256: "4588a6fa7e0f73b4321402d217c2ea1c99c0533cbf32c2e7d38737eb62340234",
+      routes: X_1_5_ROUTE_COORDINATES.map((route) => `web-session-api:x/${route}`),
+    }],
+    legacyRouteReadImplementationSha256: Object.fromEntries(
+      X_1_5_ROUTE_COORDINATES.map((route) => [route, X_1_5_READ_IMPLEMENTATION_SHA256]),
+    ),
+    legacyReadImplementationSha256: null,
+    legacyE71ReadImplementationSha256: null,
   },
   "youtube-web": {
     schemaVersion: 1,

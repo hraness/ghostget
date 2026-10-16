@@ -274,6 +274,10 @@ start-admitted exact origin from the same sealed bytes.
 
 The first review stops and seals the exact inode-bound managed HAR. Browser commands are then disabled; repeat reviews and `finish` consume the same sealed bytes. Fixture values are accepted only through bounded stdin, matched only by exact primitive equality, and the result contains labels and structural locations, never the supplied values. It never performs substring probes. Credential-like query, form, JSON, path, header, cookie, authorization, session, signature, CSRF/XSRF, and token material is opaque. Bounded traversal reports `truncated: true` whenever searchable content was omitted, including oversized URLs, query values, JSON or text, capped parameters or containers, forms, and multipart bodies.
 
+An explicit empty-string fixture can prove an initial empty cursor without
+revealing its value. Numeric and boolean primitives match their exact string
+representation, such as `"20"` or `"true"`; null does not match an empty string.
+
 Field-name input is parsed and rejected before the recorder is sealed.
 Invalid, duplicate, credential-like, oversized, or malformed candidates cannot
 change derivation lifecycle state.

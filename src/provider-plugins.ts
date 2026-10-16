@@ -1,8 +1,11 @@
+import { createRequire } from "node:module";
+import { createLazyProviderPluginRegistry } from "./provider-plugin-lazy-registry";
 import { createProviderPluginRegistry } from "./provider-plugin-registry";
-import { generatedProviderPlugins } from "./provider-plugins.generated";
 
-/** Statically imported trusted source plugins in deterministic catalog order. */
-export const providerPlugins = generatedProviderPlugins;
+const require = createRequire(import.meta.url);
 
-/** The process-wide validated provider route and implementation registry. */
-export const providerPluginRegistry = createProviderPluginRegistry(providerPlugins);
+/** The process default validates its fixed trusted catalog only when used. */
+export const providerPluginRegistry = createLazyProviderPluginRegistry(() => {
+  const { generatedProviderPlugins } = require("./provider-plugins.generated") as typeof import("./provider-plugins.generated");
+  return createProviderPluginRegistry(generatedProviderPlugins);
+});

@@ -44,6 +44,11 @@
           "exclude": []
         },
         {
+          "name": "effect",
+          "version": "3.22.1",
+          "exclude": []
+        },
+        {
           "name": "entities",
           "version": "7.0.1",
           "exclude": []

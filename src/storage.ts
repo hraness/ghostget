@@ -104,6 +104,7 @@ const knownStateRoots = new Map<string, StateRootRecord>();
 const stateDirectoryNames = [
   "adapter-generations",
   "adapters",
+  "app-host-x-actions",
   "auth",
   "browser-snapshots",
   "captures",

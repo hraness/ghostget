@@ -706,11 +706,14 @@ const github = {
 } as const satisfies Readonly<Partial<Record<SemanticOperationName, WebSessionContract>>>;
 
 const x = {
-  "feeds.read": contract("x", "feeds.read", "R1", "observed", "current first-party GraphQL timeline/list/search/bookmark query"),
-  "profiles.read": contract("x", "profiles.read", "R1", "observed", "current target-bound UserByScreenName first-party GraphQL query with exact follower and following counts"),
-  "contacts.list": contract("x", "contacts.list", "R1", "observed", "current viewer-bound first-party Following (GET) and Followers (POST) GraphQL collection queries with exact relationship-perspective projection"),
-  "posts.read": contract("x", "posts.read", "R1", "observed", "current TweetDetail/UserTweets first-party GraphQL query"),
-  "comments.read": contract("x", "comments.read", "R1", "observed", "current TweetDetail conversation entries"),
+  "relationships.follow.set": contract("x", "relationships.follow.set", "R2", "capture-required", "fixed numeric-target desired-state follow/unfollow request and independent readback require qualification"),
+  "explore.read": contract("x", "explore.read", "R1", "observed", "viewer-bound Trending via captured empty-cursor ExplorePage selection and GenericTimelineById, bounded selected trend search through the reviewed SearchTimeline route, and separate fixed Top Stories useStoryTopicQuery news cards; story detail and news pagination remain guarded"),
+  "notifications.list": contract("x", "notifications.list", "R1", "observed", "viewer-bound All NotificationsTimeline query with typed events, actor/target references and unknown read state; never invokes the separate last-seen update mutation"),
+  "feeds.read": contract("x", "feeds.read", "R1", "observed", "rich bounded timeline/list/search/bookmark, viewer-owned Likes and target-bound current profile replies/highlights queries, preserving full text/entities, media, moderation, promotion and unavailable occurrences", 2),
+  "profiles.read": contract("x", "profiles.read", "R1", "observed", "target-bound UserByScreenName with rich profile metadata, matching bio entities and exact follower/following counts", 2),
+  "contacts.list": contract("x", "contacts.list", "R1", "observed", "viewer-bound Following GET and Followers POST with rich profiles, exact relationship perspectives and unavailable occurrences", 2),
+  "posts.read": contract("x", "posts.read", "R1", "observed", "target-bound TweetDetail with full/note text and matching entities, ordered media, bounded quote/repost snapshots and visible labels", 2),
+  "comments.read": contract("x", "comments.read", "R1", "observed", "target-bound TweetDetail conversation descendants with rich post models", 2),
   "messaging.list": contract("x", "messaging.list", "R1", "capture-required", "current X Chat inbox events are encrypted and require the reviewed key-recovery runtime before plaintext listing"),
   "messaging.read": contract("x", "messaging.read", "R1", "capture-required", "current X Chat conversation events are encrypted and require verified key recovery before plaintext projection"),
   "articles.read": contract("x", "articles.read", "R1", "observed", "current-viewer-owned private Draft read through the exact ArticleEntityResultByRestId query with bounded title and rich-content projection; published Articles remain outside this contract", 2),

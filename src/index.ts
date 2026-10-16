@@ -216,3 +216,11 @@ export type {
   ArticleDraftEmbedTarget,
   XStatusArticleEmbed,
 } from "./article-draft-embeds";
+
+/** Versioned, credential-free X workspace DTOs. */
+export type {
+ XSocialEntityRange, XSocialMention, XSocialTag, XSocialCashtag, XSocialLink,
+ XSocialText, XSocialMedia, XSocialModerationLabel, XSocialModeration, XSocialPromotion,
+ XSocialPostSnapshot, XSocialPostReference, XSocialPost, XSocialProfile, XSocialActor,
+ XSocialNotification, XSocialTrend, XSocialTimelineEntry, XSocialFeedSource, XSocialPage,
+} from "./providers/x-web-model";

@@ -1,6 +1,6 @@
 {
   "name": "@hraness/ghostget",
-  "version": "0.18.94",
+  "version": "0.18.95",
   "description": "GhostGet is an agent tool for driving websites fast. Agents call named actions instead of clicking through pages, using a tenth of the tokens and no password.",
   "license": "MIT",
   "type": "module",
@@ -478,6 +478,7 @@
     "src/provider-plugin-portable-runtime.ts",
     "src/provider-plugin-protocol.ts",
     "src/provider-plugin-registry.ts",
+    "src/provider-plugin-lazy-registry.ts",
     "src/provider-plugin-module-analysis.ts",
     "src/provider-plugin-store.ts",
     "src/provider-plugin-test-fixture.ts",
@@ -694,6 +695,18 @@
     "src/app-host.ts",
     "docs/native-app-host.md",
     "native-runtime-profiles.json",
+    "src/assets/adapters/x/wrench-web-adapter.v1.17.0.json",
+    "src/assets/adapters/x/wrench-web-adapter.v1.18.0.json",
+    "src/providers/x-web-model.ts",
+    "src/providers/x-web-media.ts",
+    "src/providers/x-web-social-actions.ts",
+    "src/providers/x-web-workspace-reads.ts",
+    "src/providers/x-web-captured-reads.ts",
+    "src/providers/x-web-profile-feeds.ts",
+    "src/app-host-x-protocol.ts",
+    "src/app-host-x-validation.ts",
+    "src/app-host-x-service.ts",
+    "src/app-host-x-confirmation.ts",
     "src/media-acquisition.ts",
     "src/pdf-acquisition.ts",
     "src/media/ephemeral-types.ts",
@@ -740,7 +753,7 @@
     "prepack": "bun run check",
     "check:effect": "bun scripts/check-effect-architecture.ts",
     "generate:og": "bun scripts/generate-og.tsx",
-    "check:native-runtime": "bun scripts/native-runtime-profile.ts --check && bun test --no-orphans --timeout 60000 scripts/native-runtime-profile.test.ts"
+    "check:native-runtime": "bun scripts/native-runtime-profile.ts --check && bun test --no-orphans --timeout 180000 ./scripts/native-runtime-profile.test.ts"
   },
   "dependencies": {
     "@1password/sdk": "0.5.0",

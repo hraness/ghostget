@@ -1059,7 +1059,7 @@ async function checkCookieFile(path, url, requireExplicitScope) {
 async function defaultReadCookies(signIn, auth, url, timeoutMs) {
   const cookieTimeout = Math.min(timeoutMs, 30000);
   if (auth !== undefined) {
-    const { acquireWebSessionCookieRecords } = await import("./web-session-cookies-ckh35t9d.js");
+    const { acquireWebSessionCookieRecords } = await import("./web-session-cookies-9vac9ms2.js");
     return acquireWebSessionCookieRecords(auth, url, cookieTimeout);
   }
   const { acquireCookieRecords } = await import("./cookie-access-dadm0qvh.js");
@@ -1188,7 +1188,7 @@ async function runSignedInPdfCommand(pdfArguments, output, options) {
     }
     return exitCode;
   };
-  const { stateKeychainNoticeRecord } = await import("./keychain-notice-record-kte7ch88.js");
+  const { stateKeychainNoticeRecord } = await import("./keychain-notice-record-ye72xvdk.js");
   cookieAccess.configureCookieAccessNotice({
     environment: options.environment,
     stdinIsTTY: options.stdinIsTTY ?? process.stdin.isTTY === true,
@@ -1209,7 +1209,7 @@ async function runSignedInPdfCommand(pdfArguments, output, options) {
 `);
       },
       ...await (async () => {
-        const { loadAuth } = await import("./auth-ct9b8mxs.js");
+        const { loadAuth } = await import("./auth-mctmvh5a.js");
         return { loadAuth: (id) => loadAuth(id, options.environment) };
       })(),
       ...options.overrides

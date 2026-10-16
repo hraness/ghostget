@@ -8,8 +8,8 @@ if (binding?.transport !== "web-session-api") {
 }
 
 describe("X web provider plugin", () => {
-  test("versions the profile-read source closure independently", () => {
-    expect(xWebPlugin.version).toBe("1.5.0");
+  test("versions the rich workspace source closure independently", () => {
+    expect(xWebPlugin.version).toBe("1.6.0");
   });
 
   test("keeps the generic Article reservation inert beside the exact private-draft read", () => {
@@ -58,7 +58,7 @@ describe("X web provider plugin", () => {
   test("declares exact accepted-target reconciliation for current post publishing", () => {
     const publish = binding.operations.filter((operation) =>
       operation.name === "posts.publish");
-    expect(publish.map((operation) => operation.contractVersion)).toEqual([2, 3, 4, 5]);
+    expect(publish.map((operation) => operation.contractVersion)).toEqual([2, 3, 4, 5, 6]);
     const current = publish.find((operation) => operation.contractVersion === 5);
     expect(current).toMatchObject({
       contractVersion: 5,
@@ -78,6 +78,25 @@ describe("X web provider plugin", () => {
       maxLength: 25_000,
     });
     expect(binding.reconcile).toBeFunction();
+  });
+
+  test("keeps ordered-media publishing reserved beside the observed scalar contract", () => {
+    const publish = binding.operations.filter((operation) =>
+      operation.name === "posts.publish");
+    const reserved = publish.find((operation) => operation.contractVersion === 6);
+    expect(reserved).toMatchObject({
+      contractVersion: 6,
+      risk: "R3",
+      state: "capture-required",
+    });
+    expect(reserved?.input.properties.media).toMatchObject({
+      type: "array",
+      minItems: 1,
+      maxItems: 4,
+      items: { type: "file", mediaTypes: ["image/png", "image/jpeg", "video/mp4"] },
+    });
+    expect(publish.filter((operation) => operation.state === "observed")
+      .map((operation) => operation.contractVersion)).toEqual([2, 3, 4, 5]);
   });
 
   test("keeps PNG-only posts.publish recovery distinct from current MP4 admission", () => {
