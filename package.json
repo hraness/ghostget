@@ -1,6 +1,6 @@
 {
   "name": "@hraness/ghostget",
-  "version": "0.18.92",
+  "version": "0.18.93",
   "description": "GhostGet is an agent tool for driving websites fast. Agents call named actions instead of clicking through pages, using a tenth of the tokens and no password.",
   "license": "MIT",
   "type": "module",
@@ -405,6 +405,7 @@
     "src/oauth-x.ts",
     "src/path-helper.ts",
     "src/pdf-auth.ts",
+    "src/capture-error.ts",
     "src/persistent-helper-bridge.ts",
     "src/pinned-https.ts",
     "src/plan-assets.ts",
