@@ -1246,9 +1246,15 @@ jobs:
           (cd "$consumer_directory" \
             && printf '{ "name": "ghostget-registry-consumer", "version": "0.0.0", "private": true }\n' > package.json \
             && npm install "@hraness/ghostget@$version" --ignore-scripts --no-audit --no-fund \
-              --registry=https://registry.npmjs.org \
-            && npm audit signatures --json --include-attestations --omit=dev \
-              --registry=https://registry.npmjs.org > npm-audit.json)
+              --registry=https://registry.npmjs.org)
+          node ./scripts/npm-installed-signatures.mjs \
+            --consumer-directory "$consumer_directory" \
+            --expected-name @hraness/ghostget \
+            --expected-version "$version" \
+            --registry-archive "$registry_directory/$archive_name" \
+            --npm-root "$(npm root --global)/npm" \
+            --tuf-cache "$RUNNER_TEMP/ghostget-registry-tuf" \
+            > "$consumer_directory/npm-audit.json"
           bun run ./scripts/npm-provenance-identity.ts \
             --audit-json "$consumer_directory/npm-audit.json" \
             --expected-event push \
