@@ -15,6 +15,7 @@
  * fetch before any request is sent.
  */
 
+import { captureError, type CaptureErrorCode } from "./capture-error";
 import { chmodSync, closeSync, existsSync, mkdtempSync, openSync, rmSync, statSync, writeSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { basename, isAbsolute, join, resolve } from "node:path";
@@ -894,10 +895,10 @@ export async function runSignedInPdfCommand(
   const cookieAccess = await import("./cookie-access");
   const stderrIsTTY = options.stderrIsTTY ?? process.stderr.isTTY === true;
   const style = cliStyle(options.environment, stderrIsTTY);
-  const fail = (code: string, message: string, next: string, exitCode: number): number => {
+  const fail = (code: string, message: string, next: string, exitCode: number, category: CaptureErrorCode = "unknown"): number => {
     const sentence = cliSentence(terminalSafe(message));
     if (json) {
-      output.stdout(`${JSON.stringify({ ok: false, error: { code, message: sentence, next } })}\n`);
+      output.stdout(`${JSON.stringify({ ok: false, error: { code, message: sentence, next }, captureError: captureError(category) })}\n`);
     } else {
       output.stderr(renderCliError(style, sentence, next));
     }
@@ -929,19 +930,19 @@ export async function runSignedInPdfCommand(
     });
   } catch (error) {
     if (error instanceof cookieAccess.CookieAccessSkippedError) {
-      return fail("permission-skipped", error.message, "ghostget pdf <url> --cookies-file <path>", 3);
+      return fail("permission-skipped", error.message, "ghostget pdf <url> --cookies-file <path>", 3, "permission-required");
     }
     const denied = cookieAccess.findCookieAccessError(error);
     if (denied !== null) {
-      return fail("permission-denied", `${denied.message}. ${cookieAccess.cookieAccessRemedy(denied)}`, "ghostget pdf --help", 3);
+      return fail("permission-denied", `${denied.message}. ${cookieAccess.cookieAccessRemedy(denied)}`, "ghostget pdf --help", 3, "permission-required");
     }
     if (error instanceof PdfAuthError) {
       if (error.code === "usage") {
         const next = error.message.startsWith("there is no connected account") ? "ghostget auth list" : "ghostget pdf --help";
-        return fail("usage", error.message, next, 2);
+        return fail("usage", error.message, next, 2, "invalid-input");
       }
       if (error.code === "access") return fail("no-access", error.message, openFirst, 1);
-      if (error.code === "no-sign-in") return fail("no-sign-in", error.message, "ghostget browsers", 1);
+      if (error.code === "no-sign-in") return fail("no-sign-in", error.message, "ghostget browsers", 1, "auth-required");
       return fail("download-failed", error.message, "ghostget pdf --help", 1);
     }
     const message = error instanceof Error ? error.message : "the signed-in PDF download failed";

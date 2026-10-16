@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 
+import { captureErrorOutput } from "./capture-error";
 import { ghostgetBareUsage, ghostgetHelpRequest, hasPdfSignInOptions } from "./usage";
 import { cliStyle, renderCliError } from "./cli-style";
 import { terminalIntro } from "./cli-intro";
@@ -295,19 +296,20 @@ export async function runGhostgetCliProcess(
     process.exitCode = await support.runGhostgetSupportCommand(rawArguments.slice(1), resolvedOutput);
     return;
   }
+  const captureOutput = rawArguments[0] === "pdf" && rawArguments.includes("--json") ? captureErrorOutput(resolvedOutput) : resolvedOutput;
   if (rawArguments[0] === "pdf" && help === null && hasPdfSignInOptions(rawArguments.slice(1))) {
     const { runSignedInPdfCommand, runWordcellPdfWithDownload } = await import("./pdf-auth");
-    process.exitCode = await runSignedInPdfCommand(rawArguments.slice(1), resolvedOutput, {
+    process.exitCode = await runSignedInPdfCommand(rawArguments.slice(1), captureOutput, {
       environment: process.env,
       runWordcellPdf: async (pdfArguments, download) => download === undefined
-        ? (await loadKnowledgeCli()).main(["pdf", ...pdfArguments], resolvedOutput)
-        : runWordcellPdfWithDownload(pdfArguments, download, process.env, resolvedOutput),
+        ? (await loadKnowledgeCli()).main(["pdf", ...pdfArguments], captureOutput)
+        : runWordcellPdfWithDownload(pdfArguments, download, process.env, captureOutput),
     });
     return;
   }
   if (isPublicGhostgetCommand(rawArguments)) {
     const knowledge = await loadKnowledgeCli();
-    process.exitCode = await knowledge.main(rawArguments, resolvedOutput);
+    process.exitCode = await knowledge.main(rawArguments, captureOutput);
     return;
   }
   const catalogCommand = routedGhostgetCatalogCommand(providerArguments);

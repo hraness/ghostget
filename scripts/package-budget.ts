@@ -2580,17 +2580,23 @@
 // Retain the existing allowances: 12,262,441 + 12,387 + 4,096 = 12,278,924
 // packed; 24,662,445 + 353 + 1,656 = 24,664,454 unpacked. Source CI and
 // canonical Release independently measure and admit the exact archive.
+// Additive capture-error classification adds one published source module.
+// Two clean npm 11.19.0 packs on Node 24.20.0 (zlib 1.2.12), --ignore-scripts
+// on darwin arm64, were byte-identical: 12,264,061 compressed / 24,668,954
+// payload bytes, 657 entries, SHA-256
+// 832c7e808c4f9a14ba899ae23aa2bcc7c127c90b2423f7a36e6e1994e0bfb073.
+// Keep the reviewed platform/portability and payload allowances unchanged.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "native runtime profile over 0.18.92",
+  scope: "capture error classification 0.18.93",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   nodeVersion: "24.20.0",
   zlibVersion: "1.2.12",
   platform: "darwin-arm64",
-  archiveSha256: "50922edc765c17a594eea74b720b4707bce038bb4ae87df8174ef9a23488868c",
-  packedBytes: 12_262_441,
-  unpackedBytes: 24_662_445,
-  entryCount: 656,
+  archiveSha256: "832c7e808c4f9a14ba899ae23aa2bcc7c127c90b2423f7a36e6e1994e0bfb073",
+  packedBytes: 12_264_061,
+  unpackedBytes: 24_668_954,
+  entryCount: 657,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,

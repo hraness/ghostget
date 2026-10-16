@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import { captureError, captureErrorOutput, type CaptureErrorV1 } from "./capture-error";
 import {
   adapterInstalledLines,
   authBoundLines,
@@ -418,8 +419,12 @@ export function wantsJsonErrors(
   return rawArguments.includes("--json") || detectCookieAudience(environment, stderrIsTTY) === "agent";
 }
 
-export function ghostgetErrorJson(code: string, message: string, next: string): string {
-  return `${JSON.stringify({ ok: false, error: { code, message, next } })}\n`;
+function captureJsonRequested(arguments_: GhostgetArguments): boolean {
+  return (arguments_.command === "clip" || arguments_.command === "read") && arguments_.arguments.includes("--json");
+}
+
+export function ghostgetErrorJson(code: string, message: string, next: string, captureFailure?: CaptureErrorV1): string {
+  return `${JSON.stringify({ ok: false, error: { code, message, next }, ...(captureFailure === undefined ? {} : { captureError: captureFailure }) })}\n`;
 }
 
 /** The command to run again after a permission denial. */
@@ -447,10 +452,12 @@ export function renderCookieAccessFailure(
   if (skipped === null && denied === null) return null;
   const next = cookieAccessNext(arguments_);
   const json = ("json" in arguments_ && arguments_.json === true)
+    || captureJsonRequested(arguments_)
     || detectCookieAudience(environment, stderrIsTTY) === "agent";
   if (json) {
     output.stdout(`${JSON.stringify({
       ok: false,
+      ...(["clip", "read"].includes(arguments_.command) ? { captureError: captureError("permission-required") } : {}),
       error: denied === null
         ? { code: "permission-skipped", kind: "keychain", message: `${safe(skipped!.message)}.`, next, settingsUrl: null }
         : {
@@ -1046,6 +1053,15 @@ function prepareCapture(
   }
 }
 
+function classifyCaptureException(error: unknown, signal?: AbortSignal): CaptureErrorV1 {
+  if (error instanceof PreservedBrowserArtifactsError) return captureError("cleanup-pending");
+  if (error instanceof CookieAccessSkippedError || findCookieAccessError(error) !== null) return captureError("permission-required");
+  if (signal?.aborted === true) return captureError("cancelled");
+  if (error instanceof DOMException && error.name === "AbortError") return captureError("cancelled");
+  if (error instanceof DOMException && error.name === "TimeoutError") return captureError("timeout");
+  return captureError();
+}
+
 async function runCaptureCommand(
   prefix: readonly string[],
   arguments_: readonly string[],
@@ -1055,10 +1071,13 @@ async function runCaptureCommand(
   signal?: AbortSignal,
   onUsefulResult?: () => void,
 ): Promise<number> {
+  let classification = captureError();
+  if (arguments_.includes("--json")) output = captureErrorOutput(output, () => classification);
   const resolved = resolveCaptureArgumentsWithAuth(arguments_, environment);
   const unresolvedArguments = [...prefix, ...resolved.arguments];
   const parsed = parseCaptureArguments(unresolvedArguments, environment);
   if (!parsed.ok) {
+    classification = captureError("invalid-input");
     return dependencies.clipMain(unresolvedArguments, environment, output);
   }
   if (resolved.browserEngine === "lightpanda"
@@ -1102,14 +1121,14 @@ async function runCaptureCommand(
       environment,
       output,
       {
-        runCapture: (captureArguments) => dependencies.runCapture(
-          captureArguments,
-          environment,
-          {
-            browserEngine: resolved.browserEngine,
-            ...(signal === undefined ? {} : { signal }),
-          },
-        ),
+        runCapture: async (captureArguments) => {
+          try {
+            return await dependencies.runCapture(captureArguments, environment, {
+              browserEngine: resolved.browserEngine,
+              ...(signal === undefined ? {} : { signal }),
+            });
+          } catch (error) { classification = classifyCaptureException(error, signal); throw error; }
+        },
       },
       prepared.runtimeOptions,
     );
@@ -3966,7 +3985,7 @@ export async function main(
   if (!parsed.ok) {
     if (wantsJsonErrors(rawArguments, environment, stderrIsTTY)) {
       const parts = ghostgetUsageErrorParts(parsed.message, rawArguments);
-      output.stdout(ghostgetErrorJson("usage", parts.message, parts.next));
+      output.stdout(ghostgetErrorJson("usage", parts.message, parts.next, ["clip", "read"].includes(rawArguments[0] ?? "") ? captureError("invalid-input") : undefined));
     } else {
       output.stderr(renderGhostgetUsageError(parsed.message, rawArguments, environment));
     }
@@ -4041,10 +4060,11 @@ export async function main(
         ok: false,
         status: "indeterminate",
         privateArtifactsPreserved: true,
+        ...(["clip", "read"].includes(parsed.value.command) ? { captureError: captureError("cleanup-pending") } : {}),
         error: safe(error.message),
         ...(recoveryHandle === null ? {} : { recoveryHandle }),
       };
-      if ("json" in parsed.value && parsed.value.json === true) {
+      if (("json" in parsed.value && parsed.value.json === true) || captureJsonRequested(parsed.value)) {
         // The recovery handle is an owned, bounded terminal-safe locator.
         // Generic redaction treats its `session=` field as a credential and
         // would destroy the only actionable cleanup handle.
@@ -4061,7 +4081,8 @@ export async function main(
     const message = safe(error instanceof Error ? error.message : String(error));
     if (wantsJsonErrors(rawArguments, environment, stderrIsTTY)) {
       output.stdout(ghostgetErrorJson("failed", cliSentence(message),
-        repairLeadId === null ? "ghostget doctor" : `ghostget contracts repair --id ${repairLeadId} --json`));
+        repairLeadId === null ? "ghostget doctor" : `ghostget contracts repair --id ${repairLeadId} --json`,
+        ["clip", "read"].includes(parsed.value.command) ? classifyCaptureException(error, signal) : undefined));
     } else {
       output.stderr(`ghostget: ${message}\n`);
     }
