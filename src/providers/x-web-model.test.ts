@@ -417,6 +417,42 @@ describe("X rich profile model", () => {
     expect(projectXSocialProfile(user()).counts).toEqual({ followers: null, following: null });
   });
 
+  test("keeps profiles with unusable optional websites without emitting unsafe links", () => {
+    const unusable = ["", " ", "not a URL", " https://example.com/", "file:///tmp/private", "javascript:alert(1)",
+      "https://user:password@example.com/", "http://localhost/private", "http://127.0.0.1/", "http://10.0.0.1/", "http://[::1]/"];
+    for (const url of unusable) {
+      for (const raw of [user({ website: { url } }), user({ legacy: { entities: { url: { urls: [{ expanded_url: url }] } } } })]) {
+        const profile = projectXSocialProfile(raw);
+        expect(profile).toMatchObject({ id: "42", handle: "hraness", websiteUrl: null });
+        expect(parseXSocialProfile(JSON.parse(JSON.stringify(profile)))).toEqual(profile);
+        expect(() => parseXSocialProfile({ ...profile, websiteUrl: url })).toThrow();
+      }
+    }
+    const valid = "https://example.com/";
+    for (const raw of [
+      user({ website: { url: valid }, legacy: { entities: { url: { urls: [{ expanded_url: "file:///tmp/private" }] } } } }),
+      user({ website: { url: "not a URL" }, legacy: { entities: { url: { urls: [{ expanded_url: valid }] } } } }),
+    ]) expect(projectXSocialProfile(raw).websiteUrl).toBe(valid);
+    expect(() => projectXSocialProfile(user({ website: { url: valid }, legacy: { entities: { url: { urls: [{ expanded_url: "https://different.example/" }] } } } }))).toThrow("disagreed");
+    expect(() => projectXSocialProfile(user({ legacy: { entities: { url: { urls: [{ expanded_url: valid }, { expanded_url: "https://different.example/" }] } } } }))).toThrow("ambiguous");
+  });
+
+  test("keeps website schema bounds strict for provider fields", () => {
+    for (const url of [42, {}, [], "x".repeat(4_097), "https://example.com/\n"]) {
+      expect(() => projectXSocialProfile(user({ website: { url } }))).toThrow("bounded public text");
+      expect(() => projectXSocialProfile(user({ legacy: { entities: { url: { urls: [{ expanded_url: url }] } } } }))).toThrow("bounded public text");
+    }
+  });
+
+  test("property: arbitrary bounded website text either yields an admitted public URL or unavailable metadata", () => {
+    assertProperty(fc.property(fc.string({ maxLength: 512 }).filter(value => !/[\u0000-\u001f\u007f]/u.test(value)), url => {
+      const profile = projectXSocialProfile(user({ website: { url } }));
+      expect(parseXSocialProfile(JSON.parse(JSON.stringify(profile)))).toEqual(profile);
+      expect(profile.id).toBe("42");
+      expect(profile.handle).toBe("hraness");
+    }));
+  });
+
   test("binds modern and legacy bio entities to UTF16 description ranges", () => {
     const body = "😀 @somebody #Build $TEST https://t.co/example";
     const entity = (part: string) => [Array.from(body.slice(0, body.indexOf(part))).length, Array.from(body.slice(0, body.indexOf(part) + part.length)).length];
@@ -476,7 +512,6 @@ describe("X rich profile model", () => {
       user({ legacy: { followers_count: "1.2K" } }), user({ legacy: { created_at: "July 2026" } }),
       user({ legacy: { created_at: "2026-19-99T00:00:00Z" } }),
       user({ __typename: "UserUnavailable" }),
-      user({ legacy: { entities: { url: { urls: [{ expanded_url: "file:///tmp/private" }] } } } }),
     ]) expect(() => projectXSocialProfile(raw)).toThrow();
   });
 });

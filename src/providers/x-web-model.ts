@@ -252,6 +252,14 @@ function optionalUrl(value: unknown, label: string, media = false): string | nul
   return value === undefined || value === null ? null : safeUrl(value, label, media);
 }
 
+/** Unusable user-entered website text is unavailable metadata, never a link. */
+export function projectXProfileWebsiteUrl(value: unknown, label: string): string | null {
+  if (value === undefined || value === null) return null;
+  const input = text(value, label, 4_096, false);
+  // Shape, size and control checks stay outside the URL-only recovery path.
+  try { return safeUrl(input, label); } catch { return null; }
+}
+
 function array(value: unknown, label: string, max: number): readonly unknown[] {
   if (!Array.isArray(value) || value.length > max) throw new Error(`${label} exceeded its array bound`);
   return value;
@@ -600,7 +608,7 @@ export function projectXSocialProfile(rawUser: unknown): XSocialProfile {
   const entities = optionalRecord(legacy?.entities, "X profile entities");
   const urlEntity = optionalRecord(entities?.url, "X profile URL entities");
   const legacyWebsites = optionalArray(urlEntity?.urls, "X profile websites", 10).map((value) =>
-    optionalUrl(record(value, "X profile website entity").expanded_url, "X expanded profile website")
+    projectXProfileWebsiteUrl(record(value, "X profile website entity").expanded_url, "X expanded profile website")
   ).filter((value): value is string => value !== null);
   const uniqueWebsites = [...new Set(legacyWebsites)];
   if (uniqueWebsites.length > 1) throw new Error("X profile website is ambiguous");
@@ -619,7 +627,7 @@ export function projectXSocialProfile(rawUser: unknown): XSocialProfile {
     id: id(user.rest_id, "X profile id"), handle: username,
     displayName: agree(optionalText(core?.name, "X profile core name"), optionalText(legacy?.name, "X profile legacy name"), "X profile name"),
     bio, bioContent,
-    websiteUrl: agree(optionalUrl(website?.url, "X profile website URL"), uniqueWebsites[0] ?? null, "X profile website"),
+    websiteUrl: agree(projectXProfileWebsiteUrl(website?.url, "X profile website URL"), uniqueWebsites[0] ?? null, "X profile website"),
     joinedAt: agree(joinedAt(core?.created_at), joinedAt(legacy?.created_at), "X profile join date"),
     location: optionalText(legacy?.location, "X profile location", 1_000),
     verification: Object.freeze({

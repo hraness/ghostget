@@ -18,6 +18,7 @@ import {
   parseXSocialPost,
   projectXSocialPost,
   projectXSocialProfile,
+  projectXProfileWebsiteUrl,
   type XSocialPost,
   type XSocialProfile,
 } from "./x-web-model.js";
@@ -1173,32 +1174,20 @@ function xProfileWebsite(legacy: JsonRecord): string | null {
   }
   const expanded = urlEntity.urls.map((item, index) => {
     const url = record(item, `X profile website URL ${index + 1}`);
-    return xProfileText(url.expanded_url, `X profile website URL ${index + 1}`, 2_048);
+    const label = `X profile website URL ${index + 1}`;
+    return projectXProfileWebsiteUrl(xProfileText(url.expanded_url, label, 2_048, true), label);
   });
   const unique = [...new Set(expanded.filter((value): value is string => value !== null))];
   if (unique.length === 0) return null;
   if (unique.length !== 1) throw new Error("X profile exposed ambiguous website URLs");
-  const parsed = new URL(unique[0]!);
-  if (
-    (parsed.protocol !== "https:" && parsed.protocol !== "http:")
-    || parsed.username !== ""
-    || parsed.password !== ""
-  ) throw new Error("X profile website URL is not a safe public HTTP URL");
-  return parsed.href;
+  return unique[0]!;
 }
 
 function xProfileModernWebsite(value: unknown): string | null {
   if (value === undefined || value === null) return null;
   const website = record(value, "X profile website");
   const rawUrl = xProfileText(website.url, "X profile website URL", 2_048, true);
-  if (rawUrl === null) return null;
-  const parsed = new URL(rawUrl);
-  if (
-    (parsed.protocol !== "https:" && parsed.protocol !== "http:")
-    || parsed.username !== ""
-    || parsed.password !== ""
-  ) throw new Error("X profile website URL is not a safe public HTTP URL");
-  return parsed.href;
+  return projectXProfileWebsiteUrl(rawUrl, "X profile website URL");
 }
 
 function xProfileObservationTime(value: string): string {
@@ -1251,7 +1240,12 @@ export function projectXWebProfileStats(
   let followerValue: unknown;
   let followingValue: unknown;
   let bio: string | null;
-  let websiteUrl: string | null;
+  const legacyWebsite = isRecord(result.legacy) ? xProfileWebsite(result.legacy) : null;
+  const modernWebsite = xProfileModernWebsite(result.website);
+  if (legacyWebsite !== null && modernWebsite !== null && legacyWebsite !== modernWebsite) {
+    throw new Error("X profile website disagreed across fields");
+  }
+  const websiteUrl = modernWebsite ?? legacyWebsite;
   if (isRecord(result.legacy)) {
     const legacy = result.legacy;
     if (
@@ -1261,7 +1255,6 @@ export function projectXWebProfileStats(
     followerValue = legacy.followers_count;
     followingValue = legacy.friends_count;
     bio = xProfileBio(legacy.description);
-    websiteUrl = xProfileWebsite(legacy);
   } else {
     const relationships = record(
       result.relationship_counts,
@@ -1283,7 +1276,6 @@ export function projectXWebProfileStats(
       );
     }
     bio = profileBio === null ? null : xProfileBio(profileBio.description);
-    websiteUrl = xProfileModernWebsite(result.website);
   }
   return Object.freeze({
     schemaVersion: 1,

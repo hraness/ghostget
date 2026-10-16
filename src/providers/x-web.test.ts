@@ -1114,6 +1114,51 @@ describe("X exact profile projection", () => {
       "2026-08-21T15:00:00.000Z",
     )).toThrow("exact nonnegative safe integer");
   });
+
+  test("omits unusable website metadata consistently in legacy and modern profile statistics", () => {
+    for (const url of ["", "not a URL", "file:///tmp/private", "http://localhost/", "https://user:password@example.com/"]) {
+      for (const raw of [
+        response({ legacy: { screen_name: "hraness", followers_count: 1234, friends_count: 56, entities: { url: { urls: [{ expanded_url: url }] } } } }),
+        response({ legacy: undefined, relationship_counts: { followers: 1234, following: 56 }, website: { url } }),
+      ]) {
+        const result = projectXWebProfileStats(raw, "hraness", "2026-08-21T15:00:00.000Z");
+        expect(result.metadata.websiteUrl).toBeNull();
+        expect(result.profile.websiteUrl).toBeNull();
+        expect(result.metrics.followers.value).toBe(1234);
+      }
+    }
+    const result = projectXWebProfileStats(response({
+      website: { url: "https://example.com/" },
+      legacy: { screen_name: "hraness", followers_count: 1234, friends_count: 56, entities: { url: { urls: [{ expanded_url: "not a URL" }] } } },
+    }), "hraness", "2026-08-21T15:00:00.000Z");
+    expect(result.metadata.websiteUrl).toBe("https://example.com/");
+    expect(result.profile.websiteUrl).toBe(result.metadata.websiteUrl);
+    expect(() => projectXWebProfileStats(response({ website: { url: "https://different.example/" } }), "hraness", "2026-08-21T15:00:00.000Z")).toThrow("disagreed");
+  });
+
+  test("retains the profile-statistics website shape and 2048-character bounds", () => {
+    for (const url of [{}, 42, "x".repeat(2_049), "https://example.com/\n"]) {
+      for (const raw of [
+        response({ legacy: { screen_name: "hraness", followers_count: 1234, friends_count: 56, entities: { url: { urls: [{ expanded_url: url }] } } } }),
+        response({ legacy: undefined, relationship_counts: { followers: 1234, following: 56 }, website: { url } }),
+      ]) expect(() => projectXWebProfileStats(raw, "hraness", "2026-08-21T15:00:00.000Z")).toThrow("bounded public text");
+    }
+  });
+
+  test("an unusable optional website on a user row does not poison a mixed feed", () => {
+    const normalized = normalizeXWebUrtTimeline({ instructions: [{ type: "TimelineAddEntries", entries: [
+      { entryId: "user-fixture", content: { entryType: "TimelineTimelineItem", itemContent: {
+        itemType: "TimelineUser", user_results: { result: { __typename: "User", rest_id: "42",
+          core: { screen_name: "fixture", name: "Fixture" }, website: { url: "not a URL" } } },
+      } } },
+      { entryId: "post-fixture", content: { entryType: "TimelineTimelineItem", itemContent: {
+        itemType: "TimelineTweet", tweet_results: { result: { __typename: "Tweet", rest_id: "77", legacy: { full_text: "Synthetic feed post", user_id_str: "42" } } },
+      } } },
+    ] }] });
+    expect(normalized.items).toHaveLength(2);
+    expect(normalized.items[0]).toMatchObject({ kind: "user", userId: "42", profile: { websiteUrl: null } });
+    expect(normalized.items[1]).toMatchObject({ kind: "tweet", tweetId: "77", social: { text: "Synthetic feed post" } });
+  });
 });
 
 describe("legacy DM R1 allowlists and inbox mapping", () => {
