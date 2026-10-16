@@ -2586,17 +2586,29 @@
 // payload bytes, 657 entries, SHA-256
 // 16cd57588a0276a43554e217ac6b7c4129b1fe36797fa8450a454378e6012b9a.
 // Keep the reviewed platform/portability and payload allowances unchanged.
+// The 0.18.94 X workspace adds four app-host X modules, six X provider modules,
+// one lazy registry helper and two archived manifests: 13 added source files.
+// Seven hashed dist chunks replace their predecessors without growing the
+// inventory. Two clean npm 11.19.0 packs on Node 24.20.0 (zlib 1.2.12),
+// --ignore-scripts on darwin arm64, were byte-identical at 670 files/entries,
+// 12,324,299 compressed and 24,924,999 payload bytes; SHA-256
+// 69341ed076622beb6ca789af4637464eb1099f7720b257231a850b5b2a724349.
+// Both snapshots came from source commit f45d297db947a914ad5abaa3d6583e85f71866ae
+// including its committed dist. Retain the existing allowances:
+// 12,324,299 + 12,387 + 4,096 = 12,340,782 packed;
+// 24,924,999 + 353 + 1,656 = 24,927,008 unpacked. Source CI and the canonical
+// Release independently measure and admit their exact archives.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "capture error classification 0.18.93",
+  scope: "X workspace native integration 0.18.94",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   nodeVersion: "24.20.0",
   zlibVersion: "1.2.12",
   platform: "darwin-arm64",
-  archiveSha256: "16cd57588a0276a43554e217ac6b7c4129b1fe36797fa8450a454378e6012b9a",
-  packedBytes: 12_264_061,
-  unpackedBytes: 24_668_934,
-  entryCount: 657,
+  archiveSha256: "69341ed076622beb6ca789af4637464eb1099f7720b257231a850b5b2a724349",
+  packedBytes: 12_324_299,
+  unpackedBytes: 24_924_999,
+  entryCount: 670,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,
