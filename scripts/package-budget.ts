@@ -2607,13 +2607,13 @@
 // The merged 0.18.95 X workspace retains the upstream media/PDF SDK and adds
 // 13 published source files; rebuilt entries and chunks keep that net delta.
 // Two clean npm 11.19.0 packs on Node 24.20.0 (zlib 1.2.12), --ignore-scripts
-// on darwin arm64, were byte-identical: 12,428,108 compressed / 25,392,104
+// on darwin arm64, were byte-identical: 12,428,684 compressed / 25,393,429
 // payload bytes, 693 files/entries, SHA-256
-// 0f185c0973fa573f0351ee6ce85860efcc5de80db2a3acd2c670d987065909b4.
-// Both snapshots came from source commit 3c97c2a1827e2073f949161cbe97e0f9d57facc9
+// e4a5d985323c3e6653eda1b8671da3287f09a042adbecc0d5ee220eee137e1d1.
+// Both snapshots came from source commit 09f6cddef49f8314133254729c0e4b0d925f59bd
 // including its committed dist. Every packed byte and mode matches its Git blob.
-// Retain the existing allowances: 12,428,108 + 12,387 + 4,096 = 12,444,591
-// packed; 25,392,104 + 353 + 1,656 = 25,394,113 unpacked. Source CI and the
+// Retain the existing allowances: 12,428,684 + 12,387 + 4,096 = 12,445,167
+// packed; 25,393,429 + 353 + 1,656 = 25,395,438 unpacked. Source CI and the
 // canonical Release independently measure and admit their exact archives.
 export const repairPackageMeasurement = Object.freeze({
   scope: "X workspace native integration 0.18.95",
@@ -2622,9 +2622,9 @@ export const repairPackageMeasurement = Object.freeze({
   nodeVersion: "24.20.0",
   zlibVersion: "1.2.12",
   platform: "darwin-arm64",
-  archiveSha256: "0f185c0973fa573f0351ee6ce85860efcc5de80db2a3acd2c670d987065909b4",
-  packedBytes: 12_428_108,
-  unpackedBytes: 25_392_104,
+  archiveSha256: "e4a5d985323c3e6653eda1b8671da3287f09a042adbecc0d5ee220eee137e1d1",
+  packedBytes: 12_428_684,
+  unpackedBytes: 25_393_429,
   entryCount: 693,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
