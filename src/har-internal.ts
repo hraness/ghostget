@@ -207,8 +207,17 @@ const reviewedXDeleteRepostEvidenceFieldNames: ReadonlySet<string> = new Set([
   "source_tweet_results", "unretweet",
 ]);
 
-export function reviewedXContractEvidenceRoute(url: URL): "create" | "profile" | "repost-create" | "repost-delete" | null {
+const reviewedXFriendshipEvidenceFieldNames: ReadonlySet<string> = new Set([
+  "user_id", "id_str", "following", "follow_request_sent",
+  "include_profile_interstitial_type", "include_blocking", "include_blocked_by",
+  "include_followed_by", "include_want_retweets", "include_mute_edge", "include_can_dm",
+  "include_can_media_tag", "include_ext_is_blue_verified", "include_ext_verified_type",
+  "include_ext_profile_image_shape", "skip_status",
+]);
+
+export function reviewedXContractEvidenceRoute(url: URL): "create" | "profile" | "repost-create" | "repost-delete" | "friendship" | null {
   if (url.origin !== "https://x.com" || url.username !== "" || url.password !== "") return null;
+  if (/^\/i\/api\/1\.1\/friendships\/(?:create|destroy)\.json$/u.test(url.pathname)) return "friendship";
   const match = /^\/i\/api\/graphql\/[A-Za-z0-9_-]{20,64}\/(CreateTweet|UserByRestId|CreateRetweet|DeleteRetweet)$/u.exec(url.pathname);
   switch (match?.[1]) {
     case "CreateTweet": return "create";
@@ -220,7 +229,8 @@ export function reviewedXContractEvidenceRoute(url: URL): "create" | "profile" |
 }
 
 export function internalHarReviewTraversalDepth(url: URL): number {
-  return reviewedXContractEvidenceRoute(url) !== null
+  const xRoute = reviewedXContractEvidenceRoute(url);
+  return xRoute !== null && xRoute !== "friendship"
     ? INTERNAL_HAR_REVIEW_BOUNDS.maxXContractEvidenceTraversalDepth
     : isReviewedLinkedInArticleRoute(url)
       ? INTERNAL_HAR_REVIEW_BOUNDS.maxLinkedInArticleTraversalDepth
@@ -423,6 +433,7 @@ export function reviewedInternalFieldNameForUrl(url: URL, value: string): string
       || ((xRoute === "repost-create" || xRoute === "repost-delete") && reviewedXRepostTweetFieldNames.has(value))
       || (xRoute === "repost-create" && reviewedXCreateRepostEvidenceFieldNames.has(value))
       || (xRoute === "repost-delete" && reviewedXDeleteRepostEvidenceFieldNames.has(value))
+      || (xRoute === "friendship" && reviewedXFriendshipEvidenceFieldNames.has(value))
     )
   ) return value;
   if (
@@ -600,6 +611,7 @@ function safePath(url: URL): string {
     )
   ) return pathname;
   if (isReviewedTwitchGraphQlRoute(url)) return "/gql";
+  if (reviewedXContractEvidenceRoute(url) === "friendship") return pathname;
   const xGraphQl = reviewedXGraphQlRoute(url);
   if (xGraphQl !== null) {
     return xGraphQl.reviewed

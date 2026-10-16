@@ -159,6 +159,52 @@ function xContractEvidenceHar(operation = "CreateTweet", mediaCount = 2, origin 
 describe("bounded X contract evidence review", () => {
   const fixtures = { actor: "123", post: "456", text: "fixture post", first: "700", second: "701",
     map: "private-map-value", credential: "private-credential-value" };
+  test("binds exact friendship form fields and response booleans without exposing values", () => {
+    for (const action of ["create", "destroy"] as const) {
+      const path = `/i/api/1.1/friendships/${action}.json`;
+      const har = { log: { entries: [{
+        request: { method: "POST", url: `https://x.com${path}`, postData: {
+          mimeType: "application/x-www-form-urlencoded", text: "include_blocking=1&user_id=987654321&private_token=private-credential-value",
+        } },
+        response: { status: 200, content: { mimeType: "application/json", text: JSON.stringify({
+          id_str: "987654321", following: action === "create", follow_request_sent: false,
+          private_token: "private-credential-value", "private-map-key": { value: "private-map-value" },
+        }) } },
+      }] } };
+      const result = reviewDerivationHarValue(har, "https://x.com", { kind: "entry", entryIndex: 0,
+        fixtures: { target: "987654321", enabled: "true", disabled: "false", field: "1", secret: "private-credential-value" } });
+      if (result.kind !== "entry") throw new Error("Expected entry");
+      const matches = new Map(result.fixtureMatches.map(item => [item.label, item]));
+      expect(result.structure.path).toBe(path);
+      expect(matches.get("target")?.locations).toEqual(["request.form.user_id[0]", "response.body.id_str"]);
+      expect(matches.get("field")?.locations).toEqual(["request.form.include_blocking[0]"]);
+      expect(matches.get(action === "create" ? "enabled" : "disabled")?.locations).toContain("response.body.following");
+      expect(matches.get("disabled")?.locations).toContain("response.body.follow_request_sent");
+      expect(matches.get("secret")?.locations).toEqual([]);
+      expect(result.fixtureMatches.every(item => !item.truncated)).toBe(true);
+      for (const privateValue of ["987654321", "private-credential-value", "private-map-key", "private-map-value", "private_token"]) {
+        expect(JSON.stringify(result)).not.toContain(privateValue);
+      }
+    }
+  });
+
+  test("keeps friendship lookalikes and unreviewed routes redacted", () => {
+    for (const [origin, path] of [
+      ["https://x.com.example.test", "/i/api/1.1/friendships/create.json"],
+      ["https://x.com", "/i/api/1.1/friendships/update.json"],
+      ["https://x.com", "/i/api/1.1/friendships/create.json/extra"],
+    ] as const) {
+      const result = reviewDerivationHarValue({ log: { entries: [{ request: { method: "POST", url: `${origin}${path}`,
+        postData: { mimeType: "application/x-www-form-urlencoded", text: "user_id=987654321" } },
+        response: { status: 200, content: { mimeType: "application/json", text: JSON.stringify({
+          id_str: "987654321", following: true, follow_request_sent: false,
+        }) } } }] } }, origin, { kind: "entry", entryIndex: 0, fixtures: { target: "987654321", enabled: "true" } });
+      if (result.kind !== "entry") throw new Error("Expected entry");
+      expect(result.structure.path).not.toContain("friendships");
+      expect(result.fixtureMatches.flatMap(item => item.locations)).not.toContain("request.form.user_id[0]");
+      expect(JSON.stringify(result)).not.toContain("response.body.following");
+    }
+  });
   test("retains exact public fields and ordered media positions without disclosing fixture values", () => {
     const result = reviewDerivationHarValue(xContractEvidenceHar(), "https://x.com", { kind: "entry", entryIndex: 0, fixtures });
     if (result.kind !== "entry") throw new Error("Expected entry");
@@ -199,7 +245,7 @@ describe("bounded X contract evidence review", () => {
     expect(deep.kind === "entry" && deep.fixtureMatches).toEqual([{ label: "deep", locations: [], truncated: true }]);
   });
   test("lookalike origins and unreviewed operation names keep default redaction and arrays", () => {
-    for (const [operation, origin] of [["UnreviewedOperation", "https://x.com"], ["CreateTweet", "https://x.com.example.test"]]) {
+    for (const [operation, origin] of [["UnreviewedOperation", "https://x.com"], ["CreateTweet", "https://x.com.example.test"]] as const) {
       const result = reviewDerivationHarValue(xContractEvidenceHar(operation, 2, origin), origin, { kind: "entry", entryIndex: 0, fixtures });
       const serialized = JSON.stringify(result);
       expect(serialized).not.toContain(".media_entities[0]");
