@@ -11,7 +11,7 @@ import type { StoredPlan } from "./runtime";
 import { parseRuntimeManifest, validateOperationInput } from "./model";
 import { providerPluginRegistry } from "./provider-plugins";
 import { canonicalJson } from "./canonical-json";
-import { projectXSocialPost } from "./providers/x-web-model";
+import { projectXSocialPost, projectXSocialProfile } from "./providers/x-web-model";
 import { listPrivateStateDirectory, type PrivateStateDirectoryEntry } from "./storage";
 import { assertAsyncProperty, fc } from "./test-support";
 import { xWebPlugin } from "./plugins/x-web/plugin";
@@ -45,7 +45,7 @@ function fixture(options: { tickets?: AppHostXActionTickets; deniedPlans?: Set<s
   let now = 1000, currentRevision = initialRevision, currentIncarnation = options.incarnation ?? "c".repeat(64), confirms = 0, executions = 0;
   const inputs: unknown[] = [], cancellations: string[] = [];
   const deniedPlans = options.deniedPlans ?? new Set<string>();
-  const account: AppHostAccount = { id: "fixture", provider: "x", subject: "123", displayName: "@fixture", browser: "chrome", profile: "Default", revision: initialRevision, status: "configured", identityVerification: "at-connection", disconnectDigest: "d".repeat(64) };
+  let account: AppHostAccount = { id: "fixture", provider: "x", subject: "123", displayName: "@fixture", browser: "chrome", profile: "Default", revision: initialRevision, status: "configured", identityVerification: "at-connection", disconnectDigest: "d".repeat(64) };
   const auth = { id: account.id, kind: "browser-profile", browser: "chrome", profile: "Default" };
   let output: unknown = { posts: [], cursor: "private-provider-cursor" };
   let readDelay = async () => {};
@@ -77,6 +77,7 @@ function fixture(options: { tickets?: AppHostXActionTickets; deniedPlans?: Set<s
   const prepare = async () => action(await handle({ action: "x.action.prepare", intent: { action: "like", postId: "42" } } as never));
   return { service, handle, prepare, inputs, cancellations, setOutput: (value: unknown) => { output = value; },
     setRevision: (value: string) => { currentRevision = value; }, setNow: (value: number) => { now = value; },
+    replaceAccount: (value: Partial<Pick<AppHostAccount, "id" | "subject" | "revision">>) => { account = { ...account, ...value }; currentRevision = account.revision; },
     setReadDelay: (value: typeof readDelay) => { readDelay = value; }, setConfirmation: (value: typeof confirmation) => { confirmation = value; },
     setReceipts: (value: unknown[]) => { receipts = value; }, auth, tickets,
     setSaved: (value: typeof saved) => { saved = value; }, setIncarnation: (value: string) => { currentIncarnation = value; },
@@ -86,6 +87,20 @@ function fixture(options: { tickets?: AppHostXActionTickets; deniedPlans?: Set<s
 }
 function action(value: AppHostXData) { if (value.kind !== "x-action") throw new Error("wrong action result"); return value; }
 const feed = { action: "x.feed.list", source: "home", profile: null, cursor: null, limit: 20 } as const;
+const news = { action: "x.explore.list", source: "today-news", target: null, cursor: null, limit: 20 } as const;
+function newsStoryPage(storyId = "fixture-story-876") {
+  return { modelVersion: 1, source: "today-news", cursor: null, entries: [{
+    kind: "trend", id: storyId,
+    trend: { kind: "trend", id: storyId, source: "todays-news", title: "Fixture news", description: "News context", category: "Personalized", postCount: 12345, query: null, url: `https://x.com/i/trending/${storyId}` },
+    target: { source: "today-news", kind: "story", value: storyId },
+  }] };
+}
+async function selectNewsStory(f: ReturnType<typeof fixture>, storyId = "fixture-story-876") {
+  f.setOutput(newsStoryPage(storyId));
+  const page = await f.handle(news);
+  if (page.kind !== "x-page" || page.entries[0]?.kind !== "trend" || page.entries[0].target === undefined) throw new Error("missing news selection");
+  return page.entries[0].target;
+}
 
 test("semantic X parser rejects arbitrary provider authority, writes without targets, mixed media and caller approval", () => {
   for (const request of [
@@ -112,25 +127,87 @@ test("pagination hides provider cursor and rejects query changes, account change
   await expect(f.handle({ ...feed, cursor: first.nextCursor } as never)).rejects.toThrow();
 });
 
-test("repost feed preserves underlying continuation and labels a filtered profile page", async () => {
+test("dedicated repost feed preserves other-author occurrences and provider continuation", async () => {
   const f = fixture();
-  const raw = (id: string) => ({ __typename: "Tweet", rest_id: id, legacy: { full_text: "fixture" } });
+  const raw = (id: string) => ({ __typename: "Tweet", rest_id: id, legacy: { full_text: "fixture", user_id_str: "456" } });
   const original = projectXSocialPost(raw("41"));
-  const repost = projectXSocialPost({ ...raw("42"), retweeted_status_result: { result: raw("40") } });
+  const repost = projectXSocialPost({ ...raw("42"), retweeted_status_result: { result: { ...raw("40"), quoted_status_result: { result: raw("39") } } } });
   f.setOutput({ posts: [original, repost], cursor: "private-provider-cursor" });
   const result = await f.handle({ ...feed, source: "profile-reposts" });
   if (result.kind !== "x-page") throw new Error("wrong page");
-  expect(result.completeness).toBe("filtered");
-  expect(result.entries.map(entry => entry.id)).toEqual(["42"]);
+  expect(result.completeness).toBe("page");
+  expect(result.entries).toEqual([{ kind: "post", id: "41", post: original }, { kind: "post", id: "42", post: repost }]);
   expect(result.nextCursor).not.toBeNull();
-  expect(f.inputs.at(-1)).toMatchObject({ operation: "feeds.read", input: { feed: "user", user_id: "123" } });
+  expect(f.inputs.at(-1)).toEqual({ operation: "feeds.read", input: { feed: "user-reposts", user_id: "123", limit: 20 } });
   await f.handle({ ...feed, source: "profile-reposts", cursor: result.nextCursor });
-  expect(f.inputs.at(-1)).toMatchObject({ input: { cursor: "private-provider-cursor" } });
+  expect(f.inputs.at(-1)).toEqual({ operation: "feeds.read", input: { feed: "user-reposts", user_id: "123", limit: 20, cursor: "private-provider-cursor" } });
   f.setOutput({ posts: [original], cursor: "another-private-cursor" });
-  const empty = await f.handle({ ...feed, source: "profile-reposts" });
-  expect(empty).toMatchObject({ kind: "x-page", entries: [], completeness: "filtered" });
-  if (empty.kind !== "x-page") throw new Error("wrong page");
-  expect(empty.nextCursor).not.toBeNull();
+  expect(await f.handle({ ...feed, source: "profile-reposts" })).toMatchObject({ kind: "x-page", entries: [{ id: "41" }], completeness: "page" });
+});
+
+test("dedicated repost feed resolves handles and numeric profile targets consistently", async () => {
+  const profile = projectXSocialProfile({ __typename: "User", rest_id: "456", legacy: { screen_name: "fixture_author" } });
+  for (const target of ["456", "@fixture_author"]) {
+    const f = fixture();
+    f.setReadDelay(async () => {
+      const invocation = f.inputs.at(-1) as { operation: string };
+      f.setOutput(invocation.operation === "profiles.read" ? { profile } : { posts: [], cursor: null });
+    });
+    expect(await f.handle({ ...feed, source: "profile-reposts", profile: target })).toMatchObject({ kind: "x-page", entries: [], completeness: "page" });
+    expect(f.inputs).toEqual([
+      ...(target.startsWith("@") ? [{ operation: "profiles.read", input: { handle: "fixture_author" } }] : []),
+      { operation: "feeds.read", input: { feed: "user-reposts", user_id: "456", limit: 20 } },
+    ]);
+  }
+});
+
+test("Today News exposes opaque Story selections and binds post continuations to the selection", async () => {
+  const f = fixture();
+  const target = await selectNewsStory(f);
+  expect(target).toMatch(/^xdt1_[0-9a-f-]{36}$/u);
+  expect(target).not.toContain("fixture-story-876");
+  const otherTarget = await selectNewsStory(f, "fixture-story-877");
+  const post = projectXSocialPost({ __typename: "Tweet", rest_id: "42", legacy: { full_text: "Story post", user_id_str: "456" } });
+  f.setOutput({ modelVersion: 1, source: "today-news", entries: [{ kind: "post", id: post.id, post }], cursor: "private-story-cursor" });
+  const page = await f.handle({ ...news, target });
+  expect(page).toMatchObject({ kind: "x-page", source: "today-news", completeness: "page", entries: [{ kind: "post", id: "42", post }] });
+  if (page.kind !== "x-page") throw new Error("wrong page");
+  expect(page.nextCursor).not.toBeNull();
+  expect(JSON.stringify(page)).not.toContain("private-story-cursor");
+  expect(f.inputs.at(-1)).toEqual({ operation: "explore.read", input: { source: "today-news", limit: 20, target: canonicalJson({ source: "today-news", kind: "story", value: "fixture-story-876" }) } });
+  await f.handle({ ...news, target, cursor: page.nextCursor });
+  expect(f.inputs.at(-1)).toMatchObject({ operation: "explore.read", input: { cursor: "private-story-cursor", target: canonicalJson({ source: "today-news", kind: "story", value: "fixture-story-876" }) } });
+  const before = f.inputs.length;
+  await expect(f.handle({ ...news, target: otherTarget, cursor: page.nextCursor })).rejects.toThrow("Refresh this view");
+  await expect(f.handle({ ...news, target: null, cursor: page.nextCursor })).rejects.toThrow("Refresh this view");
+  await expect(f.handle({ ...news, source: "trending", target, cursor: null })).rejects.toThrow("discovery target is unavailable");
+  expect(f.inputs).toHaveLength(before);
+});
+
+test("Today News Story targets reject account, subject and revision replacement before provider reads", async () => {
+  for (const replacement of [{ id: "other-account" }, { subject: "456" }, { revision: "c".repeat(64) }]) {
+    const f = fixture();
+    const target = await selectNewsStory(f);
+    f.replaceAccount(replacement);
+    const before = f.inputs.length;
+    await expect(f.service.handle({ ...news, target, accountId: replacement.id ?? binding.accountId, expectedAccountRevision: replacement.revision ?? revision })).rejects.toThrow("discovery target is unavailable");
+    expect(f.inputs).toHaveLength(before);
+  }
+});
+
+test("Today News Story selections expire, cannot survive restart and cannot be supplied as provider descriptors", async () => {
+  const f = fixture();
+  const target = await selectNewsStory(f);
+  const before = f.inputs.length;
+  for (const supplied of [canonicalJson({ source: "today-news", kind: "story", value: "fixture-story-876" }), "https://x.com/i/trending/fixture-story-876"]) {
+    await expect(f.handle({ ...news, target: supplied })).rejects.toThrow("discovery target is unavailable");
+  }
+  f.setNow(601_000);
+  await expect(f.handle({ ...news, target })).rejects.toThrow("discovery target is unavailable");
+  expect(f.inputs).toHaveLength(before);
+  const restarted = fixture();
+  await expect(restarted.handle({ ...news, target })).rejects.toThrow("discovery target is unavailable");
+  expect(restarted.inputs).toHaveLength(0);
 });
 
 test("exact post reads consume the provider's single-post projection and bind its ID", async () => {

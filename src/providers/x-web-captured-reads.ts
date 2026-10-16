@@ -217,12 +217,22 @@ export function projectXWebNewsReadPage(response: unknown, verifiedSubject: stri
       description: optionalPublicText(core.hook, 10_000), category: optionalPublicText(core.category, 256),
       postCount: newsPostCount(story.post_count), query: null, url: `https://x.com/i/trending/${encodeURIComponent(storyId)}`,
     });
-    // No opaque target until a separate observed story-detail route is admitted.
+    // Archived Explore cards retain their original projection without targets.
     entries.push(Object.freeze({ kind: "trend", id: storyId, trend }));
   }
   const entriesTruncated = entries.length > limit;
   return Object.freeze({ modelVersion: 1, source: "today-news", entries: Object.freeze(entries.slice(0, limit)), cursor: null,
     terminatedDirections: Object.freeze([]), entriesTruncated, filtered: filtered || entriesTruncated });
+}
+
+/** Current Explore contract adds Story selections without changing archived card output. */
+export function projectXWebNewsStoryCards(response: unknown, verifiedSubject: string, limit: number): XWebCapturedDiscoveryPage {
+  const page = projectXWebNewsReadPage(response, verifiedSubject, limit);
+  return Object.freeze({ ...page, entries: Object.freeze(page.entries.map(entry => {
+    if (entry.kind !== "trend") return entry;
+    if (!/^[A-Za-z0-9_-]{1,512}$/u.test(entry.id)) throw new Error("X news returned an unreviewed story identifier");
+    return Object.freeze({ ...entry, target: parseXWebDiscoveryTarget({ source: "today-news", kind: "story", value: entry.id }) });
+  })) });
 }
 
 /** The empty initial cursor is an exact first-party observation, not omission. */

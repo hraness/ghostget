@@ -1,7 +1,7 @@
 {
  "schemaVersion": 4,
  "id": "x-web",
- "version": "1.19.0",
+ "version": "1.20.0",
  "displayName": "X (Authenticated Web API)",
  "surfaceId": "x",
  "origins": [
@@ -80,7 +80,7 @@
    }
   },
   "feeds.read": {
-   "description": "Read a bounded rich X For You, Following, profile posts/replies/highlights, List, search, bookmarks or viewer-owned Likes page through fixed reviewed queries. Preserve full text and matching entities, ordered media, moderation, promotion and unavailable occurrences. Bind each collection request and any echoed identity; never infer a reply collection target from conversation-parent authors.",
+   "description": "Read bounded rich X timelines, including the dedicated profile repost collection, through reviewed queries with exact target and continuation binding.",
    "risk": "R1",
    "sideEffect": "none",
    "idempotency": "none",
@@ -99,7 +99,8 @@
        "bookmarks",
        "likes",
        "user-replies",
-       "user-highlights"
+       "user-highlights",
+       "user-reposts"
       ]
      },
      "user_id": {
@@ -140,7 +141,7 @@
    "webSession": {
     "site": "x",
     "action": "feeds.read",
-    "contractVersion": 2,
+    "contractVersion": 3,
     "timeoutMs": 60000,
     "maxOutputBytes": 4194304
    }
@@ -753,7 +754,7 @@
    }
   },
   "explore.read": {
-   "description": "Observed viewer-bound Trending and selected trend search, plus separate Today’s News cards. Story detail and news pagination remain unavailable.",
+   "description": "Read viewer-bound Trending, selected trend search, personalized Today’s News cards and the selected story’s provider-issued post timeline. News cards have no continuation.",
    "risk": "R1",
    "sideEffect": "none",
    "idempotency": "none",
@@ -792,7 +793,7 @@
    "webSession": {
     "site": "x",
     "action": "explore.read",
-    "contractVersion": 1,
+    "contractVersion": 2,
     "timeoutMs": 60000,
     "maxOutputBytes": 2097152
    }

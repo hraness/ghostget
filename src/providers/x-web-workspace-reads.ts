@@ -15,7 +15,7 @@ export const xWebWorkspaceReadSupport = Object.freeze({
   home: true,
   following: true,
   "profile-posts": true,
-  // A filtered UserTweets page, never an assertion of a complete repost collection.
+  // The current contract uses the dedicated target-bound repost collection.
   "profile-reposts": true,
   "profile-replies": true,
   "profile-highlights": true,
@@ -29,7 +29,7 @@ export const xWebWorkspaceReadSupport = Object.freeze({
 } as const);
 
 export type XWebDeferredRead = {
-  readonly surface: "profile-replies" | "profile-highlights" | "likes" | "notifications" | "trending" | "today-news";
+  readonly surface: "profile-replies" | "profile-highlights" | "profile-reposts" | "likes" | "notifications" | "trending" | "today-news";
   readonly limit: number;
   readonly cursor: string | null;
   readonly target: string | null;
@@ -68,9 +68,9 @@ export function deferredXWebWorkspaceRead(action: string, input: OperationInput)
   let maximum = 50;
   if (action === "feeds.read") {
     const feed = input.feed;
-    if (feed !== "user-replies" && feed !== "user-highlights" && feed !== "likes") return null;
+    if (feed !== "user-replies" && feed !== "user-highlights" && feed !== "user-reposts" && feed !== "likes") return null;
     keys(input, ["feed", "user_id", "cursor", "limit"], "X profile collection input");
-    surface = feed === "user-replies" ? "profile-replies" : feed === "user-highlights" ? "profile-highlights" : "likes";
+    surface = feed === "user-replies" ? "profile-replies" : feed === "user-highlights" ? "profile-highlights" : feed === "user-reposts" ? "profile-reposts" : "likes";
     maximum = 50;
     // Likes is a viewer-owned collection; accepting a different target would
     // imply that X exposes another account's private liked-post collection.
@@ -85,13 +85,15 @@ export function deferredXWebWorkspaceRead(action: string, input: OperationInput)
     if (input.source !== "trending" && input.source !== "today-news") throw new Error("X Explore source must be trending or today-news");
     surface = input.source;
     target = input.target === undefined ? null : bounded(input.target, "X Explore target", 4_096);
-    if (surface === "today-news" && (target !== null || input.cursor !== undefined)) {
-      throw new Error("X Today's News story selection and pagination are not qualified; refresh its source");
+    if (surface === "today-news" && target === null && input.cursor !== undefined) {
+      throw new Error("X Today's News cards have no qualified continuation; select a story first");
     }
     if (target !== null) {
       const selected = parseXWebDiscoveryTarget(JSON.parse(target) as unknown);
-      if (!isCanonicalJsonText(target, selected) || selected.source !== surface || selected.kind !== "search") {
-        throw new Error("X Trending selection must be one canonical reviewed search target");
+      if (!isCanonicalJsonText(target, selected) || selected.source !== surface
+        || selected.kind !== (surface === "today-news" ? "story" : "search")
+        || surface === "today-news" && !/^[A-Za-z0-9_-]{1,512}$/u.test(selected.value)) {
+        throw new Error("X Explore selection must be one canonical reviewed source-specific target");
       }
     }
   } else return null;

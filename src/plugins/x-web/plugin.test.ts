@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
 
+import { canonicalJson, sha256 } from "../../canonical-json";
+import { contractSemanticIdentity } from "../../provider-contract-semantic-identity";
+import { reviewedBuiltInContractIdentity } from "../../provider-plugin-contract-identity";
+import { webSessionContractDefinitions } from "../../web-session-contract-definitions";
 import { xWebPlugin } from "./plugin";
 
 const binding = xWebPlugin.bindings[0];
@@ -9,7 +13,28 @@ if (binding?.transport !== "web-session-api") {
 
 describe("X web provider plugin", () => {
   test("versions the rich workspace source closure independently", () => {
-    expect(xWebPlugin.version).toBe("1.6.0");
+    expect(xWebPlugin.version).toBe("1.7.0");
+  });
+
+  test("pins the reviewed distribution to its version and current contract semantics", () => {
+    // Reproducible reviewed identity, independent of source layout and runtime
+    // closure. Keep the exact canonical preimage stable for this distribution.
+    const preimage = canonicalJson({
+      schemaVersion: 1,
+      kind: "ghostget-reviewed-built-in-contract-distribution",
+      pluginId: "x-web",
+      pluginVersion: "1.7.0",
+      semanticSha256: contractSemanticIdentity(Object.values(webSessionContractDefinitions.x)),
+    });
+    expect(sha256(preimage)).toBe("802de506e8b20f6423510683da933f1b0c9e0cef762a7cb35fd3f49248d73397");
+    expect(reviewedBuiltInContractIdentity("x-web", "1.7.0").implementationSha256).toBe(sha256(preimage));
+  });
+
+  test("retains old feed contracts beside new dedicated repost and Story reads", () => {
+    expect(binding.operations.filter(operation => operation.name === "feeds.read")
+      .map(operation => operation.contractVersion)).toEqual([1, 2, 3]);
+    expect(binding.operations.filter(operation => operation.name === "explore.read")
+      .map(operation => operation.contractVersion)).toEqual([1, 2]);
   });
 
   test("keeps the generic Article reservation inert beside the exact private-draft read", () => {

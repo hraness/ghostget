@@ -15,6 +15,7 @@ import archivedXWebPostsPublishV3Manifest from "../../assets/adapters/x/wrench-w
 import archivedXWebArticlesReadV1Manifest from "../../assets/adapters/x/wrench-web-adapter.v1.11.0.json";
 import archivedXWebLongPostPredecessorManifest from "../../assets/adapters/x/wrench-web-adapter.v1.13.0.json";
 import archivedXWebReadV1Manifest from "../../assets/adapters/x/wrench-web-adapter.v1.17.0.json";
+import archivedXWebWorkspaceManifest from "../../assets/adapters/x/wrench-web-adapter.v1.19.0.json";
 import reservedXWebPostsPublishV6Manifest from "../../assets/adapters/x/wrench-web-adapter.v1.18.0.json";
 import archivedXWebContentDeleteV2Manifest from "../../assets/adapters/x/wrench-web-adapter.v1.16.0.json";
 import {
@@ -156,7 +157,7 @@ function xArticleDraftV2Dispatches(
 
 const currentOperations = webSessionContractOperations(
   Object.values(webSessionContractDefinitions.x),
-  "e316ebb6823d4bb582bf663fff77f9e0dcb5e4307dfc13f154e032f5083405e2",
+  "564e1c02870a13559a9198319263dd034d26be987efb9917f96576e71f7aac40",
   {
     "likes.set": [1],
   },
@@ -401,9 +402,28 @@ const archivedXWebReadOperations = archivedReadOperations.map(operation => {
   });
 });
 
+const archivedWorkspaceReadOperations = ([
+  ["feeds.read", 2, "rich bounded timeline/list/search/bookmark, viewer-owned Likes and target-bound current profile replies/highlights queries, preserving full text/entities, media, moderation, promotion and unavailable occurrences"],
+  ["explore.read", 1, "viewer-bound Trending via captured empty-cursor ExplorePage selection and GenericTimelineById, bounded selected trend search through the reviewed SearchTimeline route, and separate fixed Top Stories useStoryTopicQuery news cards; story detail and news pagination remain guarded"],
+] as const).map(([operation, contractVersion, implementation]) => {
+  const contract = reviewedArchivedWebSessionContract(archivedXWebWorkspaceManifest, {
+    adapterId: "x-web", adapterVersion: "1.19.0", site: "x", operation,
+    contractVersion, risk: "R1", state: "observed", implementation,
+  });
+  return Object.freeze({
+    name: contract.operation, contractVersion: contract.contractVersion, risk: contract.risk,
+    input: contract.input, sideEffect: contract.sideEffect, idempotency: contract.idempotency,
+    dedupeWindowMs: contract.dedupeWindowMs, state: contract.state, dispatch: contract.dispatch,
+    implementation: contract.implementation,
+    planDispatches: (input: OperationInput) => planWebSessionContractDispatches(contract, input),
+    validateInput: () => Object.freeze([]),
+  });
+});
+
 const operations = Object.freeze([
   ...currentOperations,
   ...archivedXWebReadOperations,
+  ...archivedWorkspaceReadOperations,
   archivedXWebCaptureRequiredOperation(
     reservedXWebPostsPublishV6Manifest,
     "1.18.0",
@@ -452,7 +472,7 @@ const operations = Object.freeze([
 export const xWebPlugin = defineProviderPlugin({
   apiVersion: 1,
   id: "x-web",
-  version: "1.6.0",
+  version: "1.7.0",
   displayName: "X Authenticated Web",
   sourceKind: "built-in",
   implementationSources: webImplementationSources(import.meta.url, [

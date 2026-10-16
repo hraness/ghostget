@@ -707,9 +707,9 @@ const github = {
 
 const x = {
   "relationships.follow.set": contract("x", "relationships.follow.set", "R2", "capture-required", "fixed numeric-target desired-state follow/unfollow request and independent readback require qualification"),
-  "explore.read": contract("x", "explore.read", "R1", "observed", "viewer-bound Trending via captured empty-cursor ExplorePage selection and GenericTimelineById, bounded selected trend search through the reviewed SearchTimeline route, and separate fixed Top Stories useStoryTopicQuery news cards; story detail and news pagination remain guarded"),
+  "explore.read": contract("x", "explore.read", "R1", "observed", "viewer-bound Trending and fixed Top Stories news cards with account-bound Story selection, exact AiTrend identity echo, first provider-returned post timeline and bound GenericTimelineById continuation; news card pagination remains unavailable", 2),
   "notifications.list": contract("x", "notifications.list", "R1", "observed", "viewer-bound All NotificationsTimeline query with typed events, actor/target references and unknown read state; never invokes the separate last-seen update mutation"),
-  "feeds.read": contract("x", "feeds.read", "R1", "observed", "rich bounded timeline/list/search/bookmark, viewer-owned Likes and target-bound current profile replies/highlights queries, preserving full text/entities, media, moderation, promotion and unavailable occurrences", 2),
+  "feeds.read": contract("x", "feeds.read", "R1", "observed", "rich bounded timeline/list/search/bookmark, viewer-owned Likes and target-bound profile replies/highlights plus dedicated UserRepostsTimeline collection, preserving full text/entities, media, moderation, promotion and unavailable occurrences", 3),
   "profiles.read": contract("x", "profiles.read", "R1", "observed", "target-bound UserByScreenName with rich profile metadata, matching bio entities and exact follower/following counts", 2),
   "contacts.list": contract("x", "contacts.list", "R1", "observed", "viewer-bound Following GET and Followers POST with rich profiles, exact relationship perspectives and unavailable occurrences", 2),
   "posts.read": contract("x", "posts.read", "R1", "observed", "target-bound TweetDetail with full/note text and matching entities, ordered media, bounded quote/repost snapshots and visible labels", 2),
