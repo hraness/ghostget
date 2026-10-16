@@ -185,16 +185,18 @@ test("contact pages never expose a cursor after truncation and project only user
   ), {}, "x-web-contacts/truncated-occurrences");
 });
 
-test("contact unavailable occurrences clear continuation when truncated (CI seed 575818214)", () => {
-  const entries = ["user-0", "user-1"].map(entryId => ({
-    entryId, sortIndex: "100", content: { entryType: "TimelineTimelineItem", itemContent: {
-      itemType: "TimelineUser", user_results: { result: { __typename: "UserUnavailable" } },
-    } },
-  }));
-  const page = projectXWebContactPage("contacts.following", contactsResponse(entries, " "), 1);
-  expect(page.users).toEqual([]);
-  expect(page.profiles).toEqual([]);
-  expect(page.entries).toEqual([{ kind: "unavailable", id: "user-0", postId: null, reason: null }]);
-  expect(page.entriesTruncated).toBeTrue();
-  expect(page.cursor).toBeNull();
+test("contact unavailable occurrences clear continuation when truncated (CI seeds 575818214 and 1090870531)", () => {
+  for (const secondId of ["user-1", "user-2"]) {
+    const entries = ["user-0", secondId].map(entryId => ({
+      entryId, sortIndex: "100", content: { entryType: "TimelineTimelineItem", itemContent: {
+        itemType: "TimelineUser", user_results: { result: { __typename: "UserUnavailable" } },
+      } },
+    }));
+    const page = projectXWebContactPage("contacts.following", contactsResponse(entries, " "), 1);
+    expect(page.users).toEqual([]);
+    expect(page.profiles).toEqual([]);
+    expect(page.entries).toEqual([{ kind: "unavailable", id: "user-0", postId: null, reason: null }]);
+    expect(page.entriesTruncated).toBeTrue();
+    expect(page.cursor).toBeNull();
+  }
 });

@@ -101,7 +101,14 @@
           "seed": 575818214,
           "path": "2:2:1:4:9:12:14:13:15:1:1:10:1:1:6:0:1:4:3",
           "origin": "Required PR #608 run 38931033884 shrank two unavailable user occurrences with limit one; the old property expected continuation despite truncating the additive occurrence view.",
-          "regression": "contact unavailable occurrences clear continuation when truncated (CI seed 575818214)"
+          "regression": "contact unavailable occurrences clear continuation when truncated (CI seeds 575818214 and 1090870531)"
+        },
+        {
+          "kind": "counterexample",
+          "seed": 1090870531,
+          "path": "8:2:1:6:0:1",
+          "origin": "Required PR #608 run 38932528875 independently shrank the same two-unavailable-user truncation with a different second occurrence ID.",
+          "regression": "contact unavailable occurrences clear continuation when truncated (CI seeds 575818214 and 1090870531)"
         }
       ]
     }
