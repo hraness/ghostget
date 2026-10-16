@@ -25,7 +25,8 @@ import type {
 import { OperationDeadlineError } from "../operation-deadline";
 import { deferredXWebWorkspaceRead, xWebWorkspaceReadSupport } from "./x-web-workspace-reads";
 import { buildXWebProfileFeedReadRequest, projectXWebProfileFeedReadPage } from "./x-web-profile-feeds";
-import { buildXWebLikesReadRequest, projectXWebLikesReadPage, buildXWebExplorePageReadRequest, selectXWebTrendingTimeline, buildXWebTrendingReadRequest, projectXWebTrendingReadPage, buildXWebNotificationsReadRequest, projectXWebNotificationsReadPage, buildXWebNewsReadRequest, projectXWebNewsReadPage, parseXWebNewsRelayBundleDescriptors, parseXWebDiscoveryTarget } from "./x-web-captured-reads";
+import { buildXWebStoryReadRequest, selectXWebStoryTimeline, buildXWebStoryTimelineReadRequest, projectXWebStoryReadPage } from "./x-web-story-feeds";
+import { buildXWebLikesReadRequest, projectXWebLikesReadPage, buildXWebExplorePageReadRequest, selectXWebTrendingTimeline, buildXWebTrendingReadRequest, projectXWebTrendingReadPage, buildXWebNotificationsReadRequest, projectXWebNotificationsReadPage, buildXWebNewsReadRequest, projectXWebNewsReadPage, projectXWebNewsStoryCards, parseXWebNewsRelayBundleDescriptors, parseXWebDiscoveryTarget } from "./x-web-captured-reads";
 import {
   canonicalJson,
   isCanonicalJsonText,
@@ -56,7 +57,7 @@ import {
 } from "./read-failure";
 import { scrubXUploadImage } from "./x-image-provenance";
 import { parseXWebMediaInput, readBoundXWebMedia, type XWebMediaType } from "./x-web-media";
-import { executeXWebFollowSet } from "./x-web-social-actions";
+import { executeXWebFollowSet, parseXWebRepostInput, xWebRepostVariables } from "./x-web-social-actions";
 import { hasExactKeys } from "../contracts-shape.js";
 import {
   rejectXTweetMadeWithAiLabel,
@@ -134,6 +135,7 @@ export type XWebRuntimeDependencies = Partial<WebSessionNetworkDependencies>
 
 type XBootstrap = {
   readonly postsPublishContractVersion?: 6;
+  readonly postsRepostContractVersion?: 2;
   readonly auth: GhostgetAuth;
   readonly client: WebSessionClient;
   readonly html: string;
@@ -719,6 +721,8 @@ async function bootstrapX(
     auth,
     ...(recipe.action === "posts.publish" && recipe.contractVersion === 6
       ? { postsPublishContractVersion: 6 as const } : {}),
+    ...(recipe.action === "posts.repost" && recipe.contractVersion === 2
+      ? { postsRepostContractVersion: 2 as const } : {}),
     client,
     html,
     mainUrl,
@@ -962,7 +966,10 @@ async function graphQl(
     mutationBinding = authorizeXWebMutationRequest(
       mutationOperation,
       { url, method, descriptor, ...(body === undefined ? {} : { body }) },
-      bootstrap.postsPublishContractVersion === 6 ? { postsPublishContractVersion: 6 } : {},
+      {
+        ...(bootstrap.postsPublishContractVersion === 6 ? { postsPublishContractVersion: 6 as const } : {}),
+        ...(bootstrap.postsRepostContractVersion === 2 ? { postsRepostContractVersion: 2 as const } : {}),
+      },
     );
   } else if (readOperation === undefined) {
     assertExactXWebGraphQlBinding({ url, method, descriptor, ...(body === undefined ? {} : { body }) });
@@ -1166,12 +1173,12 @@ function assertFeedTargetBound(
 }
 
 async function readFeed(bootstrap: XBootstrap, input: OperationInput, viewer: Viewer): Promise<unknown> {
-  if (input.feed === "user-replies" || input.feed === "user-highlights") {
-    const source = input.feed === "user-replies" ? "profile-replies" : "profile-highlights";
+  if (input.feed === "user-replies" || input.feed === "user-highlights" || input.feed === "user-reposts") {
+    const source = input.feed === "user-replies" ? "profile-replies" : input.feed === "user-highlights" ? "profile-highlights" : "profile-reposts";
     const limit = integerInput(input, "limit", DEFAULT_LIMIT, 1, 50);
     const request = buildXWebProfileFeedReadRequest(source, postId(input.user_id, "input.user_id"), limit,
       optionalStringInput(input, "cursor") ?? null,
-      { withVoice: featureValue(bootstrap, "voice_consumption_enabled"), withCommunity: featureValue(bootstrap, "c9s_enabled") });
+      { withVoice: source === "profile-reposts" ? true : featureValue(bootstrap, "voice_consumption_enabled"), withCommunity: featureValue(bootstrap, "c9s_enabled") });
     const descriptor = await resolveDescriptor(bootstrap, request.operationName, "query");
     const response = await graphQl(bootstrap, descriptor, request.variables, request.method, request.operationId);
     return projectXWebProfileFeedReadPage(response, request.variables.userId, source, limit);
@@ -3651,9 +3658,11 @@ async function executeDesiredState(
     : kind === "bookmark"
       ? enabled ? "CreateBookmark" : "DeleteBookmark"
       : enabled ? "CreateRetweet" : "DeleteRetweet";
-  const variables = kind === "repost" && !enabled
-    ? { source_tweet_id: id, dark_request: false }
-    : kind === "repost" ? { tweet_id: id, dark_request: false } : { tweet_id: id };
+  // The archived @1 request retains its original shape; only the explicit
+  // guarded @2 branch consumes the current ordinary-target variables.
+  const variables = kind !== "repost" ? { tweet_id: id }
+    : recipe.contractVersion === 2 ? xWebRepostVariables({ post_id: id, reposted: enabled })
+      : enabled ? { tweet_id: id, dark_request: false } : { source_tweet_id: id, dark_request: false };
   let started = 0;
   let verified = 0;
   try {
@@ -3733,9 +3742,19 @@ export async function executeXWebOperation(
     readonly dependencies?: XWebRuntimeDependencies;
   } = {},
 ): Promise<WebSessionExecution> {
-  // A bundle name or a UI route is not qualification. Refuse these proposed
-  // reads before acquiring auth, resolving bundles, or starting a browser.
+  // Close source-specific inputs and contract versions before acquiring auth,
+  // resolving bundles, or starting a browser.
+  if (recipe.action === "posts.repost") {
+    if (recipe.contractVersion !== 1 && recipe.contractVersion !== 2) {
+      throw new Error("X repost changes support only posts.repost@1 or the guarded posts.repost@2");
+    }
+    if (recipe.contractVersion === 2) parseXWebRepostInput(input);
+  }
   const deferredRead = deferredXWebWorkspaceRead(recipe.action, input);
+  if (recipe.action === "feeds.read" && input.feed === "user-reposts" && recipe.contractVersion !== 3
+    || recipe.action === "explore.read" && input.source === "today-news" && input.target !== undefined && recipe.contractVersion !== 2) {
+    throw new Error("X selected collection requires its current versioned read contract");
+  }
   if (deferredRead !== null && !xWebWorkspaceReadSupport[deferredRead.surface]) {
     return {
       status: "failed", output: null, finalUrl: null,
@@ -3828,10 +3847,23 @@ export async function executeXWebOperation(
   }
   if (recipe.action === "explore.read" && input.source === "today-news") {
     const viewer = await requireBoundViewer(bootstrap, auth);
+    if (deferredRead?.target !== null && deferredRead?.target !== undefined) {
+      const target = parseXWebDiscoveryTarget(JSON.parse(deferredRead.target) as unknown);
+      const story = buildXWebStoryReadRequest(viewer.id, target.value);
+      const storyDescriptor = await resolveDescriptor(bootstrap, story.operationName, "query");
+      const storyResponse = await graphQl(bootstrap, storyDescriptor, story.variables, story.method, story.operationId);
+      const selected = selectXWebStoryTimeline(storyResponse, viewer.id, target.value);
+      const request = buildXWebStoryTimelineReadRequest(selected, deferredRead.limit, deferredRead.cursor);
+      const descriptor = await resolveDescriptor(bootstrap, request.operationName, "query");
+      const response = await graphQl(bootstrap, descriptor, request.variables, request.method, request.operationId);
+      return { status: "succeeded", output: projectXWebStoryReadPage(response, selected, deferredRead.limit),
+        finalUrl: `${X_ORIGIN}/i/trending/${encodeURIComponent(target.value)}`, dispatchStarted: false,
+        dispatch: { planned: 0, started: 0, verified: 0 } };
+    }
     const request = buildXWebNewsReadRequest(viewer.id);
     const descriptor = await resolveDescriptor(bootstrap, request.operationName, "query");
     const response = await graphQl(bootstrap, descriptor, request.variables, request.method, request.operationId);
-    return { status: "succeeded", output: projectXWebNewsReadPage(response, viewer.id, deferredRead!.limit),
+    return { status: "succeeded", output: (recipe.contractVersion === 2 ? projectXWebNewsStoryCards : projectXWebNewsReadPage)(response, viewer.id, deferredRead!.limit),
       finalUrl: `${X_ORIGIN}/explore`, dispatchStarted: false, dispatch: { planned: 0, started: 0, verified: 0 } };
   }
   if (recipe.action === "notifications.list") {

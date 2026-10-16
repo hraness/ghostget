@@ -16,6 +16,7 @@ import {
   buildXWebNewsReadRequest,
   parseXWebNewsRelayBundleDescriptors,
   projectXWebNewsReadPage,
+  projectXWebNewsStoryCards,
 } from "./x-web-captured-reads";
 import { authorizeXWebR1GraphQlRequest } from "./x-web";
 
@@ -95,6 +96,20 @@ describe("reviewed NewsSidebar Relay shape", () => {
     expect(() => projectXWebNewsReadPage({ ...newsResponse(), errors: [{ message: "rejected" }] }, "123", 20)).toThrow("GraphQL errors");
     expect(() => projectXWebNewsReadPage({ data: { explore_sidebar: {} } }, "123", 20)).toThrow();
     expect(() => projectXWebNewsReadPage(newsResponse(...Array.from({ length: 101 }, () => newsStory())), "123", 20)).toThrow("array");
+  });
+
+  test("adds provider-owned Story targets only to current News cards", () => {
+    const response = newsResponse(newsStory("story-fixture_1"));
+    const legacy = projectXWebNewsReadPage(response, "123", 20);
+    const current = projectXWebNewsStoryCards(response, "123", 20);
+    const legacyCard = legacy.entries[0];
+    if (legacyCard?.kind !== "trend") throw new Error("Fixture omitted its News card");
+    expect(legacy.entries[0]).not.toHaveProperty("target");
+    expect(current.entries[0]).toEqual({ ...legacyCard, target: { source: "today-news", kind: "story", value: "story-fixture_1" } });
+    expect(current).toEqual({ ...legacy, entries: current.entries });
+    for (const id of ["bad/story", "story space", "x".repeat(513)]) {
+      expect(() => projectXWebNewsStoryCards(newsResponse(newsStory(id)), "123", 20)).toThrow();
+    }
   });
 });
 

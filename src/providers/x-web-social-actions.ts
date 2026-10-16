@@ -2,6 +2,7 @@ import { hasExactKeys } from "../contracts-shape";
 import type { WebSessionDispatchEvent, WebSessionExecution } from "../web-session-execution";
 
 export type XWebFollowInput = Readonly<{ user_id: string; following: boolean }>;
+export type XWebRepostInput = Readonly<{ post_id: string; reposted: boolean }>;
 export type XWebFollowingState = Readonly<{ userId: string; following: boolean; followRequestSent: boolean | null }>;
 
 function record(value: unknown, label: string): Record<string, unknown> {
@@ -9,9 +10,13 @@ function record(value: unknown, label: string): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-function userId(value: unknown): string {
-  if (typeof value !== "string" || !/^[0-9]{1,19}$/u.test(value)) throw new Error("X follow target must be one exact user ID");
+function numericTarget(value: unknown, label: string): string {
+  if (typeof value !== "string" || !/^[0-9]{1,19}$/u.test(value)) throw new Error(`${label} must be one exact numeric ID`);
   return value;
+}
+
+function userId(value: unknown): string {
+  return numericTarget(value, "X follow target");
 }
 
 export function parseXWebFollowInput(value: unknown): XWebFollowInput {
@@ -21,6 +26,23 @@ export function parseXWebFollowInput(value: unknown): XWebFollowInput {
   }
   return Object.freeze({ user_id: userId(input.user_id), following: input.following });
 }
+
+// Frontend main.3999c6d7f4dbb6c7a.js, module 825369: these are fixed
+// response-projection fields for an ordinary numeric-target relationship change.
+const FOLLOW_RESPONSE_FIELDS = Object.freeze({
+  include_profile_interstitial_type: "1",
+  include_blocking: "1",
+  include_blocked_by: "1",
+  include_followed_by: "1",
+  include_want_retweets: "1",
+  include_mute_edge: "1",
+  include_can_dm: "1",
+  include_can_media_tag: "1",
+  include_ext_is_blue_verified: "1",
+  include_ext_verified_type: "1",
+  include_ext_profile_image_shape: "1",
+  skip_status: "1",
+});
 
 /** Pure request description. This is not evidence that the route is currently observed. */
 export function xWebFollowRequest(value: unknown): Readonly<{
@@ -33,7 +55,23 @@ export function xWebFollowRequest(value: unknown): Readonly<{
   const input = parseXWebFollowInput(value);
   return Object.freeze({ method: "POST", origin: "https://x.com",
     pathname: input.following ? "/i/api/1.1/friendships/create.json" : "/i/api/1.1/friendships/destroy.json",
-    contentType: "application/x-www-form-urlencoded", body: new URLSearchParams({ user_id: input.user_id }).toString() });
+    contentType: "application/x-www-form-urlencoded", body: new URLSearchParams({ ...FOLLOW_RESPONSE_FIELDS, user_id: input.user_id }).toString() });
+}
+
+export function parseXWebRepostInput(value: unknown): XWebRepostInput {
+  const input = record(value, "X repost input");
+  if (!hasExactKeys(input, ["post_id", "reposted"]) || typeof input.reposted !== "boolean") {
+    throw new Error("X repost input requires only post_id and reposted");
+  }
+  return Object.freeze({ post_id: numericTarget(input.post_id, "X repost target"), reposted: input.reposted });
+}
+
+/** Ordinary-target variables only; promoted engagement metadata has separate authority. */
+export function xWebRepostVariables(value: unknown): Readonly<{ tweet_id: string } | { source_tweet_id: string }> {
+  const input = parseXWebRepostInput(value);
+  // Frontend main.3999c6d7f4dbb6c7a.js, module 950231. Neither route
+  // includes the historical dark_request field. This does not activate a route.
+  return input.reposted ? Object.freeze({ tweet_id: input.post_id }) : Object.freeze({ source_tweet_id: input.post_id });
 }
 
 function flag(value: unknown, label: string): boolean | null {
@@ -98,6 +136,7 @@ export async function executeXWebFollowSet(inputValue: unknown, ports: XWebFollo
   const input = parseXWebFollowInput(inputValue);
   let started = 0;
   let verified = 0;
+  let admissionAttempted = false;
   const finalUrl = `https://x.com/i/user/${input.user_id}`;
   const event = (start: number, complete: number): WebSessionDispatchEvent => ({ id: "relationships.follow.set", index: 1,
     progress: { planned: 1, started: start, verified: complete } });
@@ -113,6 +152,8 @@ export async function executeXWebFollowSet(inputValue: unknown, ports: XWebFollo
     // Reissuing a follow while a protected-account request is pending is not a new confirmed action.
     if (input.following && initial.followRequestSent === true) throw new Error("X follow request is already pending");
     const response = await ports.mutate(xWebFollowRequest(input), async () => {
+      if (admissionAttempted) throw new Error("X follow dispatch admission cannot be repeated");
+      admissionAttempted = true;
       if (userId(await ports.requireViewer()) !== actor) throw new Error("X follow actor changed before dispatch");
       await callbacks.beforeDispatch?.(event(0, 0));
       started = 1;

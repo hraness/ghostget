@@ -20,7 +20,7 @@ function page(source: string, items: readonly unknown[]) {
 }
 
 describe("X workspace read qualification", () => {
-  test("new sources remain distinct and unavailable until captured; reposts is a supported filtered view", () => {
+  test("reviewed workspace sources remain distinct", () => {
     expect(xWebWorkspaceReadSupport["profile-reposts"]).toBeTrue();
     expect(xWebWorkspaceReadSupport.likes).toBeTrue();
     expect(xWebWorkspaceReadSupport.trending).toBeTrue();
@@ -36,6 +36,7 @@ describe("X workspace read qualification", () => {
     expect(deferredXWebWorkspaceRead("feeds.read", { feed: "user-replies", user_id: "123", limit: 50, cursor: "next" }))
       .toEqual({ surface: "profile-replies", target: "123", limit: 50, cursor: "next" });
     expect(deferredXWebWorkspaceRead("feeds.read", { feed: "user-highlights", user_id: "123" })?.surface).toBe("profile-highlights");
+    expect(deferredXWebWorkspaceRead("feeds.read", { feed: "user-reposts", user_id: "123" })?.surface).toBe("profile-reposts");
     expect(deferredXWebWorkspaceRead("feeds.read", { feed: "likes" })?.target).toBeNull();
     expect(deferredXWebWorkspaceRead("notifications.list", {})?.surface).toBe("notifications");
     expect(deferredXWebWorkspaceRead("explore.read", { source: "today-news" })?.surface).toBe("today-news");
@@ -44,7 +45,7 @@ describe("X workspace read qualification", () => {
   });
 
   test("rejects unbound/private targets, guessed discovery sources, extra fields, and unbounded paging", () => {
-    for (const input of [{ feed: "user-replies" }, { feed: "user-highlights", user_id: "@fixture" }, { feed: "likes", user_id: "123" }, { feed: "likes", query: "guessed" }]) {
+    for (const input of [{ feed: "user-replies" }, { feed: "user-reposts" }, { feed: "user-reposts", user_id: "@fixture" }, { feed: "user-reposts", user_id: "123", sort: "latest" }, { feed: "user-highlights", user_id: "@fixture" }, { feed: "likes", user_id: "123" }, { feed: "likes", query: "guessed" }]) {
       expect(() => deferredXWebWorkspaceRead("feeds.read", input)).toThrow();
     }
     for (const input of [{ source: "todays-news" }, { source: "trending", limit: 51 }, { source: "trending", cursor: "" }, { source: "trending", cursor: "x".repeat(4_097) }, { source: "trending", limit: 1.5 }, { source: "trending", target: "bad\nvalue" }]) {
@@ -58,6 +59,12 @@ describe("X workspace read qualification", () => {
     expect(deferredXWebWorkspaceRead("explore.read", { source: "trending", target })?.target).toBe(target);
     for (const input of [{ source: "today-news", target }, { source: "today-news", cursor: "next" }]) {
       expect(() => deferredXWebWorkspaceRead("explore.read", input)).toThrow();
+    }
+    const storyTarget = '{"kind":"story","source":"today-news","value":"story-fixture_1"}';
+    expect(deferredXWebWorkspaceRead("explore.read", { source: "today-news", target: storyTarget, cursor: "bounded-continuation" }))
+      .toEqual({ surface: "today-news", target: storyTarget, limit: 20, cursor: "bounded-continuation" });
+    for (const value of ["", "provider/story", "story with spaces", "x".repeat(513)]) {
+      expect(() => deferredXWebWorkspaceRead("explore.read", { source: "today-news", target: JSON.stringify({ kind: "story", source: "today-news", value }) })).toThrow();
     }
   });
 });

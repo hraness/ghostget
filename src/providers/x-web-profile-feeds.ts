@@ -1,9 +1,9 @@
 import { assertXWebContactsTargetBound, projectXWebFeedPage, type XWebFeedPage } from "./x-web";
 
-export type XWebProfileFeedSource = "profile-replies" | "profile-highlights";
+export type XWebProfileFeedSource = "profile-replies" | "profile-highlights" | "profile-reposts";
 export type XWebProfileFeedReadRequest = {
-  readonly operationId: "feeds.user-replies" | "feeds.user-highlights";
-  readonly operationName: "UserRepliesTimeline" | "UserHighlightsTweets";
+  readonly operationId: "feeds.user-replies" | "feeds.user-highlights" | "feeds.user-reposts";
+  readonly operationName: "UserRepliesTimeline" | "UserHighlightsTweets" | "UserRepostsTimeline";
   readonly method: "GET";
   readonly variables: Readonly<{
     userId: string;
@@ -18,6 +18,7 @@ export type XWebProfileFeedReadRequest = {
 function route(source: XWebProfileFeedSource) {
   if (source === "profile-replies") return { operationId: "feeds.user-replies", operationName: "UserRepliesTimeline" } as const;
   if (source === "profile-highlights") return { operationId: "feeds.user-highlights", operationName: "UserHighlightsTweets" } as const;
+  if (source === "profile-reposts") return { operationId: "feeds.user-reposts", operationName: "UserRepostsTimeline" } as const;
   throw new Error("X profile feed source is unsupported");
 }
 function target(value: unknown): string {
@@ -51,6 +52,7 @@ export function buildXWebProfileFeedReadRequest(
     || typeof flags.withVoice !== "boolean" || typeof flags.withCommunity !== "boolean") {
     throw new Error("X profile feed flags must be the exact reviewed booleans");
   }
+  if (source === "profile-reposts" && flags.withVoice !== true) throw new Error("X repost feed requires the reviewed withVoice flag");
   return Object.freeze({ ...selected, method: "GET", variables: Object.freeze({
     userId, count, includePromotedContent: true, withVoice: flags.withVoice,
     ...(source === "profile-replies" ? { withCommunity: flags.withCommunity } : {}),

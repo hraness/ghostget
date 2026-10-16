@@ -452,6 +452,40 @@ describe("derive browser command grammar", () => {
     expect(derivationPolicyActions(true, true)).toContain("cdp_url");
   });
 
+  test.each([
+    [false, false],
+    [true, false],
+    [true, true],
+  ] as const)("authorizes normalized snapshot text reads without widening get actions (%s, %s)", (allowRemoteActions, allowFixtureUpload) => {
+    const policy = derivationActionPolicy(allowRemoteActions, allowFixtureUpload);
+    expect(() => validateDerivationBrowserCommand(
+      { allowRemoteActions, targetOrigin },
+      ["get", "text", "@e7"],
+    )).not.toThrow();
+    // agent-browser normalizes the already-supported `get text` command to
+    // `gettext`; authorizing only `get` or `text` does not admit that action.
+    expect(policy.allow).toContain("gettext");
+    expect(policy.confirm).not.toContain("gettext");
+    expect(policy.default).toBe("deny");
+    expect(policy.allow.filter((action) => action.startsWith("get")).sort()).toEqual([
+      "get", "getattribute", "getbyalttext", "getbylabel", "getbyplaceholder",
+      "getbyrole", "getbytestid", "getbytext", "getbytitle", "gettext",
+    ]);
+    expect(policy.allow.some((action) => action.includes("*"))).toBeFalse();
+    for (const command of [
+      ["get", "cookies", "@e7"],
+      ["get", "storage", "@e7"],
+      ["gettext", "@e7"],
+      ["get", "text", "body"],
+      ["get", "text", "@e7", "extra"],
+    ]) {
+      expect(() => validateDerivationBrowserCommand(
+        { allowRemoteActions, targetOrigin },
+        command,
+      )).toThrow();
+    }
+  });
+
   test("permits only start-bound fixture references for upload", () => {
     expect(() => validateDerivationBrowserCommand(
       fixtureActionPolicy,

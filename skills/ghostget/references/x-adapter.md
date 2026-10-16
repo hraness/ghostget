@@ -141,11 +141,11 @@ Before private reads or mutations, resolve the current stable X user ID through 
 The current registry marks these code-owned reads observed:
 
 - `profiles.read@2`: one exact profile with handle, display name, bio, location, join date, verification, and exact follower/following counts when the provider supplies them;
-- `feeds.read@2`: one bounded For You, Following, user, List, search, bookmarks, or current-viewer likes page; bookmarks pages also emit stable `items` keyed by `post_id`;
+- `feeds.read@3`: one bounded For You, Following, user, profile replies, profile highlights, profile reposts, List, search, bookmarks, or current-viewer likes page; bookmarks pages also emit stable `items` keyed by `post_id`;
 - `contacts.list`: one bounded viewer-bound page of the signed-in account's own `following` or `followers` collection through the current first-party GraphQL queries;
 - `posts.read`: one exact post through the current TweetDetail query;
 - `comments.read`: one bounded TweetDetail conversation/reply page;
-- `explore.read`: Trending cards and their selected post search, or a separate Today's News card list;
+- `explore.read@2`: Trending cards and their selected post search, or a separate Today's News card list and selected story feed;
 - `notifications.list`: one bounded All notifications page without acknowledging notifications or updating last-seen state;
 - `articles.read@2`: one exact current-viewer-owned private Article Draft.
 
@@ -156,16 +156,19 @@ observed `feeds.read` contract; check `ghostget capabilities x-web --json` for t
 installed input schema and let current preflight fail closed on revision drift.
 
 Live semantic reads have also verified likes, profile replies and highlights,
-Trending cards and a selected trend’s posts, Today’s News cards, and
-notifications. These routes retain reviewed first-party source and deterministic
-projection tests. Installed native-app provider qualification remains separate.
-Today’s News returns the personalized initial card list;
-opening an individual news story and news pagination remain unavailable.
+Trending cards and a selected trend’s posts, Today’s News cards and a selected
+story’s initial and continuation pages, the dedicated profile repost timeline
+and its continuation, and notifications. These routes retain reviewed
+first-party source and deterministic projection tests. Installed native-app
+provider qualification remains separate. Today’s News returns the personalized
+initial card list. Select an exact returned story target to read its posts;
+continuation rechecks that story and its provider-selected timeline. Card-list
+pagination remains unavailable.
 Profile replies and highlights use the fixed `UserRepliesTimeline` and
 `UserHighlightsTweets` readers with at most 50 entries per page. Each request
 binds an exact profile ID; conversation parents may have other authors. A
-repost-only view derived from a profile page is a filtered page, with no
-complete repost collection claim.
+profile repost page uses the dedicated `UserRepostsTimeline`; it does not filter
+the ordinary profile-post timeline. Both views report bounded page completeness.
 
 The version-two post and feed projections retain note text with matching
 UTF-16 mention, hashtag, cashtag, and link ranges, ordered media, bounded quote

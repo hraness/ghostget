@@ -100,10 +100,13 @@ const predecessorXReaders = [
   "03d906c92bfb5c30eb2d66e161ec67f7a081efa75e2a210a62b117df70b2af00",
   "54589eaf65c7de95442dcff6a81327d0a32ec38f58560769e7b807519db10eeb",
 ];
-const currentOnlyXCoordinates = new Set([
+const workspaceXCoordinates = new Set([
   "relationships.follow.set@1", "explore.read@1", "notifications.list@1",
   "feeds.read@2", "profiles.read@2", "contacts.list@2", "posts.read@2",
   "comments.read@2", "posts.publish@6",
+]);
+const currentOnlyXCoordinates = new Set([
+  ...workspaceXCoordinates, "feeds.read@3", "explore.read@2",
 ]);
 let acceptedLegacy = true;
 let rejectedUnknown = true;
@@ -377,12 +380,29 @@ for (const [operation, version, adapterVersion] of [
 }
 predecessorXCoordinates.add("likes.set@1");
 const predecessorXAliases = [...new Set([predecessorXWriter, ...predecessorXReaders])].sort();
+const workspaceXWriter = "0ebaf735cda26b2f42eb54951d92cf6694dcca2d6232349d26a3bfdf4153d0c4";
+const workspaceXManifest = (await import(${JSON.stringify(moduleUrl("assets/adapters/x/wrench-web-adapter.v1.19.0.json"))})).default;
+const workspaceDistributionCoordinates = new Set([
+  ...predecessorXCoordinates,
+  ...Object.entries(workspaceXManifest.operations).map(([name, operation]) => name + "@" + operation.webSession.contractVersion),
+]);
+const workspaceReservedManifest = (await import(${JSON.stringify(moduleUrl("assets/adapters/x/wrench-web-adapter.v1.18.0.json"))})).default;
+if (workspaceReservedManifest.operations["posts.publish"].webSession.contractVersion !== 6) {
+  throw new Error("X workspace archive changed the reserved media route");
+}
+workspaceDistributionCoordinates.add("posts.publish@6");
+if (workspaceDistributionCoordinates.size !== 37 || [...workspaceXCoordinates].some(coordinate => !workspaceDistributionCoordinates.has(coordinate))) {
+  throw new Error("X workspace archive changed its frozen route scope");
+}
 const xBinding = registry.resolveSessionRoute("x");
 if (xBinding === undefined) throw new Error("X binding is missing");
 let priorXRoutes = 0;
 let addedXRoutes = 0;
+let workspaceXRoutes = 0;
 let preservedXAliases = true;
+let preservedWorkspaceAliases = true;
 let rejectedAddedXAliases = true;
+const workspaceReceiptRows = [];
 for (const operation of xBinding.operations) {
   for (const contractVersion of operation.contractVersions) {
     const coordinate = operation.name + "@" + contractVersion;
@@ -394,22 +414,34 @@ for (const operation of xBinding.operations) {
     }, registry);
     if (predecessorXCoordinates.has(coordinate)) {
       priorXRoutes++;
-      preservedXAliases &&= JSON.stringify(aliases) === JSON.stringify(predecessorXAliases);
+      preservedXAliases &&= JSON.stringify(aliases) === JSON.stringify([...predecessorXAliases, workspaceXWriter].sort());
       preservedXAliases &&= predecessorXAliases.every(hash =>
         webContracts.isCompatibleWebSessionContractHash(contract, legacyHash(contract, Buffer.from(hash, "hex"), true), registry));
+    } else if (workspaceDistributionCoordinates.has(coordinate)) {
+      workspaceXRoutes++;
+      preservedWorkspaceAliases &&= JSON.stringify(aliases) === JSON.stringify([workspaceXWriter]);
+      preservedWorkspaceAliases &&= predecessorXAliases.every(hash =>
+        !webContracts.isCompatibleWebSessionContractHash(contract, legacyHash(contract, Buffer.from(hash, "hex"), true), registry));
     } else if (currentOnlyXCoordinates.has(coordinate)) {
       addedXRoutes++;
       rejectedAddedXAliases &&= aliases.length === 0;
-      rejectedAddedXAliases &&= predecessorXAliases.every(hash =>
+      rejectedAddedXAliases &&= [...predecessorXAliases, workspaceXWriter].every(hash =>
         !webContracts.isCompatibleWebSessionContractHash(contract, legacyHash(contract, Buffer.from(hash, "hex"), true), registry));
     } else {
       throw new Error("X contract route lies outside the frozen predecessor and workspace inventories");
     }
+    if (workspaceDistributionCoordinates.has(coordinate)) {
+      workspaceReceiptRows.push([operation.name, contractVersion,
+        legacyHash(contract, Buffer.from(workspaceXWriter, "hex"), true)]);
+      preservedWorkspaceAliases &&= webContracts.isCompatibleWebSessionContractHash(contract,
+        legacyHash(contract, Buffer.from(workspaceXWriter, "hex"), true), registry);
+    }
   }
 }
-if (priorXRoutes !== predecessorXCoordinates.size || addedXRoutes !== currentOnlyXCoordinates.size) {
+if (priorXRoutes !== predecessorXCoordinates.size || workspaceXRoutes !== workspaceXCoordinates.size || addedXRoutes !== 2) {
   throw new Error("X contract inventory omitted a frozen predecessor or workspace route");
 }
+workspaceReceiptRows.sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
 process.stdout.write(JSON.stringify({
   rows: rows.length,
   sha256: createHash("sha256").update(JSON.stringify(rows)).digest("hex"),
@@ -423,7 +455,8 @@ process.stdout.write(JSON.stringify({
   ),
   acceptedLegacy,
   rejectedUnknown,
-  xCompatibilityScope: { priorRoutes: priorXRoutes, addedRoutes: addedXRoutes, preservedAliases: preservedXAliases, rejectedAddedAliases: rejectedAddedXAliases },
+  workspaceReceiptSha256: createHash("sha256").update(JSON.stringify(workspaceReceiptRows)).digest("hex"),
+  xCompatibilityScope: { priorRoutes: priorXRoutes, workspaceRoutes: workspaceXRoutes, addedRoutes: addedXRoutes, preservedAliases: preservedXAliases, preservedWorkspaceAliases, rejectedAddedAliases: rejectedAddedXAliases },
 }));
 `;
 
@@ -464,8 +497,8 @@ describe("durable provider contract inventory", () => {
       expect(inventory).toEqual({
         rows: 326,
         sha256: predecessorDefaultInventorySha256,
-        currentOnlyRows: 103,
-        currentOnlySha256: "2fe99dfdb7ac16e2c40bf3d832fa9d955363a5fbb75ba31603135106d3857607",
+        currentOnlyRows: 105,
+        currentOnlySha256: "430956e5ce5c98ff9cc78e883142d2a7139d58c1792b88bd197e12a79eff5c46",
         automationRows: [
           ["linked-device", "whatsapp", "messaging.automation.read", 1],
           ["linked-device", "whatsapp", "messaging.automation.send.attachment", 1],
@@ -511,7 +544,8 @@ describe("durable provider contract inventory", () => {
         legacySha256: predecessorLegacyInventorySha256,
         acceptedLegacy: true,
         rejectedUnknown: true,
-        xCompatibilityScope: { priorRoutes: 28, addedRoutes: 9, preservedAliases: true, rejectedAddedAliases: true },
+        workspaceReceiptSha256: "87a15c724ac91e20d6750e61979bbb48c9dc965ccdb2689e805479e8a9cf6364",
+        xCompatibilityScope: { priorRoutes: 28, workspaceRoutes: 9, addedRoutes: 2, preservedAliases: true, preservedWorkspaceAliases: true, rejectedAddedAliases: true },
       });
     }
   });

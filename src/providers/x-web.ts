@@ -293,6 +293,8 @@ export const xWebQueryDescriptorEvidenceSnapshot = Object.freeze({
   currentBundleResolutionRequired: true,
   mainBundleUrl: "https://abs.twimg.com/responsive-web/client-web/main.ec728870257106e0a.js",
   descriptors: Object.freeze([
+    { operationName: "AiTrendByRestId", operationType: "query", queryId: "70JIli1rci1EkuMbkjGBiw", sourceChunk: "bundle.LiveEvent.89ae81aae8f315c1a.js", observedOn: "2026-10-16", metadataSha256: "bb5e9f10943b8dc5298e58304ddda51a09f747d5f22815ac395da6dfa8dc7604" },
+    { operationName: "UserRepostsTimeline", operationType: "query", queryId: "jVw4ob-dDfVzoaz2G6NpVA", sourceChunk: "main.3d37ce891242075fa.js", observedOn: "2026-10-16", metadataSha256: "e100273168465653ceafeaff394ca1e2b7236d5d2cbea9238ce39c572d62ceaf" },
     { operationName: "useStoryTopicQuery", operationType: "query", queryId: "I3V_Tt32aTZdw7cBdKUJbg", sourceChunk: "loader.NewsSidebar.8f265480c1cb63dda.js", observedOn: "2026-10-16", metadataSha256: "643d5437104296e21d906ecb15b2c96ad278f20cfc4af53b12bb6069bd853726" },
     { operationName: "ExplorePage", operationType: "query", queryId: "BMib5Px-wibex8mYlOUhmQ", sourceChunk: "main.3d37ce891242075fa.js", observedOn: "2026-10-16", metadataSha256: "e100273168465653ceafeaff394ca1e2b7236d5d2cbea9238ce39c572d62ceaf" },
     { operationName: "GenericTimelineById", operationType: "query", queryId: "cW93hZ3nlNYbYcUROF5r5A", sourceChunk: "main.3d37ce891242075fa.js", observedOn: "2026-10-16", metadataSha256: "e100273168465653ceafeaff394ca1e2b7236d5d2cbea9238ce39c572d62ceaf" },
@@ -370,6 +372,7 @@ export type XWebSemanticOperationDefinition =
   | XWebDesiredStateDefinition;
 
 export const xWebSemanticOperationRegistry = Object.freeze({
+  "explore.story": { semanticOperation: "explore.read", risk: "R1", transport: "graphql-query", operationName: "AiTrendByRestId", operationType: "query", responseRoot: ["ai_trend_by_rest_id", "result"] },
   "explore.news": { semanticOperation: "explore.read", risk: "R1", transport: "graphql-query", operationName: "useStoryTopicQuery", operationType: "query", responseRoot: ["story_topic"] },
   "explore.page": { semanticOperation: "explore.read", risk: "R1", transport: "graphql-query", operationName: "ExplorePage", operationType: "query", responseRoot: ["explore_page"] },
   "explore.timeline": { semanticOperation: "explore.read", risk: "R1", transport: "graphql-query", operationName: "GenericTimelineById", operationType: "query", responseRoot: ["timeline", "timeline"] },
@@ -391,6 +394,7 @@ export const xWebSemanticOperationRegistry = Object.freeze({
   "posts.by-ids": { semanticOperation: "posts.read", risk: "R1", transport: "graphql-query", operationName: "TweetResultsByRestIds", operationType: "query", responseRoot: ["tweetResult"] },
   "feeds.user-replies": { semanticOperation: "feeds.read", risk: "R1", transport: "graphql-query", operationName: "UserRepliesTimeline", operationType: "query", responseRoot: ["user", "result", "timeline", "timeline"] },
   "feeds.user-highlights": { semanticOperation: "feeds.read", risk: "R1", transport: "graphql-query", operationName: "UserHighlightsTweets", operationType: "query", responseRoot: ["user", "result", "timeline", "timeline"] },
+  "feeds.user-reposts": { semanticOperation: "feeds.read", risk: "R1", transport: "graphql-query", operationName: "UserRepostsTimeline", operationType: "query", responseRoot: ["user", "result", "timeline", "timeline"] },
   "feeds.user": { semanticOperation: "feeds.read", risk: "R1", transport: "graphql-query", operationName: "UserTweets", operationType: "query", responseRoot: ["user", "result", "timeline", "timeline"] },
   "messaging.primary": { semanticOperation: "messaging.list", risk: "R1", transport: "legacy-dm-read", inbox: "primary" },
   "messaging.requests": { semanticOperation: "messaging.list", risk: "R1", transport: "legacy-dm-read", inbox: "requests" },
@@ -823,12 +827,12 @@ function validateDeleteTweetVariables(variables: JsonRecord): void {
   if (variables.dark_request !== false) throw new Error("X content.delete dark_request must be false");
 }
 
-function validateDesiredStateVariables(operationId: XWebMutationOperationId, variables: JsonRecord): void {
+function validateDesiredStateVariables(operationId: XWebMutationOperationId, variables: JsonRecord, repostContractVersion: 1 | 2 = 1): void {
   if (operationId.startsWith("reposts.")) {
     const key = operationId === "reposts.enable" ? "tweet_id" : "source_tweet_id";
-    exactMutationKeys(variables, [key, "dark_request"], `X ${operationId} variables`);
+    exactMutationKeys(variables, repostContractVersion === 2 ? [key] : [key, "dark_request"], `X ${operationId} variables`);
     exactMutationPostId(variables[key], `X ${operationId} target`);
-    if (variables.dark_request !== false) throw new Error(`X ${operationId} dark_request must be false`);
+    if (repostContractVersion === 1 && variables.dark_request !== false) throw new Error(`X ${operationId} dark_request must be false`);
     return;
   }
   exactMutationKeys(variables, ["tweet_id"], `X ${operationId} variables`);
@@ -1045,7 +1049,7 @@ function validateRichArticleUpdateVariables(operationId: XWebMutationOperationId
 export function authorizeXWebMutationRequest(
   operationId: XWebMutationOperationId,
   input: XWebGraphQlBindingInput,
-  options: { readonly postsPublishContractVersion?: 6 } = {},
+  options: { readonly postsPublishContractVersion?: 6; readonly postsRepostContractVersion?: 2 } = {},
 ): XWebGraphQlBinding {
   const expectedName = mutationOperationNames[operationId];
   if (expectedName === undefined) throw new Error("X mutation operation is not allowlisted");
@@ -1069,7 +1073,7 @@ export function authorizeXWebMutationRequest(
     validateRichArticleUpdateVariables(operationId, variables);
   }
   else if (operationId === "content.delete") validateDeleteTweetVariables(variables);
-  else validateDesiredStateVariables(operationId, variables);
+  else validateDesiredStateVariables(operationId, variables, options.postsRepostContractVersion === 2 ? 2 : 1);
   exactBooleanMap(body.features, descriptor.metadata.featureSwitches, `X ${operationId} features`);
   if (descriptor.metadata.fieldToggles.length > 0) {
     exactBooleanMap(body.fieldToggles, descriptor.metadata.fieldToggles, `X ${operationId} fieldToggles`);

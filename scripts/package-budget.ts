@@ -2615,17 +2615,28 @@
 // Retain the existing allowances: 12,428,684 + 12,387 + 4,096 = 12,445,167
 // packed; 25,393,429 + 353 + 1,656 = 25,395,438 unpacked. Source CI and the
 // canonical Release independently measure and admit their exact archives.
+// Story/repost reads and conditional native adapter upgrades add exactly three
+// packed source entries: the Story reader, archived v1.19 adapter, and app-host
+// adapter upgrader. Two fresh Git-archive snapshots of source commit
+// 855aa0b82e7424d4678e21c4a0d7b3c918522bd9 (including committed dist) packed
+// independently with npm 11.19.0 / Node 24.20.0 / zlib 1.2.12 on darwin arm64:
+// 12,438,651 compressed / 25,442,947 payload bytes, 696 files/entries; SHA-256
+// d43a8bf4ea79d40c4908f2a3f8d5cf565124c7b55292571b725911c65af20787.
+// Every archived payload byte and mode matched its exact Git source snapshot.
+// Preserve all prior allowances: 12,438,651 + 12,387 + 4,096 = 12,455,134 packed;
+// 25,442,947 + 353 + 1,656 = 25,444,956 unpacked. CI and canonical Release
+// independently measure and admit their actual platform archives.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "X workspace native integration 0.18.95",
+  scope: "X Story/repost and native adapter upgrade 0.18.96",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   nodeVersion: "24.20.0",
   zlibVersion: "1.2.12",
   platform: "darwin-arm64",
-  archiveSha256: "e4a5d985323c3e6653eda1b8671da3287f09a042adbecc0d5ee220eee137e1d1",
-  packedBytes: 12_428_684,
-  unpackedBytes: 25_393_429,
-  entryCount: 693,
+  archiveSha256: "d43a8bf4ea79d40c4908f2a3f8d5cf565124c7b55292571b725911c65af20787",
+  packedBytes: 12_438_651,
+  unpackedBytes: 25_442_947,
+  entryCount: 696,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,

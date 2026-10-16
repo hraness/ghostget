@@ -1,22 +1,31 @@
 import { describe, expect, test } from "bun:test";
 import fc from "fast-check";
-import { assertProperty } from "../test-support";
+import { assertAsyncProperty, assertProperty } from "../test-support";
 import {
   assertXWebFollowingDesiredState,
   executeXWebFollowSet,
   parseXWebFollowInput,
+  parseXWebRepostInput,
   parseXWebFollowingReadback,
   parseXWebFollowMutationResponse,
   xWebFollowRequest,
+  xWebRepostVariables,
   type XWebFollowPorts,
 } from "./x-web-social-actions";
 
+// Secret-free ordinary-target fixtures, independently checked against public frontend
+// main.3999c6d7f4dbb6c7a.js SHA256 a72dc552b4d839940c9ea61da49fb11bc2ae408e72bfea0fc265f1d05841b26d,
+// modules 825369 (relationship defaults), 950231 (repost calls), 526882/504153 (descriptors).
+const FOLLOW_BODY_123456 = "include_profile_interstitial_type=1&include_blocking=1&include_blocked_by=1&include_followed_by=1"
+  + "&include_want_retweets=1&include_mute_edge=1&include_can_dm=1&include_can_media_tag=1&include_ext_is_blue_verified=1"
+  + "&include_ext_verified_type=1&include_ext_profile_image_shape=1&skip_status=1&user_id=123456";
+
 describe("X exact follow request and readback primitives", () => {
-  test("describes fixed POST routes with exactly one numeric target and no caller transport input", () => {
+  test("matches frontend response fields and fixed POST routes with exactly one numeric target", () => {
     for (const following of [true, false]) {
       expect(xWebFollowRequest({ user_id: "123456", following })).toEqual({
         method: "POST", origin: "https://x.com", pathname: `/i/api/1.1/friendships/${following ? "create" : "destroy"}.json`,
-        contentType: "application/x-www-form-urlencoded", body: "user_id=123456",
+        contentType: "application/x-www-form-urlencoded", body: FOLLOW_BODY_123456,
       });
     }
     for (const input of [null, [], {}, { user_id: 123, following: true }, { user_id: "x", following: true },
@@ -67,12 +76,76 @@ describe("X exact follow request and readback primitives", () => {
     }), { numRuns: 100 });
   });
 
+  test("caller values cannot alter response fields, promoted metadata, routes or headers", () => {
+    for (const key of ["include_profile_interstitial_type", "include_blocking", "include_blocked_by", "include_followed_by",
+      "include_want_retweets", "include_mute_edge", "include_can_dm", "include_can_media_tag", "include_ext_is_blue_verified",
+      "include_ext_verified_type", "include_ext_profile_image_shape", "skip_status", "impression_id", "earned",
+      "engagement_metadata", "headers", "method", "pathname", "origin", "screen_name"]) {
+      expect(() => xWebFollowRequest({ user_id: "123", following: true, [key]: "0" })).toThrow();
+    }
+  });
+
+  test("property: follow encoding preserves a bounded decimal identity without numeric conversion", () => {
+    assertProperty(fc.property(fc.array(fc.integer({ min: 0, max: 9 }), { minLength: 1, maxLength: 19 }), fc.boolean(), (digits, following) => {
+      const target = digits.join("");
+      const request = xWebFollowRequest({ user_id: target, following });
+      const form = new URLSearchParams(request.body);
+      expect(form.getAll("user_id")).toEqual([target]);
+      expect([...form.keys()]).toHaveLength(13);
+      expect([...form.entries()].filter(([key]) => key !== "user_id").every(([, value]) => value === "1")).toBeTrue();
+      expect(request.pathname).toBe(`/i/api/1.1/friendships/${following ? "create" : "destroy"}.json`);
+      expect(Object.isFrozen(request)).toBeTrue();
+    }), { numRuns: 100 });
+  });
+
   test("property: exact identity and desired state bind all accepted relationship observations", () => {
     assertProperty(fc.property(fc.integer({ min: 1, max: 999_999 }), fc.boolean(), (target, following) => {
       const observed = parseXWebFollowingReadback({ rest_id: String(target), relationship_perspectives: { following, followed_by: !following } }, String(target));
       assertXWebFollowingDesiredState(observed, { user_id: String(target), following });
       expect(() => assertXWebFollowingDesiredState(observed, { user_id: String(target + 1), following })).toThrow();
       expect(() => assertXWebFollowingDesiredState(observed, { user_id: String(target), following: !following })).toThrow();
+    }), { numRuns: 100 });
+  });
+});
+
+describe("X exact ordinary-target repost variables", () => {
+  test("matches current frontend create and delete variables without historical dark_request", () => {
+    const target = "9876543210123456789";
+    expect(xWebRepostVariables({ post_id: target, reposted: true })).toEqual({ tweet_id: target });
+    expect(xWebRepostVariables({ post_id: target, reposted: false })).toEqual({ source_tweet_id: target });
+    const input = { post_id: target, reposted: true };
+    const parsed = parseXWebRepostInput(input);
+    input.post_id = "123";
+    expect(parsed.post_id).toBe(target);
+    expect(Object.isFrozen(parsed)).toBeTrue();
+    expect(Object.isFrozen(xWebRepostVariables(parsed))).toBeTrue();
+  });
+
+  test("rejects mixed shapes, omitted desired state, nonnumeric targets and caller transport metadata", () => {
+    for (const input of [null, [], {}, { post_id: "123" }, { post_id: 123, reposted: true },
+      { post_id: "", reposted: true }, { post_id: "@example", reposted: true }, { post_id: "123&tweet_id=456", reposted: true },
+      { post_id: "1".repeat(20), reposted: true }, { post_id: "123", reposted: "true" },
+      { post_id: "123", reposted: true, dark_request: false }, { tweet_id: "123", reposted: true },
+      { source_tweet_id: "123", reposted: false }, { post_id: "123", reposted: true, engagement_request: {} },
+      { post_id: "123", reposted: true, queryId: "other" }]) {
+      expect(() => xWebRepostVariables(input)).toThrow();
+    }
+  });
+
+  test("property: ordinary reposts preserve exactly one numeric target and the selected variable name", () => {
+    assertProperty(fc.property(fc.array(fc.integer({ min: 0, max: 9 }), { minLength: 1, maxLength: 19 }), fc.boolean(), (digits, reposted) => {
+      const target = digits.join("");
+      const variables = xWebRepostVariables({ post_id: target, reposted });
+      expect(Object.keys(variables)).toEqual([reposted ? "tweet_id" : "source_tweet_id"]);
+      expect(Object.values(variables)).toEqual([target]);
+      expect(JSON.parse(JSON.stringify(variables))).toEqual(variables);
+      expect(Object.isFrozen(variables)).toBeTrue();
+    }), { numRuns: 100 });
+  });
+
+  test("property: extra keys never widen the repost variable authority", () => {
+    assertProperty(fc.property(fc.string({ minLength: 1, maxLength: 60 }).filter(key => key !== "post_id" && key !== "reposted"), fc.boolean(), (key, reposted) => {
+      expect(() => xWebRepostVariables({ post_id: "123", reposted, [key]: "extra" })).toThrow();
     }), { numRuns: 100 });
   });
 });
@@ -89,7 +162,7 @@ describe("X follow production lifecycle", () => {
         readTarget: async id => { expect(id).toBe("123"); events.push("read"); return state(reads++ === 0 ? !following : following); },
         mutate: async (request, admit) => {
           expect(request.pathname).toBe(`/i/api/1.1/friendships/${following ? "create" : "destroy"}.json`);
-          expect(request.body).toBe("user_id=123"); events.push("mutation-ready"); await admit();
+          expect(request.body).toBe(FOLLOW_BODY_123456.replace("user_id=123456", "user_id=123")); events.push("mutation-ready"); await admit();
           return { id_str: "123", following, follow_request_sent: false };
         },
       }, { beforeDispatch: async event => { events.push("admit"); expect(event.progress).toEqual({ planned: 1, started: 0, verified: 0 }); },
@@ -144,4 +217,54 @@ describe("X follow production lifecycle", () => {
       expect(JSON.stringify(result)).not.toContain("private");
     }
   });
+  test("repeated or concurrent admission cannot record a second durable dispatch", async () => {
+    for (const concurrent of [false, true]) {
+      let confirmations = 0; let effects = 0; let reads = 0;
+      const result = await executeXWebFollowSet({ user_id: "123", following: true }, {
+        requireViewer: async () => "456", readTarget: async () => state(reads++ > 0),
+        mutate: async (_, admit) => {
+          if (concurrent) {
+            const admissions = await Promise.allSettled([admit(), admit()]);
+            expect(admissions.map(value => value.status).sort()).toEqual(["fulfilled", "rejected"]);
+          } else {
+            await admit();
+            await expect(admit()).rejects.toThrow("cannot be repeated");
+          }
+          effects++;
+          return { id_str: "123", following: true, follow_request_sent: false };
+        },
+      }, { beforeDispatch: async () => { confirmations++; } });
+      expect(confirmations).toBe(1); expect(effects).toBe(1);
+      expect(result).toMatchObject({ status: "succeeded", dispatch: { started: 1, verified: 1 } });
+    }
+  });
+
+  test("property: bounded admission and readback fault schedules never replay a relationship effect", async () => {
+    await assertAsyncProperty(fc.asyncProperty(fc.integer({ min: 0, max: 4 }), fc.boolean(), fc.boolean(), fc.boolean(),
+      async (admissions, denied, readbackFault, following) => {
+        let confirmations = 0; let effects = 0; let reads = 0;
+        const result = await executeXWebFollowSet({ user_id: "123", following }, {
+          requireViewer: async () => "456",
+          readTarget: async () => {
+            if (reads++ === 0) return state(!following);
+            if (readbackFault) throw new Error("private readback fault");
+            return state(following);
+          },
+          mutate: async (_, admit) => {
+            // A transport may effect only after its admission resolves. A rejected
+            // admission stops the bounded schedule; the lifecycle itself never retries.
+            for (let index = 0; index < admissions; index++) { await admit(); effects++; }
+            return { id_str: "123", following, follow_request_sent: false };
+          },
+        }, { beforeDispatch: async () => { confirmations++; if (denied) throw new Error("denied"); } });
+        const submitted = admissions > 0 && !denied;
+        expect(confirmations).toBe(admissions > 0 ? 1 : 0);
+        expect(effects).toBe(submitted ? 1 : 0);
+        expect(result.dispatchStarted).toBe(submitted);
+        expect(result.dispatch?.started).toBe(submitted ? 1 : 0);
+        expect(result.status).toBe(!submitted ? "failed" : admissions === 1 && !readbackFault ? "succeeded" : "indeterminate");
+        expect(JSON.stringify(result)).not.toContain("private");
+      }), { numRuns: 100 });
+  });
+
 });

@@ -336,7 +336,7 @@ export function derivationPolicyActions(
 ): readonly string[] {
   const actions = [
     "launch", "navigate", "snapshot", "scroll", "wait", "get", "network", "state",
-    "back", "forward", "reload", "scrollintoview", "url", "title", "text", "textcontent", "html", "innerhtml", "value", "inputvalue", "attr", "getattribute",
+    "back", "forward", "reload", "scrollintoview", "url", "title", "text", "gettext", "textcontent", "html", "innerhtml", "value", "inputvalue", "attr", "getattribute",
     "getbyrole", "getbytext", "getbylabel", "getbyplaceholder", "getbyalttext", "getbytitle", "getbytestid",
     "waitfortext", "waitforurl", "har_start", "har_stop", "requests", "cookies_set", "close",
     // These remain code-owned. The public derivation grammar never exposes

@@ -616,10 +616,10 @@ describe("X quote, repost and guarded follow integration", () => {
       expect(calls.filter(request => request.method === "POST")).toHaveLength(1);
     }
   });
-  test("repost and unrepost settle from exact source state and bound viewer; failed readback is never replayed", async () => {
-    for (const reposted of [true, false]) for (const drift of ["none", "target", "state", "actor", "mutation-target"] as const) {
+  test("historical and guarded current reposts bind their own variables and never replay failed readback", async () => {
+    for (const version of [1, 2]) for (const reposted of [true, false]) for (const drift of ["none", "target", "state", "actor", "mutation-target"] as const) {
       const calls: CapturedRequest[] = []; let reads = 0; let mutated = false;
-      const output = await executeXWebOperation(xRecipe("posts.repost", 2), { post_id: FOCAL_POST_ID, reposted }, xAuth, {
+      const output = await executeXWebOperation(xRecipe("posts.repost", version), { post_id: FOCAL_POST_ID, reposted }, xAuth, {
         dependencies: dependencies(calls, request => {
           if (request.url.href === "https://x.com/home") return new Response(homeHtml(), { headers: { "content-type": "text/html" } });
           if (request.url.href === MAIN_URL) return new Response(mainBundle(
@@ -635,8 +635,10 @@ describe("X quote, repost and guarded follow integration", () => {
               legacy: { retweeted: second && drift !== "state" ? reposted : !reposted } } } } });
           }
           if (request.url.pathname.endsWith(reposted ? "/CreateRetweet" : "/DeleteRetweet")) {
-            expect(JSON.parse(request.body!).variables).toEqual(reposted ? { tweet_id: FOCAL_POST_ID, dark_request: false }
-              : { source_tweet_id: FOCAL_POST_ID, dark_request: false });
+            expect(JSON.parse(request.body!).variables).toEqual({
+              [reposted ? "tweet_id" : "source_tweet_id"]: FOCAL_POST_ID,
+              ...(version === 1 ? { dark_request: false } : {}),
+            });
             mutated = true; const source = drift === "mutation-target" ? QUOTED_POST_ID : FOCAL_POST_ID;
             return jsonResponse({ data: reposted ? { create_retweet: { retweet_results: { result: { rest_id: CREATED_POST_ID,
               retweeted_status_result: { result: { rest_id: source } } } } } }
@@ -650,19 +652,42 @@ describe("X quote, repost and guarded follow integration", () => {
       expect(calls.filter(request => request.method === "POST")).toHaveLength(1);
     }
   });
+  test("unknown repost versions and malformed current inputs refuse before auth or provider access", async () => {
+    let effects = 0;
+    const forbidden = async (): Promise<never> => { effects++; throw new Error("must not acquire authority"); };
+    const dependencies: XWebRuntimeDependencies = { acquireCookies: forbidden, fetch: forbidden, createBrowserSession: forbidden };
+    for (const version of [0, 3, -1, 1.5, Number.NaN]) {
+      await expect(executeXWebOperation(xRecipe("posts.repost", version), { post_id: FOCAL_POST_ID, reposted: true }, xAuth,
+        { dependencies })).rejects.toThrow("support only");
+    }
+    for (const input of [{ post_id: FOCAL_POST_ID }, { post_id: FOCAL_POST_ID, reposted: "true" },
+      { post_id: "1".repeat(20), reposted: true }, { post_id: "123&other=456", reposted: true },
+      { post_id: FOCAL_POST_ID, reposted: true, dark_request: false },
+      { post_id: FOCAL_POST_ID, reposted: true, engagement_request: "unreviewed" }]) {
+      await expect(executeXWebOperation(xRecipe("posts.repost", 2), input, xAuth, { dependencies })).rejects.toThrow();
+    }
+    expect(effects).toBe(0);
+  });
+
   test("follow remains a zero-effect pre-dispatch failure until numeric target evidence is reviewed", async () => {
-    const calls: CapturedRequest[] = [];
-    const execution = await executeXWebOperation(xRecipe("relationships.follow.set", 1), { user_id: "123", following: true }, xAuth, {
-      dependencies: dependencies(calls, request => {
-        if (request.url.href === "https://x.com/home") return new Response(homeHtml(), { headers: { "content-type": "text/html" } });
-        if (request.url.href === MAIN_URL) return new Response(mainBundle(descriptor("Viewer", VIEWER_QUERY_ID, "query")), { headers: { "content-type": "application/javascript" } });
-        if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
-        throw new Error("Unreviewed follow route must not run");
-      }),
-    });
-    expect(execution).toMatchObject({ status: "failed", dispatchStarted: false, dispatch: { planned: 1, started: 0, verified: 0 } });
-    expect(calls.every(request => request.method === "GET")).toBeTrue();
-    expect(calls.some(request => request.url.pathname.includes("friendships"))).toBeFalse();
+    for (const following of [true, false]) for (const includeUnreviewedDescriptor of [true, false]) {
+      const calls: CapturedRequest[] = []; let transactionBrowsers = 0;
+      const execution = await executeXWebOperation(xRecipe("relationships.follow.set", 1), { user_id: "123", following }, xAuth, {
+        dependencies: dependencies(calls, request => {
+          if (request.url.href === "https://x.com/home") return new Response(homeHtml(), { headers: { "content-type": "text/html" } });
+          if (request.url.href === MAIN_URL) return new Response(mainBundle(descriptor("Viewer", VIEWER_QUERY_ID, "query"),
+            ...(includeUnreviewedDescriptor ? [descriptor("UserByRestId", "UnreviewedUserQuery", "query")] : [])),
+            { headers: { "content-type": "application/javascript" } });
+          if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
+          throw new Error("Unreviewed follow route must not run");
+        }, { createBrowserSession: async () => { transactionBrowsers++; throw new Error("must not create a transaction browser"); } }),
+      });
+      expect(execution).toMatchObject({ status: "failed", dispatchStarted: false, dispatch: { planned: 1, started: 0, verified: 0 } });
+      expect(calls.every(request => request.method === "GET")).toBeTrue();
+      expect(calls.some(request => request.url.pathname.includes("friendships"))).toBeFalse();
+      expect(calls.some(request => request.url.pathname.endsWith("/UserByRestId"))).toBeFalse();
+      expect(transactionBrowsers).toBe(0);
+    }
   });
 });
 
@@ -5513,6 +5538,102 @@ describe("X content.delete", () => {
 });
 
 describe("X captured workspace reads", () => {
+  test("dedicated reposts bind the requested collection, preserve other-author rows and consume continuation", async () => {
+    for (const cursor of [undefined, "repost-next"]) {
+      const calls: CapturedRequest[] = [];
+      const result = await executeXWebOperation(xRecipe("feeds.read", 3), { feed: "user-reposts", user_id: CONTACT_USER_ID, limit: 20, ...(cursor === undefined ? {} : { cursor }) }, xAuth, {
+        dependencies: dependencies(calls, request => {
+          if (request.url.href === "https://x.com/home") return new Response(homeHtml(), { headers: { "content-type": "text/html" } });
+          if (request.url.href === MAIN_URL) return new Response(mainBundle(descriptor("Viewer", VIEWER_QUERY_ID, "query"), descriptor("UserRepostsTimeline", "jVw4ob-dDfVzoaz2G6NpVA", "query")), { headers: { "content-type": "application/javascript" } });
+          if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
+          if (request.url.pathname.endsWith("/UserRepostsTimeline")) {
+            expect(request.method).toBe("GET");
+            expect(JSON.parse(request.url.searchParams.get("variables")!)).toEqual({ userId: CONTACT_USER_ID, count: 20, includePromotedContent: true, withVoice: true, ...(cursor === undefined ? {} : { cursor }) });
+            return jsonResponse(userFeedResponseIdentityLessShape(tweetEntry("991", "Original by another author", "12345"), cursorEntry("repost-next")));
+          }
+          throw new Error("Unexpected X request");
+        }),
+      });
+      expect(result).toMatchObject({ status: "succeeded", output: { posts: [{ id: "991", authorId: "12345" }], cursor: "repost-next" }, dispatchStarted: false });
+      expect(calls.every(call => call.method === "GET")).toBeTrue();
+    }
+  });
+
+  const storyId = "story-fixture";
+  const firstTimeline = "provider-first-timeline";
+  const storyBundle = "https://abs.twimg.com/responsive-web/client-web/bundle.LiveEvent.abcdef1a.js";
+  const storyTarget = canonicalJson({ source: "today-news", kind: "story", value: storyId });
+  function storyFixture() {
+    return { data: { ai_trend_by_rest_id: { rest_id: storyId, result: { __typename: "AiTrend", rest_id: storyId, page: { post_timelines: [
+      { post_timeline: { id: firstTimeline }, label: "Personalized" },
+      { post_timeline: { id: "provider-second-timeline" }, label: "Top" },
+    ] } } } } };
+  }
+  function storyDependencies(calls: CapturedRequest[], options: { readonly response?: unknown; readonly cursor?: string } = {}) {
+    return dependencies(calls, request => {
+      if (request.url.href === "https://x.com/home") return new Response(`${homeHtml()}<script>p.u=e=>({31770:"bundle.LiveEvent"})[e]||e)+"."+({31770:"abcdef1"})[e]+"a.js"</script>`, { headers: { "content-type": "text/html" } });
+      if (request.url.href === MAIN_URL) return new Response(mainBundle(descriptor("Viewer", VIEWER_QUERY_ID, "query"), descriptor("GenericTimelineById", "cW93hZ3nlNYbYcUROF5r5A", "query")), { headers: { "content-type": "application/javascript" } });
+      if (request.url.href === storyBundle) return new Response(descriptor("AiTrendByRestId", "70JIli1rci1EkuMbkjGBiw", "query"), { headers: { "content-type": "application/javascript" } });
+      if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
+      if (request.url.pathname.endsWith("/AiTrendByRestId")) {
+        expect(request.method).toBe("GET");
+        expect(JSON.parse(request.url.searchParams.get("variables")!)).toEqual({ trendId: storyId, includePromotedContent: false, withBirdwatchNotes: false, withVoice: false, withCommunity: false });
+        return jsonResponse(options.response ?? storyFixture());
+      }
+      if (request.url.pathname.endsWith("/GenericTimelineById")) {
+        expect(request.method).toBe("GET");
+        expect(JSON.parse(request.url.searchParams.get("variables")!)).toEqual({ timelineId: firstTimeline, count: 20, withQuickPromoteEligibilityTweetFields: true, ...(options.cursor === undefined ? {} : { cursor: options.cursor }) });
+        return jsonResponse({ data: { timeline: { timeline: timeline(tweetEntry("991", "Story post", "12345"), cursorEntry("story-next")) } } });
+      }
+      throw new Error("Unexpected X request");
+    });
+  }
+
+  test("Story selection reads current LiveEvent then first returned timeline, and rebinds every continuation", async () => {
+    const calls: CapturedRequest[] = [];
+    const result = await executeXWebOperation(xRecipe("explore.read", 2), { source: "today-news", target: storyTarget }, xAuth, { dependencies: storyDependencies(calls) });
+    expect(result).toMatchObject({ status: "succeeded", output: { source: "today-news", entries: [{ kind: "post", post: { id: "991", authorId: "12345", text: "Story post" } }] }, finalUrl: "https://x.com/i/trending/story-fixture", dispatchStarted: false });
+    const cursor = (result.output as { cursor: string }).cursor;
+    expect(JSON.parse(cursor)).toEqual({ version: 1, subject: VIEWER_ID, storyId, timelineId: firstTimeline, cursor: "story-next" });
+    const continued: CapturedRequest[] = [];
+    await executeXWebOperation(xRecipe("explore.read", 2), { source: "today-news", target: storyTarget, cursor }, xAuth, { dependencies: storyDependencies(continued, { cursor: "story-next" }) });
+    for (const requests of [calls, continued]) {
+      expect(requests.filter(call => call.url.pathname.includes("/graphql/")).map(call => call.url.pathname.split("/").at(-1)))
+        .toEqual(["Viewer", "AiTrendByRestId", "GenericTimelineById"]);
+      expect(requests.every(call => call.method === "GET")).toBeTrue();
+    }
+  });
+
+  test("Story identity and continuation drift never dispatch a post timeline", async () => {
+    const innerMismatch = storyFixture(); innerMismatch.data.ai_trend_by_rest_id.result.rest_id = "other-story";
+    const outerMismatch = storyFixture(); outerMismatch.data.ai_trend_by_rest_id.rest_id = "other-story";
+    const repeated = storyFixture(); repeated.data.ai_trend_by_rest_id.result.page.post_timelines[1]!.post_timeline.id = firstTimeline;
+    for (const response of [innerMismatch, outerMismatch, repeated]) {
+      const calls: CapturedRequest[] = [];
+      await expect(executeXWebOperation(xRecipe("explore.read", 2), { source: "today-news", target: storyTarget }, xAuth, { dependencies: storyDependencies(calls, { response }) })).rejects.toThrow();
+      expect(calls.some(call => call.url.pathname.endsWith("/GenericTimelineById"))).toBeFalse();
+    }
+    const valid = { version: 1, subject: VIEWER_ID, storyId, timelineId: firstTimeline, cursor: "story-next" };
+    for (const invalid of [{ ...valid, subject: CONTACT_USER_ID }, { ...valid, storyId: "other-story" }, { ...valid, timelineId: "provider-second-timeline" }]) {
+      const calls: CapturedRequest[] = [];
+      await expect(executeXWebOperation(xRecipe("explore.read", 2), { source: "today-news", target: storyTarget, cursor: canonicalJson(invalid) }, xAuth, { dependencies: storyDependencies(calls) })).rejects.toThrow("bind");
+      expect(calls.some(call => call.url.pathname.endsWith("/GenericTimelineById"))).toBeFalse();
+    }
+  });
+
+  test("predecessor contracts refuse new collections before any auth or transport", async () => {
+    let effects = 0;
+    const forbidden = (): never => { effects++; throw new Error("Unexpected effect"); };
+    for (const [recipe, input] of [
+      [xRecipe("explore.read", 1), { source: "today-news", target: storyTarget }],
+      [xRecipe("feeds.read", 1), { feed: "user-reposts", user_id: VIEWER_ID }],
+      [xRecipe("feeds.read", 2), { feed: "user-reposts", user_id: VIEWER_ID }],
+    ] as const) {
+      await expect(executeXWebOperation(recipe, input, xAuth, { dependencies: { acquireCookies: forbidden, fetch: forbidden, createBrowserSession: forbidden } })).rejects.toThrow("versioned");
+    }
+    expect(effects).toBe(0);
+  });
+
   test("profile replies and highlights use current routes, preserving other-author parents", async () => {
     for (const [feed, operationName, queryId] of [["user-replies", "UserRepliesTimeline", "X9Te-FyiGcoV2qNrnx9w3w"], ["user-highlights", "UserHighlightsTweets", "Ducf_uu7enyuuE2kjOwFcw"]] as const) {
       const calls: CapturedRequest[] = [];
@@ -5555,9 +5676,10 @@ describe("X captured workspace reads", () => {
   });
 
   test("Today's News resolves the separate narrow Relay descriptor and fixed topic", async () => {
+    for (const contractVersion of [1, 2]) {
     const calls: CapturedRequest[] = [];
     const newsBundle = "https://abs.twimg.com/responsive-web/client-web/loader.NewsSidebar.abcdef1a.js";
-    const result = await executeXWebOperation(xRecipe("explore.read"), { source: "today-news", limit: 1 }, xAuth, {
+    const result = await executeXWebOperation(xRecipe("explore.read", contractVersion), { source: "today-news", limit: 1 }, xAuth, {
       dependencies: dependencies(calls, request => {
         if (request.url.href === "https://x.com/home") return new Response(`${homeHtml()}<script>p.u=e=>({31770:"loader.NewsSidebar"})[e]||e)+"."+({31770:"abcdef1"})[e]+"a.js"</script>`, { headers: { "content-type": "text/html" } });
         if (request.url.href === MAIN_URL) return new Response(mainBundle(descriptor("Viewer", VIEWER_QUERY_ID, "query")), { headers: { "content-type": "application/javascript" } });
@@ -5573,7 +5695,11 @@ describe("X captured workspace reads", () => {
       }),
     });
     expect(result).toMatchObject({ status: "succeeded", output: { source: "today-news", entries: [{ kind: "trend", id: "story-fixture", trend: { source: "todays-news", title: "Today's fixture", postCount: 23 } }], cursor: null }, dispatchStarted: false });
+    const entry = (result.output as { entries: readonly Record<string, unknown>[] }).entries[0];
+    if (contractVersion === 1) expect(entry).not.toHaveProperty("target");
+    else expect(entry?.target).toEqual({ source: "today-news", kind: "story", value: "story-fixture" });
     expect(calls.every(call => call.method === "GET")).toBeTrue();
+    }
   });
 
   test("malformed discovery selections fail before auth or transport", async () => {

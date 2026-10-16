@@ -35,13 +35,22 @@ describe("fixed current X profile collection reads", () => {
   });
 
   test("rejects unsupported sources, targets, limits, cursor values and guessed flags", () => {
-    for (const source of ["user-replies", "profile-posts", "profile-reposts", ""]) expect(() => buildXWebProfileFeedReadRequest(source as XWebProfileFeedSource, "123", 20, null, flags)).toThrow("source");
+    for (const source of ["user-replies", "profile-posts", ""]) expect(() => buildXWebProfileFeedReadRequest(source as XWebProfileFeedSource, "123", 20, null, flags)).toThrow("source");
     for (const target of ["", "@fixture", "1\n", "1".repeat(20)]) expect(() => buildXWebProfileFeedReadRequest("profile-replies", target, 20, null, flags)).toThrow("numeric");
     for (const limit of [0, 51, 1.5, Number.NaN]) expect(() => buildXWebProfileFeedReadRequest("profile-highlights", "123", limit, null, flags)).toThrow("limit");
     for (const cursor of ["", "bad\nvalue", "x".repeat(4_097)]) expect(() => buildXWebProfileFeedReadRequest("profile-replies", "123", 20, cursor, flags)).toThrow("cursor");
     for (const invalid of [null, {}, { withVoice: true }, { withVoice: "true", withCommunity: false }, { ...flags, sortByMostLiked: false }]) {
       expect(() => buildXWebProfileFeedReadRequest("profile-replies", "123", 20, null, invalid as typeof flags)).toThrow("flags");
     }
+  });
+
+  test("dedicated reposts use only the captured four variables and an optional continuation", () => {
+    const initial = buildXWebProfileFeedReadRequest("profile-reposts", "123", 20, null, flags);
+    expect(initial).toEqual({ operationId: "feeds.user-reposts", operationName: "UserRepostsTimeline", method: "GET",
+      variables: { userId: "123", count: 20, includePromotedContent: true, withVoice: true } });
+    expect(buildXWebProfileFeedReadRequest("profile-reposts", "123", 50, "next", flags).variables)
+      .toEqual({ userId: "123", count: 50, includePromotedContent: true, withVoice: true, cursor: "next" });
+    expect(() => buildXWebProfileFeedReadRequest("profile-reposts", "123", 20, null, { withVoice: false, withCommunity: false })).toThrow("withVoice");
   });
 
   test("property: exact bounded targets, feature values and continuation data survive construction", () => {
@@ -56,7 +65,7 @@ describe("fixed current X profile collection reads", () => {
 
 describe("root-bound profile feed projection", () => {
   test("preserves other-author conversation parents, unavailable occurrences and ordering for each source", () => {
-    for (const source of sources) {
+    for (const source of [...sources, "profile-reposts"] as const) {
       const page = projectXWebProfileFeedReadPage(response(), "123", source, 20);
       expect(page.posts.map(post => [post.id, post.authorId])).toEqual([["701", "999"], ["702", "123"]]);
       expect(page.entries.map(entry => [entry.kind, entry.id])).toEqual([["post", "701"], ["unavailable", "unavailable-occurrence"], ["post", "702"]]);
@@ -92,7 +101,7 @@ describe("root-bound profile feed projection", () => {
   });
 
   test("rejects wrong or ambiguous echoed collection identities and missing/malformed roots", () => {
-    for (const source of sources) {
+    for (const source of [...sources, "profile-reposts"] as const) {
       expect(() => projectXWebProfileFeedReadPage(response("999"), "123", source, 20)).toThrow("requested user");
       const ambiguous = response(); Object.assign(ambiguous.data.user.result, { id: Buffer.from("User:999").toString("base64") });
       expect(() => projectXWebProfileFeedReadPage(ambiguous, "123", source, 20)).toThrow("requested user");

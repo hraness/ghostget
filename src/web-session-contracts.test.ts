@@ -59,11 +59,13 @@ describe("authenticated web-session contract identity", () => {
       contractVersion: 2,
     });
 
-    // Writers use the exact predecessor runtime identities produced with
-    // NODE_ENV unset. Runtime source closure is verified independently.
+    // Writers use reviewed durable distribution identities. Runtime source
+    // closure is verified independently.
     expect(webSessionContractHash(xLike)).toBe(
-      "c3000958b2d3e11c990c7fc06f701c723bd1d2a98714bf4ffca34a16dd1b63c6",
+      "def85baca6960c7bb560aae04fd992d65b3d817576b360d54e7264cd1edb90d7",
     );
+    expect(isCompatibleWebSessionContractHash(xLike,
+      "c3000958b2d3e11c990c7fc06f701c723bd1d2a98714bf4ffca34a16dd1b63c6")).toBeTrue();
     expect(webSessionContractHash(linkedinFeed)).toBe(
       "58e0f01fdb4dc6345bbdbf9586f5d61db457c8b0825dbbee0c8eb699f6c87f1f",
     );

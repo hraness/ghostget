@@ -144,7 +144,12 @@ export class AppHostXService {
   }
   private async read(account: AppHostAccount, operation: string, input: OperationInput): Promise<Record<string, unknown>> {
     this.requireSupported(operation);
-    const invocation = this.runtime.prepareReadInvocation("x-web", operation, input, account.id, this.environment, this.registry);
+    let invocation: ReturnType<Runtime["prepareReadInvocation"]>;
+    try { invocation = this.runtime.prepareReadInvocation("x-web", operation, input, account.id, this.environment, this.registry); }
+    catch (error) {
+      if (error instanceof ControlError) throw error;
+      throw new ControlError("X_READ_PREPARATION_FAILED", "X could not prepare this read. Review the installed X interface and account connection before retrying.");
+    }
     const result = await this.runtime.executeReadInvocation(invocation, { headed: false, registry: this.registry, environment: this.environment, signal: this.controller.signal });
     if (this.closed) throw new ControlError("HOST_CLOSED", "The app host has closed.");
     this.requireAccount(account.id, account.revision);
@@ -287,12 +292,12 @@ export class AppHostXService {
           return page(request.source, entries, output.cursor ?? output.next_cursor ?? null, output.entriesTruncated === true ? "filtered" : "page");
         }
         if (request.source === "likes" && request.profile !== null && request.profile !== account.subject) throw new ControlError("X_SCOPE_UNSUPPORTED", "Liked posts belong to the connected account only.");
-        const feed = ({ home: "for-you", following: "following", bookmarks: "bookmarks", "profile-posts": "user", "profile-reposts": "user", "profile-replies": "user-replies", "profile-highlights": "user-highlights", likes: "likes" } as Record<string, string>)[request.source];
+        const feed = ({ home: "for-you", following: "following", bookmarks: "bookmarks", "profile-posts": "user", "profile-reposts": "user-reposts", "profile-replies": "user-replies", "profile-highlights": "user-highlights", likes: "likes" } as Record<string, string>)[request.source];
         if (feed === undefined) throw new ControlError("CAPTURE_REQUIRED", "This X feed needs a reviewed provider contract before it can run.");
-        const target = ["user", "user-replies", "user-highlights"].includes(feed) ? (request.profile === null ? account.subject : /^\d{1,19}$/u.test(request.profile) ? request.profile : (await this.profile(account, request.profile)).id) : null;
+        const target = ["user", "user-replies", "user-highlights", "user-reposts"].includes(feed) ? (request.profile === null ? account.subject : /^\d{1,19}$/u.test(request.profile) ? request.profile : (await this.profile(account, request.profile)).id) : null;
         const output = await this.read(account, "feeds.read", { feed, limit: request.limit, ...(target === null ? {} : { user_id: target }), ...(providerCursor === null ? {} : { cursor: providerCursor }) });
         const entries = this.postEntries(output, request.limit);
-        return page(request.source, request.source === "profile-reposts" ? entries.filter(entry => entry.kind === "unavailable" || entry.kind === "post" && entry.post.repost.status === "present") : entries, output.cursor ?? null, request.source === "profile-reposts" || output.entriesTruncated === true ? "filtered" : "page");
+        return page(request.source, entries, output.cursor ?? null, output.entriesTruncated === true ? "filtered" : "page");
       }
       case "x.explore.list": case "x.notifications.list": {
         const source = request.action === "x.notifications.list" ? "notifications" : request.source;
