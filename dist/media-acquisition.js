@@ -5,7 +5,7 @@ import {
 
 // src/media-acquisition.ts
 async function acquireEphemeralMedia(request) {
-  return (await import("./ephemeral-acquire-0h00r4nz.js")).acquireEphemeralMedia(request);
+  return (await import("./ephemeral-acquire-2wt3pdx3.js")).acquireEphemeralMedia(request);
 }
 async function cleanupEphemeralMedia(receipt, acknowledgment) {
   return (await import("./ephemeral-stage-ff8b277b.js")).cleanupEphemeralStage(receipt, acknowledgment);

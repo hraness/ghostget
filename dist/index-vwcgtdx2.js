@@ -1,7 +1,19 @@
 // @bun
 // src/local-cli-tool-identity.ts
 import { types as nodeTypes } from "util";
-var strictSemverPattern = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-(?:(?:0|[1-9]\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/u;
+function isStrictSemver(value) {
+  const numeric = /^(?:0|[1-9][0-9]*)$/u;
+  const identifier = /^[0-9A-Za-z-]+$/u;
+  const plus = value.indexOf("+");
+  const main = plus < 0 ? value : value.slice(0, plus);
+  if (plus >= 0 && !value.slice(plus + 1).split(".").every((part) => identifier.test(part)))
+    return false;
+  const dash = main.indexOf("-");
+  const core = (dash < 0 ? main : main.slice(0, dash)).split(".");
+  if (core.length !== 3 || !core.every((part) => numeric.test(part)))
+    return false;
+  return dash < 0 || main.slice(dash + 1).split(".").every((part) => identifier.test(part) && (!/^[0-9]+$/u.test(part) || numeric.test(part)));
+}
 var sha256Pattern = /^[a-f0-9]{64}$/u;
 var releaseCommitPattern = /^[a-f0-9]{40}$/u;
 var tokenPattern = /^[a-z0-9](?:[a-z0-9._+-]{0,62}[a-z0-9])?$/u;
@@ -123,7 +135,7 @@ function parseLocalCliToolIdentityV1(value) {
   if (tool.versionScheme !== "semver" && tool.versionScheme !== "opaque") {
     throw new Error("local CLI tool identity versionScheme must be semver or opaque");
   }
-  if (typeof tool.version !== "string" || tool.version.length < 1 || tool.version.length > 128 || /[\u0000-\u001f\u007f-\u009f]/u.test(tool.version) || !hasWellFormedUnicode(tool.version) || tool.versionScheme === "semver" && !strictSemverPattern.test(tool.version)) {
+  if (typeof tool.version !== "string" || tool.version.length < 1 || tool.version.length > 128 || /[\u0000-\u001f\u007f-\u009f]/u.test(tool.version) || !hasWellFormedUnicode(tool.version) || tool.versionScheme === "semver" && !isStrictSemver(tool.version)) {
     throw new Error("local CLI tool identity version is malformed");
   }
   const hasReleaseCommit = tool.releaseCommit !== undefined;

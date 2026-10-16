@@ -1209,7 +1209,7 @@ async function runSignedInPdfCommand(pdfArguments, output, options) {
 `);
       },
       ...await (async () => {
-        const { loadAuth } = await import("./auth-1hjsz8hb.js");
+        const { loadAuth } = await import("./auth-ct9b8mxs.js");
         return { loadAuth: (id) => loadAuth(id, options.environment) };
       })(),
       ...options.overrides

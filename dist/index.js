@@ -2,7 +2,7 @@
 import {
   localCliToolArtifactForCurrentRuntime,
   parseLocalCliToolIdentityV1
-} from "./index-1r44fcqj.js";
+} from "./index-vwcgtdx2.js";
 import {
   startProviderPluginCleanupTrackedOperation
 } from "./index-n4szk3nw.js";
