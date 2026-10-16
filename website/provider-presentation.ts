@@ -185,12 +185,14 @@ function capabilityLabel(operation: string): string {
     case "contacts": return "Contacts";
     case "content": return "Content";
     case "conversations": return "Conversations";
+    case "explore": return "Explore";
     case "feeds": return "Feeds";
     case "flair": return "Flair";
     case "likes": return "Likes";
     case "listings": return "Listings";
     case "media": return "Media";
     case "messaging": return "Messages";
+    case "notifications": return "Notifications";
     case "organizations": return "Organizations";
     case "posts": return "Posts";
     case "presence": return "Presence";
