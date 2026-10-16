@@ -19,6 +19,9 @@ on every page; cursors refuse a changed actor, story or timeline.
 - Native app startup upgrades recognized historical bundled X adapters through
   the conditional generation installer, preserving account and action evidence.
   Custom or newer installed adapters are not replaced.
+- Managed derivations admit the pinned browser's exact `gettext` action for
+  the existing `get text @ref` command. Read-only mode and the closed command
+  grammar remain enforced.
 - Current follow/repost variable builders have focused regression coverage;
   their new public write contracts remain inactive. Expanded media publication,
   media replies/quotes and quote/repost/follow activation still require their
