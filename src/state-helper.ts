@@ -51,6 +51,7 @@ const stateDirectories = new Set([
   "messaging",
   "omni-read-projections",
   "operation-permissions",
+  "owner-grants",
   "plan-assets",
   "plans",
   "provider-plugin-state",

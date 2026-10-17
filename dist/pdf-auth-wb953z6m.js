@@ -185,13 +185,14 @@ Run one action from ghostget capabilities. Reads run right away. Changes,
 such as posting, print a preview first; run ghostget confirm <digest> to
 make the change once. An observed posts.publish or media.publish can instead
 run one durable dispatch directly with --execute; the same account permission
-fence applies (managed Ask or Deny refuses).
+fence applies (managed Ask or Deny refuses). X content.delete runs with
+--execute only after the owner allows unattended deletion for that account.
 
 Options
   --input <json|@file|->             Action input
   --auth <id>                        Connected account to use
   --preview                          Show the change without making it
-  --execute                          Execute an owner-allowed publication once
+  --execute                          Run an owner-allowed post or deletion once
   --cache-only                       Return the last saved result only
   --headed                           Show the browser window if one is used
   --json                             Print machine-readable output
@@ -1059,7 +1060,7 @@ async function checkCookieFile(path, url, requireExplicitScope) {
 async function defaultReadCookies(signIn, auth, url, timeoutMs) {
   const cookieTimeout = Math.min(timeoutMs, 30000);
   if (auth !== undefined) {
-    const { acquireWebSessionCookieRecords } = await import("./web-session-cookies-9vac9ms2.js");
+    const { acquireWebSessionCookieRecords } = await import("./web-session-cookies-aphgmg8h.js");
     return acquireWebSessionCookieRecords(auth, url, cookieTimeout);
   }
   const { acquireCookieRecords } = await import("./cookie-access-dadm0qvh.js");
@@ -1188,7 +1189,7 @@ async function runSignedInPdfCommand(pdfArguments, output, options) {
     }
     return exitCode;
   };
-  const { stateKeychainNoticeRecord } = await import("./keychain-notice-record-ye72xvdk.js");
+  const { stateKeychainNoticeRecord } = await import("./keychain-notice-record-8f8tvk88.js");
   cookieAccess.configureCookieAccessNotice({
     environment: options.environment,
     stdinIsTTY: options.stdinIsTTY ?? process.stdin.isTTY === true,
@@ -1209,7 +1210,7 @@ async function runSignedInPdfCommand(pdfArguments, output, options) {
 `);
       },
       ...await (async () => {
-        const { loadAuth } = await import("./auth-mctmvh5a.js");
+        const { loadAuth } = await import("./auth-hwsjzmz6.js");
         return { loadAuth: (id) => loadAuth(id, options.environment) };
       })(),
       ...options.overrides

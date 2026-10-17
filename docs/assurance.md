@@ -8,12 +8,12 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 211 claims: 198 evidenced, 0 planned, and 13 not verified. It maps 87 guidelines from 5 guides; 64 list claims and 23 are exempt.
+The register holds 212 claims: 199 evidenced, 0 planned, and 13 not verified. It maps 87 guidelines from 5 guides; 64 list claims and 23 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
 | example test | 126 | 0 | 0 |
-| property test | 22 | 0 | 0 |
+| property test | 23 | 0 | 0 |
 | stateful model | 24 | 0 | 0 |
 | Quint model with production trace replay | 14 | 0 | 0 |
 | Lean proof with differential test | 8 | 0 | 0 |
@@ -107,7 +107,7 @@ Each claim holds only while its listed assumptions hold.
 | `bun-runtime` | Bun and JavaScriptCore execute the sources and the test runner as specified. | 8 |
 | `filesystem-atomic-rename` | Same-volume rename and link are atomic. | 33 |
 | `filesystem-durability` | Data and directory entries that were fsynced persist across a crash or power loss. | 32 |
-| `same-user-trusted` | Processes running as the same operating-system user are trusted; file modes and owner-only sockets separate users. | 34 |
+| `same-user-trusted` | Processes running as the same operating-system user are trusted; file modes and owner-only sockets separate users. | 35 |
 | `process-liveness` | Process ID, process start time, and boot identity readings are truthful. | 10 |
 | `monotonic-clock` | The injected monotonic clock never runs backward. | 4 |
 | `whatwg-url` | Bun's URL parser implements the WHATWG URL Standard. | 13 |
@@ -115,7 +115,7 @@ Each claim holds only while its listed assumptions hold.
 | `sha256` | SHA-256 is collision resistant. | 3 |
 | `encryption` | The authenticated encryption primitives and the operating-system key storage are sound. | 4 |
 | `media-tools` | yt-dlp, ffmpeg, and whisper.cpp report metadata faithfully and honor the arguments they are given. | 11 |
-| `provider-behaviour` | Third-party providers behave as their observed contracts describe. | 31 |
+| `provider-behaviour` | Third-party providers behave as their observed contracts describe. | 32 |
 | `plugin-trusted` | Source plugins are trusted in-process code; portable execution contains ordinary failures, not hostile code. | 13 |
 | `onepassword` | The 1Password SDK and account return the requested secret faithfully. | 2 |
 | `github-api` | GitHub's REST, GraphQL, and Actions APIs report repository, run, and Release state truthfully. | 48 |
@@ -1090,7 +1090,7 @@ The messaging automation protocol rejects a second ordinary in-flight request an
 - Assumptions: `filesystem-durability`, `provider-behaviour`
 - Not verified: Only the enumerated example cases are checked.
 
-### `mutations` (12 claims)
+### `mutations` (13 claims)
 
 #### `mutation-exact-preview-confirmation`
 
@@ -1162,6 +1162,21 @@ An indeterminate dispatch fence is released only from separately obtained exact 
   - The replay does not call `recordNotAppliedClaim`: its not-applied action changes no journal in the replay world, so that `recordNotAppliedClaim` releases nothing is covered only by the listed example tests.
   - The web-session reconciler and the CLI and portable parsers of reconciliation input are covered only by the listed example and property tests.
   - Terminalizing a run from supplied evidence says nothing about provider liveness.
+
+#### `x-own-post-unattended-delete-grant`
+
+Own X post deletion skips per-action confirmation only under an explicit owner Allow for that account's exact x-web `content.delete` capability: a managed Allow, or, while operation permissions are unmanaged, an owner grant record bound to that capability digest that never turns on management or covers another operation, with a managed Ask or Deny always winning over the record. The app host skips its native action dialog exactly when the prepared intent is a deletion and that Allow holds, `invoke --execute` refuses every other state, both paths require the same Allow again at dispatch, enabling the grant writes it only after GhostGet's fixed dialog approves it, and disabling it removes the record and turns a managed Allow into Ask without a dialog.
+
+- Evidenced by property test.
+- Source: `AGENTS.md`: “may also skip confirmation, through `--execute` or the native app host's `x.action.commit`, but only under an explicit owner Allow for that exact account capability”
+- Evidence: `src/app-host-x-service.test.ts`, `src/args.test.ts`, `src/operation-permission.test.ts`
+- Property tests: `src/app-host-x-service.test.ts`: “the action dialog is skipped iff the intent is delete and the account holds an effective explicit Allow”; `src/app-host-x-service.test.ts`: “delete approval parser rejects arbitrary extra fields and non-boolean unattended values”; `src/operation-permission.test.ts`: “the owner record parser admits only canonical sorted account grants”; `src/args.test.ts`: “authorized publication grammar preserves the account and exclusive execution mode”
+- Assumptions: `same-user-trusted`, `provider-behaviour`
+- Not verified:
+  - No test launches the native grant dialog; tests inject a stub, so its fixed wording, Cancel default, and two-minute timeout rest on review of `src/app-host-x-confirmation.ts`.
+  - The app-host property runs over a fake grant port and stubbed runtime; the binding of the real port to the permission policy and owner record stores and the explicit-Allow dispatch recheck rest on the example tests in `src/operation-permission.test.ts`, which stub the X web-session executor.
+  - No live X deletion runs; that the deleted post belongs to the connected account rests on the existing x-web runtime ownership checks and their tests.
+  - A same-user process can edit the permission policy or the owner record directly; under the same-user-trusted assumption that is not a boundary.
 
 #### `recovery-auth-continuity`
 

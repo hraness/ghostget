@@ -31,7 +31,10 @@ export function parseAppHostXIntent(value: unknown): AppHostXIntent {
   return { action, postId: postId(input.postId) };
 }
 
-/** Closed semantic surface; no URLs, provider operation names or approval booleans. */
+/**
+ * Closed semantic surface; no URLs, provider operation names or approval booleans.
+ * `unattended` asks GhostGet to change the standing grant; only its own dialog can allow it.
+ */
 export function parseAppHostXRequest(value: unknown): AppHostXRequest {
   const input = record(value);
   const action = input.action;
@@ -71,5 +74,11 @@ export function parseAppHostXRequest(value: unknown): AppHostXRequest {
   if (action === "x.action.commit") { exact("preparationId", "digest"); return { action, ...binding, preparationId: identifier(input.preparationId), digest: digest(input.digest) }; }
   if (action === "x.action.cancel") { exact("preparationId"); return { action, ...binding, preparationId: identifier(input.preparationId) }; }
   if (action === "x.action.status") { exact("runId"); return { action, ...binding, runId: identifier(input.runId) }; }
+  if (action === "x.delete-approval.get") { exact(); return { action, ...binding }; }
+  if (action === "x.delete-approval.set") {
+    exact("unattended");
+    if (typeof input.unattended !== "boolean") invalid();
+    return { action, ...binding, unattended: input.unattended as boolean };
+  }
   return invalid();
 }

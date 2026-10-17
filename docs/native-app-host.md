@@ -156,7 +156,25 @@ the host capability alone does not promise every provider route works.
   GhostGet invocation plan. Its result contains an opaque preparation ID,
   digest and review. `x.action.commit` names that same preparation and digest;
   GhostGet displays a fixed native dialog with Cancel as its default. The caller
-  cannot provide approval, confirmation text or a raw operation name.
+  cannot provide approval, confirmation text or a raw operation name. A delete
+  intent skips this dialog only when the account holds an explicit owner Allow
+  for x-web `content.delete`, and dispatch checks that Allow again.
+- `x.delete-approval.get` reports whether that account allows unattended deletion
+  of its own posts. `x.delete-approval.set` with `unattended: true` displays a
+  second fixed native dialog with Cancel as its default. Only Allow writes the
+  grant, scoped to x-web `content.delete` for that exact account incarnation,
+  manifest, contract and code. Cancel or timeout writes nothing and returns
+  `unattended: false`. With operation permissions turned on, the grant is that
+  capability's Allow. Without them, it is a separate owner record in
+  `owner-grants/x-delete.json` under the state home, and permissions stay off
+  for everything else. A permission set to Ask or Deny always wins over the
+  record. `unattended: false` needs no dialog: it removes the record and turns
+  an Allow into Ask, so deleting a post still works after its own dialog.
+  An Allow set with `ghostget permissions set` also skips the dialog.
+  Both return `kind: "x-delete-approval"` with `accountId`, `accountRevision`
+  and `unattended`. `x.capabilities` lists `delete-approval` when deletion is
+  available. Reconnection invalidates the grant. Every other action keeps its
+  dialog.
 - `x.action.cancel` releases a pending preparation. Its `preparationId` may also
   be a returned `plan-<digest>` recovery handle, explicitly cancelling an unused
   preparation after restart. It succeeds only when the normal single-confirmer
@@ -182,6 +200,13 @@ dialogs time out after two minutes. The namespace marker and account state stay
 until the product's explicit local-data deletion flow stops the helper and
 removes its exact product-owned directory. Ordinary disconnect removes only the
 selected auth record and invalidates its auth incarnation.
+
+The unattended deletion record `owner-grants/x-delete.json` holds at most 64
+account grants in 16 KiB: each is an account ID and a capability digest, with no
+credentials or content. Turning the setting off removes that account's grant.
+A reconnected account, or a changed interface or implementation, no longer
+matches it. The explicit local-data deletion flow removes it with the state
+directory.
 
 Workspace recovery tickets retain only the plan digest, operation, account
 revision and hashed auth binding in `app-host-x-actions/`, at most 16 KiB per

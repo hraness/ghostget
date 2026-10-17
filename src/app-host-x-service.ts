@@ -6,7 +6,9 @@ import { canonicalJson } from "./canonical-json";
 import type { AppHostAccount } from "./app-host-protocol";
 import type { AppHostXData, AppHostXEntry, AppHostXIntent, AppHostXMedia, AppHostXRequest } from "./app-host-x-protocol";
 import { APP_HOST_X_ACTIONS, APP_HOST_X_FEEDS } from "./app-host-x-protocol";
-import { confirmAppHostXAction } from "./app-host-x-confirmation";
+import { confirmAppHostXAction, confirmAppHostXDeleteGrant, type AppHostXDeleteGrantDecision } from "./app-host-x-confirmation";
+import { describeOwnerDeleteGrant, grantOwnerDelete, OperationPermissionError, readOwnerDeleteGrant, revokeOwnerDelete, type OwnerDeleteGrantDescription } from "./operation-permission";
+import { authIncarnationReader } from "./read-projections";
 import { ControlError, record } from "./control/validation";
 import type { ControlEnvironment } from "./control/web-policy";
 import { isWebSessionOperation, type GhostgetManifest, type OperationInput } from "./model";
@@ -23,7 +25,7 @@ import { xWebWorkspaceReadSupport } from "./providers/x-web-workspace-reads";
 import { XWebDiscoveryTargetStore, parseXWebDiscoveryTarget } from "./providers/x-web-captured-reads";
 
 type Media = { accountId: string; revision: string; expires: number; path: string; media: AppHostXMedia };
-type Preparation = { accountId: string; revision: string; expires: number; stored: StoredPlan; review: string; phase: "prepared" | "confirming" | "executing" | "settled" | "cancelled"; confirmation: AbortController | null; released: boolean };
+type Preparation = { accountId: string; revision: string; expires: number; stored: StoredPlan; review: string; action: AppHostXIntent["action"]; phase: "prepared" | "confirming" | "executing" | "settled" | "cancelled"; confirmation: AbortController | null; released: boolean };
 export type AppHostXActionTicket = Readonly<{ schemaVersion: 1; digest: string; accountId: string; revision: string; authHash: string; incarnationHash: string; operation: string }>;
 export type AppHostXActionTickets = { readonly save: (ticket: AppHostXActionTicket) => void; readonly read: (digest: string) => AppHostXActionTicket | null };
 export const APP_HOST_X_MAX_ACTION_TICKETS = 4096;
@@ -90,6 +92,32 @@ export function appHostXPlanAttachments(stored: StoredPlan, selected: readonly A
     return { ...expected, sha256: summary.sha256, byteLength: summary.bytes, mediaType: summary.mediaType as AppHostXMedia["mediaType"] };
   });
 }
+/**
+ * One account's standing own-post deletion setting: the exact x-web
+ * content.delete capability, its managed decision, and the owner record
+ * revision. `unattended` is the effective explicit Allow.
+ */
+export type AppHostXDeleteGrant = OwnerDeleteGrantDescription;
+export type AppHostXDeleteGrants = {
+  /** Read path: no admission and no incarnation creation; null when the capability cannot be described. */
+  readonly read: (accountId: string) => AppHostXDeleteGrant | null;
+  /** Admitted description used before a grant change or an unattended dispatch. */
+  readonly describe: (accountId: string) => AppHostXDeleteGrant;
+  /** Managed: set Allow. Unmanaged: write the owner record. Compare-and-set against `expected`. */
+  readonly grant: (accountId: string, expected: AppHostXDeleteGrant) => void;
+  /** Remove the owner record; a managed Allow becomes Ask. */
+  readonly revoke: (accountId: string, expected: AppHostXDeleteGrant) => void;
+};
+export function appHostXDeleteGrants(environment: ControlEnvironment, registry: ProviderPluginRegistry): AppHostXDeleteGrants {
+  const options = { environment, registry };
+  return {
+    read: accountId => readOwnerDeleteGrant(accountId, options, authIncarnationReader(environment)),
+    describe: accountId => describeOwnerDeleteGrant(accountId, options),
+    grant: (accountId, expected) => grantOwnerDelete(accountId, expected, options),
+    revoke: (accountId, expected) => revokeOwnerDelete(accountId, expected, options),
+  };
+}
+
 const ACTIONS: Readonly<Record<string, string>> = { post: "posts.publish", reply: "replies.create", quote: "posts.quote", delete: "content.delete", like: "likes.set", unlike: "likes.set", repost: "posts.repost", unrepost: "posts.repost", bookmark: "content.save", unbookmark: "content.save", follow: "relationships.follow.set", unfollow: "relationships.follow.set" };
 type InstalledXManifestReader = (environment: ControlEnvironment, registry: ProviderPluginRegistry) => ReturnType<typeof inspectInstalledManifest>;
 const readInstalledXManifest: InstalledXManifestReader = (environment, registry) => inspectInstalledManifest("x-web", environment, registry);
@@ -113,7 +141,9 @@ export class AppHostXService {
     private readonly now: () => number = Date.now,
     private readonly runtime: Runtime = appRuntime,
     private readonly tickets: AppHostXActionTickets = appHostXActionTickets(environment),
-    private readonly readInstalledManifest: InstalledXManifestReader = readInstalledXManifest) { this.discoveryTargets = new XWebDiscoveryTargetStore(now); }
+    private readonly readInstalledManifest: InstalledXManifestReader = readInstalledXManifest,
+    private readonly deleteGrants: AppHostXDeleteGrants = appHostXDeleteGrants(environment, registry),
+    private readonly confirmDeleteGrant: (decision: AppHostXDeleteGrantDecision, signal: AbortSignal) => Promise<boolean> = confirmAppHostXDeleteGrant) { this.discoveryTargets = new XWebDiscoveryTargetStore(now); }
 
   close(): void {
     this.closed = true; this.controller.abort();
@@ -295,6 +325,8 @@ export class AppHostXService {
           return { name, supported, reason: supported ? null : "Requires the reviewed ordered-media publication contract." };
         }),
         ...(["trending", "today-news", "notifications"] as const).map(name => capability(name, this.feedSupported(name, installed))),
+        // x.delete-approval.get/set: the owner's standing own-post deletion setting.
+        capability("delete-approval", this.operationSupported(ACTIONS.delete!, installed)),
       ] };
       }
       case "x.profile.get": {
@@ -376,7 +408,7 @@ export class AppHostXService {
         const review = `Act as ${account.displayName ?? account.subject} (${account.subject})\nAction: ${request.intent.action}\n${canonicalJson({ input: Object.fromEntries(Object.entries(stored.plan.input).filter(([key]) => !["media", "media_type", "media_types"].includes(key))), attachments })}`;
         if (stored.plan.auth.id !== account.id || stored.plan.auth.incarnationHash === undefined || !/^[a-f0-9]{64}$/u.test(stored.plan.auth.incarnationHash)) throw new ControlError("ACCOUNT_CHANGED", "Prepare the action again for the current account connection.");
         this.tickets.save({ schemaVersion: 1, digest: stored.digest, accountId: account.id, revision: account.revision, authHash: stored.plan.auth.hash, incarnationHash: stored.plan.auth.incarnationHash, operation: stored.plan.operation });
-        this.preparations.set(id, { accountId: account.id, revision: account.revision, expires: this.now() + 300_000, stored, review, phase: "prepared", confirmation: null, released: false });
+        this.preparations.set(id, { accountId: account.id, revision: account.revision, expires: this.now() + 300_000, stored, review, action: request.intent.action, phase: "prepared", confirmation: null, released: false });
         adopted = true;
         return actionResult("prepared", id, stored.digest, review, `plan-${stored.digest}`);
         } finally {
@@ -412,7 +444,10 @@ export class AppHostXService {
         pending.phase = "confirming";
         pending.confirmation = new AbortController();
         this.requireAccount(account.id, account.revision);
-        const confirmed = await this.confirm(pending.review, AbortSignal.any([this.controller.signal, pending.confirmation.signal]));
+        // An owner's standing grant replaces the dialog only for deleting this
+        // account's own post. Dispatch rechecks that exact explicit Allow.
+        const unattended = this.unattendedDelete(account, pending);
+        const confirmed = unattended || await this.confirm(pending.review, AbortSignal.any([this.controller.signal, pending.confirmation.signal]));
         if (this.closed || pending.expires <= this.now()) throw new ControlError("ACTION_EXPIRED", "The confirmation expired. Inspect its result before preparing another action.");
         this.requireAccount(account.id, account.revision);
         if (pending.confirmation.signal.aborted || !confirmed) {
@@ -423,6 +458,7 @@ export class AppHostXService {
         pending.phase = "executing";
         const result = await this.runtime.confirmInvocation(pending.stored.digest, {
           headed: false, registry: this.registry, environment: this.environment, signal: this.controller.signal,
+          ...(unattended ? { requireExplicitAllow: true } : {}),
         });
         const receipt = result.receipt;
         if (this.runs.size >= 128) this.runs.delete(this.runs.keys().next().value!);
@@ -433,6 +469,34 @@ export class AppHostXService {
           if (pending.phase === "executing") pending.phase = "settled";
           else this.discardPreparation(pending);
         }
+      }
+      case "x.delete-approval.get": {
+        const grant = this.grantCall(() => this.deleteGrants.read(account.id));
+        if (grant === null) throw new ControlError("DELETE_APPROVAL_UNAVAILABLE", "GhostGet could not read this account's deletion setting. Refresh the account and try again.");
+        return this.deleteApproval(request, observation, grant);
+      }
+      case "x.delete-approval.set": {
+        if (!request.unattended) {
+          // Turning the grant off only tightens, so it needs no dialog.
+          const current = this.grantCall(() => this.deleteGrants.describe(account.id));
+          this.grantCall(() => this.deleteGrants.revoke(account.id, current));
+          return this.deleteApproval(request, observation, this.grantCall(() => this.deleteGrants.describe(account.id)));
+        }
+        this.requireSupported("content.delete");
+        if (this.committing) throw new ControlError("HOST_BUSY", "Finish the current confirmation before starting another one.");
+        this.committing = true;
+        try {
+          const current = this.grantCall(() => this.deleteGrants.describe(account.id));
+          if (current.unattended) return this.deleteApproval(request, observation, current);
+          const allowed = await this.confirmDeleteGrant({ subject: account.subject, displayName: account.displayName }, this.controller.signal);
+          if (this.closed) throw new ControlError("HOST_CLOSED", "The app host has closed.");
+          this.requireAccount(account.id, account.revision);
+          // The write binds the capability, policy revision and owner record
+          // revision shown before the dialog, so any change while it was open
+          // fails closed.
+          if (allowed) this.grantCall(() => this.deleteGrants.grant(account.id, current));
+          return this.deleteApproval(request, observation, this.grantCall(() => this.deleteGrants.describe(account.id)));
+        } finally { this.committing = false; }
       }
       case "x.action.status": {
         if (/^plan-[a-f0-9]{64}$/u.test(request.runId)) {
@@ -454,6 +518,21 @@ export class AppHostXService {
         return actionResult(receipt.status === "succeeded" ? "completed" : receipt.status === "failed" ? "failed" : "uncertain", null, null, null, request.runId);
       }
     }
+  }
+  private unattendedDelete(account: AppHostAccount, pending: Preparation): boolean {
+    if (pending.action !== "delete" || pending.stored.plan.operation !== "content.delete") return false;
+    try { return this.deleteGrants.describe(account.id).unattended; } catch { return false; }
+  }
+  private grantCall<T>(work: () => T): T {
+    try { return work(); } catch (error) {
+      if (error instanceof ControlError) throw error;
+      if (error instanceof OperationPermissionError && error.code === "OPERATION_PERMISSION_CHANGED") throw new ControlError("PERMISSION_CHANGED", "This account or its permissions changed. Refresh and try again.");
+      throw new ControlError("DELETE_APPROVAL_UNAVAILABLE", "GhostGet could not update this account's deletion setting. Refresh the account and try again.");
+    }
+  }
+  private deleteApproval(request: AppHostXRequest, observation: { modelVersion: 1; accountId: string; accountRevision: string; fetchedAt: string }, grant: AppHostXDeleteGrant): AppHostXData {
+    this.requireAccount(request.accountId, request.expectedAccountRevision);
+    return { ...observation, kind: "x-delete-approval", unattended: grant.unattended };
   }
   private preparation(account: AppHostAccount, id: string): Preparation {
     const pending = this.preparations.get(id);

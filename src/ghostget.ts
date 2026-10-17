@@ -214,7 +214,7 @@ import {
   cancelInvocationPlan,
   confirmMessagingInvocation,
   confirmInvocation,
-  executeAuthorizedPublication,
+  executeAuthorizedInvocation,
   createAndSaveInvocationPlan,
   createReadProjectionQueryForInvocation,
   type createInvocationPlan,
@@ -3624,7 +3624,7 @@ async function runCommand(
     const operation = invocation.manifest.operations[arguments_.operationId];
     if (operation === undefined) throw new Error("operation disappeared before invocation");
     if (arguments_.execute === true) {
-      const result = await executeAuthorizedPublication(invocation, {
+      const result = await executeAuthorizedInvocation(invocation, {
         headed: arguments_.headed,
         environment,
         registry: dependencies.providerPluginRegistry,

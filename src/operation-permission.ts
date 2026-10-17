@@ -14,6 +14,7 @@ import type { PreparedInvocation, StoredPlan } from "./runtime";
 import { summarizePlanFile } from "./plan-assets";
 import type { ApprovalTarget, CheckedApproval, JsonValue, PermissionDecision } from "./control/protocol";
 import { OperationPermissionError, readOperationPolicy, setOperationPolicyEntry, type PermissionEnvironment, type OperationPolicySnapshot } from "./operation-permission-store";
+import { ownerDeleteGranted, readOwnerDeleteGrants, writeOwnerDeleteGrant, type OwnerDeleteGrantSnapshot } from "./owner-delete-grant-store";
 export { OperationPermissionError, readOperationPolicy, enableOperationPermissions } from "./operation-permission-store";
 
 type Options = { readonly environment: PermissionEnvironment; readonly registry: ProviderPluginRegistry; readonly signal?: AbortSignal };
@@ -29,6 +30,9 @@ export type OperationPermissionDescription = Readonly<{
 }>;
 type Admission = Readonly<{ capability: string; requestDigest: string; revision: number; inputs: ReadonlySet<string>; planDigest: string | null; lease: ApprovalLease | null; stateHome: string }>;
 const admissions = new AsyncLocalStorage<readonly Admission[]>();
+/** Capabilities that must keep an effective explicit Allow through dispatch. */
+type ExplicitAllowRequirement = Readonly<{ capability: string; adapterId: string; operationId: string; authId: string; stateHome: string }>;
+const explicitAllowRequirements = new AsyncLocalStorage<readonly ExplicitAllowRequirement[]>();
 const checkedCapabilities = new WeakMap<CheckedApproval, Readonly<{ capability: string; target: string }>>();
 const MAX_APPROVAL_BYTES = 240 * 1024;
 
@@ -220,6 +224,7 @@ export function assertOperationPreparationPermission(invocation: PreparedInvocat
 
 /** Synchronous disclosure never opens IPC or creates an approval request. */
 export function assertOperationPermission(invocation: PreparedInvocation, options: Options): void {
+  assertExplicitAllowRequirement(invocation, options);
   const policy = readOperationPolicy(options.environment);
   if (!policy.managed) {
     if (admissions.getStore()?.some(admission => admission.revision !== 0)) changed();
@@ -231,17 +236,127 @@ export function assertOperationPermission(invocation: PreparedInvocation, option
   if (description.decision === "ask" && activeAdmission(description, invocation.input, options) === undefined) approvalRequired();
 }
 
-export function assertAuthorizedPublicationPermission(invocation: PreparedInvocation, options: Options): void {
+/**
+ * The explicit `--execute` allowlist. Publication keeps its account permission
+ * fence: managed Ask or Deny refuses, and unmanaged state passes. Deleting an
+ * own X post is stricter: it runs only under an effective explicit Allow for
+ * that exact account capability (see explicitAllowEffective).
+ */
+export const AUTHORIZED_EXECUTION_OPERATIONS = Object.freeze({
+  "posts.publish": "allow-or-unmanaged",
+  "media.publish": "allow-or-unmanaged",
+  "content.delete": "explicit-allow",
+} as const);
+export type AuthorizedExecutionMode = typeof AUTHORIZED_EXECUTION_OPERATIONS[keyof typeof AUTHORIZED_EXECUTION_OPERATIONS];
+
+function authorizedExecutionMode(operationId: string): AuthorizedExecutionMode | null {
+  return Object.hasOwn(AUTHORIZED_EXECUTION_OPERATIONS, operationId) ? AUTHORIZED_EXECUTION_OPERATIONS[operationId as keyof typeof AUTHORIZED_EXECUTION_OPERATIONS] : null;
+}
+
+function explicitAllowRequired(): never {
+  throw new OperationPermissionError("OPERATION_APPROVAL_REQUIRED", "This operation runs without a confirmation only under an explicit owner Allow for this account in Ghostget.");
+}
+
+/** The one capability an owner can grant outside managed permissions. */
+export const OWNER_DELETE_GRANT = Object.freeze({ adapterId: "x-web", operationId: "content.delete" } as const);
+
+/**
+ * An effective explicit Allow. Managed state: only the policy decision counts,
+ * so a managed Ask or Deny (including an absent entry) always wins over a
+ * standing owner record. Unmanaged state: only an owner grant recorded for
+ * this exact x-web content.delete capability digest and account counts.
+ */
+export function explicitAllowEffective(description: OperationPermissionDescription, operationId: string, grants: () => OwnerDeleteGrantSnapshot): boolean {
+  if (description.decision !== "unmanaged") return description.decision === "allow";
+  if (description.coordinate.adapterId !== OWNER_DELETE_GRANT.adapterId || operationId !== OWNER_DELETE_GRANT.operationId) return false;
+  return ownerDeleteGranted(grants(), description.coordinate.authId, description.digest);
+}
+
+function assertExplicitAllowRequirement(invocation: PreparedInvocation, options: Options): void {
+  const required = explicitAllowRequirements.getStore();
+  if (required === undefined || required.length === 0 || invocation.auth.kind === "public-web-session") return;
+  const stateHome = ghostgetStateHome(options.environment);
+  const relevant = required.filter(entry => entry.stateHome === stateHome && entry.adapterId === invocation.manifest.id
+    && entry.operationId === invocation.operationId && entry.authId === invocation.auth.id);
+  if (relevant.length === 0) return;
+  const description = describeInvocation(invocation, options);
+  if (relevant.some(entry => entry.capability !== description.digest)) changed();
+  if (!explicitAllowEffective(description, invocation.operationId, () => readOwnerDeleteGrants(options.environment))) explicitAllowRequired();
+}
+
+/** One account's own-post deletion setting as the app host reads it. */
+export type OwnerDeleteGrantDescription = Readonly<{ digest: string; revision: number; decision: PermissionDecision | "unmanaged"; grantRevision: number; unattended: boolean }>;
+
+function ownerDeleteGrantDescription(description: OperationPermissionDescription, grants: OwnerDeleteGrantSnapshot): OwnerDeleteGrantDescription {
+  return Object.freeze({ digest: description.digest, revision: description.revision, decision: description.decision, grantRevision: grants.revision,
+    unattended: explicitAllowEffective(description, OWNER_DELETE_GRANT.operationId, () => grants) });
+}
+
+/** Admitted description used before a grant change or an unattended dispatch. */
+export function describeOwnerDeleteGrant(authId: string, options: Options): OwnerDeleteGrantDescription {
+  const grants = readOwnerDeleteGrants(options.environment);
+  return ownerDeleteGrantDescription(describeOperationPermission(OWNER_DELETE_GRANT.adapterId, OWNER_DELETE_GRANT.operationId, authId, options), grants);
+}
+
+/** Read path: no admission and no incarnation creation; null when it cannot be described. */
+export function readOwnerDeleteGrant(authId: string, options: Options, incarnations: AuthIncarnationReader): OwnerDeleteGrantDescription | null {
+  let grants: OwnerDeleteGrantSnapshot;
+  try { grants = readOwnerDeleteGrants(options.environment); } catch { return null; }
+  const [description] = describeOperationPermissions([{ ...OWNER_DELETE_GRANT, authId }], options, incarnations);
+  return description === null || description === undefined ? null : ownerDeleteGrantDescription(description, grants);
+}
+
+/**
+ * Records the owner's grant against the exact capability and revisions that
+ * were described before the dialog. Managed state sets the policy entry to
+ * Allow; unmanaged state writes the narrow owner record and never turns on
+ * management. Any change since the description fails closed.
+ */
+export function grantOwnerDelete(authId: string, expected: OwnerDeleteGrantDescription, options: Options): void {
+  const current = describeOwnerDeleteGrant(authId, options);
+  if (current.digest !== expected.digest || current.revision !== expected.revision || current.decision !== expected.decision
+    || current.grantRevision !== expected.grantRevision) changed();
+  if (current.decision === "unmanaged") {
+    writeOwnerDeleteGrant(authId, current.digest, current.grantRevision, options.environment);
+    if (readOperationPolicy(options.environment).managed) changed();
+    return;
+  }
+  setOperationPolicyEntry(current.digest, "allow", current.revision, options.environment);
+}
+
+/**
+ * Turning the grant off only tightens. It removes any owner record for the
+ * account, and a managed Allow becomes Ask so attended deletion still works
+ * with its dialog.
+ */
+export function revokeOwnerDelete(authId: string, expected: OwnerDeleteGrantDescription, options: Options): void {
+  const grants = readOwnerDeleteGrants(options.environment);
+  if (grants.revision !== expected.grantRevision) changed();
+  if (grants.entries.some(entry => entry.authId === authId)) writeOwnerDeleteGrant(authId, null, grants.revision, options.environment);
+  if (expected.decision === "allow") {
+    const current = describeOperationPermission(OWNER_DELETE_GRANT.adapterId, OWNER_DELETE_GRANT.operationId, authId, options);
+    if (current.digest !== expected.digest || current.revision !== expected.revision) changed();
+    setOperationPolicyEntry(current.digest, "ask", current.revision, options.environment);
+  }
+}
+
+/** Refuses every decision except the ones the operation's authorized execution mode admits. */
+export function assertAuthorizedExecutionPermission(invocation: PreparedInvocation, options: Options): AuthorizedExecutionMode {
   const operation = invocation.manifest.operations[invocation.operationId];
-  if ((invocation.operationId !== "posts.publish" && invocation.operationId !== "media.publish")
-    || operation?.risk !== "R3" || invocation.auth.subject === undefined
+  const mode = authorizedExecutionMode(invocation.operationId);
+  if (mode === null || operation?.risk !== "R3" || invocation.auth.subject === undefined
     || invocation.manifest.surfaceId === "hacker-news") {
-    throw new OperationPermissionError("OPERATION_PERMISSION_DENIED", "Authorized execution supports only subject-bound R3 publication operations.");
+    throw new OperationPermissionError("OPERATION_PERMISSION_DENIED", "Authorized execution supports only subject-bound R3 publication operations and owner-granted X post deletion.");
   }
   const description = describeInvocation(invocation, options);
   if (description.resolution.operation.state !== "observed") denied();
+  if (mode === "explicit-allow" && (description.coordinate.surfaceId !== "x" || !isWebSessionOperation(operation))) {
+    throw new OperationPermissionError("OPERATION_PERMISSION_DENIED", "Authorized deletion supports only the connected X account's own posts.");
+  }
   if (description.decision === "deny") denied();
   if (description.decision === "ask") approvalRequired();
+  if (mode === "explicit-allow" && !explicitAllowEffective(description, invocation.operationId, () => readOwnerDeleteGrants(options.environment))) explicitAllowRequired();
+  return mode;
 }
 
 export async function checkOperationPermission(invocation: PreparedInvocation, options: Options): Promise<void> {
@@ -307,13 +422,31 @@ export async function recheckProviderApproval(target: ProviderTarget, checked: C
 }
 
 /** Invocation-local permits cannot authorize another input, account, manifest or policy revision. */
-export async function withOperationPermission<T>(invocation: PreparedInvocation, optionsValue: Options & { readonly plan?: StoredPlan; readonly requireAllow?: boolean }, work: () => Promise<T>): Promise<T> {
+export async function withOperationPermission<T>(invocation: PreparedInvocation, optionsValue: Options & { readonly plan?: StoredPlan; readonly requireAllow?: boolean; readonly requireExplicitAllow?: boolean }, work: () => Promise<T>): Promise<T> {
   const options = { ...optionsValue, environment: Object.freeze({ ...optionsValue.environment }) };
+  if (optionsValue.requireExplicitAllow !== true) return admitOperation(invocation, options, optionsValue.requireAllow === true, work);
+  // The effective explicit Allow is checked here and again by every
+  // dispatch-time permission check while this requirement is in scope.
+  if (invocation.auth.kind === "public-web-session") explicitAllowRequired();
+  const description = describeInvocation(invocation, options);
+  if (description.decision === "deny") denied();
+  if (description.decision === "ask") approvalRequired();
+  if (!explicitAllowEffective(description, invocation.operationId, () => readOwnerDeleteGrants(options.environment))) explicitAllowRequired();
+  const requirement: ExplicitAllowRequirement = Object.freeze({ capability: description.digest, adapterId: invocation.manifest.id, operationId: invocation.operationId,
+    authId: invocation.auth.id, stateHome: ghostgetStateHome(options.environment) });
+  return explicitAllowRequirements.run([...(explicitAllowRequirements.getStore() ?? []), requirement], async () => {
+    const result = await admitOperation(invocation, options, true, work);
+    assertExplicitAllowRequirement(invocation, options);
+    return result;
+  });
+}
+
+async function admitOperation<T>(invocation: PreparedInvocation, options: Options & { readonly plan?: StoredPlan }, requireAllow: boolean, work: () => Promise<T>): Promise<T> {
   const policy = readOperationPolicy(options.environment);
   if (!policy.managed) return withUnmanagedOperationPermission(options.environment, work);
   const description = describeInvocation(invocation, options);
   if (description.decision === "deny") denied();
-  if (optionsValue.requireAllow === true && description.decision === "ask") approvalRequired();
+  if (requireAllow && description.decision === "ask") approvalRequired();
   const existing = activeAdmission(description, invocation.input, options);
   if (existing !== undefined) {
     if (options.plan !== undefined && existing.planDigest !== options.plan.digest) return changed();

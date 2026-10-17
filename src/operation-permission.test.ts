@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { chmodSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createAuth, saveAuth, removeAuth } from "./auth";
@@ -8,13 +8,17 @@ import { ensurePrivateStateDirectory, installManifest, removePrivateStateFile } 
 import { createServer, type Socket } from "node:net";
 import { messagingTurnDigest, parseMessagingTurnV1 } from "./messaging-types";
 import { providerPluginRegistry as registry } from "./provider-plugins";
-import { confirmInvocation, createAndSaveInvocationPlan, createMessagingCompositeInvocationPlan, executeAuthorizedPublication, executeReadInvocation, loadInvocationPlan, prepareInvocation, listRunReceipts, readRunReceipt } from "./runtime";
+import { confirmInvocation, createAndSaveInvocationPlan, createMessagingCompositeInvocationPlan, executeAuthorizedInvocation, executeReadInvocation, loadInvocationPlan, prepareInvocation, listRunReceipts, readRunReceipt } from "./runtime";
 import { readCachedPreparedCapability, revalidatePreparedCapability } from "./read-client";
 import { authIncarnationReader } from "./read-projections";
 import { describeOperationPermission, describeOperationPermissionSet, describeOperationPermissions, setOperationPermission, checkProviderApproval, recheckProviderApproval, checkOperationPermission, withOperationPermission } from "./operation-permission";
 import { enableOperationPermissions, readOperationPolicy, parseOperationPolicy, setOperationPolicyEntry } from "./operation-permission-store";
 import type { ProviderExecution } from "./provider";
 import type { PermissionDecision } from "./control/protocol";
+import { appHostXDeleteGrants } from "./app-host-x-service";
+import { parseOwnerDeleteGrants, readOwnerDeleteGrants, writeOwnerDeleteGrant } from "./owner-delete-grant-store";
+import { assertProperty } from "./test-support";
+import fc from "fast-check";
 
 const directories: string[] = [];
 afterEach(() => { for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true }); });
@@ -68,11 +72,11 @@ test("authorized publication holds the same account permission fence as confirm:
   let calls = 0;
   const options = { ...s.options, headed: false, executeProvider: async () => { calls++; return execution(); } };
   enableOperationPermissions(0, s.environment);
-  await expect(executeAuthorizedPublication(invocation, options)).rejects.toThrow("denied");
+  await expect(executeAuthorizedInvocation(invocation, options)).rejects.toThrow("denied");
   s.grant("ask", "posts.publish");
-  await expect(executeAuthorizedPublication(invocation, options)).rejects.toThrow("human approval");
+  await expect(executeAuthorizedInvocation(invocation, options)).rejects.toThrow("human approval");
   s.grant("deny", "posts.publish");
-  await expect(executeAuthorizedPublication(invocation, options)).rejects.toThrow("denied");
+  await expect(executeAuthorizedInvocation(invocation, options)).rejects.toThrow("denied");
   expect(calls).toBe(0);
   expect(listRunReceipts(s.environment)).toHaveLength(0);
 });
@@ -95,7 +99,7 @@ test("authorized publication uses the durable single-dispatch fence without per-
     await options.afterDispatchVerified?.({ id: "posts-publish", index: 1, progress: { planned: 1, started: 1, verified: 1 } });
     return { status: "succeeded", output: { postId: "synthetic-post" }, finalUrl: null, dispatchStarted: true, dispatch: { planned: 1, started: 1, verified: 1 } };
   };
-  const result = await executeAuthorizedPublication(invocation, { ...s.options, headed: false, executeProvider });
+  const result = await executeAuthorizedInvocation(invocation, { ...s.options, headed: false, executeProvider });
   expect(result.receipt).toMatchObject({ status: "submitted", dispatchStarted: true });
   expect(calls).toBe(1);
   const storedReceipt = readRunReceipt(result.receipt.runId, s.environment);
@@ -107,7 +111,7 @@ test("authorized publication under an explicit managed Allow runs once without a
   let calls = 0;
   const approvals = await approvalFixture(s);
   try {
-    const result = await executeAuthorizedPublication(s.prepare("posts.publish"), { ...s.options, headed: false,
+    const result = await executeAuthorizedInvocation(s.prepare("posts.publish"), { ...s.options, headed: false,
       executeProvider: async (_manifest, _recipe, _input, _auth, options) => {
         calls++;
         await options.beforeDispatch?.({ id: "posts-publish", index: 1, progress: { planned: 1, started: 0, verified: 0 } });
@@ -124,7 +128,7 @@ test("authorized publication under an explicit managed Allow runs once without a
 test("authorized publication rechecks permission before durable dispatch", async () => {
   const s = state(); enableOperationPermissions(0, s.environment); s.grant("allow", "posts.publish");
   let submitted = false;
-  await expect(executeAuthorizedPublication(s.prepare("posts.publish"), { ...s.options, headed: false,
+  await expect(executeAuthorizedInvocation(s.prepare("posts.publish"), { ...s.options, headed: false,
     executeProvider: async (_manifest, _recipe, _input, _auth, options) => {
       s.grant("ask", "posts.publish");
       await options?.beforeDispatch?.({ id: "posts-publish", index: 1, progress: { planned: 1, started: 0, verified: 0 } });
@@ -138,7 +142,7 @@ test("authorized publication rechecks permission before durable dispatch", async
 
 test("authorized publication rejects reads even when the account explicitly allows them", async () => {
   const s = state(); enableOperationPermissions(0, s.environment); s.grant("allow");
-  await expect(executeAuthorizedPublication(s.prepare(), { ...s.options, headed: false })).rejects.toThrow("publication operations");
+  await expect(executeAuthorizedInvocation(s.prepare(), { ...s.options, headed: false })).rejects.toThrow("publication operations");
 });
 
 test("operation policy: unmanaged compatibility, opt-in default deny, and strict CAS revisions", () => {
@@ -353,4 +357,185 @@ test("operation policy: composite exact parts share one approval and a changed p
     expect(approvals.requests).toHaveLength(1);
     expect(approvals.releases).toEqual(approvals.requests);
   } finally { await approvals.close(); }
+});
+
+function xWebState() {
+  const directory = realpathSync(mkdtempSync(join(tmpdir(), "ghostget-delete-grant-test-")));
+  chmodSync(directory, 0o700); directories.push(directory);
+  const environment = { GHOSTGET_STATE_HOME: directory };
+  const manifest = JSON.parse(readFileSync(join(import.meta.dir, "assets/adapters/x/wrench-web-adapter.json"), "utf8")) as GhostgetManifest;
+  installManifest(manifest, { force: false, environment, registry });
+  saveAuth({ schemaVersion: 1, id: "delete-account", provider: "x", kind: "cookie-source", source: "chrome", profile: "Default", subject: "123", displayName: "@fixture" }, environment);
+  const options = { environment, registry };
+  const prepare = (operation = "content.delete") => prepareInvocation("x-web", operation, operation === "content.delete"
+    ? { post_id: "42", expected_text: "own post" } : { post_id: "42", liked: true }, "delete-account", environment, registry);
+  const grant = (decision: PermissionDecision, operation = "content.delete") => {
+    const description = describeOperationPermission("x-web", operation, "delete-account", options);
+    return setOperationPermission({ adapterId: "x-web", operationId: operation, authId: "delete-account", decision,
+      expectedRevision: description.revision, expectedCapabilityDigest: description.digest }, options);
+  };
+  // Managed mode denies every capability without an entry, including the plan's own reads.
+  const manage = () => { prepare(); enableOperationPermissions(0, environment); };
+  /** Writes the narrow owner record for the current (or a given) content.delete capability digest. */
+  const ownerGrant = (digest?: string) => {
+    prepare();
+    const current = describeOperationPermission("x-web", "content.delete", "delete-account", options).digest;
+    return writeOwnerDeleteGrant("delete-account", digest ?? current, readOwnerDeleteGrants(environment).revision, environment);
+  };
+  const ownerRevoke = () => writeOwnerDeleteGrant("delete-account", null, readOwnerDeleteGrants(environment).revision, environment);
+  let dispatches = 0;
+  const executeWebSession: NonNullable<Parameters<typeof executeAuthorizedInvocation>[1]["executeWebSession"]> = async (_manifest, recipe, _input, _auth, executionOptions) => {
+    await executionOptions.beforeDispatch?.({ id: recipe.action, index: 1, progress: { planned: 1, started: 0, verified: 0 } });
+    dispatches++;
+    await executionOptions.afterDispatchVerified?.({ id: recipe.action, index: 1, progress: { planned: 1, started: 1, verified: 1 } });
+    return { status: "succeeded", output: { deleted: true }, finalUrl: null, dispatchStarted: true, dispatch: { planned: 1, started: 1, verified: 1 } };
+  };
+  return { environment, options, prepare, grant, manage, ownerGrant, ownerRevoke, executeWebSession, dispatches: () => dispatches };
+}
+
+test("authorized own-post deletion refuses unmanaged without an owner record, absent, ask and deny before any dispatch", async () => {
+  const s = xWebState();
+  const run = async () => executeAuthorizedInvocation(s.prepare(), { ...s.options, headed: false, executeWebSession: s.executeWebSession });
+  await expect(run()).rejects.toThrow("explicit owner Allow");
+  s.manage();
+  await expect(run()).rejects.toThrow();
+  s.grant("ask");
+  await expect(run()).rejects.toThrow("human approval");
+  s.grant("deny");
+  await expect(run()).rejects.toThrow("denied");
+  expect(s.dispatches()).toBe(0);
+  expect(listRunReceipts(s.environment)).toHaveLength(0);
+});
+
+test("authorized own-post deletion under an explicit owner Allow dispatches once through the durable lifecycle", async () => {
+  const s = xWebState(); s.manage(); s.grant("allow");
+  expect(describeOperationPermission("x-web", "content.delete", "delete-account", s.options)).toMatchObject({ decision: "allow", coordinate: { surfaceId: "x", operation: "content.delete" } });
+  const result = await executeAuthorizedInvocation(s.prepare(), { ...s.options, headed: false, executeWebSession: s.executeWebSession });
+  expect(result.receipt).toMatchObject({ status: "submitted", dispatchStarted: true });
+  expect(s.dispatches()).toBe(1);
+  expect(listRunReceipts(s.environment)).toHaveLength(1);
+});
+
+test("an unmanaged owner record authorizes own-post deletion once without turning on management or touching other writes", async () => {
+  const s = xWebState(); s.ownerGrant();
+  expect(readOperationPolicy(s.environment)).toMatchObject({ managed: false });
+  expect(existsSync(join(s.environment.GHOSTGET_STATE_HOME, "operation-permissions"))).toBe(false);
+  expect(statSync(join(s.environment.GHOSTGET_STATE_HOME, "owner-grants", "x-delete.json")).mode & 0o777).toBe(0o600);
+  const result = await executeAuthorizedInvocation(s.prepare(), { ...s.options, headed: false, executeWebSession: s.executeWebSession });
+  expect(result.receipt).toMatchObject({ status: "submitted", dispatchStarted: true });
+  expect(s.dispatches()).toBe(1);
+  expect(describeOperationPermission("x-web", "likes.set", "delete-account", s.options).decision).toBe("unmanaged");
+  await expect((async () => executeAuthorizedInvocation(s.prepare("likes.set"), { ...s.options, headed: false, executeWebSession: s.executeWebSession }))()).rejects.toThrow("owner-granted X post deletion");
+  expect(s.dispatches()).toBe(1);
+});
+
+test("an owner record binds the exact capability digest", async () => {
+  const s = xWebState(); s.ownerGrant("f".repeat(64));
+  await expect((async () => executeAuthorizedInvocation(s.prepare(), { ...s.options, headed: false, executeWebSession: s.executeWebSession }))()).rejects.toThrow("explicit owner Allow");
+  expect(s.dispatches()).toBe(0);
+});
+
+test("a managed Ask or Deny wins over a standing owner record", async () => {
+  for (const decision of ["absent", "ask", "deny"] as const) {
+    const s = xWebState(); s.ownerGrant(); s.manage();
+    if (decision !== "absent") s.grant(decision);
+    await expect((async () => executeAuthorizedInvocation(s.prepare(), { ...s.options, headed: false, executeWebSession: s.executeWebSession }))()).rejects.toThrow();
+    expect(s.dispatches()).toBe(0);
+  }
+});
+
+test("authorized own-post deletion rechecks the effective explicit Allow at dispatch", async () => {
+  for (const mode of ["managed", "unmanaged"] as const) {
+    const s = xWebState();
+    if (mode === "managed") { s.manage(); s.grant("allow"); } else s.ownerGrant();
+    let revoked = false;
+    await expect(executeAuthorizedInvocation(s.prepare(), { ...s.options, headed: false,
+      executeWebSession: async (manifest, recipe, input, auth, executionOptions) => {
+        if (!revoked) { revoked = true; if (mode === "managed") s.grant("deny"); else s.ownerRevoke(); }
+        return s.executeWebSession(manifest, recipe, input, auth, executionOptions);
+      } })).rejects.toThrow();
+    expect(s.dispatches()).toBe(0);
+  }
+});
+
+test("an explicit Allow for another X write never authorizes it through --execute", async () => {
+  const s = xWebState(); s.manage(); s.grant("allow", "likes.set");
+  await expect((async () => executeAuthorizedInvocation(s.prepare("likes.set"), { ...s.options, headed: false, executeWebSession: s.executeWebSession }))()).rejects.toThrow("owner-granted X post deletion");
+  expect(s.dispatches()).toBe(0);
+});
+
+test("explicit-allow admission admits exactly a managed Allow or an unmanaged owner record", async () => {
+  // The state domain is finite, so enumerate it exhaustively instead of sampling.
+  for (const decision of ["unmanaged", "absent", "allow", "ask", "deny"] as const) {
+    for (const record of [false, true]) {
+      const s = xWebState();
+      if (record) s.ownerGrant();
+      if (decision !== "unmanaged") s.manage();
+      if (decision !== "unmanaged" && decision !== "absent") s.grant(decision);
+      let ran = 0;
+      const admitted = decision === "allow" || (decision === "unmanaged" && record);
+      const attempt = (async () => withOperationPermission(s.prepare(), { ...s.options, requireExplicitAllow: true }, async () => { ran++; return "ran"; }))();
+      if (admitted) expect(await attempt).toBe("ran");
+      else await expect(attempt).rejects.toThrow();
+      expect(ran).toBe(admitted ? 1 : 0);
+    }
+  }
+});
+
+test("the owner record parser admits only canonical sorted account grants", () => {
+  const digest = "a".repeat(64);
+  expect(parseOwnerDeleteGrants({ schemaVersion: 1, revision: 1, entries: [{ authId: "a", digest }, { authId: "b", digest }] }).entries).toHaveLength(2);
+  for (const invalid of [
+    null, [], { schemaVersion: 1, revision: 0, entries: [] }, { schemaVersion: 2, revision: 1, entries: [] },
+    { schemaVersion: 1, revision: 1, entries: [], extra: true }, { schemaVersion: 1, revision: 1, entries: [{ authId: "b", digest }, { authId: "a", digest }] },
+    { schemaVersion: 1, revision: 1, entries: [{ authId: "a", digest }, { authId: "a", digest }] }, { schemaVersion: 1, revision: 1, entries: [{ authId: "A", digest }] },
+    { schemaVersion: 1, revision: 1, entries: [{ authId: "a", digest: "A".repeat(64) }] }, { schemaVersion: 1, revision: 1, entries: [{ authId: "a", digest, decision: "allow" }] },
+  ]) expect(() => parseOwnerDeleteGrants(invalid)).toThrow("invalid");
+  assertProperty(fc.property(fc.uniqueArray(fc.stringMatching(/^[a-z][a-z0-9-]{0,47}$/u), { maxLength: 64 }), fc.integer({ min: 1, max: 1000 }), (ids, revision) => {
+    const entries = [...ids].sort().map(authId => ({ authId, digest }));
+    const parsed = parseOwnerDeleteGrants(JSON.parse(canonicalJson({ schemaVersion: 1, revision, entries })) as unknown);
+    expect(parsed.entries).toEqual(entries);
+    if (entries.length > 1) expect(() => parseOwnerDeleteGrants({ schemaVersion: 1, revision, entries: [...entries].reverse() })).toThrow("invalid");
+  }));
+});
+
+test("owner record writes compare and set, and a corrupt record fails closed", () => {
+  const s = xWebState();
+  expect(readOwnerDeleteGrants(s.environment)).toMatchObject({ revision: 0, entries: [] });
+  s.ownerGrant();
+  expect(() => writeOwnerDeleteGrant("delete-account", null, 0, s.environment)).toThrow("changed");
+  s.ownerRevoke();
+  expect(readOwnerDeleteGrants(s.environment)).toMatchObject({ revision: 2, entries: [] });
+  writeFileSync(join(s.environment.GHOSTGET_STATE_HOME, "owner-grants", "x-delete.json"), "{}", { mode: 0o600 });
+  expect(() => readOwnerDeleteGrants(s.environment)).toThrow("invalid");
+});
+
+test("the app's standing deletion grant is exactly the CLI content.delete capability for that account", async () => {
+  const s = xWebState();
+  const grants = appHostXDeleteGrants(s.environment, registry);
+  s.prepare("likes.set");
+  expect(grants.read("delete-account")).toMatchObject({ decision: "unmanaged", unattended: false });
+  // Unmanaged: the grant is the narrow owner record and management stays off.
+  const unmanaged = grants.describe("delete-account");
+  expect(unmanaged.digest).toBe(describeOperationPermission("x-web", "content.delete", "delete-account", s.options).digest);
+  grants.grant("delete-account", unmanaged);
+  expect(() => grants.grant("delete-account", unmanaged)).toThrow("changed");
+  expect(grants.read("delete-account")).toMatchObject({ decision: "unmanaged", unattended: true, digest: unmanaged.digest });
+  expect(readOperationPolicy(s.environment).managed).toBe(false);
+  grants.revoke("delete-account", grants.describe("delete-account"));
+  expect(grants.read("delete-account")).toMatchObject({ unattended: false });
+  // Managed: the grant is the policy Allow, and revoking turns it into Ask.
+  s.manage();
+  const before = grants.describe("delete-account");
+  expect(before).toMatchObject({ decision: "deny", unattended: false });
+  grants.grant("delete-account", before);
+  expect(grants.read("delete-account")).toMatchObject({ decision: "allow", unattended: true, digest: before.digest });
+  // The grant covers no other write for the same account.
+  expect(describeOperationPermission("x-web", "likes.set", "delete-account", s.options).decision).toBe("deny");
+  const result = await executeAuthorizedInvocation(s.prepare(), { ...s.options, headed: false, executeWebSession: s.executeWebSession });
+  expect(result.receipt.status).toBe("submitted");
+  grants.revoke("delete-account", grants.describe("delete-account"));
+  expect(grants.read("delete-account")).toMatchObject({ decision: "ask", unattended: false });
+  await expect((async () => executeAuthorizedInvocation(s.prepare(), { ...s.options, headed: false, executeWebSession: s.executeWebSession }))()).rejects.toThrow("human approval");
+  expect(s.dispatches()).toBe(1);
 });

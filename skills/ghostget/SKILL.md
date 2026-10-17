@@ -301,8 +301,12 @@ durable single-dispatch lifecycle as `confirm` — without a per-post
 confirmation command. It carries the same authority as preview-then-confirm:
 unmanaged state homes admit it, and managed Ask or Deny refuses without an
 approval request. It requires an explicit `--auth` and cannot combine with
-`--preview`, `--cache-only`, or `--duplicate-risk-of`. Other writes retain
-their existing confirmation requirements.
+`--preview`, `--cache-only`, or `--duplicate-risk-of`. X `content.delete`
+also accepts `--execute` for the connected account's own post, but only under
+an explicit owner grant for that account: a managed Allow, or the owner's
+GhostGet grant when permissions are unmanaged. Ask and Deny refuse it. Never
+request or change that grant yourself. Other writes retain their existing
+confirmation requirements.
 
 Never retry `pending`, `partial`, or `indeterminate` work. Reconcile from
 independently observed, secret-free evidence only when the installed exact

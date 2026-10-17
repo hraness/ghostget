@@ -338,13 +338,14 @@
     {
       "guide": "AGENTS.md",
       "anchor": "Keep mutations behind",
-      "digest": "2689b1b21735ede8b879cbe4097bb9fc353e8b0c43d15cb8368f33971f753131",
+      "digest": "fa4c61731f0493ae015c7474193fcf46eadb294b54ed921b9190e4178fd7390e",
       "claims": [
         "mutation-exact-preview-confirmation",
         "confirmed-write-at-most-once",
         "portable-retained-release",
         "indeterminate-never-retried",
-        "indeterminate-cleared-only-by-evidence"
+        "indeterminate-cleared-only-by-evidence",
+        "x-own-post-unattended-delete-grant"
       ]
     },
     {
@@ -2861,6 +2862,50 @@
         "The replay does not call `recordNotAppliedClaim`: its not-applied action changes no journal in the replay world, so that `recordNotAppliedClaim` releases nothing is covered only by the listed example tests.",
         "The web-session reconciler and the CLI and portable parsers of reconciliation input are covered only by the listed example and property tests.",
         "Terminalizing a run from supplied evidence says nothing about provider liveness."
+      ]
+    },
+    {
+      "id": "x-own-post-unattended-delete-grant",
+      "statement": "Own X post deletion skips per-action confirmation only under an explicit owner Allow for that account's exact x-web `content.delete` capability: a managed Allow, or, while operation permissions are unmanaged, an owner grant record bound to that capability digest that never turns on management or covers another operation, with a managed Ask or Deny always winning over the record. The app host skips its native action dialog exactly when the prepared intent is a deletion and that Allow holds, `invoke --execute` refuses every other state, both paths require the same Allow again at dispatch, enabling the grant writes it only after GhostGet's fixed dialog approves it, and disabling it removes the record and turns a managed Allow into Ask without a dialog.",
+      "area": "mutations",
+      "source": {
+        "path": "AGENTS.md",
+        "quote": "may also skip confirmation, through `--execute` or the native app host's `x.action.commit`, but only under an explicit owner Allow for that exact account capability"
+      },
+      "layer": "property",
+      "status": "evidenced",
+      "evidence": [
+        "src/app-host-x-service.test.ts",
+        "src/args.test.ts",
+        "src/operation-permission.test.ts"
+      ],
+      "assumptions": [
+        "same-user-trusted",
+        "provider-behaviour"
+      ],
+      "notVerified": [
+        "No test launches the native grant dialog; tests inject a stub, so its fixed wording, Cancel default, and two-minute timeout rest on review of `src/app-host-x-confirmation.ts`.",
+        "The app-host property runs over a fake grant port and stubbed runtime; the binding of the real port to the permission policy and owner record stores and the explicit-Allow dispatch recheck rest on the example tests in `src/operation-permission.test.ts`, which stub the X web-session executor.",
+        "No live X deletion runs; that the deleted post belongs to the connected account rests on the existing x-web runtime ownership checks and their tests.",
+        "A same-user process can edit the permission policy or the owner record directly; under the same-user-trusted assumption that is not a boundary."
+      ],
+      "properties": [
+        {
+          "path": "src/app-host-x-service.test.ts",
+          "test": "the action dialog is skipped iff the intent is delete and the account holds an effective explicit Allow"
+        },
+        {
+          "path": "src/app-host-x-service.test.ts",
+          "test": "delete approval parser rejects arbitrary extra fields and non-boolean unattended values"
+        },
+        {
+          "path": "src/operation-permission.test.ts",
+          "test": "the owner record parser admits only canonical sorted account grants"
+        },
+        {
+          "path": "src/args.test.ts",
+          "test": "authorized publication grammar preserves the account and exclusive execution mode"
+        }
       ]
     },
     {
