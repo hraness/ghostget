@@ -9,6 +9,7 @@ import { APP_HOST_MAX_ACCOUNTS, type AppHostAccount, type AppHostData, type AppH
 import { AppHostXService } from "./app-host-x-service";
 import { upgradeAppHostXAdapter } from "./app-host-adapter";
 import type { AppHostXRequest } from "./app-host-x-protocol";
+import type { AppHostXDeleteGrantDecision } from "./app-host-x-confirmation";
 import { confirmAppHostDecision, type AppHostDecision } from "./app-host-confirmation";
 import { connectionAccountSnapshotRevisions, ensureConnectionAccountIncarnations } from "./control/account-revision";
 import { browserChoices } from "./control/browser-choices";
@@ -32,6 +33,7 @@ type ServiceOptions = {
   readonly confirm?: (decision: AppHostDecision, signal: AbortSignal) => Promise<boolean>;
   readonly now?: () => number;
   readonly confirmX?: (review: string, signal: AbortSignal) => Promise<boolean>;
+  readonly confirmXDeleteGrant?: (decision: AppHostXDeleteGrantDecision, signal: AbortSignal) => Promise<boolean>;
 };
 
 /** Internal implementation. Native clients use the subprocess wire only. */
@@ -52,7 +54,8 @@ export class AppHostService {
     this.now = options.now ?? Date.now;
     upgradeAppHostXAdapter(environment, providerPluginRegistry);
     ensureConnectionAccountIncarnations(environment);
-    this.x = new AppHostXService(environment, providerPluginRegistry, (id, revision) => this.account(id, revision), options.confirmX, this.now);
+    this.x = new AppHostXService(environment, providerPluginRegistry, (id, revision) => this.account(id, revision), options.confirmX, this.now,
+      undefined, undefined, undefined, undefined, options.confirmXDeleteGrant);
   }
 
   private accounts(): AppHostAccount[] {

@@ -24,6 +24,8 @@ export type AppHostXRequest = AppHostXBinding & (
   | { readonly action: "x.action.commit"; readonly preparationId: string; readonly digest: string }
   | { readonly action: "x.action.cancel"; readonly preparationId: string }
   | { readonly action: "x.action.status"; readonly runId: string }
+  | { readonly action: "x.delete-approval.get" }
+  | { readonly action: "x.delete-approval.set"; readonly unattended: boolean }
 );
 export type AppHostXEntry =
   | { readonly kind: "post"; readonly id: string; readonly post: XSocialPost }
@@ -39,4 +41,6 @@ export type AppHostXData = Observation & (
   | { readonly kind: "x-page"; readonly source: string; readonly entries: readonly AppHostXEntry[]; readonly nextCursor: string | null; readonly completeness: "page" | "complete" | "filtered" }
   | { readonly kind: "x-media"; readonly media: readonly AppHostXMedia[] }
   | { readonly kind: "x-action"; readonly preparationId: string | null; readonly digest: string | null; readonly review: string | null; readonly state: "prepared" | "completed" | "denied" | "failed" | "uncertain"; readonly runId: string | null }
+  /** True only while an explicit owner Allow covers this account's own-post deletion. */
+  | { readonly kind: "x-delete-approval"; readonly unattended: boolean }
 );

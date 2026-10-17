@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
-import { parseGhostgetArguments } from "./args";
+import { AUTHORIZED_EXECUTE_OPERATIONS, parseGhostgetArguments } from "./args";
+import { AUTHORIZED_EXECUTION_OPERATIONS } from "./operation-permission";
 import { assertProperty, fc } from "./test-support";
 
 describe("ghostget CLI grammar", () => {
@@ -10,20 +11,31 @@ describe("ghostget CLI grammar", () => {
     for (const option of ["--preview", "--cache-only", "--projection-identity-only"]) {
       expect(parseGhostgetArguments(["invoke", "x-web", "posts.publish", "--auth", "test-account", "--execute", option]).ok).toBeFalse();
     }
-    for (const operation of ["posts.read", "content.delete", "comments.create", "reactions.set"]) {
+    for (const operation of ["posts.read", "comments.create", "reactions.set", "likes.set", "posts.repost", "relationships.follow.set", "replies.create", "content.save"]) {
       expect(parseGhostgetArguments(["invoke", "x-web", operation, "--auth", "test-account", "--execute"]).ok).toBeFalse();
     }
     expect(parseGhostgetArguments(["invoke", "x-web", "posts.publish", "--execute"]).ok).toBeFalse();
   });
 
+  test("own-post deletion parses with --execute only with an explicit account and no other mode", () => {
+    expect(parseGhostgetArguments(["invoke", "x-web", "content.delete", "--input", "@delete.json", "--auth", "test-account", "--execute"]))
+      .toMatchObject({ ok: true, value: { command: "invoke", operationId: "content.delete", execute: true, authId: "test-account", inputSource: "@delete.json" } });
+    expect(parseGhostgetArguments(["invoke", "x-web", "content.delete", "--input", "@delete.json", "--execute"]).ok).toBeFalse();
+    for (const option of ["--preview", "--cache-only", "--projection-identity-only"]) {
+      expect(parseGhostgetArguments(["invoke", "x-web", "content.delete", "--auth", "test-account", "--execute", option]).ok).toBeFalse();
+    }
+    expect(parseGhostgetArguments(["invoke", "x-web", "content.delete", "--auth", "test-account", "--execute", "--duplicate-risk-of", "01234567-89ab-cdef-0123-456789abcdef"]).ok).toBeFalse();
+    expect([...AUTHORIZED_EXECUTE_OPERATIONS].sort()).toEqual(Object.keys(AUTHORIZED_EXECUTION_OPERATIONS).sort());
+  });
+
   test("authorized publication grammar preserves the account and exclusive execution mode", () => {
     assertProperty(fc.property(
-      fc.constantFrom("posts.publish", "media.publish", "posts.read", "content.delete", "messaging.send"),
+      fc.constantFrom("posts.publish", "media.publish", "posts.read", "content.delete", "messaging.send", "likes.set", "posts.repost", "relationships.follow.set", "comments.create"),
       fc.boolean(),
       fc.uniqueArray(fc.constantFrom("--preview", "--cache-only", "--projection-identity-only", "--headed", "--json")),
       (operation, account, flags) => {
         const parsed = parseGhostgetArguments(["invoke", "x-web", operation, "--execute", ...(account ? ["--auth", "test-account"] : []), ...flags]);
-        expect(parsed.ok).toBe(account && (operation === "posts.publish" || operation === "media.publish")
+        expect(parsed.ok).toBe(account && ["posts.publish", "media.publish", "content.delete"].includes(operation)
           && !flags.some(flag => ["--preview", "--cache-only", "--projection-identity-only"].includes(flag)));
         if (parsed.ok) expect(parsed.value).toMatchObject({ execute: true, authId: "test-account" });
       },

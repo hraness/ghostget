@@ -5,7 +5,7 @@ import {
 
 // src/pdf-acquisition.ts
 async function runPdfAcquisition(args, environment, output, captureDependencies) {
-  const { runSignedInPdfCommand } = await import("./pdf-auth-qhmqhw85.js");
+  const { runSignedInPdfCommand } = await import("./pdf-auth-wb953z6m.js");
   const { runPdfCommand } = await import("@hraness/wordcell/pdf");
   return runSignedInPdfCommand(args, output, {
     environment,

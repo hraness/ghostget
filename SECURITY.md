@@ -20,6 +20,13 @@ a persistent managed marker: missing or corrupt policy then denies access.
 Grants bind the exact account incarnation, manifest, contract, and executable
 closure. A changed account, interface, implementation, or approval invalidates
 the prior grant. Existing saved write plans and confirmation remain required.
+The only exception is the connected X account's own post deletion: the owner
+can grant it once, per account, in a fixed native dialog. Callers cannot supply
+that grant. It is the capability's Allow when operation permissions are on.
+When they are off, it is a separate owner record bound to the same capability
+digest; it never turns permissions on or covers another operation. A permission
+set to Ask or Deny always wins over it. Dispatch rechecks the grant, and
+turning it off restores confirmation.
 
 The public web gateway accepts only bounded HTTPS GET and HEAD requests under
 explicit domain, path, and query-key rules. It pins public DNS answers, rechecks

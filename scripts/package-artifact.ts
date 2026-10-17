@@ -129,6 +129,7 @@ const controlPaths = Object.freeze([
   "src/control/web-policy.ts",
   "src/operation-permission-store.ts",
   "src/operation-permission.ts",
+  "src/owner-delete-grant-store.ts",
   "src/provider-plugin-import-analysis.ts",
 ]);
 

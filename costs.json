@@ -99,6 +99,18 @@
       },
       "expiry": "Retained with the corresponding durable plan and run evidence; at capacity new unique actions fail closed without eviction. Never creates dispatch authority"
     },
+    "local:owner-delete-grants": {
+      "kind": "authoritative",
+      "retention": "persistent",
+      "owner": "src/owner-delete-grant-store.ts",
+      "deletion": "docs/native-app-host.md",
+      "source": "Owner-approved account ID and exact X own-post deletion capability digest per connected account; no credentials or content",
+      "budget": {
+        "maxEntries": 64,
+        "maxBytes": 16384
+      },
+      "expiry": "Removed when the owner turns unattended deletion off; a changed account, interface, or implementation no longer matches it. Removed with the product's explicit local-data deletion flow"
+    },
     "local:app-host-x-workspace": {
       "kind": "derived",
       "retention": "ephemeral",

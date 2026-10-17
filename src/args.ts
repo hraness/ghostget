@@ -311,6 +311,9 @@ export type ParseGhostgetResult =
 
 type ParseGhostgetFailure = Extract<ParseGhostgetResult, { readonly ok: false }>;
 
+/** Grammar for `invoke --execute`; the runtime allowlist decides which permission each one needs. */
+export const AUTHORIZED_EXECUTE_OPERATIONS: ReadonlySet<string> = new Set(["posts.publish", "media.publish", "content.delete"]);
+
 function validId(value: string, label: string): string | null {
   return /^[a-z][a-z0-9-]{0,47}$/u.test(value) ? null : `${label} must be lowercase kebab-case`;
 }
@@ -1985,10 +1988,10 @@ export function parseGhostgetArguments(raw: readonly string[]): ParseGhostgetRes
     if ("ok" in duplicateRiskOf) return duplicateRiskOf;
     if (parsed.booleans.has("--execute") && (
       parsed.values["--auth"] === undefined
-      || (operationId !== "posts.publish" && operationId !== "media.publish")
+      || !AUTHORIZED_EXECUTE_OPERATIONS.has(operationId)
       || ["--preview", "--cache-only", "--projection-identity-only"].some(option => parsed.booleans.has(option))
       || duplicateRiskOf.length > 0
-    )) return { ok: false, message: "invoke --execute requires an explicit account and publication operation without preview, cache, or duplicate-risk options" };
+    )) return { ok: false, message: "invoke --execute requires an explicit account and a publication or own-post deletion operation without preview, cache, or duplicate-risk options" };
     if (
       parsed.booleans.has("--cache-only")
       && parsed.booleans.has("--preview")

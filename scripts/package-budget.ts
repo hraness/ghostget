@@ -2637,17 +2637,28 @@
 // Preserve all prior allowances: 12,449,690 + 12,387 + 4,096 = 12,466,173 packed;
 // 25,497,133 + 353 + 1,656 = 25,499,142 unpacked. CI and canonical Release
 // independently measure and admit their actual platform archives.
+// Unattended own-post deletion adds the owner delete grant store as one
+// additional packed source entry. Two clean Git ZIP snapshots
+// of 0f4d0b638eed4d33f5ec869ea02106feadf97454, including committed dist,
+// packed independently with npm 11.19.0 / Node 24.20.0 / zlib 1.2.12 on
+// darwin arm64 were byte-identical: 12,457,000 compressed / 25,525,350 payload
+// bytes, 698 files/entries; SHA-256
+// c93acf4cfd343b2f34734bc256fd68db184064eab6e866f3fc559904407a71f1.
+// Every packed payload byte and mode matched its exact committed Git blob.
+// Preserve all prior allowances: 12,457,000 + 12,387 + 4,096 = 12,473,483 packed;
+// 25,525,350 + 353 + 1,656 = 25,527,359 unpacked. CI and canonical Release
+// independently measure and admit their actual platform archives.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Qualified X media, quote, repost and relationship writes 0.18.97",
+  scope: "Unattended own-post deletion 0.18.98",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   nodeVersion: "24.20.0",
   zlibVersion: "1.2.12",
   platform: "darwin-arm64",
-  archiveSha256: "c8714c9160cbf9dcc17c0d0a5297b6a63d08137dfbd0f1b4be4b5f4bb0aa3aa9",
-  packedBytes: 12_449_690,
-  unpackedBytes: 25_497_133,
-  entryCount: 697,
+  archiveSha256: "c93acf4cfd343b2f34734bc256fd68db184064eab6e866f3fc559904407a71f1",
+  packedBytes: 12_457_000,
+  unpackedBytes: 25_525_350,
+  entryCount: 698,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,

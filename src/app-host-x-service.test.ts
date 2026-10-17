@@ -3,7 +3,10 @@ import { createHash } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { APP_HOST_X_MAX_ACTION_TICKETS, AppHostXService, appHostXActionTickets, appHostXPlanAttachments, appHostXPublicationInput, type AppHostXActionTicket, type AppHostXActionTickets } from "./app-host-x-service";
+import { APP_HOST_X_MAX_ACTION_TICKETS, AppHostXService, appHostXActionTickets, appHostXPlanAttachments, appHostXPublicationInput, type AppHostXActionTicket, type AppHostXActionTickets, type AppHostXDeleteGrant, type AppHostXDeleteGrants } from "./app-host-x-service";
+import { OperationPermissionError } from "./operation-permission-store";
+import type { PermissionDecision } from "./control/protocol";
+import type { AppHostXDeleteGrantDecision } from "./app-host-x-confirmation";
 import { parseAppHostXRequest } from "./app-host-x-validation";
 import type { AppHostAccount } from "./app-host-protocol";
 import type { AppHostXData, AppHostXMedia, AppHostXRequest } from "./app-host-x-protocol";
@@ -13,7 +16,7 @@ import { providerPluginRegistry } from "./provider-plugins";
 import { canonicalJson } from "./canonical-json";
 import { projectXSocialPost, projectXSocialProfile } from "./providers/x-web-model";
 import { installManifest, listPrivateStateDirectory, type PrivateStateDirectoryEntry } from "./storage";
-import { assertAsyncProperty, fc } from "./test-support";
+import { assertAsyncProperty, assertProperty, fc } from "./test-support";
 import { xWebPlugin } from "./plugins/x-web/plugin";
 import currentXManifest from "./assets/adapters/x/wrench-web-adapter.json";
 import archivedXManifest from "./assets/adapters/x/wrench-web-adapter.v1.20.0.json";
@@ -43,7 +46,7 @@ afterEach(() => {
   for (const service of services.splice(0)) service.close();
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
-function fixture(options: { tickets?: AppHostXActionTickets; deniedPlans?: Set<string>; revision?: string; incarnation?: string; realTickets?: boolean; environment?: Readonly<Record<string, string>>; installedManifest?: GhostgetManifest | null; readInstalledManifest?: ManifestReader } = {}) {
+function fixture(options: { deleteDecision?: PermissionDecision | "unmanaged" | "unavailable"; ownerGrant?: boolean; tickets?: AppHostXActionTickets; deniedPlans?: Set<string>; revision?: string; incarnation?: string; realTickets?: boolean; environment?: Readonly<Record<string, string>>; installedManifest?: GhostgetManifest | null; readInstalledManifest?: ManifestReader } = {}) {
   const initialRevision = options.revision ?? revision;
   let now = 1000, currentRevision = initialRevision, currentIncarnation = options.incarnation ?? "c".repeat(64), confirms = 0, executions = 0;
   const inputs: unknown[] = [], cancellations: string[] = [];
@@ -59,6 +62,36 @@ function fixture(options: { tickets?: AppHostXActionTickets; deniedPlans?: Set<s
   let saved = (value: StoredPlan) => value;
   let execution = async () => ({ receipt: { runId: "01234567-89ab-cdef-0123-456789abcdef", status: "succeeded" } });
   const memory = new Map<string, AppHostXActionTicket>();
+  // The standing own-post deletion setting, modelled on the production port:
+  // a managed decision (or unmanaged state) plus an owner record that counts
+  // only when unmanaged. "unavailable" models a capability that cannot be described.
+  type GrantState = { digest: string; revision: number; decision: PermissionDecision | "unmanaged"; grantRevision: number; record: boolean };
+  let grantState: GrantState = { digest: "e".repeat(64), revision: 1, decision: options.deleteDecision === "unavailable" ? "ask" : options.deleteDecision ?? "ask", grantRevision: options.ownerGrant === true ? 1 : 0, record: options.ownerGrant === true };
+  let grantAvailable = options.deleteDecision !== "unavailable";
+  const grantWrites: string[] = [], executionOptions: unknown[] = [], grantDialogs: AppHostXDeleteGrantDecision[] = [];
+  let grantDialog = async (_decision: AppHostXDeleteGrantDecision, _signal: AbortSignal) => false;
+  const project = (value: GrantState): AppHostXDeleteGrant => ({ digest: value.digest, revision: value.revision, decision: value.decision, grantRevision: value.grantRevision,
+    unattended: value.decision === "allow" || (value.decision === "unmanaged" && value.record) });
+  const describeGrant = () => { if (!grantAvailable) throw new Error("content.delete is not installed"); return project(grantState); };
+  const changedGrant = () => new OperationPermissionError("OPERATION_PERMISSION_CHANGED", "changed");
+  const deleteGrants: AppHostXDeleteGrants = {
+    read: () => grantAvailable ? project(grantState) : null,
+    describe: describeGrant,
+    grant: (_account, expected) => {
+      const current = describeGrant();
+      if (expected.digest !== current.digest || expected.revision !== current.revision || expected.decision !== current.decision || expected.grantRevision !== current.grantRevision) throw changedGrant();
+      if (current.decision === "unmanaged") { grantWrites.push("record"); grantState = { ...grantState, record: true, grantRevision: grantState.grantRevision + 1 }; }
+      else { grantWrites.push("allow"); grantState = { ...grantState, decision: "allow", revision: grantState.revision + 1 }; }
+    },
+    revoke: (_account, expected) => {
+      if (expected.grantRevision !== grantState.grantRevision) throw changedGrant();
+      if (grantState.record) { grantWrites.push("remove-record"); grantState = { ...grantState, record: false, grantRevision: grantState.grantRevision + 1 }; }
+      if (expected.decision === "allow") {
+        if (expected.revision !== grantState.revision) throw changedGrant();
+        grantWrites.push("ask"); grantState = { ...grantState, decision: "ask", revision: grantState.revision + 1 };
+      }
+    },
+  };
   const tickets = options.tickets ?? { save: (ticket: AppHostXActionTicket) => { if (ticketFailure) throw new Error("ticket write refused"); memory.set(ticket.digest, ticket); }, read: (digest: string) => memory.get(digest) ?? null };
   const runtime = {
     prepareReadInvocation: (adapter: string, operation: string, input: unknown) => { runtimeInput(adapter, operation, input); inputs.push({ operation, input }); return { auth, readProjectionAuthIdentityHash: currentIncarnation }; },
@@ -68,7 +101,7 @@ function fixture(options: { tickets?: AppHostXActionTickets; deniedPlans?: Set<s
     cancelInvocationPlan: (digest: string) => { cancellations.push(digest); },
     cancelUnstartedInvocationPlan: (digest: string) => { cancellations.push(digest); deniedPlans.add(digest); return true; },
     invocationPlanWasCancelled: (digest: string) => deniedPlans.has(digest),
-    confirmInvocation: async () => { executions++; return execution(); },
+    confirmInvocation: async (_digest: string, value: unknown) => { executions++; executionOptions.push(value); return execution(); },
     listRunReceipts: () => receipts,
     readRunReceipt: () => ({ status: "succeeded" }),
   } as unknown as Runtime;
@@ -80,7 +113,7 @@ function fixture(options: { tickets?: AppHostXActionTickets; deniedPlans?: Set<s
     manifestReads++;
     return options.readInstalledManifest?.(environment, registry) ?? (installed === null
       ? { ok: false, issues: ["X fixture is not installed"] } : { ok: true, value: installed });
-  });
+  }, deleteGrants, async (decision, signal) => { grantDialogs.push(decision); return grantDialog(decision, signal); });
   services.push(service);
   const handle = (request: WithoutBinding<AppHostXRequest>) => service.handle({ ...request, accountId: account.id, expectedAccountRevision: initialRevision } as AppHostXRequest);
   const prepare = async () => action(await handle({ action: "x.action.prepare", intent: { action: "like", postId: "42" } } as never));
@@ -93,7 +126,9 @@ function fixture(options: { tickets?: AppHostXActionTickets; deniedPlans?: Set<s
     setExecution: (value: typeof execution) => { execution = value; },
     setInstalledManifest: (value: GhostgetManifest | null) => { installed = value; }, manifestReads: () => manifestReads,
     failTickets: () => { ticketFailure = true; }, deniedPlans,
-    counts: () => ({ confirms, executions }) };
+    counts: () => ({ confirms, executions }),
+    grant: () => project(grantState), setGrant: (value: Partial<GrantState>) => { grantState = { ...grantState, ...value }; }, setGrantAvailable: (value: boolean) => { grantAvailable = value; },
+    grantWrites, grantDialogs, executionOptions, setGrantDialog: (value: typeof grantDialog) => { grantDialog = value; } };
 }
 function action(value: AppHostXData) { if (value.kind !== "x-action") throw new Error("wrong action result"); return value; }
 const feed = { action: "x.feed.list", source: "home", profile: null, cursor: null, limit: 20 } as const;
@@ -332,6 +367,9 @@ test("installed capabilities use one read-only snapshot and never prepare an inv
   const f = fixture();
   const support = supportedCapabilities(await f.handle({ action: "x.capabilities" }));
   expect(support).toMatchObject({ post: true, like: true, home: true, followers: true, trending: true, notifications: true });
+  // x.delete-approval.* is advertised exactly when own-post deletion is.
+  expect(support["delete-approval"]).toBe(support.delete!);
+  expect(support["delete-approval"]).toBeTrue();
   expect(f.manifestReads()).toBe(1);
   expect(f.inputs).toEqual([]);
   expect(f.counts()).toEqual({ confirms: 0, executions: 0 });
@@ -882,4 +920,184 @@ test("review binds each staged attachment's immutable digest, byte length, MIME 
   ]) expect(() => appHostXPlanAttachments(stored, changed)).toThrow("attachments changed");
   const raw = { ...stored, plan: { ...stored.plan, input: { media: [{ kind: "file", reference: "/tmp/mutable" }], media_types: ["image/png"] } } } as StoredPlan;
   expect(() => appHostXPlanAttachments(raw, [media[0]!])).toThrow("immutable bytes");
+});
+
+const deleteApprovalGet = { action: "x.delete-approval.get" } as const;
+const deleteApprovalSet = (unattended: boolean) => ({ action: "x.delete-approval.set", unattended }) as const;
+const ownPostText = "Own post to delete";
+async function prepareIntent(f: ReturnType<typeof fixture>, intent: "delete" | "like" | "repost" | "bookmark" | "follow") {
+  if (intent === "delete") f.setOutput({ post: projectXSocialPost({ __typename: "Tweet", rest_id: "42", legacy: { full_text: ownPostText, user_id_str: "123" } }) });
+  const value = intent === "delete" ? { action: "delete", postId: "42", expectedText: ownPostText } : intent === "follow" ? { action: "follow", subject: "77" } : { action: intent, postId: "42" };
+  return action(await f.handle({ action: "x.action.prepare", intent: value } as never));
+}
+
+test("delete approval requests are closed: exact fields and a boolean unattended only", () => {
+  expect(parseAppHostXRequest({ ...binding, ...deleteApprovalGet })).toEqual({ ...binding, ...deleteApprovalGet });
+  expect(parseAppHostXRequest({ ...binding, ...deleteApprovalSet(true) })).toEqual({ ...binding, ...deleteApprovalSet(true) });
+  expect(parseAppHostXRequest({ ...binding, ...deleteApprovalSet(false) })).toEqual({ ...binding, ...deleteApprovalSet(false) });
+  for (const request of [
+    { ...deleteApprovalGet, unattended: true },
+    { ...deleteApprovalGet, approved: true },
+    { action: "x.delete-approval.set" },
+    { ...deleteApprovalSet(true), approved: true },
+    { ...deleteApprovalSet(true), operation: "content.delete" },
+    { ...deleteApprovalSet(true), accountId: undefined },
+    { action: "x.delete-approval.set", unattended: "true" },
+    { action: "x.delete-approval.set", unattended: 1 },
+    { action: "x.delete-approval.set", unattended: null },
+  ]) expect(() => parseAppHostXRequest({ ...binding, ...request })).toThrow();
+  expect(() => parseAppHostXRequest({ action: "x.delete-approval.get", accountId: "fixture" })).toThrow();
+});
+
+test("delete approval parser rejects arbitrary extra fields and non-boolean unattended values", () => {
+  assertProperty(fc.property(
+    fc.constantFrom("x.delete-approval.get", "x.delete-approval.set"),
+    fc.string({ minLength: 1, maxLength: 12 }).filter(key => !["action", "accountId", "expectedAccountRevision", "unattended", "__proto__"].includes(key)),
+    fc.jsonValue(),
+    (name, key, value) => {
+      const base = name === "x.delete-approval.set" ? { ...binding, action: name, unattended: true } : { ...binding, action: name };
+      expect(() => parseAppHostXRequest({ ...base, [key]: value })).toThrow();
+    },
+  ));
+  assertProperty(fc.property(fc.anything().filter(value => typeof value !== "boolean"), value => {
+    expect(() => parseAppHostXRequest({ ...binding, action: "x.delete-approval.set", unattended: value })).toThrow();
+  }));
+});
+
+type GrantCase = Readonly<{ decision: PermissionDecision | "unmanaged"; ownerGrant: boolean }>;
+const grantCases: readonly GrantCase[] = (["allow", "ask", "deny", "unmanaged"] as const).flatMap(decision => [false, true].map(ownerGrant => ({ decision, ownerGrant })));
+/** The effective explicit Allow: a managed Allow, or an owner record while unmanaged. A managed Ask or Deny always wins. */
+const effectiveAllow = ({ decision, ownerGrant }: GrantCase) => decision === "allow" || (decision === "unmanaged" && ownerGrant);
+
+test("delete approval get reports the effective explicit Allow, in the shared envelope", async () => {
+  for (const grantCase of grantCases) {
+    const f = fixture({ deleteDecision: grantCase.decision, ownerGrant: grantCase.ownerGrant });
+    expect(await f.handle(deleteApprovalGet)).toEqual({ modelVersion: 1, accountId: "fixture", accountRevision: revision, fetchedAt: new Date(1000).toISOString(), kind: "x-delete-approval", unattended: effectiveAllow(grantCase) });
+    expect(f.grantDialogs).toHaveLength(0); expect(f.grantWrites).toHaveLength(0);
+  }
+  await expect(fixture({ deleteDecision: "unavailable" }).handle(deleteApprovalGet)).rejects.toThrow("deletion setting");
+});
+
+test("delete approval requests reject a changed account revision without a dialog or write", async () => {
+  for (const request of [deleteApprovalGet, deleteApprovalSet(true), deleteApprovalSet(false)]) {
+    const f = fixture({ deleteDecision: "allow" }); f.setRevision("c".repeat(64)); f.setGrantDialog(async () => true);
+    await expect(f.handle(request)).rejects.toThrow("ACCOUNT_CHANGED");
+    expect(f.grantDialogs).toHaveLength(0); expect(f.grantWrites).toHaveLength(0);
+  }
+});
+
+test("enabling unattended deletion shows the fixed dialog and writes the grant only on approval", async () => {
+  const cancelled = fixture();
+  expect(await cancelled.handle(deleteApprovalSet(true))).toMatchObject({ kind: "x-delete-approval", unattended: false });
+  expect(cancelled.grantDialogs).toEqual([{ subject: "123", displayName: "@fixture" }]);
+  expect(cancelled.grantWrites).toEqual([]);
+
+  const approved = fixture({ deleteDecision: "deny" }); approved.setGrantDialog(async () => true);
+  expect(await approved.handle(deleteApprovalSet(true))).toMatchObject({ kind: "x-delete-approval", unattended: true });
+  expect(approved.grantWrites).toEqual(["allow"]);
+  expect(await approved.handle(deleteApprovalGet)).toMatchObject({ unattended: true });
+  // An existing grant is reported without a second dialog or write.
+  expect(await approved.handle(deleteApprovalSet(true))).toMatchObject({ unattended: true });
+  expect(approved.grantDialogs).toHaveLength(1); expect(approved.grantWrites).toEqual(["allow"]);
+});
+
+test("unmanaged state records the owner grant without turning on permission management", async () => {
+  const cancelled = fixture({ deleteDecision: "unmanaged" });
+  expect(await cancelled.handle(deleteApprovalSet(true))).toMatchObject({ unattended: false });
+  expect(cancelled.grantDialogs).toHaveLength(1); expect(cancelled.grantWrites).toEqual([]);
+
+  const approved = fixture({ deleteDecision: "unmanaged" }); approved.setGrantDialog(async () => true);
+  expect(await approved.handle(deleteApprovalSet(true))).toMatchObject({ kind: "x-delete-approval", unattended: true });
+  expect(approved.grantWrites).toEqual(["record"]);
+  expect(approved.grant().decision).toBe("unmanaged");
+  expect(await approved.handle(deleteApprovalSet(true))).toMatchObject({ unattended: true });
+  expect(approved.grantDialogs).toHaveLength(1);
+
+  // A managed Ask or Deny wins over a standing owner record: the dialog shows again and writes the managed Allow.
+  const overridden = fixture({ deleteDecision: "ask", ownerGrant: true }); overridden.setGrantDialog(async () => true);
+  expect(await overridden.handle(deleteApprovalGet)).toMatchObject({ unattended: false });
+  expect(await overridden.handle(deleteApprovalSet(true))).toMatchObject({ unattended: true });
+  expect(overridden.grantDialogs).toHaveLength(1); expect(overridden.grantWrites).toEqual(["allow"]);
+});
+
+test("enabling unattended deletion fails closed when the setting is unavailable or changes during the dialog", async () => {
+  const unavailable = fixture({ deleteDecision: "unavailable" }); unavailable.setGrantDialog(async () => true);
+  await expect(unavailable.handle(deleteApprovalSet(true))).rejects.toThrow("deletion setting");
+  expect(unavailable.grantDialogs).toHaveLength(0);
+
+  for (const change of [{ revision: 9 }, { grantRevision: 9 }, { decision: "ask" }] as const) {
+    for (const decision of ["deny", "unmanaged"] as const) {
+      const changed = fixture({ deleteDecision: decision }); changed.setGrantDialog(async () => { changed.setGrant(change); return true; });
+      await expect(changed.handle(deleteApprovalSet(true))).rejects.toThrow("permissions changed");
+      expect(changed.grantWrites).toHaveLength(0);
+    }
+  }
+
+  const replaced = fixture(); replaced.setGrantDialog(async () => { replaced.setRevision("c".repeat(64)); return true; });
+  await expect(replaced.handle(deleteApprovalSet(true))).rejects.toThrow("ACCOUNT_CHANGED");
+  expect(replaced.grantWrites).toHaveLength(0);
+
+  const closed = fixture(); closed.setGrantDialog(async (_decision, signal) => { closed.service.close(); return !signal.aborted; });
+  await expect(closed.handle(deleteApprovalSet(true))).rejects.toThrow("closed");
+  expect(closed.grantWrites).toHaveLength(0);
+});
+
+test("one native dialog at a time: a pending action confirmation blocks the grant dialog", async () => {
+  const f = fixture(); const prepared = await f.prepare(); let release!: (value: boolean) => void;
+  f.setConfirmation(() => new Promise(resolve => { release = resolve; })); f.setGrantDialog(async () => true);
+  const commit = f.handle({ action: "x.action.commit", preparationId: prepared.preparationId!, digest: prepared.digest! } as never);
+  await expect(f.handle(deleteApprovalSet(true))).rejects.toThrow("Finish the current confirmation");
+  release(false); await commit;
+  expect(f.grantDialogs).toHaveLength(0); expect(f.grantWrites).toHaveLength(0);
+});
+
+test("disabling unattended deletion removes the owner record and turns a managed Allow into Ask, without a dialog", async () => {
+  for (const grantCase of grantCases) {
+    const f = fixture({ deleteDecision: grantCase.decision, ownerGrant: grantCase.ownerGrant }); f.setGrantDialog(async () => true);
+    expect(await f.handle(deleteApprovalSet(false))).toMatchObject({ kind: "x-delete-approval", unattended: false });
+    expect(f.grantDialogs).toHaveLength(0);
+    expect(f.grantWrites).toEqual([...(grantCase.ownerGrant ? ["remove-record"] : []), ...(grantCase.decision === "allow" ? ["ask"] : [])]);
+    expect(f.grant().decision).toBe(grantCase.decision === "allow" ? "ask" : grantCase.decision);
+  }
+});
+
+test("an effective explicit Allow skips the action dialog for an own-post deletion and requires that Allow at dispatch", async () => {
+  for (const grantCase of [{ deleteDecision: "allow" }, { deleteDecision: "unmanaged", ownerGrant: true }] as const) {
+    const f = fixture(grantCase); f.setConfirmation(async () => { throw new Error("must not confirm"); });
+    const prepared = await prepareIntent(f, "delete");
+    expect(action(await f.handle({ action: "x.action.commit", preparationId: prepared.preparationId!, digest: prepared.digest! })).state).toBe("completed");
+    expect(f.counts()).toEqual({ confirms: 0, executions: 1 });
+    expect(f.executionOptions[0]).toMatchObject({ requireExplicitAllow: true });
+  }
+});
+
+test("a grant revoked after preparation restores the action dialog", async () => {
+  for (const grantCase of [{ deleteDecision: "allow" }, { deleteDecision: "unmanaged", ownerGrant: true }] as const) {
+    const f = fixture(grantCase); f.setConfirmation(async () => false);
+    const prepared = await prepareIntent(f, "delete");
+    await f.handle(deleteApprovalSet(false));
+    expect(action(await f.handle({ action: "x.action.commit", preparationId: prepared.preparationId!, digest: prepared.digest! })).state).toBe("denied");
+    expect(f.counts()).toEqual({ confirms: 1, executions: 0 });
+  }
+});
+
+test("the action dialog is skipped iff the intent is delete and the account holds an effective explicit Allow", async () => {
+  await assertAsyncProperty(fc.asyncProperty(
+    fc.constantFrom("allow", "ask", "deny", "unmanaged", "unavailable") as fc.Arbitrary<"allow" | "ask" | "deny" | "unmanaged" | "unavailable">,
+    fc.boolean(),
+    fc.constantFrom("delete", "like", "repost", "bookmark", "follow") as fc.Arbitrary<"delete" | "like" | "repost" | "bookmark" | "follow">,
+    fc.boolean(),
+    async (decision, ownerGrant, intent, answer) => {
+      const f = fixture({ deleteDecision: decision, ownerGrant }); f.setConfirmation(async () => answer);
+      try {
+        const prepared = await prepareIntent(f, intent);
+        const result = action(await f.handle({ action: "x.action.commit", preparationId: prepared.preparationId!, digest: prepared.digest! }));
+        const skipped = intent === "delete" && decision !== "unavailable" && effectiveAllow({ decision, ownerGrant });
+        expect(f.counts()).toEqual({ confirms: skipped ? 0 : 1, executions: skipped || answer ? 1 : 0 });
+        expect(result.state).toBe(skipped || answer ? "completed" : "denied");
+        expect(f.executionOptions.map(value => (value as { requireExplicitAllow?: boolean }).requireExplicitAllow === true)).toEqual(skipped ? [true] : answer ? [false] : []);
+        expect(f.grantDialogs).toHaveLength(0); expect(f.grantWrites).toHaveLength(0);
+      } finally { f.service.close(); }
+    },
+  ));
 });

@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import { assertAuthorizedPublicationPermission, assertOperationPreparationPermission, checkOperationPermission, withOperationPermission, withUnmanagedOperationPermission, readOperationPolicy } from "./operation-permission";
+import { assertAuthorizedExecutionPermission, assertOperationPreparationPermission, checkOperationPermission, withOperationPermission, withUnmanagedOperationPermission, readOperationPolicy } from "./operation-permission";
 import type { ApprovalTarget } from "./control/protocol";
 import { ConfirmedWritePlatform, makeConfirmedWritePlatform } from "./confirmed-write-platform";
 import { confirmedWriteProgram } from "./confirmed-write-program";
@@ -5641,6 +5641,8 @@ async function confirmInvocationCore(
     readonly executeReviewedTemplate?: typeof executeReviewedTemplateOperation;
     readonly signal?: AbortSignal;
     readonly requireAllow?: boolean;
+    /** Dispatch only under an effective explicit Allow for this exact capability: a managed Allow, or an unmanaged owner grant. */
+    readonly requireExplicitAllow?: boolean;
     readonly persistReceipt?: (receipt: RunReceipt, environment: Readonly<Record<string, string | undefined>>) => void;
   },
 ): Promise<InvocationResult> {
@@ -5681,17 +5683,24 @@ async function confirmInvocationCore(
   }, options))));
 }
 
-export async function executeAuthorizedPublication(invocation: PreparedInvocation, options: Parameters<typeof confirmInvocationCore>[1]): Promise<InvocationResult> {
+/**
+ * The explicit `--execute` path: an allowlisted operation records the exact
+ * immutable plan and dispatches through the same single-dispatch lifecycle
+ * as confirmation. Publication refuses managed Ask or Deny; own X post
+ * deletion requires an effective explicit Allow (a managed Allow, or the
+ * owner's unmanaged grant for that exact capability), rechecked at dispatch.
+ */
+export async function executeAuthorizedInvocation(invocation: PreparedInvocation, options: Parameters<typeof confirmInvocationCore>[1]): Promise<InvocationResult> {
   const environment = options.environment ?? process.env;
   const registry = options.registry ?? providerPluginRegistry;
-  assertAuthorizedPublicationPermission(invocation, { environment, registry });
+  const mode = assertAuthorizedExecutionPermission(invocation, { environment, registry });
   const stored = createAndSaveInvocationPlan(invocation, environment, options.now ?? new Date(), registry);
-  return confirmInvocation(stored.digest, { ...options, environment, registry, requireAllow: true });
+  return confirmInvocation(stored.digest, { ...options, environment, registry, requireAllow: true, ...(mode === "explicit-allow" ? { requireExplicitAllow: true } : {}) });
 }
 
 export async function confirmInvocation(digest: string, options: Parameters<typeof confirmInvocationCore>[1]): Promise<InvocationResult> {
   const environment = options.environment ?? process.env;
-  if (options.requireAllow !== true && !readOperationPolicy(environment).managed) return withUnmanagedOperationPermission(environment, () => confirmInvocationCore(digest, options));
+  if (options.requireAllow !== true && options.requireExplicitAllow !== true && !readOperationPolicy(environment).managed) return withUnmanagedOperationPermission(environment, () => confirmInvocationCore(digest, options));
   const registry = options.registry ?? providerPluginRegistry;
   const stored = loadInvocationPlan(digest, environment);
   let invocation: PreparedInvocation;
@@ -5706,7 +5715,7 @@ export async function confirmInvocation(digest: string, options: Parameters<type
     try { cancelInvocationPlan(digest, environment); } catch { /* the refusal below stands */ }
     throw error;
   }
-  return withOperationPermission(invocation, { environment, registry, plan: stored, requireAllow: options.requireAllow === true, ...(options.signal === undefined ? {} : { signal: options.signal }) },
+  return withOperationPermission(invocation, { environment, registry, plan: stored, requireAllow: options.requireAllow === true, requireExplicitAllow: options.requireExplicitAllow === true, ...(options.signal === undefined ? {} : { signal: options.signal }) },
     () => confirmInvocationCore(digest, options));
 }
 

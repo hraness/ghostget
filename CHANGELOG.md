@@ -7,6 +7,22 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.98
+
+You can let agents delete your connected X account's own posts without asking
+each time. Turn this on per account in GhostGet's native dialog, and turn it off
+at any time. The setting works whether or not operation permissions are turned
+on, and turning it on changes nothing else. Every other write still asks.
+
+- `invoke x-web content.delete --execute` deletes one of the account's own posts
+  without a confirmation only under an explicit owner Allow for that account,
+  and rechecks it at dispatch. A managed Ask or Deny always wins.
+- The native app host adds `x.delete-approval.get` and `x.delete-approval.set`,
+  `x.action.commit` skips its dialog for an allowed delete, and
+  `x.capabilities` lists `delete-approval`.
+- Turning the setting off removes the grant; a managed Allow becomes Ask so
+  deletes keep asking.
+
 ## 0.18.97
 
 X publishes posts with ordered PNG/JPEG images or one MP4, creates text quotes,
