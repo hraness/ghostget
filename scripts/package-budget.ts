@@ -2626,17 +2626,28 @@
 // Preserve all prior allowances: 12,438,651 + 12,387 + 4,096 = 12,455,134 packed;
 // 25,442,947 + 353 + 1,656 = 25,444,956 unpacked. CI and canonical Release
 // independently measure and admit their actual platform archives.
+// Qualified X media, quote, repost and relationship writes retain the prior
+// adapter as one additional packed source entry. Two clean Git ZIP snapshots
+// of fdb1a2a6f66e5a6272688e68ae7cd3e41743df6f, including committed dist,
+// packed independently with npm 11.19.0 / Node 24.20.0 / zlib 1.2.12 on
+// darwin arm64 were byte-identical: 12,449,690 compressed / 25,497,133 payload
+// bytes, 697 files/entries; SHA-256
+// c8714c9160cbf9dcc17c0d0a5297b6a63d08137dfbd0f1b4be4b5f4bb0aa3aa9.
+// Every packed payload byte and mode matched its exact committed Git blob.
+// Preserve all prior allowances: 12,449,690 + 12,387 + 4,096 = 12,466,173 packed;
+// 25,497,133 + 353 + 1,656 = 25,499,142 unpacked. CI and canonical Release
+// independently measure and admit their actual platform archives.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "X Story/repost and native adapter upgrade 0.18.96",
+  scope: "Qualified X media, quote, repost and relationship writes 0.18.97",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   nodeVersion: "24.20.0",
   zlibVersion: "1.2.12",
   platform: "darwin-arm64",
-  archiveSha256: "d43a8bf4ea79d40c4908f2a3f8d5cf565124c7b55292571b725911c65af20787",
-  packedBytes: 12_438_651,
-  unpackedBytes: 25_442_947,
-  entryCount: 696,
+  archiveSha256: "c8714c9160cbf9dcc17c0d0a5297b6a63d08137dfbd0f1b4be4b5f4bb0aa3aa9",
+  packedBytes: 12_449_690,
+  unpackedBytes: 25_497_133,
+  entryCount: 697,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,
