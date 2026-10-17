@@ -2637,16 +2637,16 @@
 // Preserve all prior allowances: 12,449,690 + 12,387 + 4,096 = 12,466,173 packed;
 // 25,497,133 + 353 + 1,656 = 25,499,142 unpacked. CI and canonical Release
 // independently measure and admit their actual platform archives.
-// Unattended own-post deletion adds the owner delete grant store as one packed
-// source entry and drops one rebuilt dist chunk. Two clean Git ZIP snapshots
-// of 742d7e3eec29e45de46c13ccab37e842acf2d986, including committed dist,
+// Unattended own-post deletion adds the owner delete grant store as one
+// additional packed source entry. Two clean Git ZIP snapshots
+// of 0f4d0b638eed4d33f5ec869ea02106feadf97454, including committed dist,
 // packed independently with npm 11.19.0 / Node 24.20.0 / zlib 1.2.12 on
-// darwin arm64 were byte-identical: 12,455,540 compressed / 25,519,452 payload
-// bytes, 697 files/entries; SHA-256
-// 0d642c538bf8e6a33a76727eb6ad287423e5533e99b02a7f2667740aa3cdbe4a.
+// darwin arm64 were byte-identical: 12,457,000 compressed / 25,525,350 payload
+// bytes, 698 files/entries; SHA-256
+// c93acf4cfd343b2f34734bc256fd68db184064eab6e866f3fc559904407a71f1.
 // Every packed payload byte and mode matched its exact committed Git blob.
-// Preserve all prior allowances: 12,455,540 + 12,387 + 4,096 = 12,472,023 packed;
-// 25,519,452 + 353 + 1,656 = 25,521,461 unpacked. CI and canonical Release
+// Preserve all prior allowances: 12,457,000 + 12,387 + 4,096 = 12,473,483 packed;
+// 25,525,350 + 353 + 1,656 = 25,527,359 unpacked. CI and canonical Release
 // independently measure and admit their actual platform archives.
 export const repairPackageMeasurement = Object.freeze({
   scope: "Unattended own-post deletion 0.18.98",
@@ -2655,10 +2655,10 @@ export const repairPackageMeasurement = Object.freeze({
   nodeVersion: "24.20.0",
   zlibVersion: "1.2.12",
   platform: "darwin-arm64",
-  archiveSha256: "0d642c538bf8e6a33a76727eb6ad287423e5533e99b02a7f2667740aa3cdbe4a",
-  packedBytes: 12_455_540,
-  unpackedBytes: 25_519_452,
-  entryCount: 697,
+  archiveSha256: "c93acf4cfd343b2f34734bc256fd68db184064eab6e866f3fc559904407a71f1",
+  packedBytes: 12_457_000,
+  unpackedBytes: 25_525_350,
+  entryCount: 698,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,
