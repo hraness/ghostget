@@ -2,6 +2,11 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { describe, expect, test } from "bun:test";
+import currentXManifest from "./assets/adapters/x/wrench-web-adapter.json";
+
+const xSuccessorVersions = { "posts.publish": 7, "posts.quote": 3, "posts.repost": 2, "relationships.follow.set": 2 } as const;
+const currentXSuccessorCount = Object.entries(xSuccessorVersions).filter(([operation, version]) =>
+  currentXManifest.operations[operation as keyof typeof xSuccessorVersions].webSession.contractVersion === version).length;
 
 const predecessorDefaultInventorySha256 =
   "333bd6dbd0c1b1d5dca9bc6d0c8775ed3061f1a212091e2cbec59e1f734df1fc";
@@ -107,6 +112,7 @@ const workspaceXCoordinates = new Set([
 ]);
 const currentOnlyXCoordinates = new Set([
   ...workspaceXCoordinates, "feeds.read@3", "explore.read@2",
+  "posts.publish@7", "posts.quote@3", "posts.repost@2", "relationships.follow.set@2",
 ]);
 let acceptedLegacy = true;
 let rejectedUnknown = true;
@@ -381,6 +387,7 @@ for (const [operation, version, adapterVersion] of [
 predecessorXCoordinates.add("likes.set@1");
 const predecessorXAliases = [...new Set([predecessorXWriter, ...predecessorXReaders])].sort();
 const workspaceXWriter = "0ebaf735cda26b2f42eb54951d92cf6694dcca2d6232349d26a3bfdf4153d0c4";
+const storyXWriter = "802de506e8b20f6423510683da933f1b0c9e0cef762a7cb35fd3f49248d73397";
 const workspaceXManifest = (await import(${JSON.stringify(moduleUrl("assets/adapters/x/wrench-web-adapter.v1.19.0.json"))})).default;
 const workspaceDistributionCoordinates = new Set([
   ...predecessorXCoordinates,
@@ -394,15 +401,32 @@ workspaceDistributionCoordinates.add("posts.publish@6");
 if (workspaceDistributionCoordinates.size !== 37 || [...workspaceXCoordinates].some(coordinate => !workspaceDistributionCoordinates.has(coordinate))) {
   throw new Error("X workspace archive changed its frozen route scope");
 }
+const storyXManifest = (await import(${JSON.stringify(moduleUrl("assets/adapters/x/wrench-web-adapter.v1.20.0.json"))})).default;
+const storyDistributionCoordinates = new Set([
+  ...workspaceDistributionCoordinates,
+  ...Object.entries(storyXManifest.operations).map(([name, operation]) => name + "@" + operation.webSession.contractVersion),
+]);
+if (storyDistributionCoordinates.size !== 39) {
+  throw new Error("X Story archive changed its frozen route scope");
+}
 const xBinding = registry.resolveSessionRoute("x");
 if (xBinding === undefined) throw new Error("X binding is missing");
+const currentXManifest = (await import(${JSON.stringify(moduleUrl("assets/adapters/x/wrench-web-adapter.json"))})).default;
+const successorXCoordinates = new Set(["posts.publish@7", "posts.quote@3", "posts.repost@2", "relationships.follow.set@2"]);
+const expectedAddedXCoordinates = new Set(Object.entries(currentXManifest.operations)
+  .map(([name, operation]) => name + "@" + operation.webSession.contractVersion)
+  .filter(coordinate => successorXCoordinates.has(coordinate)));
+const observedAddedXCoordinates = new Set();
 let priorXRoutes = 0;
 let addedXRoutes = 0;
 let workspaceXRoutes = 0;
+let storyXRoutes = 0;
 let preservedXAliases = true;
 let preservedWorkspaceAliases = true;
+let preservedStoryAliases = true;
 let rejectedAddedXAliases = true;
 const workspaceReceiptRows = [];
+const storyReceiptRows = [];
 for (const operation of xBinding.operations) {
   for (const contractVersion of operation.contractVersions) {
     const coordinate = operation.name + "@" + contractVersion;
@@ -414,18 +438,24 @@ for (const operation of xBinding.operations) {
     }, registry);
     if (predecessorXCoordinates.has(coordinate)) {
       priorXRoutes++;
-      preservedXAliases &&= JSON.stringify(aliases) === JSON.stringify([...predecessorXAliases, workspaceXWriter].sort());
+      preservedXAliases &&= JSON.stringify(aliases) === JSON.stringify([...predecessorXAliases, workspaceXWriter, storyXWriter].sort());
       preservedXAliases &&= predecessorXAliases.every(hash =>
         webContracts.isCompatibleWebSessionContractHash(contract, legacyHash(contract, Buffer.from(hash, "hex"), true), registry));
     } else if (workspaceDistributionCoordinates.has(coordinate)) {
       workspaceXRoutes++;
-      preservedWorkspaceAliases &&= JSON.stringify(aliases) === JSON.stringify([workspaceXWriter]);
+      preservedWorkspaceAliases &&= JSON.stringify(aliases) === JSON.stringify([workspaceXWriter, storyXWriter].sort());
       preservedWorkspaceAliases &&= predecessorXAliases.every(hash =>
+        !webContracts.isCompatibleWebSessionContractHash(contract, legacyHash(contract, Buffer.from(hash, "hex"), true), registry));
+    } else if (storyDistributionCoordinates.has(coordinate)) {
+      storyXRoutes++;
+      preservedStoryAliases &&= JSON.stringify(aliases) === JSON.stringify([storyXWriter]);
+      preservedStoryAliases &&= [...predecessorXAliases, workspaceXWriter].every(hash =>
         !webContracts.isCompatibleWebSessionContractHash(contract, legacyHash(contract, Buffer.from(hash, "hex"), true), registry));
     } else if (currentOnlyXCoordinates.has(coordinate)) {
       addedXRoutes++;
+      observedAddedXCoordinates.add(coordinate);
       rejectedAddedXAliases &&= aliases.length === 0;
-      rejectedAddedXAliases &&= [...predecessorXAliases, workspaceXWriter].every(hash =>
+      rejectedAddedXAliases &&= [...predecessorXAliases, workspaceXWriter, storyXWriter].every(hash =>
         !webContracts.isCompatibleWebSessionContractHash(contract, legacyHash(contract, Buffer.from(hash, "hex"), true), registry));
     } else {
       throw new Error("X contract route lies outside the frozen predecessor and workspace inventories");
@@ -436,12 +466,21 @@ for (const operation of xBinding.operations) {
       preservedWorkspaceAliases &&= webContracts.isCompatibleWebSessionContractHash(contract,
         legacyHash(contract, Buffer.from(workspaceXWriter, "hex"), true), registry);
     }
+    if (storyDistributionCoordinates.has(coordinate)) {
+      storyReceiptRows.push([operation.name, contractVersion,
+        legacyHash(contract, Buffer.from(storyXWriter, "hex"), true)]);
+      preservedStoryAliases &&= webContracts.isCompatibleWebSessionContractHash(contract,
+        legacyHash(contract, Buffer.from(storyXWriter, "hex"), true), registry);
+    }
   }
 }
-if (priorXRoutes !== predecessorXCoordinates.size || workspaceXRoutes !== workspaceXCoordinates.size || addedXRoutes !== 2) {
+if (priorXRoutes !== predecessorXCoordinates.size || workspaceXRoutes !== workspaceXCoordinates.size || storyXRoutes !== 2
+  || addedXRoutes !== expectedAddedXCoordinates.size
+  || [...expectedAddedXCoordinates].some(coordinate => !observedAddedXCoordinates.has(coordinate))) {
   throw new Error("X contract inventory omitted a frozen predecessor or workspace route");
 }
 workspaceReceiptRows.sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
+storyReceiptRows.sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
 process.stdout.write(JSON.stringify({
   rows: rows.length,
   sha256: createHash("sha256").update(JSON.stringify(rows)).digest("hex"),
@@ -456,7 +495,8 @@ process.stdout.write(JSON.stringify({
   acceptedLegacy,
   rejectedUnknown,
   workspaceReceiptSha256: createHash("sha256").update(JSON.stringify(workspaceReceiptRows)).digest("hex"),
-  xCompatibilityScope: { priorRoutes: priorXRoutes, workspaceRoutes: workspaceXRoutes, addedRoutes: addedXRoutes, preservedAliases: preservedXAliases, preservedWorkspaceAliases, rejectedAddedAliases: rejectedAddedXAliases },
+  storyReceiptSha256: createHash("sha256").update(JSON.stringify(storyReceiptRows)).digest("hex"),
+  xCompatibilityScope: { priorRoutes: priorXRoutes, workspaceRoutes: workspaceXRoutes, storyRoutes: storyXRoutes, addedRoutes: addedXRoutes, preservedAliases: preservedXAliases, preservedWorkspaceAliases, preservedStoryAliases, rejectedAddedAliases: rejectedAddedXAliases },
 }));
 `;
 
@@ -497,8 +537,10 @@ describe("durable provider contract inventory", () => {
       expect(inventory).toEqual({
         rows: 326,
         sha256: predecessorDefaultInventorySha256,
-        currentOnlyRows: 105,
-        currentOnlySha256: "430956e5ce5c98ff9cc78e883142d2a7139d58c1792b88bd197e12a79eff5c46",
+        currentOnlyRows: 105 + currentXSuccessorCount,
+        // Root refreshes only this current-distribution digest after final
+        // successor activation; every historical aggregate below stays fixed.
+        currentOnlySha256: "d3e1accd3c6bf91ba1f42eb2e5a4208085da344cc691e18824348b56d693e160",
         automationRows: [
           ["linked-device", "whatsapp", "messaging.automation.read", 1],
           ["linked-device", "whatsapp", "messaging.automation.send.attachment", 1],
@@ -545,7 +587,9 @@ describe("durable provider contract inventory", () => {
         acceptedLegacy: true,
         rejectedUnknown: true,
         workspaceReceiptSha256: "87a15c724ac91e20d6750e61979bbb48c9dc965ccdb2689e805479e8a9cf6364",
-        xCompatibilityScope: { priorRoutes: 28, workspaceRoutes: 9, addedRoutes: 2, preservedAliases: true, preservedWorkspaceAliases: true, rejectedAddedAliases: true },
+        // Captured independently from the unchanged v0.18.96 registry's 39 routes.
+        storyReceiptSha256: "b45993ece488d1c52f0ea873c287808afaabdb64d9fb28e5076885d0e0ab66e2",
+        xCompatibilityScope: { priorRoutes: 28, workspaceRoutes: 9, storyRoutes: 2, addedRoutes: currentXSuccessorCount, preservedAliases: true, preservedWorkspaceAliases: true, preservedStoryAliases: true, rejectedAddedAliases: true },
       });
     }
   });

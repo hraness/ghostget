@@ -3222,8 +3222,8 @@ describe("local at-most-once dispatch ledger", () => {
         "posts.publish",
         {
           body: "one explicit duplicate-risk fixture",
-          media: mediaPath,
-          media_type: "image/png",
+          media: [mediaPath],
+          media_types: ["image/png"],
         },
         selectedAuth.id,
         testState.environment,
@@ -3285,7 +3285,7 @@ describe("local at-most-once dispatch ledger", () => {
       });
       saveAuth(otherAuth, testState.environment);
       const otherInvocation = prepareInvocation("x-web", "posts.publish", {
-        body: "one explicit duplicate-risk fixture", media: mediaPath, media_type: "image/png",
+        body: "one explicit duplicate-risk fixture", media: [mediaPath], media_types: ["image/png"],
       }, otherAuth.id, testState.environment);
       expect(() => createAndSaveInvocationPlan(otherInvocation, testState.environment,
         new Date(), providerPluginRegistry, { duplicateRiskOf: [source.receipt.runId] }))
@@ -3304,7 +3304,7 @@ describe("local at-most-once dispatch ledger", () => {
       expect(staleDispatches).toBe(0);
       expect(readRunJournal(source.receipt.runId, testState.environment)?.journal.duplicateSuccessor).toBeUndefined();
       invocation = prepareInvocation("x-web", "posts.publish", {
-        body: "one explicit duplicate-risk fixture", media: mediaPath, media_type: "image/png",
+        body: "one explicit duplicate-risk fixture", media: [mediaPath], media_types: ["image/png"],
       }, selectedAuth.id, testState.environment);
       expect(invocation.readProjectionAuthIdentityHash).not.toBe(priorIncarnation);
 
@@ -5414,7 +5414,7 @@ describe("confirmed terminal authority", () => {
       saveAuth(auth, testState.environment);
       const media = join(testState.directory, "native-duplicate.png");
       writeFileSync(media, Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52]), { mode: 0o600 });
-      const invocation = prepareInvocation("x-web", "posts.publish", { body: "duplicate-risk claim witness", media, media_type: "image/png" }, auth.id, testState.environment);
+      const invocation = prepareInvocation("x-web", "posts.publish", { body: "duplicate-risk claim witness", media: [media], media_types: ["image/png"] }, auth.id, testState.environment);
       const initial = createAndSaveInvocationPlan(invocation, testState.environment);
       const dispatch = initial.plan.dispatches[0];
       if (dispatch === undefined) throw new Error("fixture dispatch missing");

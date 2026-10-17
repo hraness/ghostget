@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import fc from "fast-check";
+import { assertAsyncProperty } from "../test-support";
 
 import type { GhostgetAuth } from "../auth";
 import type { BrowserSession, CreateBrowserSessionOptions, createBrowserSession } from "../browser";
@@ -214,6 +216,48 @@ describe("X client transaction runtime discovery", () => {
 });
 
 describe("X client transaction browser bootstrap", () => {
+  test("supports only the two exact friendship POST paths without dispatching either action", async () => {
+    for (const action of ["create", "destroy"]) {
+      const fake = fakeBrowser();
+      const path = `/i/api/1.1/friendships/${action}.json`;
+      expect(await generate(fake, { path })).toBe(TRANSACTION_ID);
+      expect(fake.commands.map(command => command[0])).toEqual(["open", "get", "eval"]);
+      expect(fake.commands[0]).toEqual(["open", "https://x.com/home"]);
+      expect(fake.commands[2]?.[1]).toContain(`"path":"${path}"`);
+      expect(fake.commands[2]?.[1]).toContain('"method":"POST"');
+      expect(fake.lifecycle).toEqual({ created: 1, closed: 1, cleaned: 1, evaluations: 1 });
+    }
+  });
+
+  test("rejects friendship method, suffix, query, encoding and route drift before browser creation", async () => {
+    for (const path of ["/i/api/1.1/friendships/create.json", "/i/api/1.1/friendships/destroy.json"]) {
+      for (const method of ["GET", "PUT", "DELETE", "post"]) {
+        const fake = fakeBrowser();
+        await expect(generate(fake, { path, method: method as "POST" })).rejects.toThrow("mutations only");
+        expect(fake.lifecycle).toEqual({ created: 0, closed: 0, cleaned: 0, evaluations: 0 });
+      }
+      for (const invalidPath of [`${path}/`, `${path}?user_id=123`, `${path}#target`, `${path}.json`, `${path}\n`,
+        path.replace(".json", ""), path.replace("/friendships/", "/friendships/../friendships/"),
+        path.replace("/friendships/", "/friendships%2F"), path.replace("/friendships/", "/%66riendships/"),
+        path.replace("/1.1/", "/2/"), `https://x.com${path}`,
+        "/i/api/1.1/friendships/update.json", "/i/api/1.1/friendships/create_all.json", "/i/api/1.1/users/create.json"]) {
+        const fake = fakeBrowser();
+        await expect(generate(fake, { path: invalidPath })).rejects.toThrow("path is not one exact");
+        expect(fake.lifecycle).toEqual({ created: 0, closed: 0, cleaned: 0, evaluations: 0 });
+        expect(fake.commands).toEqual([]);
+      }
+    }
+  });
+
+  test("property: arbitrary nonempty suffixes never widen either fixed friendship path", async () => {
+    await assertAsyncProperty(fc.asyncProperty(fc.string({ minLength: 1, maxLength: 100 }), fc.boolean(), async (suffix, create) => {
+      const fake = fakeBrowser();
+      const path = `/i/api/1.1/friendships/${create ? "create" : "destroy"}.json${suffix}`;
+      await expect(generate(fake, { path })).rejects.toThrow("path is not one exact");
+      expect(fake.lifecycle).toEqual({ created: 0, closed: 0, cleaned: 0, evaluations: 0 });
+    }), { numRuns: 100 });
+  });
+
   test("runs one fixed code-owned evaluation in a contained private session", async () => {
     const fake = fakeBrowser();
     expect(await generate(fake)).toBe(TRANSACTION_ID);

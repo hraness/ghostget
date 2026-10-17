@@ -16,6 +16,7 @@ import archivedXWebArticlesReadV1Manifest from "../../assets/adapters/x/wrench-w
 import archivedXWebLongPostPredecessorManifest from "../../assets/adapters/x/wrench-web-adapter.v1.13.0.json";
 import archivedXWebReadV1Manifest from "../../assets/adapters/x/wrench-web-adapter.v1.17.0.json";
 import archivedXWebWorkspaceManifest from "../../assets/adapters/x/wrench-web-adapter.v1.19.0.json";
+import archivedXWebStoryManifest from "../../assets/adapters/x/wrench-web-adapter.v1.20.0.json";
 import reservedXWebPostsPublishV6Manifest from "../../assets/adapters/x/wrench-web-adapter.v1.18.0.json";
 import archivedXWebContentDeleteV2Manifest from "../../assets/adapters/x/wrench-web-adapter.v1.16.0.json";
 import {
@@ -157,7 +158,7 @@ function xArticleDraftV2Dispatches(
 
 const currentOperations = webSessionContractOperations(
   Object.values(webSessionContractDefinitions.x),
-  "564e1c02870a13559a9198319263dd034d26be987efb9917f96576e71f7aac40",
+  "c525c074048e531de64c8a5aaa7db64d8fb76d9e49972ad7dd5225ee04eb5d71",
   {
     "likes.set": [1],
   },
@@ -178,11 +179,26 @@ const currentOperations = webSessionContractOperations(
   if (
     operation.name === "posts.publish"
     || operation.name === "replies.create"
+    || operation.name === "posts.quote" && operation.contractVersion === 3 && operation.state === "observed"
   ) {
     return Object.freeze({
       ...operation,
       reconciliation: Object.freeze({
         kind: "provider-accepted-target-presence" as const,
+      }),
+    });
+  }
+  if (operation.contractVersion === 2 && operation.state === "observed"
+    && (operation.name === "posts.repost" || operation.name === "relationships.follow.set")) {
+    const stateKey = operation.name === "posts.repost" ? "reposted" : "following";
+    return Object.freeze({
+      ...operation,
+      reconciliation: Object.freeze({
+        kind: "boolean-desired-state" as const,
+        desiredState: (input: OperationInput): boolean => {
+          if (typeof input[stateKey] !== "boolean") throw new Error(`X ${operation.name} requires boolean ${stateKey}`);
+          return input[stateKey];
+        },
       }),
     });
   }
@@ -306,6 +322,7 @@ function archivedXWebPostsPublishOperation(
   manifest: unknown,
   adapterVersion: string,
   contractVersion: number,
+  implementation = "optional single-PNG upload plus strict CreateTweet response, durable accepted-target evidence, and bounded independent TweetResultByRestId readback binding",
 ) {
   const contract = reviewedArchivedWebSessionContract(
     manifest,
@@ -317,8 +334,7 @@ function archivedXWebPostsPublishOperation(
       contractVersion,
       risk: "R3",
       state: "observed",
-      implementation:
-        "optional single-PNG upload plus strict CreateTweet response, durable accepted-target evidence, and bounded independent TweetResultByRestId readback binding",
+      implementation,
     },
   );
   return Object.freeze({
@@ -344,9 +360,10 @@ function archivedXWebPostsPublishOperation(
 function archivedXWebCaptureRequiredOperation(
   manifest: unknown,
   adapterVersion: string,
-  operation: "posts.quote" | "content.delete" | "posts.publish",
+  operation: "posts.quote" | "posts.repost" | "relationships.follow.set" | "content.delete" | "posts.publish",
   implementation: string,
   contractVersion = 1,
+  risk: "R2" | "R3" = "R3",
 ) {
   const contract = reviewedArchivedWebSessionContract(
     manifest,
@@ -356,7 +373,7 @@ function archivedXWebCaptureRequiredOperation(
       site: "x",
       operation,
       contractVersion,
-      risk: "R3",
+      risk,
       state: "capture-required",
       implementation,
     },
@@ -377,6 +394,19 @@ function archivedXWebCaptureRequiredOperation(
     validateInput: () => Object.freeze([]),
   });
 }
+
+// These reservations stay current until their separately qualified successors
+// activate. Once replaced, retain exactly the shipped 1.20.0 contracts rather
+// than rebuilding a historical route from the successor's schema or policy.
+const archivedStoryMutationOperations = ([
+  ["posts.quote", 2, "R3", "CreateTweet quote needs an authorized live fixture and reviewed transaction-header behavior; quote text uses the same reviewed 25000-unit CreateTweet bound as posts.publish"],
+  ["posts.repost", 1, "R3", "repost desired-state mutation needs an authorized live fixture and reviewed transaction-header behavior"],
+  ["relationships.follow.set", 1, "R2", "fixed numeric-target desired-state follow/unfollow request and independent readback require qualification"],
+] as const).flatMap(([operation, contractVersion, risk, implementation]) =>
+  webSessionContractDefinitions.x[operation].contractVersion === contractVersion ? [] : [
+    archivedXWebCaptureRequiredOperation(archivedXWebStoryManifest, "1.20.0", operation,
+      implementation, contractVersion, risk),
+  ]);
 
 const archivedReadImplementations = {
   "feeds.read": "current first-party GraphQL timeline/list/search/bookmark query",
@@ -424,6 +454,13 @@ const operations = Object.freeze([
   ...currentOperations,
   ...archivedXWebReadOperations,
   ...archivedWorkspaceReadOperations,
+  ...archivedStoryMutationOperations,
+  archivedXWebPostsPublishOperation(
+    archivedXWebStoryManifest,
+    "1.20.0",
+    5,
+    "current optional single-PNG or MP4 upload with pixels-only provenance scrub, CreateTweet tweet_text up to the reviewed 25000-unit long-post bound, strict CreateTweet response including note_tweet, durable accepted-target evidence, and fail-closed TweetResultByRestId readback for Made with AI labels",
+  ),
   archivedXWebCaptureRequiredOperation(
     reservedXWebPostsPublishV6Manifest,
     "1.18.0",
@@ -472,7 +509,7 @@ const operations = Object.freeze([
 export const xWebPlugin = defineProviderPlugin({
   apiVersion: 1,
   id: "x-web",
-  version: "1.7.0",
+  version: "1.8.0",
   displayName: "X Authenticated Web",
   sourceKind: "built-in",
   implementationSources: webImplementationSources(import.meta.url, [
@@ -507,14 +544,16 @@ export const xWebPlugin = defineProviderPlugin({
         execute: (_manifest, recipe, input, auth, options) =>
           runtime.executeXWebOperation(recipe, input, auth, options),
         reconcile: async (operation, input, auth, context) => {
-          if (operation === "posts.publish" || operation === "replies.create") {
+          if (operation === "posts.publish" || operation === "replies.create" || operation === "posts.quote") {
             if (context?.kind !== "provider-accepted-target-presence") {
               throw new Error(`X ${operation} reconciliation requires one exact accepted target`);
             }
             const readback = await runtime.readXWebPublishedMutationTarget({
               site: "x",
               action: operation,
-              contractVersion: operation === "posts.publish" ? 5 : 1,
+              contractVersion: operation === "posts.publish"
+                ? runtime.xWebPublishRecoveryContractVersion(context.target.identifier)
+                : operation === "posts.quote" ? 3 : 1,
               timeoutMs: 60_000,
               maxOutputBytes: 2 * 1024 * 1024,
             }, input, auth, context.target.identifier);
@@ -536,7 +575,14 @@ export const xWebPlugin = defineProviderPlugin({
               reason: "exact-readback",
             };
           }
-          if (operation !== "content.save" && operation !== "likes.set") {
+          if (operation === "relationships.follow.set") {
+            const readback = await runtime.readXWebFollowingState({
+              site: "x", action: operation, contractVersion: 2,
+              timeoutMs: 60_000, maxOutputBytes: 2 * 1024 * 1024,
+            }, input, auth);
+            return { actualState: readback.following, reason: "exact-profile-readback" };
+          }
+          if (operation !== "content.save" && operation !== "likes.set" && operation !== "posts.repost") {
             throw new Error(`X ${operation} has no reconciliation hook`);
           }
           const readback = await runtime.readXWebDesiredState({

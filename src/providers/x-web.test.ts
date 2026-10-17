@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { assertProperty, fc } from "../test-support";
 
 import {
   assertExactXWebGraphQlBinding,
@@ -260,6 +261,17 @@ describe("X query descriptor revision evidence", () => {
       operationType: "query",
       responseRoot: ["user", "result"],
     });
+  });
+
+  test("records the observed numeric-target UserByRestId query without adding a public profile route", () => {
+    expect(evidence("UserByRestId")).toEqual({
+      operationName: "UserByRestId", operationType: "query", queryId: "mxaYWwt52eAb6OAzYHMVzg",
+      sourceChunk: "main.3999c6d7f4dbb6c7a.js", observedOn: "2026-10-17",
+      metadataSha256: "81ae66e15cf12e2581a6fe8df84921f30aca115186fb85ca29c8c28e8b390506",
+    });
+    const publicQueries: readonly string[] = Object.values(xWebSemanticOperationRegistry)
+      .flatMap(definition => definition.transport === "graphql-query" ? [definition.operationName] : []);
+    expect(publicQueries).not.toContain("UserByRestId");
   });
 
   test("keeps transport query IDs out of the semantic registry", () => {
@@ -693,6 +705,53 @@ describe("strict GraphQL operation/path/query-ID binding", () => {
     }
   });
 
+  test("quote3 binds a handle-form attachment to exact observed parent context while historical quote stays separate", () => {
+    const resolved = descriptor("CreateTweet");
+    const target = { postId: "9876543210123456789", authorUsername: "quoted_author" };
+    const bound = (attachment_url: string) => ({ method: "POST" as const, url: graphqlUrl(resolved), descriptor: resolved,
+      body: { variables: { tweet_text: "Exact quote", dark_request: false,
+        media: { media_entities: [], possibly_sensitive: false }, semantic_annotation_ids: [], attachment_url },
+      features: Object.fromEntries(resolved.metadata.featureSwitches.map(name => [name, false])),
+      ...(resolved.metadata.fieldToggles.length === 0 ? {} : { fieldToggles: Object.fromEntries(resolved.metadata.fieldToggles.map(name => [name, false])) }),
+      queryId: resolved.queryId } });
+    const current = { postsQuoteContractVersion: 3 as const, postsQuoteTarget: target };
+    const handleUrl = `https://x.com/${target.authorUsername}/status/${target.postId}`;
+    const historicalUrl = `https://x.com/i/status/${target.postId}`;
+    expect(authorizeXWebMutationRequest("posts.quote", bound(historicalUrl))).toMatchObject({ operationName: "CreateTweet" });
+    expect(() => authorizeXWebMutationRequest("posts.quote", bound(handleUrl))).toThrow("exact X post");
+    expect(authorizeXWebMutationRequest("posts.quote", bound(handleUrl), current)).toMatchObject({ operationName: "CreateTweet" });
+    expect(() => authorizeXWebMutationRequest("posts.quote", bound(historicalUrl), current)).toThrow("observed parent and author");
+    for (const url of [handleUrl + "?x=1", handleUrl + "#x", handleUrl + "/", handleUrl.replace("https:", "http:"),
+      handleUrl.replace("x.com", "owner@x.com"), handleUrl.replace("x.com", "x.com.example.test"),
+      handleUrl.replace(target.postId, "123"), handleUrl.replace(target.authorUsername, "other_author")]) {
+      expect(() => authorizeXWebMutationRequest("posts.quote", bound(url), current)).toThrow("observed parent and author");
+    }
+    for (const authorUsername of ["", "a".repeat(16), "invalid/handle", "invalid?x", "invalid@handle", "invalid\nhandle"]) {
+      expect(() => authorizeXWebMutationRequest("posts.quote", bound(handleUrl),
+        { ...current, postsQuoteTarget: { ...target, authorUsername } })).toThrow("bounded author handle");
+    }
+    for (const postId of ["", "a", "1".repeat(20), "123&other=456"]) {
+      expect(() => authorizeXWebMutationRequest("posts.quote", bound(handleUrl),
+        { ...current, postsQuoteTarget: { ...target, postId } })).toThrow();
+    }
+    for (const options of [{ postsQuoteContractVersion: 3 }, { postsQuoteTarget: target },
+      { postsQuoteContractVersion: 2, postsQuoteTarget: target }]) {
+      expect(() => authorizeXWebMutationRequest("posts.quote", bound(handleUrl),
+        options as Parameters<typeof authorizeXWebMutationRequest>[2])).toThrow("exact version and observed parent context");
+    }
+    for (const operation of ["posts.publish", "replies.create", "threads.publish"] as const) {
+      expect(() => authorizeXWebMutationRequest(operation, bound(handleUrl), current)).toThrow("exact version and observed parent context");
+    }
+    const id = fc.bigInt({ min: 1n, max: 9_999_999_999_999_999_999n }).map(String);
+    const handle = fc.array(fc.constantFrom(...Array.from("abcdefghijklmnopqrstuvwxyz0123456789_")), { minLength: 1, maxLength: 15 }).map(value => value.join(""));
+    assertProperty(fc.property(id, handle, (postId, authorUsername) => {
+      const options = { postsQuoteContractVersion: 3 as const, postsQuoteTarget: { postId, authorUsername } };
+      const url = `https://x.com/${authorUsername}/status/${postId}`;
+      expect(authorizeXWebMutationRequest("posts.quote", bound(url), options)).toMatchObject({ operationName: "CreateTweet" });
+      expect(() => authorizeXWebMutationRequest("posts.quote", bound(url + "0"), options)).toThrow("observed parent and author");
+    }));
+  });
+
   test("authorizes one exact posts.publish media entity and rejects media on other CreateTweet routes", () => {
     const resolved = descriptor("CreateTweet");
     const features = Object.fromEntries(resolved.metadata.featureSwitches.map((name) => [name, false]));
@@ -731,12 +790,14 @@ describe("strict GraphQL operation/path/query-ID binding", () => {
     })).toThrow("text-only");
     const bound = (ids: readonly string[]) => ({ method: "POST" as const, url: graphqlUrl(resolved), descriptor: resolved,
       body: body(ids.map(media_id => ({ media_id, tagged_users: [] }))) });
-    expect(authorizeXWebMutationRequest("posts.publish", bound(["12345", "12346", "12347", "12348"]),
-      { postsPublishContractVersion: 6 })).toMatchObject({ operationName: "CreateTweet" });
-    expect(() => authorizeXWebMutationRequest("posts.publish", bound(["12345", "12346", "12347", "12348", "12349"]),
-      { postsPublishContractVersion: 6 })).toThrow("at most four");
-    expect(() => authorizeXWebMutationRequest("posts.publish", bound(["12345", "12345"]),
-      { postsPublishContractVersion: 6 })).toThrow("unique");
+    for (const postsPublishContractVersion of [6, 7] as const) {
+      expect(authorizeXWebMutationRequest("posts.publish", bound(["12345", "12346", "12347", "12348"]),
+        { postsPublishContractVersion })).toMatchObject({ operationName: "CreateTweet" });
+      expect(() => authorizeXWebMutationRequest("posts.publish", bound(["12345", "12346", "12347", "12348", "12349"]),
+        { postsPublishContractVersion })).toThrow("at most four");
+      expect(() => authorizeXWebMutationRequest("posts.publish", bound(["12345", "12345"]),
+        { postsPublishContractVersion })).toThrow("unique");
+    }
   });
 
   test("rejects CreateTweet AI or content-disclosure fields and nonempty annotations", () => {

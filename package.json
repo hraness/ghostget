@@ -1,6 +1,6 @@
 {
   "name": "@hraness/ghostget",
-  "version": "0.18.96",
+  "version": "0.18.97",
   "description": "GhostGet is an agent tool for driving websites fast. Agents call named actions instead of clicking through pages, using a tenth of the tokens and no password.",
   "license": "MIT",
   "type": "module",
@@ -699,6 +699,7 @@
     "src/assets/adapters/x/wrench-web-adapter.v1.17.0.json",
     "src/assets/adapters/x/wrench-web-adapter.v1.18.0.json",
     "src/assets/adapters/x/wrench-web-adapter.v1.19.0.json",
+    "src/assets/adapters/x/wrench-web-adapter.v1.20.0.json",
     "src/providers/x-web-model.ts",
     "src/providers/x-web-media.ts",
     "src/providers/x-web-social-actions.ts",

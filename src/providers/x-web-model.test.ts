@@ -8,6 +8,7 @@ import {
   parseXSocialTrend,
   projectXSocialPost,
   projectXSocialProfile,
+  projectXSocialTweetContent,
   type XSocialNotification,
 } from "./x-web-model";
 
@@ -37,6 +38,18 @@ function image(id = "11"): Record<string, unknown> {
 }
 
 describe("X rich post model", () => {
+  test("shared wire text projection needs no unrelated post fields and refuses incomplete notes", () => {
+    expect(projectXSocialTweetContent({ legacy: { full_text: "wire -&gt; &amp;gt;" } }).text).toBe("wire -> &gt;");
+    for (const note_tweet of [{}, { note_tweet_results: {} }, { note_tweet_results: { result: null } },
+      { note_tweet_results: { result: { text: 123 } } }, { note_tweet_results: { result: { text: "bad @Fixture",
+        entity_set: { user_mentions: [{ indices: [0, 8], screen_name: "Fixture" }] } } } }]) {
+      expect(() => projectXSocialTweetContent({ legacy: { full_text: "preview" }, note_tweet })).toThrow();
+    }
+    expect(projectXSocialTweetContent({ legacy: { full_text: "preview" }, note_tweet: {
+      note_tweet_results: { result: { text: "exact &gt; note" } },
+    } }).text).toBe("exact &gt; note");
+  });
+
   test("keeps exact identities, counts and explicit viewer states, with unknown omitted evidence", () => {
     const post = projectXSocialPost(tweet({
       id_str: "800", favorited: false, retweeted: true, bookmarked: false,
@@ -70,6 +83,117 @@ describe("X rich post model", () => {
       hashtags: [{ start: 12, end: 17, tag: "Rust" }], cashtags: [{ start: 18, end: 23, symbol: "RUST" }],
       links: [{ start: 24, end: body.length, url: "https://t.co/a", expandedUrl: "https://hraness.com/", displayUrl: "hraness.com" }],
     });
+  });
+
+  test("decodes the legacy plain-text arrow once and remaps all later entity ranges", () => {
+    const wire = "🦀 no doubt -&gt; bad for you &amp; @Fixture #Build $TEST https://t.co/a";
+    const indices = (token: string) => {
+      const start = wire.indexOf(token);
+      return [Array.from(wire.slice(0, start)).length, Array.from(wire.slice(0, start + token.length)).length];
+    };
+    const post = projectXSocialPost(tweet({ full_text: wire, entities: {
+      user_mentions: [{ indices: indices("@Fixture"), screen_name: "Fixture", id_str: "42" }],
+      hashtags: [{ indices: indices("#Build"), text: "Build" }], symbols: [{ indices: indices("$TEST"), text: "TEST" }],
+      urls: [{ indices: indices("https://t.co/a"), url: "https://t.co/a", expanded_url: "https://example.com/?x=1&y=2" }],
+    } }));
+    expect(post.text).toBe("🦀 no doubt -> bad for you & @Fixture #Build $TEST https://t.co/a");
+    expect(post.content.text).toBe(post.text);
+    expect(post.content.entities.mentions[0]).toMatchObject({ start: 29, end: 37, handle: "fixture" });
+    expect(post.content.entities.hashtags[0]).toMatchObject({ start: 38, end: 44, tag: "Build" });
+    expect(post.content.entities.cashtags[0]).toMatchObject({ start: 45, end: 50, symbol: "TEST" });
+    expect(post.content.entities.links[0]).toMatchObject({ start: 51, end: 65, expandedUrl: "https://example.com/?x=1&y=2" });
+    expect(parseXSocialPost(JSON.parse(JSON.stringify(post)))).toEqual(post);
+  });
+
+  test("legacy text decodes only the six first-party escapes once and admits DTOs without another decode", () => {
+    const post = projectXSocialPost(tweet({ full_text: "&amp;&gt;&lt;&nbsp;&quot;&#39; &amp;gt; &amp;quot; &#x3E; &apos; &GT; &lt;script&gt;" }));
+    expect(post.text).toBe("&><\u00a0\"' &gt; &quot; &#x3E; &apos; &GT; <script>");
+    expect(post.content.entities.status).toBe("unknown");
+    const admitted = parseXSocialPost(JSON.parse(JSON.stringify(post)));
+    expect(admitted).toEqual(post);
+    expect(parseXSocialPost(JSON.parse(JSON.stringify(admitted)))).toEqual(post);
+  });
+
+  test("adjacent legacy text gaps move ranges without decoding URL tokens or link metadata", () => {
+    const url = "https://example.com/?literal=&amp;gt;";
+    const wire = `&amp;@Fixture&gt;#Build&lt;$TEST&nbsp;${url}&quot;`;
+    const index = (token: string) => [wire.indexOf(token), wire.indexOf(token) + token.length];
+    const post = projectXSocialPost(tweet({ full_text: wire, entities: {
+      user_mentions: [{ indices: index("@Fixture"), screen_name: "Fixture" }],
+      hashtags: [{ indices: index("#Build"), text: "Build" }], symbols: [{ indices: index("$TEST"), text: "TEST" }],
+      urls: [{ indices: index(url), url, expanded_url: url, display_url: "example.com/?literal=&amp;gt;" }],
+    } }));
+    expect(post.text).toBe(`&@Fixture>#Build<$TEST\u00a0${url}"`);
+    expect(post.content.entities.mentions[0]).toMatchObject({ start: 1, end: 9 });
+    expect(post.content.entities.hashtags[0]).toMatchObject({ start: 10, end: 16 });
+    expect(post.content.entities.cashtags[0]).toMatchObject({ start: 17, end: 22 });
+    expect(post.content.entities.links[0]).toEqual({ start: 23, end: 23 + url.length, url, expandedUrl: url,
+      displayUrl: "example.com/?literal=&amp;gt;" });
+    expect(parseXSocialPost(JSON.parse(JSON.stringify(post)))).toEqual(post);
+  });
+
+  test("legacy entity boundaries prevent an escape from being decoded across a hashtag token", () => {
+    const post = projectXSocialPost(tweet({ full_text: "&#39;", entities: { hashtags: [{ indices: [1, 4], text: "39" }] } }));
+    expect(post.text).toBe("&#39;");
+    expect(post.content.entities.hashtags[0]).toEqual({ start: 1, end: 4, tag: "39" });
+    expect(() => projectXSocialPost(tweet({ full_text: "&gt; @Fixture", entities: {
+      user_mentions: [{ indices: [2, 10], screen_name: "Fixture" }],
+    } }))).toThrow("did not bind selected text");
+  });
+
+  test("regression: seed -2130867000 path 0:0:1:0 decodes a trailing escape after adjacent entities", () => {
+    const tokens = ["@Fixture", "#Build", "$TEST", "https://example.com/?literal=&amp;gt;"];
+    const wire = tokens.join("") + "&gt;";
+    const indices = (token: string) => [wire.indexOf(token), wire.indexOf(token) + token.length];
+    const post = projectXSocialPost(tweet({ full_text: wire, entities: {
+      user_mentions: [{ indices: indices(tokens[0]!), screen_name: "Fixture" }],
+      hashtags: [{ indices: indices(tokens[1]!), text: "Build" }], symbols: [{ indices: indices(tokens[2]!), text: "TEST" }],
+      urls: [{ indices: indices(tokens[3]!), url: tokens[3], expanded_url: tokens[3] }],
+    } }));
+    expect(post.text).toBe(tokens.join("") + ">");
+    expect(parseXSocialPost(JSON.parse(JSON.stringify(post)))).toEqual(post);
+  });
+
+  test("legacy gap decoding does not change selected note text or modern and legacy profile descriptions", () => {
+    const wire = "&amp;gt; &gt; @Fixture";
+    const mentions = { user_mentions: [{ indices: [14, 22], screen_name: "Fixture" }] };
+    const post = projectXSocialPost(tweet({ full_text: "legacy &gt; preview" }, {
+      note_tweet: { note_tweet_results: { result: { text: wire, entity_set: mentions } } },
+    }));
+    expect(post.text).toBe(wire);
+    expect(post.content.source).toBe("note");
+    expect(parseXSocialPost(JSON.parse(JSON.stringify(post)))).toEqual(post);
+    for (const raw of [user({ profile_bio: { description: wire, entities: mentions } }),
+      user({ legacy: { description: wire, entities: { description: mentions } } })]) {
+      const profile = projectXSocialProfile(raw);
+      expect(profile.bio).toBe(wire); expect(profile.bioContent?.text).toBe(wire);
+      expect(parseXSocialProfile(JSON.parse(JSON.stringify(profile)))).toEqual(profile);
+    }
+  });
+
+  test("property: legacy escaping, astral prefixes and adjacent entities preserve semantic slices and DTO round trips", () => {
+    const part = fc.constantFrom(["🦀", "🦀"], ["A", "A"], ["中", "中"], ["&gt;", ">"], ["&amp;", "&"],
+      ["&lt;", "<"], ["&nbsp;", "\u00a0"], ["&quot;", '"'], ["&#39;", "'"], ["&amp;gt;", "&gt;"], ["&#x3E;", "&#x3E;"]);
+    assertProperty(fc.property(fc.array(part, { maxLength: 30 }), fc.array(part, { maxLength: 30 }), (prefix, suffix) => {
+      const url = "https://example.com/?literal=&amp;gt;";
+      const tokens = ["@Fixture", "#Build", "$TEST", url];
+      const wire = prefix.map(pair => pair[0]).join("") + tokens.join("") + suffix.map(pair => pair[0]).join("");
+      const expected = prefix.map(pair => pair[1]).join("") + tokens.join("") + suffix.map(pair => pair[1]).join("");
+      const indices = (token: string) => {
+        const start = wire.indexOf(token);
+        return [Array.from(wire.slice(0, start)).length, Array.from(wire.slice(0, start + token.length)).length];
+      };
+      const post = projectXSocialPost(tweet({ full_text: wire, entities: {
+        user_mentions: [{ indices: indices(tokens[0]!), screen_name: "Fixture" }],
+        hashtags: [{ indices: indices(tokens[1]!), text: "Build" }], symbols: [{ indices: indices(tokens[2]!), text: "TEST" }],
+        urls: [{ indices: indices(url), url, expanded_url: url }],
+      } }));
+      expect(post.text).toBe(expected);
+      const entities = [post.content.entities.mentions[0]!, post.content.entities.hashtags[0]!, post.content.entities.cashtags[0]!, post.content.entities.links[0]!];
+      expect(entities.map(entity => post.text.slice(entity.start, entity.end))).toEqual(tokens);
+      expect(entities[0]!.start).toBe(prefix.map(pair => pair[1]).join("").length);
+      expect(parseXSocialPost(JSON.parse(JSON.stringify(post)))).toEqual(post);
+    }), { numRuns: 100 });
   });
 
   test("note text scalar offsets convert once and serialized UTF16 offsets stay exact", () => {

@@ -118,8 +118,10 @@ export function parseXTransactionRuntimeIds(mainBundleText: string): XTransactio
 }
 
 function exactMutationPath(value: string): string {
-  if (!/^\/i\/api\/graphql\/[A-Za-z0-9_-]{8,128}\/[A-Za-z][A-Za-z0-9_]{1,127}$/u.test(value)) {
-    throw new Error("X transaction bootstrap path is not one exact reviewed GraphQL mutation");
+  const friendship = value === "/i/api/1.1/friendships/create.json" || value === "/i/api/1.1/friendships/destroy.json";
+  if (typeof value !== "string"
+    || (!friendship && !/^\/i\/api\/graphql\/[A-Za-z0-9_-]{8,128}\/[A-Za-z][A-Za-z0-9_]{1,127}$/u.test(value))) {
+    throw new Error("X transaction bootstrap path is not one exact GraphQL or fixed friendship mutation");
   }
   return value;
 }

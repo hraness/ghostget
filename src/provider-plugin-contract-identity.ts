@@ -138,6 +138,10 @@ const X_1_6_ROUTE_COORDINATES = Object.freeze([
   "feeds.read@2", "profiles.read@2", "contacts.list@2", "posts.read@2",
   "comments.read@2", "posts.publish@6",
 ]);
+const X_1_7_ROUTE_COORDINATES = Object.freeze([
+  ...X_1_6_ROUTE_COORDINATES,
+  "feeds.read@3", "explore.read@2",
+]);
 const X_1_5_READ_IMPLEMENTATION_SHA256 = Object.freeze([
   "bcf7411c6ac01b16dc2a602b9928f8d0f9f5fd3ac0901d2ef197b72a8f763d31",
   "ebba20c72150dcef1eb21d3a1ea02a1dee91f8654c1f33621e5217faabf2be25",
@@ -584,8 +588,8 @@ const identities = Object.freeze({
   },
   "x-web": {
     schemaVersion: 1,
-    pluginVersion: "1.7.0",
-    implementationSha256: "802de506e8b20f6423510683da933f1b0c9e0cef762a7cb35fd3f49248d73397",
+    pluginVersion: "1.8.0",
+    implementationSha256: "70a348f10812ddd64a2863b629de3eb511e77d8df67b1310117077f2a61fba5b",
     legacyCurrentReadImplementationSha256: [],
     legacyDistributionReadImplementationSha256: [{
       implementationSha256: "4588a6fa7e0f73b4321402d217c2ea1c99c0533cbf32c2e7d38737eb62340234",
@@ -593,6 +597,9 @@ const identities = Object.freeze({
     }, {
       implementationSha256: "0ebaf735cda26b2f42eb54951d92cf6694dcca2d6232349d26a3bfdf4153d0c4",
       routes: X_1_6_ROUTE_COORDINATES.map((route) => `web-session-api:x/${route}`),
+    }, {
+      implementationSha256: "802de506e8b20f6423510683da933f1b0c9e0cef762a7cb35fd3f49248d73397",
+      routes: X_1_7_ROUTE_COORDINATES.map((route) => `web-session-api:x/${route}`),
     }],
     legacyRouteReadImplementationSha256: Object.fromEntries(
       X_1_5_ROUTE_COORDINATES.map((route) => [route, X_1_5_READ_IMPLEMENTATION_SHA256]),

@@ -9,14 +9,14 @@ import { APP_HOST_X_ACTIONS, APP_HOST_X_FEEDS } from "./app-host-x-protocol";
 import { confirmAppHostXAction } from "./app-host-x-confirmation";
 import { ControlError, record } from "./control/validation";
 import type { ControlEnvironment } from "./control/web-policy";
-import type { OperationInput } from "./model";
+import { isWebSessionOperation, type GhostgetManifest, type OperationInput } from "./model";
 import type { ProviderPluginRegistry } from "./provider-plugin-registry";
 import * as appRuntime from "./runtime";
 import type { StoredPlan } from "./runtime";
 import { isPlanBoundFile, summarizePlanFile } from "./plan-assets";
-import { createPrivateJsonIfAbsent, ensurePrivateStateDirectory, ghostgetStateHome, isStateHelperArtifactName, listPrivateStateDirectory, privateStateFilesMayExist, readPrivateStateFileIfPresent } from "./storage";
+import { createPrivateJsonIfAbsent, ensurePrivateStateDirectory, ghostgetStateHome, inspectInstalledManifest, isStateHelperArtifactName, listPrivateStateDirectory, privateStateFilesMayExist, readPrivateStateFileIfPresent } from "./storage";
 type Runtime = Pick<typeof appRuntime, "cancelInvocationPlan" | "cancelUnstartedInvocationPlan" | "invocationPlanWasCancelled" | "confirmInvocation" | "createAndSaveInvocationPlan" | "executeReadInvocation" | "prepareInvocation" | "prepareReadInvocation" | "listRunReceipts" | "readRunReceipt">;
-import { webSessionContractDefinitions } from "./web-session-contract-definitions";
+import { webSessionContractDefinitions, type WebSessionContract } from "./web-session-contract-definitions";
 import { readBoundXWebMedia } from "./providers/x-web-media";
 import { parseXSocialPost, parseXSocialProfile, parseXSocialTrend, parseXSocialNotification, type XSocialProfile } from "./providers/x-web-model";
 import { xWebWorkspaceReadSupport } from "./providers/x-web-workspace-reads";
@@ -70,7 +70,7 @@ export function appHostXPublicationInput(intent: AppHostXIntent, selected: reado
   if (selected.length > 0 && intent.action !== "post") throw new ControlError("CAPTURE_REQUIRED", "Media replies and quotes need a reviewed provider contract.");
   const input = { body: intent.text ?? "", ...(intent.postId === undefined ? {} : { post_id: intent.postId }) };
   if (selected.length === 0) return input;
-  if (contractVersion === 6) return { ...input, media: selected.map(item => item.path), media_types: selected.map(item => item.media.mediaType) };
+  if (contractVersion === 6 || contractVersion === 7) return { ...input, media: selected.map(item => item.path), media_types: selected.map(item => item.media.mediaType) };
   if (selected.length !== 1) throw new ControlError("CAPTURE_REQUIRED", "Multiple images need the reviewed array publication contract.");
   if (selected[0]!.media.mediaType === "image/jpeg") throw new ControlError("CAPTURE_REQUIRED", "JPEG publishing needs the reviewed array publication contract. Choose PNG for the current publication route.");
   return { ...input, media: selected[0]!.path, media_type: selected[0]!.media.mediaType };
@@ -91,6 +91,8 @@ export function appHostXPlanAttachments(stored: StoredPlan, selected: readonly A
   });
 }
 const ACTIONS: Readonly<Record<string, string>> = { post: "posts.publish", reply: "replies.create", quote: "posts.quote", delete: "content.delete", like: "likes.set", unlike: "likes.set", repost: "posts.repost", unrepost: "posts.repost", bookmark: "content.save", unbookmark: "content.save", follow: "relationships.follow.set", unfollow: "relationships.follow.set" };
+type InstalledXManifestReader = (environment: ControlEnvironment, registry: ProviderPluginRegistry) => ReturnType<typeof inspectInstalledManifest>;
+const readInstalledXManifest: InstalledXManifestReader = (environment, registry) => inspectInstalledManifest("x-web", environment, registry);
 
 /** One account/revision-bound semantic facade over the normal durable runtime. */
 export class AppHostXService {
@@ -110,7 +112,8 @@ export class AppHostXService {
     private readonly confirm: (review: string, signal: AbortSignal) => Promise<boolean> = confirmAppHostXAction,
     private readonly now: () => number = Date.now,
     private readonly runtime: Runtime = appRuntime,
-    private readonly tickets: AppHostXActionTickets = appHostXActionTickets(environment)) { this.discoveryTargets = new XWebDiscoveryTargetStore(now); }
+    private readonly tickets: AppHostXActionTickets = appHostXActionTickets(environment),
+    private readonly readInstalledManifest: InstalledXManifestReader = readInstalledXManifest) { this.discoveryTargets = new XWebDiscoveryTargetStore(now); }
 
   close(): void {
     this.closed = true; this.controller.abort();
@@ -135,9 +138,31 @@ export class AppHostXService {
     if (!pending.released) pending.released = this.runtime.cancelUnstartedInvocationPlan(pending.stored.digest, this.environment);
     return pending.released;
   }
-  private operationSupported(operation: string): boolean {
-    const definitions = webSessionContractDefinitions.x as Readonly<Record<string, { state: string }>>;
-    return definitions[operation]?.state === "observed";
+  private installedManifest(): GhostgetManifest | null {
+    try {
+      if (this.registry.resolveOwnedManifest("x-web") !== undefined) return null;
+      const installed = this.readInstalledManifest(this.environment, this.registry);
+      return installed.ok && installed.value.id === "x-web" ? installed.value : null;
+    } catch { return null; }
+  }
+  private operationSupported(operation: string, installed: GhostgetManifest | null = this.installedManifest()): boolean {
+    const definitions = webSessionContractDefinitions.x as Readonly<Record<string, WebSessionContract>>;
+    const reviewed = definitions[operation], candidate = installed?.operations[operation];
+    if (reviewed?.state !== "observed" || candidate === undefined || !isWebSessionOperation(candidate)
+      || candidate.webSession.site !== reviewed.site || candidate.webSession.action !== reviewed.operation
+      || candidate.webSession.contractVersion !== reviewed.contractVersion) return false;
+    // Descriptions do not grant support. Inputs and execution semantics must
+    // match the exact current contract the app gateway knows how to compose.
+    return canonicalJson({ input: candidate.input, risk: candidate.risk, sideEffect: candidate.sideEffect,
+      idempotency: candidate.idempotency, dedupeWindowMs: candidate.dedupeWindowMs })
+      === canonicalJson({ input: reviewed.input, risk: reviewed.risk, sideEffect: reviewed.sideEffect,
+        idempotency: reviewed.idempotency, dedupeWindowMs: reviewed.dedupeWindowMs });
+  }
+  private feedSupported(source: keyof typeof xWebWorkspaceReadSupport, installed: GhostgetManifest | null): boolean {
+    const operation = source === "followers" || source === "following-accounts" ? "contacts.list"
+      : source === "notifications" ? "notifications.list"
+      : source === "trending" || source === "today-news" ? "explore.read" : "feeds.read";
+    return xWebWorkspaceReadSupport[source] && this.operationSupported(operation, installed);
   }
   private requireSupported(operation: string): void {
     if (!this.operationSupported(operation)) throw new ControlError("CAPTURE_REQUIRED", "This X feature needs a reviewed provider contract before it can run.");
@@ -259,15 +284,19 @@ export class AppHostXService {
     const actionResult = (state: "prepared" | "completed" | "denied" | "failed" | "uncertain", preparationId: string | null, digest: string | null, review: string | null, runId: string | null): AppHostXData =>
       ({ ...observation, kind: "x-action", state, preparationId, digest, review, runId });
     switch (request.action) {
-      case "x.capabilities": return { ...observation, kind: "x-capabilities", capabilities: [
-        ...APP_HOST_X_FEEDS.map(name => ({ name, supported: xWebWorkspaceReadSupport[name], reason: xWebWorkspaceReadSupport[name] ? null : "Requires a reviewed provider contract." })),
-        ...APP_HOST_X_ACTIONS.map(name => ({ name, supported: this.operationSupported(ACTIONS[name]!), reason: this.operationSupported(ACTIONS[name]!) ? null : "Requires a reviewed provider contract." })),
+      case "x.capabilities": {
+        const installed = this.installedManifest();
+        const capability = (name: string, supported: boolean) => ({ name, supported, reason: supported ? null : "Requires an installed reviewed provider contract." });
+        return { ...observation, kind: "x-capabilities", capabilities: [
+        ...APP_HOST_X_FEEDS.map(name => capability(name, this.feedSupported(name, installed))),
+        ...APP_HOST_X_ACTIONS.map(name => capability(name, this.operationSupported(ACTIONS[name]!, installed))),
         ...["post-media-images", "post-media-jpeg", "post-media-video"].map(name => {
-          const supported = this.operationSupported("posts.publish") && (name === "post-media-video" || webSessionContractDefinitions.x["posts.publish"].contractVersion >= 6);
+          const supported = this.operationSupported("posts.publish", installed) && (name === "post-media-video" || [6, 7].includes(webSessionContractDefinitions.x["posts.publish"].contractVersion));
           return { name, supported, reason: supported ? null : "Requires the reviewed ordered-media publication contract." };
         }),
-        ...(["trending", "today-news", "notifications"] as const).map(name => ({ name, supported: xWebWorkspaceReadSupport[name], reason: xWebWorkspaceReadSupport[name] ? null : "Requires a reviewed provider contract." })),
+        ...(["trending", "today-news", "notifications"] as const).map(name => capability(name, this.feedSupported(name, installed))),
       ] };
+      }
       case "x.profile.get": {
         const profile = await this.profile(account, request.profile);
         this.requireAccount(account.id, account.revision);

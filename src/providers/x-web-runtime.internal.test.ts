@@ -10,13 +10,18 @@ import {
   parseArticleDraftDocumentV2,
 } from "../article-draft-document";
 import type { GhostgetAuth } from "../auth";
+import { AppHostXService } from "../app-host-x-service";
+import type { AppHostAccount } from "../app-host-protocol";
 import type { BrowserSession } from "../browser";
 import { canonicalJson } from "../canonical-json";
-import type { OperationInput, WebSessionRecipe } from "../model";
+import { parseRuntimeManifest, type OperationInput, type WebSessionRecipe } from "../model";
+import currentXManifest from "../assets/adapters/x/wrench-web-adapter.json";
 import { OperationDeadlineError } from "../operation-deadline";
+import { providerPluginRegistry } from "../provider-plugins";
 import type { WebSessionDispatchEvent, WebSessionProviderAcceptedMutationTargetEvent } from "../web-session";
 import { embedPngChunk, encodePixelsOnlyPng, scrubXUploadImage } from "./x-image-provenance";
 import { X_UNLABELED_COPY_POLICY_ERROR } from "./x-made-with-ai";
+import { projectXSocialTweetContent } from "./x-web-model";
 import {
   buildXWebRichArticleContentState,
   executeXWebOperation,
@@ -94,6 +99,18 @@ function descriptor(
   operationType: "query" | "mutation",
 ): string {
   return `queryId:"${queryId}",operationName:"${operationName}",operationType:"${operationType}",metadata:{featureSwitches:[],fieldToggles:[]}`;
+}
+
+// Secret-free descriptor metadata from observed main.3999c6d7f4dbb6c7a.js,
+// module 366861; the request callsite in module 869512 emits only userId.
+function followReadDescriptor(options: Readonly<{ queryId?: string; operationType?: "query" | "mutation"; extraFeature?: boolean }> = {}): string {
+  const featureSwitches = ["hidden_profile_subscriptions_enabled", "profile_label_improvements_pcf_label_in_post_enabled",
+      "responsive_web_profile_redirect_enabled", "rweb_tipjar_consumption_enabled", "verified_phone_label_enabled",
+      "highlights_tweets_tab_ui_enabled", "responsive_web_twitter_article_notes_tab_enabled", "subscriptions_feature_can_gift_premium",
+      "creator_subscriptions_tweet_preview_api_enabled", "responsive_web_graphql_timeline_navigation_enabled",
+      ...(options.extraFeature ? ["unreviewed_feature"] : [])];
+  const fieldToggles = ["withPayments", "withDmBlocks", "withAuxiliaryUserLabels"];
+  return `queryId:${JSON.stringify(options.queryId ?? "mxaYWwt52eAb6OAzYHMVzg")},operationName:"UserByRestId",operationType:${JSON.stringify(options.operationType ?? "query")},metadata:{featureSwitches:${JSON.stringify(featureSwitches)},fieldToggles:${JSON.stringify(fieldToggles)}}`;
 }
 
 function mainBundle(...descriptors: readonly string[]): string {
@@ -486,7 +503,7 @@ function xRecipe(action: WebSessionRecipe["action"], contractVersion = 1): WebSe
   };
 }
 
-describe("X multi-image@6 publish and recovery", () => {
+for (const contractVersion of [6, 7] as const) describe(`X multi-image@${contractVersion} publish and recovery`, () => {
   function result(text: string, ids: readonly string[]): unknown {
     const media = ids.map((id, index) => ({ id_str: id, type: "photo", url: `https://t.co/media${index}` }));
     return { rest_id: CREATED_POST_ID, legacy: {
@@ -529,10 +546,10 @@ describe("X multi-image@6 publish and recovery", () => {
     });
   }
   function input(count: number): OperationInput {
-    return { body: "Ordered photos", media: Array.from({ length: count }, (_, index) => ({ kind: "file" as const, reference: `photo-${index}` })),
+    return count === 0 ? { body: "Ordered photos" } : { body: "Ordered photos", media: Array.from({ length: count }, (_, index) => ({ kind: "file" as const, reference: `photo-${index}` })),
       media_types: Array.from({ length: count }, () => "image/png") };
   }
-  for (const count of [1, 2, 4]) test(`publishes ${count} ordered plan-bound photos, binds accepted IDs and reconciles with reads only`, async () => {
+  for (const count of [0, 1, 2, 4]) test(`publishes ${count} ordered plan-bound photos, binds accepted IDs and reconciles with reads only`, async () => {
     const root = mkdtempSync(join(tmpdir(), "ghostget-x-multi-publish-"));
     const bytes = encodePixelsOnlyPng({ width: 1, height: 1, rgba: Uint8Array.of(1, 2, 3, 255) });
     const paths = Array.from({ length: count }, (_, index) => join(root, `${index}.png`));
@@ -542,7 +559,7 @@ describe("X multi-image@6 publish and recovery", () => {
     const accepted: WebSessionProviderAcceptedMutationTargetEvent[] = [];
     let admissions = 0;
     try {
-      const execution = await executeXWebOperation(xRecipe("posts.publish", 6), input(count), xAuth, {
+      const execution = await executeXWebOperation(xRecipe("posts.publish", contractVersion), input(count), xAuth, {
         dependencies: transport(calls, ids, bytes), fileResolver: async files => {
           expect(files.map(file => file.reference)).toEqual(paths.map((_, index) => `photo-${index}`)); return paths;
         }, beforeDispatch: async () => { admissions++; expect(calls.filter(call => call.url.searchParams.get("command") === "FINALIZE")).toHaveLength(count); },
@@ -552,7 +569,7 @@ describe("X multi-image@6 publish and recovery", () => {
       expect(admissions).toBe(1);
       expect(accepted[0]?.target.identifier).toBe(canonicalJson({ postId: CREATED_POST_ID, mediaIds: ids }));
       const reads: CapturedRequest[] = [];
-      await expect(readXWebPublishedMutationTarget(xRecipe("posts.publish", 6), input(count), xAuth, accepted[0]!.target.identifier,
+      await expect(readXWebPublishedMutationTarget(xRecipe("posts.publish", contractVersion), input(count), xAuth, accepted[0]!.target.identifier,
         { dependencies: transport(reads, ids, bytes) })).resolves.toEqual({ present: true, postId: CREATED_POST_ID });
       expect(reads.every(request => request.method === "GET")).toBeTrue();
     } finally { rmSync(root, { recursive: true, force: true }); }
@@ -565,7 +582,7 @@ describe("X multi-image@6 publish and recovery", () => {
     try {
       for (const failUpload of [1, -1]) {
         const calls: CapturedRequest[] = [];
-        const execution = await executeXWebOperation(xRecipe("posts.publish", 6), input(2), xAuth, {
+        const execution = await executeXWebOperation(xRecipe("posts.publish", contractVersion), input(2), xAuth, {
           dependencies: transport(calls, ids, bytes, [...ids].reverse(), failUpload), fileResolver: async () => paths,
         });
         expect(execution.status).toBe(failUpload === 1 ? "failed" : "indeterminate");
@@ -573,13 +590,13 @@ describe("X multi-image@6 publish and recovery", () => {
       }
       for (const actual of [[...ids].reverse(), [ids[0]!], [ids[0]!, "99999"]]) {
         const calls: CapturedRequest[] = [];
-        await expect(readXWebPublishedMutationTarget(xRecipe("posts.publish", 6), input(2), xAuth,
+        await expect(readXWebPublishedMutationTarget(xRecipe("posts.publish", contractVersion), input(2), xAuth,
           canonicalJson({ postId: CREATED_POST_ID, mediaIds: ids }), { dependencies: transport(calls, ids, bytes, actual) })).rejects.toThrow("confirmed media upload");
         expect(calls.every(request => request.method === "GET")).toBeTrue();
       }
       const calls: CapturedRequest[] = [];
       for (const mediaIds of [[ids[0], ids[0]], [ids[0]], [...ids, "99999"]]) {
-        await expect(readXWebPublishedMutationTarget(xRecipe("posts.publish", 6), input(2), xAuth,
+        await expect(readXWebPublishedMutationTarget(xRecipe("posts.publish", contractVersion), input(2), xAuth,
           canonicalJson({ postId: CREATED_POST_ID, mediaIds }), { dependencies: transport(calls, ids, bytes) })).rejects.toThrow();
       }
       expect(calls).toHaveLength(0);
@@ -587,7 +604,127 @@ describe("X multi-image@6 publish and recovery", () => {
   });
 });
 
-describe("X quote, repost and guarded follow integration", () => {
+describe("X quote, repost and follow integration", () => {
+  for (const scenario of ["exact", "legacy-escaped", "creation", "readback", "creation-author", "readback-author", "legacy-conflict"] as const) test(`quote3 exact-text creation preserves accepted-target order and never replays (${scenario})`, async () => {
+    const text = scenario === "exact" ? "Exact quote fixture" : "Quote 👋 & exact";
+    const wireText = scenario === "exact" ? text : "Quote 👋 &amp; exact";
+    const malformedText = scenario === "creation" || scenario === "readback" ? scenario : null;
+    const malformed = scenario === "creation-author" || scenario === "legacy-conflict" ? "creation"
+      : scenario === "readback-author" ? "readback" : malformedText;
+    // Live creation positively binds the core author; it does not establish
+    // a required legacy author echo or creation-root typename.
+    const result = (stage: "creation" | "readback") => ({
+      rest_id: CREATED_POST_ID,
+      legacy: {
+        full_text: stage === malformedText ? "Different quote fixture" : wireText,
+        quoted_status_id_str: QUOTED_POST_ID,
+        ...(scenario === "legacy-conflict" && stage === "creation" ? { user_id_str: "789" } : {}),
+      },
+      core: { user_results: { result: {
+        rest_id: scenario === `${stage}-author` ? "789" : VIEWER_ID,
+      } } },
+      ...(stage === "readback" ? { __typename: "Tweet" } : {}),
+    });
+    const creation = result("creation"), readback = result("readback");
+    const before = canonicalJson({ creation, readback });
+    const calls: CapturedRequest[] = [], order: string[] = [];
+    const accepted: WebSessionProviderAcceptedMutationTargetEvent[] = [];
+    let reads = 0, parentReads = 0, verified = 0;
+    const output = await executeXWebOperation(xRecipe("posts.quote", 3), { body: text, post_id: QUOTED_POST_ID }, xAuth, {
+      dependencies: dependencies(calls, request => {
+        if (request.url.href === "https://x.com/home") return new Response(homeHtml(), { headers: { "content-type": "text/html" } });
+        if (request.url.href === MAIN_URL) return new Response(mainBundle(
+          descriptor("Viewer", VIEWER_QUERY_ID, "query"), descriptor("CreateTweet", "5pUpVEnRC2yGK7jaguF11w", "mutation"),
+          descriptor("TweetResultByRestId", "CxpIrb-Lt2oBpojNjvDatg", "query"),
+        ), { headers: { "content-type": "application/javascript" } });
+        if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
+        if (request.url.pathname.endsWith("/CreateTweet")) {
+          order.push("mutation");
+          expect(JSON.parse(request.body!).variables).toMatchObject({ tweet_text: text,
+            attachment_url: `https://x.com/quoted_author/status/${QUOTED_POST_ID}` });
+          return jsonResponse({ data: { create_tweet: { tweet_results: { result: creation } } } });
+        }
+        if (request.url.pathname.endsWith("/TweetResultByRestId")) {
+          const target = JSON.parse(request.url.searchParams.get("variables")!).tweetId;
+          if (target === QUOTED_POST_ID) {
+            parentReads++; order.push("parent");
+            expect(request.method).toBe("GET");
+            expect(accepted).toHaveLength(0);
+            return jsonResponse({ data: { tweetResult: { result: {
+              __typename: "Tweet", rest_id: QUOTED_POST_ID, legacy: { full_text: "Parent fixture", user_id_str: VIEWER_ID },
+              core: { user_results: { result: { __typename: "User", rest_id: VIEWER_ID,
+                core: { screen_name: "quoted_author" } } } },
+            } } } });
+          }
+          reads++; order.push("readback");
+          expect(request.method).toBe("GET");
+          expect(JSON.parse(request.url.searchParams.get("variables")!).tweetId).toBe(CREATED_POST_ID);
+          expect(accepted).toEqual([{ id: "posts.quote", index: 1, target: { schemaVersion: 1,
+            identifier: canonicalJson({ postId: CREATED_POST_ID, mediaId: null }) } }]);
+          return jsonResponse({ data: { tweetResult: { result: readback } } });
+        }
+        throw new Error("Unexpected quote3 creation fixture request");
+      }),
+      beforeDispatch: async () => { order.push("dispatch"); },
+      afterProviderAcceptedMutationTarget: async event => { order.push("accepted"); accepted.push(event); },
+      afterDispatchVerified: async () => { order.push("verified"); verified++; },
+    });
+    expect(output.status).toBe(malformed === null ? "succeeded" : "indeterminate");
+    expect(output.dispatch).toEqual({ planned: 1, started: 1, verified: malformed === null ? 1 : 0 });
+    expect(calls.filter(request => request.method === "POST")).toHaveLength(1);
+    expect(parentReads).toBe(1);
+    expect(reads).toBe(malformed === "creation" ? 0 : 1);
+    expect(accepted).toHaveLength(malformed === "creation" ? 0 : 1);
+    expect(verified).toBe(malformed === null ? 1 : 0);
+    expect(order).toEqual(["parent", "dispatch", "mutation", ...(malformed === "creation" ? []
+      : ["accepted", "readback", ...(malformed === null ? ["verified"] : [])])]);
+    expect(creation).not.toHaveProperty("__typename");
+    expect(readback).toHaveProperty("__typename", "Tweet");
+    for (const [stage, observed] of [["creation", creation], ["readback", readback]] as const) {
+      expect(projectXSocialTweetContent(observed).text).toBe(stage === malformedText ? "Different quote fixture" : text);
+    }
+    expect(canonicalJson({ creation, readback })).toBe(before);
+  });
+
+  test("quote3 refuses missing, malformed, conflicting or unavailable parents before dispatch", async () => {
+    for (const drift of ["missing-author", "missing-author-id", "malformed-author", "conflicting-author", "unavailable-author", "missing-author-type", "wrong-id", "unavailable", "missing-type"] as const) {
+      const calls: CapturedRequest[] = []; let admitted = 0, transactions = 0;
+      const parent = {
+        __typename: drift === "unavailable" ? "TweetUnavailable" : drift === "missing-type" ? undefined : "Tweet",
+        rest_id: drift === "wrong-id" ? FOCAL_POST_ID : QUOTED_POST_ID,
+        legacy: { full_text: "Parent fixture", ...(drift === "missing-author-id" ? {} : { user_id_str: VIEWER_ID }) },
+        ...(drift === "missing-author" ? {} : { core: { user_results: { result: {
+          __typename: drift === "unavailable-author" ? "UserUnavailable" : drift === "missing-author-type" ? undefined : "User",
+          ...(drift === "missing-author-id" ? {} : { rest_id: VIEWER_ID }),
+          core: { screen_name: drift === "malformed-author" ? "invalid/handle" : "quoted_author" },
+          ...(drift === "conflicting-author" ? { legacy: { screen_name: "another_author" } } : {}),
+        } } } }),
+      };
+      const output = await executeXWebOperation(xRecipe("posts.quote", 3), { body: "Exact quote", post_id: QUOTED_POST_ID }, xAuth, {
+        dependencies: dependencies(calls, request => {
+          if (request.url.href === "https://x.com/home") return new Response(homeHtml(), { headers: { "content-type": "text/html" } });
+          if (request.url.href === MAIN_URL) return new Response(mainBundle(
+            descriptor("Viewer", VIEWER_QUERY_ID, "query"), descriptor("CreateTweet", "5pUpVEnRC2yGK7jaguF11w", "mutation"),
+            descriptor("TweetResultByRestId", "CxpIrb-Lt2oBpojNjvDatg", "query"),
+          ), { headers: { "content-type": "application/javascript" } });
+          if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
+          if (request.url.pathname.endsWith("/TweetResultByRestId")) {
+            expect(JSON.parse(request.url.searchParams.get("variables")!).tweetId).toBe(QUOTED_POST_ID);
+            return jsonResponse({ data: { tweetResult: { result: parent } } });
+          }
+          throw new Error("Invalid quote parent must not reach a mutation");
+        }, { createBrowserSession: async () => { transactions++; throw new Error("Invalid parent must not prepare a mutation transaction"); } }),
+        beforeDispatch: async () => { admitted++; },
+        afterProviderAcceptedMutationTarget: async () => { throw new Error("Invalid parent must not record an accepted target"); },
+      });
+      expect(output).toMatchObject({ status: "failed", dispatchStarted: false,
+        dispatch: { planned: 1, started: 0, verified: 0 } });
+      expect(calls.filter(request => request.url.pathname.endsWith("/TweetResultByRestId"))).toHaveLength(1);
+      expect(calls.every(request => request.method === "GET")).toBeTrue();
+      expect(admitted).toBe(0); expect(transactions).toBe(0);
+    }
+  });
+
   test("quote settlement requires exact content, author, source and created identity from an independent read", async () => {
     for (const drift of ["none", "text", "author", "source", "identity"] as const) {
       const calls: CapturedRequest[] = []; let verified = 0;
@@ -603,11 +740,14 @@ describe("X quote, repost and guarded follow integration", () => {
             expect(JSON.parse(request.body!).variables).toMatchObject({ tweet_text: "Exact quote", attachment_url: `https://x.com/i/status/${QUOTED_POST_ID}` });
             return jsonResponse(createTweetResponse({ text: "Exact quote", quote: QUOTED_POST_ID }));
           }
-          if (request.url.pathname.endsWith("/TweetResultByRestId")) return jsonResponse(publishedTweetReadback({
-            text: drift === "text" ? "changed text" : "Exact quote", quote: drift === "source" ? FOCAL_POST_ID : QUOTED_POST_ID,
-            authorId: drift === "author" ? "789" : VIEWER_ID,
-            ...(drift === "identity" ? { extra: { rest_id: FOCAL_POST_ID } } : {}),
-          }));
+          if (request.url.pathname.endsWith("/TweetResultByRestId")) {
+            expect(JSON.parse(request.url.searchParams.get("variables")!).tweetId).toBe(CREATED_POST_ID);
+            return jsonResponse(publishedTweetReadback({
+              text: drift === "text" ? "changed text" : "Exact quote", quote: drift === "source" ? FOCAL_POST_ID : QUOTED_POST_ID,
+              authorId: drift === "author" ? "789" : VIEWER_ID,
+              ...(drift === "identity" ? { extra: { rest_id: FOCAL_POST_ID } } : {}),
+            }));
+          }
           throw new Error("Unexpected quote fixture request");
         }), afterDispatchVerified: async () => { verified++; },
       });
@@ -669,7 +809,7 @@ describe("X quote, repost and guarded follow integration", () => {
     expect(effects).toBe(0);
   });
 
-  test("follow remains a zero-effect pre-dispatch failure until numeric target evidence is reviewed", async () => {
+  test("missing or unreviewed numeric follow descriptors fail before the read or a mutation", async () => {
     for (const following of [true, false]) for (const includeUnreviewedDescriptor of [true, false]) {
       const calls: CapturedRequest[] = []; let transactionBrowsers = 0;
       const execution = await executeXWebOperation(xRecipe("relationships.follow.set", 1), { user_id: "123", following }, xAuth, {
@@ -687,6 +827,210 @@ describe("X quote, repost and guarded follow integration", () => {
       expect(calls.some(request => request.url.pathname.includes("friendships"))).toBeFalse();
       expect(calls.some(request => request.url.pathname.endsWith("/UserByRestId"))).toBeFalse();
       expect(transactionBrowsers).toBe(0);
+    }
+  });
+
+  test("numeric follow read matches the observed GET envelope and exact current relationship fields", async () => {
+    for (const following of [true, false]) {
+      const calls: CapturedRequest[] = []; let transactionBrowsers = 0;
+      const execution = await executeXWebOperation(xRecipe("relationships.follow.set", 1), { user_id: "123", following }, xAuth, {
+        dependencies: dependencies(calls, request => {
+          if (request.url.href === "https://x.com/home") return new Response(homeHtml(), { headers: { "content-type": "text/html" } });
+          if (request.url.href === MAIN_URL) return new Response(mainBundle(descriptor("Viewer", VIEWER_QUERY_ID, "query"), followReadDescriptor()),
+            { headers: { "content-type": "application/javascript" } });
+          if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
+          if (request.url.pathname.endsWith("/UserByRestId")) {
+            expect(request.method).toBe("GET"); expect(request.body).toBeNull();
+            expect(request.url.pathname).toBe("/i/api/graphql/mxaYWwt52eAb6OAzYHMVzg/UserByRestId");
+            expect([...request.url.searchParams.keys()].sort()).toEqual(["features", "variables"]);
+            expect(JSON.parse(request.url.searchParams.get("variables")!)).toEqual({ userId: "123" });
+            const features = JSON.parse(request.url.searchParams.get("features")!);
+            expect(Object.keys(features)).toHaveLength(10);
+            expect(Object.values(features).every(value => value === false)).toBeTrue();
+            expect(request.headers.get("x-client-transaction-id")).toBeNull();
+            return jsonResponse({ data: { user: { result: { __typename: "User", rest_id: "123", follow_request_sent: false,
+              relationship_perspectives: { following, followed_by: !following } } } } });
+          }
+          throw new Error("Unexpected numeric follow read");
+        }, { createBrowserSession: async () => { transactionBrowsers++; throw new Error("read must not create a transaction browser"); } }),
+      });
+      expect(execution).toMatchObject({ status: "succeeded", noOp: true, dispatchStarted: false,
+        dispatch: { planned: 1, started: 0, verified: 0 } });
+      expect(calls.filter(request => request.url.pathname.endsWith("/UserByRestId"))).toHaveLength(1);
+      expect(calls.every(request => request.method === "GET")).toBeTrue();
+      expect(transactionBrowsers).toBe(0);
+    }
+  });
+
+  test("numeric follow read rejects descriptor type and metadata drift before provider dispatch", async () => {
+    for (const invalidDescriptor of [followReadDescriptor({ operationType: "mutation" }), followReadDescriptor({ extraFeature: true }),
+      followReadDescriptor({ queryId: "UnreviewedUserQuery", extraFeature: true }),
+      descriptor("UserByRestId", "mxaYWwt52eAb6OAzYHMVzg", "query")]) {
+      const calls: CapturedRequest[] = [];
+      const execution = await executeXWebOperation(xRecipe("relationships.follow.set", 1), { user_id: "123", following: true }, xAuth, {
+        dependencies: dependencies(calls, request => {
+          if (request.url.href === "https://x.com/home") return new Response(homeHtml(), { headers: { "content-type": "text/html" } });
+          if (request.url.href === MAIN_URL) return new Response(mainBundle(descriptor("Viewer", VIEWER_QUERY_ID, "query"), invalidDescriptor),
+            { headers: { "content-type": "application/javascript" } });
+          if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
+          throw new Error("Descriptor drift must not dispatch");
+        }),
+      });
+      expect(execution).toMatchObject({ status: "failed", dispatchStarted: false });
+      expect(calls.some(request => request.url.pathname.endsWith("/UserByRestId"))).toBeFalse();
+      expect(calls.every(request => request.method === "GET")).toBeTrue();
+    }
+  });
+
+  test("numeric follow pre-read rejects response root, type, target and relationship drift without effects", async () => {
+    for (const drift of ["root", "type", "missing-type", "target", "wrapper", "following", "request", "missing-request", "pending", "error"] as const) {
+      const calls: CapturedRequest[] = []; let transactionBrowsers = 0;
+      const exact = { __typename: "User", rest_id: "123", follow_request_sent: false, relationship_perspectives: { following: false } };
+      const result = drift === "type" ? { ...exact, __typename: "UserUnavailable" }
+        : drift === "missing-type" ? { ...exact, __typename: undefined }
+        : drift === "target" ? { ...exact, rest_id: "456" }
+        : drift === "wrapper" ? { __typename: "UserWithVisibilityResults", user: exact }
+        : drift === "following" ? { ...exact, relationship_perspectives: { following: "false" } }
+        : drift === "request" ? { ...exact, follow_request_sent: "false" }
+        : drift === "missing-request" ? { ...exact, follow_request_sent: undefined }
+        : drift === "pending" ? { ...exact, follow_request_sent: true } : exact;
+      const execution = await executeXWebOperation(xRecipe("relationships.follow.set", 1), { user_id: "123", following: true }, xAuth, {
+        dependencies: dependencies(calls, request => {
+          if (request.url.href === "https://x.com/home") return new Response(homeHtml(), { headers: { "content-type": "text/html" } });
+          if (request.url.href === MAIN_URL) return new Response(mainBundle(descriptor("Viewer", VIEWER_QUERY_ID, "query"), followReadDescriptor()),
+            { headers: { "content-type": "application/javascript" } });
+          if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
+          if (request.url.pathname.endsWith("/UserByRestId")) return jsonResponse(drift === "root" ? { data: { user_results: { result } } }
+            : { data: { user: { result } }, ...(drift === "error" ? { errors: [{ code: 1 }] } : {}) });
+          throw new Error("Unbound follow state must not dispatch");
+        }, { createBrowserSession: async () => { transactionBrowsers++; throw new Error("must not prepare a mutation"); } }),
+      });
+      expect(execution).toMatchObject({ status: "failed", dispatchStarted: false, dispatch: { started: 0, verified: 0 } });
+      expect(calls.filter(request => request.url.pathname.endsWith("/UserByRestId"))).toHaveLength(1);
+      expect(calls.every(request => request.method === "GET")).toBeTrue();
+      expect(transactionBrowsers).toBe(0);
+    }
+  });
+
+  test("follow settlement requires one mutation and the exact independent numeric read after dispatch", async () => {
+    for (const following of [true, false]) for (const drift of ["none", "target", "type", "state", "pending", "actor", "mutation-target"] as const) {
+      const calls: CapturedRequest[] = []; let reads = 0; let mutated = false; let verified = 0;
+      const execution = await executeXWebOperation(xRecipe("relationships.follow.set", 1), { user_id: "123", following }, xAuth, {
+        dependencies: dependencies(calls, request => {
+          if (request.url.href === "https://x.com/home") return new Response(homeHtml(), { headers: { "content-type": "text/html" } });
+          if (request.url.href === MAIN_URL) return new Response(mainBundle(descriptor("Viewer", VIEWER_QUERY_ID, "query"), followReadDescriptor()),
+            { headers: { "content-type": "application/javascript" } });
+          if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse(mutated && drift === "actor" ? "789" : VIEWER_ID));
+          if (request.url.pathname.endsWith("/UserByRestId")) {
+            expect(JSON.parse(request.url.searchParams.get("variables")!)).toEqual({ userId: "123" });
+            const second = reads++ > 0;
+            return jsonResponse({ data: { user: { result: {
+              __typename: second && drift === "type" ? "UserUnavailable" : "User",
+              rest_id: second && drift === "target" ? "456" : "123",
+              follow_request_sent: second && drift === "pending",
+              relationship_perspectives: { following: second && drift !== "state" ? following : !following },
+            } } } });
+          }
+          if (request.url.pathname.includes("/friendships/")) {
+            expect(request.method).toBe("POST");
+            expect(request.url.pathname).toBe(`/i/api/1.1/friendships/${following ? "create" : "destroy"}.json`);
+            expect(new URLSearchParams(request.body!).getAll("user_id")).toEqual(["123"]);
+            expect(request.headers.get("x-client-transaction-id")).toBe(CLIENT_TRANSACTION_ID);
+            mutated = true;
+            return jsonResponse({ id_str: drift === "mutation-target" ? "456" : "123", following, follow_request_sent: false });
+          }
+          throw new Error("Unexpected follow settlement request");
+        }), afterDispatchVerified: async () => { verified++; },
+      });
+      expect(execution).toMatchObject({ status: drift === "none" ? "succeeded" : "indeterminate", dispatchStarted: true,
+        dispatch: { planned: 1, started: 1, verified: drift === "none" ? 1 : 0 } });
+      expect(verified).toBe(drift === "none" ? 1 : 0);
+      expect(calls.filter(request => request.method === "POST")).toHaveLength(1);
+      expect(reads).toBe(drift === "mutation-target" ? 1 : 2);
+    }
+  });
+  test("only follow2 treats the mutation following flag as a target acknowledgement before the independent numeric read", async () => {
+    for (const contractVersion of [1, 2]) for (const following of [true, false]) for (const acknowledgedFollowing of [true, false]) {
+      const calls: CapturedRequest[] = []; let reads = 0; let verified = 0;
+      const accepted = contractVersion === 2 || acknowledgedFollowing === following;
+      const execution = await executeXWebOperation(xRecipe("relationships.follow.set", contractVersion), { user_id: "123", following }, xAuth, {
+        dependencies: dependencies(calls, request => {
+          if (request.url.href === "https://x.com/home") return new Response(homeHtml(), { headers: { "content-type": "text/html" } });
+          if (request.url.href === MAIN_URL) return new Response(mainBundle(descriptor("Viewer", VIEWER_QUERY_ID, "query"), followReadDescriptor()),
+            { headers: { "content-type": "application/javascript" } });
+          if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
+          if (request.url.pathname.endsWith("/UserByRestId")) {
+            expect(request.method).toBe("GET"); expect(request.body).toBeNull();
+            expect(JSON.parse(request.url.searchParams.get("variables")!)).toEqual({ userId: "123" });
+            return jsonResponse({ data: { user: { result: { __typename: "User", rest_id: "123", follow_request_sent: false,
+              relationship_perspectives: { following: reads++ === 0 ? !following : following } } } } });
+          }
+          if (request.url.pathname.includes("/friendships/")) {
+            expect(request.method).toBe("POST");
+            expect(request.url.pathname).toBe(`/i/api/1.1/friendships/${following ? "create" : "destroy"}.json`);
+            const form = new URLSearchParams(request.body!);
+            expect(form.getAll("user_id")).toEqual(["123"]); expect([...form.keys()]).toHaveLength(13);
+            expect([...form.entries()].filter(([key]) => key !== "user_id").every(([, value]) => value === "1")).toBeTrue();
+            expect(request.headers.get("x-client-transaction-id")).toBe(CLIENT_TRANSACTION_ID);
+            return jsonResponse({ id_str: "123", following: acknowledgedFollowing, follow_request_sent: false });
+          }
+          throw new Error("Unexpected target acknowledgement request");
+        }), afterDispatchVerified: async () => { verified++; },
+      });
+      expect(execution).toMatchObject({ status: accepted ? "succeeded" : "indeterminate", dispatchStarted: true,
+        dispatch: { planned: 1, started: 1, verified: accepted ? 1 : 0 } });
+      expect(calls.filter(request => request.method === "POST")).toHaveLength(1);
+      expect(reads).toBe(accepted ? 2 : 1); expect(verified).toBe(accepted ? 1 : 0);
+      const mutationIndex = calls.findIndex(request => request.method === "POST");
+      const independentReadIndex = calls.findIndex((request, index) => index > mutationIndex && request.url.pathname.endsWith("/UserByRestId"));
+      if (accepted) {
+        expect(independentReadIndex).toBeGreaterThan(mutationIndex);
+        expect(calls.slice(independentReadIndex + 1).filter(request => request.url.pathname.endsWith("/Viewer"))).toHaveLength(1);
+      } else {
+        expect(independentReadIndex).toBe(-1);
+      }
+    }
+  });
+  test("follow2 requires an explicit nonpending acknowledgement while follow1 preserves its historical optional pending field", async () => {
+    for (const contractVersion of [1, 2]) {
+      const calls: CapturedRequest[] = []; let reads = 0;
+      const execution = await executeXWebOperation(xRecipe("relationships.follow.set", contractVersion), { user_id: "123", following: true }, xAuth, {
+        dependencies: dependencies(calls, request => {
+          if (request.url.href === "https://x.com/home") return new Response(homeHtml(), { headers: { "content-type": "text/html" } });
+          if (request.url.href === MAIN_URL) return new Response(mainBundle(descriptor("Viewer", VIEWER_QUERY_ID, "query"), followReadDescriptor()),
+            { headers: { "content-type": "application/javascript" } });
+          if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
+          if (request.url.pathname.endsWith("/UserByRestId")) return jsonResponse({ data: { user: { result: {
+            __typename: "User", rest_id: "123", follow_request_sent: false, relationship_perspectives: { following: reads++ > 0 },
+          } } } });
+          if (request.url.pathname.endsWith("/friendships/create.json")) return jsonResponse({ id_str: "123", following: true });
+          throw new Error("Unexpected missing pending acknowledgement request");
+        }),
+      });
+      expect(execution).toMatchObject({ status: contractVersion === 1 ? "succeeded" : "indeterminate", dispatchStarted: true,
+        dispatch: { started: 1, verified: contractVersion === 1 ? 1 : 0 } });
+      expect(calls.filter(request => request.method === "POST")).toHaveLength(1);
+      expect(reads).toBe(contractVersion === 1 ? 2 : 1);
+    }
+  });
+  test("follow2 refuses initial pending requests in either direction before transaction creation", async () => {
+    for (const following of [true, false]) {
+      const calls: CapturedRequest[] = []; let transactionBrowsers = 0;
+      const execution = await executeXWebOperation(xRecipe("relationships.follow.set", 2), { user_id: "123", following }, xAuth, {
+        dependencies: dependencies(calls, request => {
+          if (request.url.href === "https://x.com/home") return new Response(homeHtml(), { headers: { "content-type": "text/html" } });
+          if (request.url.href === MAIN_URL) return new Response(mainBundle(descriptor("Viewer", VIEWER_QUERY_ID, "query"), followReadDescriptor()),
+            { headers: { "content-type": "application/javascript" } });
+          if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
+          if (request.url.pathname.endsWith("/UserByRestId")) return jsonResponse({ data: { user: { result: {
+            __typename: "User", rest_id: "123", follow_request_sent: true, relationship_perspectives: { following: false },
+          } } } });
+          throw new Error("Pending target must not dispatch");
+        }, { createBrowserSession: async () => { transactionBrowsers++; throw new Error("pending target must not prepare a mutation"); } }),
+      });
+      expect(execution).toMatchObject({ status: "failed", dispatchStarted: false, dispatch: { started: 0, verified: 0 } });
+      expect(calls.filter(request => request.url.pathname.endsWith("/UserByRestId"))).toHaveLength(1);
+      expect(calls.every(request => request.method === "GET")).toBeTrue(); expect(transactionBrowsers).toBe(0);
     }
   });
 });
@@ -5382,6 +5726,114 @@ describe("X authenticated internal-API runtime", () => {
   });
 });
 
+describe("X normalized writer text", () => {
+  const url = "https://example.com/?literal=&amp;gt;";
+  const urlWire = `🦀 -&gt; ${url}`;
+  const scalarIndex = (body: string, token: string) => {
+    const start = body.indexOf(token);
+    return [Array.from(body.slice(0, start)).length, Array.from(body.slice(0, start + token.length)).length];
+  };
+  const cases = [
+    { body: "🦀 arrow -> &", wire: "🦀 arrow -&gt; &amp;", extra: {} },
+    { body: "literal &gt;", wire: "literal &amp;gt;", extra: {} },
+    { body: `🦀 -> ${url}`, wire: urlWire, extra: { legacy: { user_id_str: VIEWER_ID, full_text: urlWire,
+      entities: { urls: [{ indices: scalarIndex(urlWire, url), url, expanded_url: url }] } } } },
+    { body: "note &gt; exact", wire: "short preview", extra: {
+      note_tweet: { note_tweet_results: { result: { text: "note &gt; exact" } } },
+    } },
+  ];
+
+  function handler(result: unknown, state: { deleted: boolean }, request: CapturedRequest): Response {
+    if (request.url.href === "https://x.com/home") return new Response(homeHtml(), { headers: { "content-type": "text/html" } });
+    if (request.url.href === MAIN_URL) return new Response(mainBundle(
+      descriptor("Viewer", VIEWER_QUERY_ID, "query"), descriptor("CreateTweet", "5pUpVEnRC2yGK7jaguF11w", "mutation"),
+      descriptor("DeleteTweet", "nxpZCY2K-I6QoFHAHeojFQ", "mutation"),
+      descriptor("TweetResultByRestId", "CxpIrb-Lt2oBpojNjvDatg", "query"),
+    ), { headers: { "content-type": "application/javascript" } });
+    if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
+    if (request.url.pathname.endsWith("/CreateTweet")) return jsonResponse({ data: { create_tweet: { tweet_results: { result } } } });
+    if (request.url.pathname.endsWith("/DeleteTweet")) {
+      state.deleted = true;
+      return jsonResponse({ data: { delete_tweet: { tweet_results: {} } } });
+    }
+    if (request.url.pathname.endsWith("/TweetResultByRestId")) return jsonResponse(state.deleted ? { data: {} }
+      : { data: { tweetResult: { result } } });
+    throw new Error("Unexpected normalized writer fixture request");
+  }
+
+  test("publish response and independent readback share one-pass legacy semantics while preserving URL and note tokens", async () => {
+    for (const fixture of cases) {
+      const calls: CapturedRequest[] = [];
+      const value = publishedTweetResult({ text: fixture.wire, extra: fixture.extra });
+      const result = await executeXWebOperation(xRecipe("posts.publish", 5), { body: fixture.body }, xAuth, {
+        dependencies: dependencies(calls, request => handler(value, { deleted: false }, request)),
+      });
+      expect(result).toMatchObject({ status: "succeeded", dispatch: { planned: 1, started: 1, verified: 1 } });
+      expect(calls.filter(call => call.method === "POST")).toHaveLength(1);
+      expect(calls.filter(call => call.url.pathname.endsWith("/TweetResultByRestId"))).toHaveLength(1);
+    }
+  });
+
+  test("delete binds normalized displayed text exactly and never decodes its expected_text", async () => {
+    for (const fixture of cases) for (const expectedText of [fixture.body, `${fixture.body} changed`, fixture.wire]) {
+      const calls: CapturedRequest[] = []; const state = { deleted: false };
+      const value = publishedTweetResult({ text: fixture.wire, extra: fixture.extra });
+      const mismatch = expectedText !== fixture.body;
+      const result = await executeXWebOperation(xRecipe("content.delete", 3), { post_id: CREATED_POST_ID, expected_text: expectedText }, xAuth, {
+        dependencies: dependencies(calls, request => handler(value, state, request)),
+      });
+      expect(result).toMatchObject({ status: mismatch ? "failed" : "succeeded", dispatchStarted: !mismatch,
+        dispatch: { planned: 1, started: mismatch ? 0 : 1, verified: mismatch ? 0 : 1 } });
+      expect(calls.filter(call => call.method === "POST")).toHaveLength(mismatch ? 0 : 1);
+    }
+  });
+
+  test("malformed legacy entities and incomplete selected notes never authorize deletion or settle publication", async () => {
+    for (const extra of [
+      { legacy: { user_id_str: VIEWER_ID, full_text: "safe", entities: { hashtags: "malformed" } } },
+      { legacy: { user_id_str: VIEWER_ID, full_text: "safe", entities: { user_mentions: [{ indices: [0, 4], screen_name: "Other" }] } } },
+      { note_tweet: {} }, { note_tweet: { note_tweet_results: {} } },
+      { note_tweet: { note_tweet_results: { result: { text: 123 } } } },
+    ]) for (const action of ["content.delete", "posts.publish"] as const)
+      for (const stage of action === "posts.publish" ? ["response", "readback"] : ["pre-read"]) {
+      const calls: CapturedRequest[] = [];
+      const value = publishedTweetResult({ text: "safe", extra });
+      const valid = publishedTweetResult({ text: "safe" });
+      const result = await executeXWebOperation(xRecipe(action, action === "content.delete" ? 3 : 5),
+        action === "content.delete" ? { post_id: CREATED_POST_ID, expected_text: "safe" } : { body: "safe" }, xAuth, {
+          dependencies: dependencies(calls, request => handler(stage === "readback" && request.url.pathname.endsWith("/CreateTweet")
+            ? valid : value, { deleted: false }, request)),
+        });
+      expect(result).toMatchObject({ status: action === "content.delete" ? "failed" : "indeterminate",
+        dispatch: { planned: 1, started: action === "content.delete" ? 0 : 1, verified: 0 } });
+      expect(calls.filter(call => call.method === "POST")).toHaveLength(action === "content.delete" ? 0 : 1);
+    }
+  });
+
+  test("normalized media captions retain exact suffix and upload identity checks during recovery and deletion", async () => {
+    const mediaId = "67890"; const caption = "media -> &gt;";
+    const value = publishedTweetResult({ text: "media -&gt; &amp;gt;", mediaId });
+    for (const expectedText of [caption, `${caption} https://t.co/fakemedia1`]) {
+      const calls: CapturedRequest[] = []; const state = { deleted: false };
+      const result = await executeXWebOperation(xRecipe("content.delete", 3), { post_id: CREATED_POST_ID, expected_text: expectedText }, xAuth, {
+        dependencies: dependencies(calls, request => handler(value, state, request)),
+      });
+      expect(result).toMatchObject({ status: "succeeded", dispatch: { started: 1, verified: 1 } });
+    }
+    for (const mismatch of [false, true]) {
+      const calls: CapturedRequest[] = [];
+      const recover = readXWebPublishedMutationTarget(xRecipe("posts.publish", 5), {
+        body: caption, media: { kind: "file", reference: "fixture" }, media_type: "image/png",
+      }, xAuth, canonicalJson({ postId: CREATED_POST_ID, mediaId: mismatch ? "67891" : mediaId }), {
+        dependencies: dependencies(calls, request => handler(value, { deleted: false }, request)),
+      });
+      if (mismatch) await expect(recover).rejects.toThrow("confirmed media upload");
+      else expect(await recover).toEqual({ present: true, postId: CREATED_POST_ID });
+      expect(calls.every(call => call.method === "GET")).toBeTrue();
+    }
+  });
+});
+
 describe("X content.delete", () => {
   const DELETE_ID = "nxpZCY2K-I6QoFHAHeojFQ";
   const text = "owned post text";
@@ -5673,6 +6125,90 @@ describe("X captured workspace reads", () => {
     });
     expect(result).toMatchObject({ status: "succeeded", output: { source: "trending", posts: [{ id: "991" }] }, dispatchStarted: false });
     expect(calls.filter(call => call.method === "POST").map(call => call.url.pathname.split("/").at(-1))).toEqual(["SearchTimeline"]);
+  });
+
+  test("runtime Trending cards, selected posts and continuation cross the production app-host boundary", async () => {
+    const calls: CapturedRequest[] = [];
+    const requests: OperationInput[] = [];
+    const account: AppHostAccount = { id: xAuth.id, provider: "x", subject: VIEWER_ID, displayName: "@wrench_test",
+      browser: "chrome", profile: "Default", revision: "a".repeat(64), status: "configured",
+      identityVerification: "at-connection", disconnectDigest: "d".repeat(64) };
+    const network = dependencies(calls, request => {
+      if (request.url.href === "https://x.com/home") return new Response(homeHtml(), { headers: { "content-type": "text/html" } });
+      if (request.url.href === MAIN_URL) return new Response(mainBundle(
+        descriptor("Viewer", VIEWER_QUERY_ID, "query"), descriptor("ExplorePage", "BMib5Px-wibex8mYlOUhmQ", "query"),
+        descriptor("GenericTimelineById", "cW93hZ3nlNYbYcUROF5r5A", "query"), descriptor("SearchTimeline", SEARCH_TIMELINE_QUERY_ID, "query"),
+      ), { headers: { "content-type": "application/javascript" } });
+      if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
+      if (request.url.pathname.endsWith("/ExplorePage")) return jsonResponse({ data: { explore_page: { body: { timelines: [
+        { id: "trending", timeline: { id: "provider-trending-fixture" } },
+      ] } } } });
+      if (request.url.pathname.endsWith("/GenericTimelineById")) return jsonResponse({ data: { timeline: { timeline: timeline({
+        entryId: "trend-fixture", content: { entryType: "TimelineTimelineItem", itemContent: {
+          __typename: "TimelineTrend", itemType: "TimelineTrend", name: "Fixture topic", rank: "1",
+          trend_url: { urlType: "DeepLink", url: "twitter://search/?query=%23fixture&src=trend_click" },
+        } },
+      }) } } });
+      if (request.url.pathname.endsWith("/SearchTimeline")) {
+        const variables = JSON.parse(request.body!).variables;
+        const continued = variables.cursor !== undefined;
+        expect(variables).toEqual({ rawQuery: "#fixture", count: 2, querySource: "typed_query", product: "Latest",
+          ...(continued ? { cursor: "private-selected-next" } : {}) });
+        return jsonResponse(continued ? searchFeedResponse(tweetEntry("992", "Selected continuation"))
+          : searchFeedResponse(tweetEntry("991", "Selected topic"), {
+            entryId: "unavailable-fixture", content: { entryType: "TimelineTimelineItem", itemContent: {
+              itemType: "TimelineTweet", tweet_results: { result: { __typename: "TweetUnavailable", reason: "Protected" } },
+            } },
+          }, cursorEntry("private-selected-next")));
+      }
+      throw new Error("Unexpected X request");
+    });
+    type HostRuntime = NonNullable<ConstructorParameters<typeof AppHostXService>[5]>;
+    const runtime = {
+      prepareReadInvocation: (adapter: string, operation: string, input: OperationInput, authId: string) => {
+        expect([adapter, operation, authId]).toEqual(["x-web", "explore.read", account.id]);
+        requests.push(input);
+        return { input };
+      },
+      executeReadInvocation: async (invocation: { input: OperationInput }) => {
+        const result = await executeXWebOperation(xRecipe("explore.read", 2), invocation.input, xAuth, { dependencies: network });
+        return { receipt: { status: result.status }, output: result.output };
+      },
+    } as unknown as HostRuntime;
+    const forbidden = (): never => { throw new Error("Discovery must not prepare or confirm a mutation"); };
+    const service = new AppHostXService({}, providerPluginRegistry, (id, revision) => {
+      expect([id, revision]).toEqual([account.id, account.revision]);
+      return account;
+    }, forbidden, () => 1_000, runtime, { save: forbidden, read: forbidden }, () => parseRuntimeManifest(currentXManifest, providerPluginRegistry));
+    const base = { action: "x.explore.list", source: "trending", accountId: account.id,
+      expectedAccountRevision: account.revision, limit: 2 } as const;
+    try {
+      const cards = await service.handle({ ...base, target: null, cursor: null });
+      if (cards.kind !== "x-page" || cards.entries[0]?.kind !== "trend" || cards.entries[0].target === undefined) {
+        throw new Error("Production Trending card omitted its opaque selection");
+      }
+      const target = cards.entries[0].target;
+      expect(target).not.toContain("#fixture");
+      const selected = await service.handle({ ...base, target, cursor: null });
+      expect(selected).toMatchObject({ kind: "x-page", source: "trending", modelVersion: 1, entries: [
+        { kind: "post", id: "991", post: { text: "Selected topic" } }, { kind: "unavailable", reason: "Protected" },
+      ] });
+      if (selected.kind !== "x-page" || selected.nextCursor === null) throw new Error("Selected Trending omitted continuation");
+      expect(selected.nextCursor).not.toBe("private-selected-next");
+      expect(JSON.stringify(selected)).not.toContain("private-selected-next");
+      const continued = await service.handle({ ...base, target, cursor: selected.nextCursor });
+      expect(continued).toMatchObject({ kind: "x-page", source: "trending", modelVersion: 1,
+        entries: [{ kind: "post", id: "992", post: { text: "Selected continuation" } }], nextCursor: null });
+      expect(requests).toEqual([
+        { source: "trending", limit: 2 },
+        { source: "trending", limit: 2, target: canonicalJson({ source: "trending", kind: "search", value: "#fixture" }) },
+        { source: "trending", limit: 2, target: canonicalJson({ source: "trending", kind: "search", value: "#fixture" }), cursor: "private-selected-next" },
+      ]);
+      expect(calls.filter(call => call.method === "POST").map(call => call.url.pathname.split("/").at(-1)))
+        .toEqual(["SearchTimeline", "SearchTimeline"]);
+    } finally {
+      service.close();
+    }
   });
 
   test("Today's News resolves the separate narrow Relay descriptor and fixed topic", async () => {

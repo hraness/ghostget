@@ -4,7 +4,7 @@ Use this as routing guidance only. Always inspect `ghostget capabilities <adapte
 
 | Surface | Candidate adapter | Signed-in realm | Reference post shape | Meaning |
 | --- | --- | --- | --- | --- |
-| X | `x-web` | Browser cookies/profile | `body`; optional image fields when exposed | Consumer X post |
+| X | `x-web` | Browser cookies/profile | `body`; optional ordered `media` and aligned `media_types` arrays for one to four PNG/JPEG images or one MP4 | Consumer X post |
 | X | `x` | Official OAuth | `body`, optional `media` and aligned alt-text fields; leave `made_with_ai` unset or `false` for user-supplied cross-post copy | Documented API post |
 | LinkedIn | `linkedin-web` | Browser cookies/profile | `body`, `visibility`, optional image and accessibility fields | Member or explicitly bound organization post |
 | LinkedIn | `linkedin` | Official OAuth | Inspect installed schema | Documented API post |
@@ -16,8 +16,9 @@ Cleanup is capability-driven too. At this reference revision, `bluesky-web`
 exposes observed `content.delete@1` only for one current-account post URI plus
 its exact confirmed CID. `reddit-web` exposes observed `content.delete@1` only
 for one exact current-account post fullname plus its confirmed title, followed
-by independent absence readback. `x-web` reserves `content.delete@1` as
-`capture-required`; `substack-web content.delete@1` is observed for one exact
+by independent absence readback. `x-web content.delete@3` observes deletion
+of one current-account post with exact actor/text pre-read and independent
+absence readback. `substack-web content.delete@1` is observed for one exact
 authored personal Note with exact actor/body pre-read and independent 404
 absence. LinkedIn and Threads
 deletion remain unavailable unless their installed canonical capability

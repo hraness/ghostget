@@ -184,8 +184,10 @@ try {
   const mediaPlan = await xService.handle({ action: "x.action.prepare", intent: { action: "post", text: "Synthetic PNG relocation draft", media: [attachment.mediaId] }, ...actor });
   if (mediaPlan.kind !== "x-action" || mediaPlan.state !== "prepared" || mediaPlan.digest === null || mediaPlan.preparationId === null) throw new Error("gateway PNG preparation failed");
   const saved = appRuntime.loadInvocationPlan(mediaPlan.digest, process.env);
-  if (!isPlanBoundFile(saved.plan.input.media)) throw new Error("gateway PNG plan did not bind its file bytes");
-  const summary = summarizePlanFile(saved.plan.input.media);
+  const files = saved.plan.input.media;
+  if (!Array.isArray(files) || files.length !== 1 || !isPlanBoundFile(files[0])
+    || JSON.stringify(saved.plan.input.media_types) !== JSON.stringify(["image/png"])) throw new Error("gateway PNG plan did not bind its ordered file bytes and media type");
+  const summary = summarizePlanFile(files[0]);
   if (summary.sha256 !== attachment.sha256 || summary.bytes !== attachment.byteLength || summary.mediaType !== "image/png") throw new Error("gateway PNG plan changed staged bytes");
   const cancelledMedia = await xService.handle({ action: "x.action.cancel", preparationId: mediaPlan.preparationId, ...actor });
   if (cancelledMedia.kind !== "x-action" || cancelledMedia.state !== "denied") throw new Error("unused gateway PNG plan cancellation failed");

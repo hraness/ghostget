@@ -267,6 +267,7 @@ describe("single-process bundled adapter generation sync", () => {
       "x-web@1.18.0",
       "x-web@1.19.0",
       "x-web@1.2.0",
+      "x-web@1.20.0",
       "x-web@1.3.0",
       "x-web@1.4.0",
       "x-web@1.5.0",
