@@ -673,6 +673,7 @@
     "src/control/interfaces.ts",
     "src/operation-permission-store.ts",
     "src/operation-permission.ts",
+    "src/owner-delete-grant-store.ts",
     "src/control/vault.ts",
     "src/control/credential-helper.ts",
     "src/control/account-revision.ts",
