@@ -53,7 +53,7 @@ Task: read one Wikipedia article ([Wget](https://en.wikipedia.org/wiki/Wget)).
 One run of each on September 22, 2026, over HTTP with no browser. Tokens are
 estimated at four bytes per token and rounded to the nearest hundred; the
 Markdown is 9.7× smaller than the HTML. Token counts vary by model tokenizer.
-The install and actions in this README refer to release v0.18.96.
+The install and actions in this README refer to release v0.18.97.
 [The thread through hraness](https://hraness.com/writing/the-thread-through-hraness)
 describes how the other Hraness projects share this design.
 
@@ -74,7 +74,7 @@ Install [Bun 1.3.14](https://bun.sh/docs/installation) if needed, then install
 GhostGet and read a public page:
 
 ```sh
-bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.96/hraness-ghostget-0.18.96.tgz
+bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.97/hraness-ghostget-0.18.97.tgz
 ghostget read https://example.com
 ```
 
@@ -95,9 +95,9 @@ which always names the latest published release. Upgrading from Wrench? Read the
 The optional Agent Skill teaches your agent when and how to use GhostGet:
 
 ```sh
-npx skills add hraness/ghostget#v0.18.96
+npx skills add hraness/ghostget#v0.18.97
 # With Bun instead:
-bunx skills add hraness/ghostget#v0.18.96
+bunx skills add hraness/ghostget#v0.18.97
 ```
 
 Start a new agent session, then ask: “Use GhostGet to read https://example.com
@@ -229,7 +229,7 @@ firewall.
 
 ## Built-in provider catalog
 
-This v0.18.96 source tree supports executable actions for 21 services: Beeper,
+This v0.18.97 source tree supports executable actions for 21 services: Beeper,
 Bluesky, ClasificadosOnline, Facebook, Facebook Groups, Facebook Marketplace,
 GitHub, Gmail, Hacker News, Instagram, iMessage, LinkedIn, Reddit, Substack,
 Threads, TikTok, Twitch, WebMCP Registry, WhatsApp, X, and YouTube. LinkedIn
@@ -313,7 +313,7 @@ For that same released coordinate, install GhostGet in an agent or application
 that owns its own model, planning, tool loop, approvals, and interface:
 
 ```sh
-bun add https://github.com/hraness/ghostget/releases/download/v0.18.96/hraness-ghostget-0.18.96.tgz
+bun add https://github.com/hraness/ghostget/releases/download/v0.18.97/hraness-ghostget-0.18.97.tgz
 ```
 
 ```ts
@@ -560,8 +560,10 @@ warning text. Live reads have verified likes, profile replies and highlights,
 Trending cards and a selected trend’s posts, Today’s News cards and a selected
 story’s posts, the dedicated profile repost timeline, and notifications.
 Story and repost continuation pages have also passed live checks. Installed
-native-app provider qualification remains separate. The new follow, quote,
-repost, and multiple-image write contracts remain guarded.
+native-app provider qualification remains separate. Publication accepts one to
+four ordered PNG/JPEG images or one MP4. Text quotes, repost changes, and
+follow or unfollow actions verify the requested target and account before
+reporting success.
 See the [X adapter guide](skills/ghostget/references/x-adapter.md) for exact
 support and confirmation requirements.
 

@@ -7,6 +7,31 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.97
+
+X publishes posts with ordered PNG/JPEG images or one MP4, creates text quotes,
+and changes repost and follow states. Native consumers can open selected
+Trending feeds and display legacy post text with matching entities.
+
+- `posts.publish@7` binds one to four images or one video to immutable reviewed
+  bytes, order and the exact created post. Historical scalar publication and the
+  version-six reservation keep their original contracts.
+- `posts.quote@3` resolves the requested post's author before constructing its
+  quote URL, retains the created post before readback, and verifies its exact
+  text, author and quoted parent. `posts.repost@2` verifies repost and undo-repost
+  against an independent read of the requested source post. Uncertain actions
+  retain recovery evidence without replaying the mutation.
+- `relationships.follow.set@2` changes the follow state of one numeric user.
+  The friendship response acknowledges that target; an independent profile read
+  and fresh account check establish the requested state. Pending protected-account
+  requests refuse before dispatch. The version-one reservation stays archived.
+- Legacy post text decodes the provider's six escaped text forms once, after
+  validating entity ranges. Mention, hashtag, cashtag and link tokens stay exact;
+  publication, independent readback and deletion use the same text projection.
+- Selected Trending search pages include their model version for the typed native
+  gateway. Installed-interface capability checks report only the operations and
+  schemas that the app can use and leave missing or unmarked local state untouched.
+
 ## 0.18.96
 
 X can read the dedicated profile repost timeline and open a selected Today’s News

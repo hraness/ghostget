@@ -1,8 +1,42 @@
 import { expect, test } from "bun:test";
 
 import { assertProperty, fc } from "../test-support";
+import { canonicalJson } from "../canonical-json";
 import { projectXWebContactPage } from "./x-web";
-import { resolveCurrentXWebChunkUrl } from "./x-web-runtime";
+import { resolveCurrentXWebChunkUrl, xWebPublishRecoveryContractVersion } from "./x-web-runtime";
+
+test("publish recovery retains scalar predecessors and ordered targets, including text-only v7", () => {
+  expect(xWebPublishRecoveryContractVersion(canonicalJson({ postId: "123", mediaId: null }))).toBe(5);
+  expect(xWebPublishRecoveryContractVersion(canonicalJson({ postId: "123", mediaId: "456" }))).toBe(5);
+  expect(xWebPublishRecoveryContractVersion(canonicalJson({ postId: "123", mediaIds: [] }))).toBe(7);
+  expect(xWebPublishRecoveryContractVersion(canonicalJson({ postId: "123", mediaIds: ["456", "789"] }))).toBe(7);
+});
+
+test("publish recovery rejects ambiguous, noncanonical or changed target identities", () => {
+  for (const value of [
+    "null", "[]", "{}", "not JSON", " ".repeat(1_025),
+    '{"mediaId":null,"postId":"123","postId":"123"}',
+    '{"postId":"123","mediaId":null}',
+    canonicalJson({ postId: "123", mediaId: null, mediaIds: [] }),
+    canonicalJson({ postId: "123", mediaIds: ["456", "456"] }),
+    canonicalJson({ postId: "123", mediaIds: ["1", "2", "3", "4", "5"] }),
+    canonicalJson({ postId: "bad", mediaIds: [] }),
+    canonicalJson({ postId: "123", mediaIds: [null] }),
+  ]) expect(() => xWebPublishRecoveryContractVersion(value)).toThrow();
+});
+
+test("property: publish recovery format follows the exact canonical target, with bounded unique media", () => {
+  const id = fc.bigInt({ min: 1n, max: 999_999_999_999_999_999n }).map(String);
+  assertProperty(fc.property(id, fc.uniqueArray(id, { maxLength: 4 }), (postId, mediaIds) => {
+    const ordered = canonicalJson({ postId, mediaIds });
+    expect(xWebPublishRecoveryContractVersion(ordered)).toBe(7);
+    expect(() => xWebPublishRecoveryContractVersion(" " + ordered)).toThrow();
+    expect(() => xWebPublishRecoveryContractVersion(canonicalJson({ postId, mediaIds, extra: false }))).toThrow();
+    for (const mediaId of [null, ...mediaIds]) {
+      expect(xWebPublishRecoveryContractVersion(canonicalJson({ postId, mediaId }))).toBe(5);
+    }
+  }));
+});
 
 const BOOKMARKS_FAMILY = "shared~bundle.BookmarkFolders~bundle.Bookmarks";
 const REVIEWED_SOURCE_CHUNK = `${BOOKMARKS_FAMILY}.292efce92afba9d3a.js`;

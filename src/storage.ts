@@ -3875,6 +3875,27 @@ export function loadInstalledManifest(
   return loadInstalledManifestSnapshot(id, environment, registry).result;
 }
 
+/** Inspect initialized state without creating a root or adopting unmarked legacy state. */
+export function inspectInstalledManifest(
+  id: string,
+  environment: Readonly<Record<string, string | undefined>> = process.env,
+  registry?: ProviderPluginRegistry,
+): ParseResult<GhostgetManifest> {
+  try {
+    if (!isAdapterId(id)) throw new Error("adapter ID must be lowercase kebab-case");
+    const root = ghostgetStateHome(environment);
+    const state = assertStateRootIdentity(root);
+    if (state.identity === null || !state.claimed) {
+      return { ok: false, issues: [`adapter ${id} is unavailable in uninitialized state`] };
+    }
+    // The remembered claimed identity makes later root/marker loss fail closed
+    // in the normal reader instead of entering its create/adopt branches.
+    return loadInstalledManifest(id, environment, registry);
+  } catch (error) {
+    return { ok: false, issues: [error instanceof Error ? error.message : String(error)] };
+  }
+}
+
 export function installManifest(
   manifest: GhostgetManifest,
   options: {

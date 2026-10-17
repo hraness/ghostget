@@ -50,18 +50,30 @@ describe("social video provider contracts", () => {
       [xOfficialPlugin, "x"],
       [linkedinOfficialPlugin, "linkedin"],
     ] as const) {
-      const publish = operation(plugin, surfaceId, "posts.publish", plugin === xWebPlugin ? 5 : undefined);
+      const publish = operation(plugin, surfaceId, "posts.publish");
       expect(publish.state).toBe("observed");
       expect(fileMediaTypes(publish.input.properties.media)).toContain("video/mp4");
     }
   });
 
-  test("keeps the expanded X media reservation separate from its executable MP4 contract", () => {
-    const executable = operation(xWebPlugin, "x", "posts.publish", 5);
-    expect(executable).toMatchObject({ contractVersion: 5, state: "observed", risk: "R3", dispatch: "single" });
-    expect(fileMediaTypes(executable.input.properties.media)).toEqual(["image/png", "video/mp4"]);
+  test("selects qualified ordered X publication while preserving its scalar predecessor and inert reservation", () => {
+    const executable = operation(xWebPlugin, "x", "posts.publish");
+    expect(executable).toMatchObject({ contractVersion: 7, state: "observed", risk: "R3", dispatch: "single" });
+    expect(executable.input.properties.media).toMatchObject({ type: "array", minItems: 1, maxItems: 4 });
+    expect(fileMediaTypes(executable.input.properties.media)).toEqual(["image/png", "image/jpeg", "video/mp4"]);
+    expect(executable.input.properties.media_types).toMatchObject({
+      type: "array", minItems: 1, maxItems: 4,
+      items: { type: "string", enum: ["image/png", "image/jpeg", "video/mp4"] },
+    });
+    expect(executable.input.properties).not.toHaveProperty("media_type");
 
-    const reservation = operation(xWebPlugin, "x", "posts.publish");
+    const predecessor = operation(xWebPlugin, "x", "posts.publish", 5);
+    expect(predecessor).toMatchObject({ contractVersion: 5, state: "observed", risk: "R3", dispatch: "single" });
+    expect(predecessor.input.properties.media).toMatchObject({ type: "file" });
+    expect(fileMediaTypes(predecessor.input.properties.media)).toEqual(["image/png", "video/mp4"]);
+    expect(predecessor.input.properties).not.toHaveProperty("media_types");
+
+    const reservation = operation(xWebPlugin, "x", "posts.publish", 6);
     expect(reservation).toMatchObject({ contractVersion: 6, state: "capture-required", risk: "R3", dispatch: "single" });
     expect(reservation.input.properties.media).toMatchObject({ type: "array", minItems: 1, maxItems: 4 });
     expect(fileMediaTypes(reservation.input.properties.media)).toEqual(["image/png", "image/jpeg", "video/mp4"]);

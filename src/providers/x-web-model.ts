@@ -359,6 +359,52 @@ function projectText(tweet: RecordValue, legacy: RecordValue | null, indices: "s
   });
 }
 
+/** Match first-party modules 213834/276023: segment wire entities, then decode TEXT gaps once. */
+function decodeLegacyPostText(content: XSocialText): XSocialText {
+  if (content.source !== "legacy" || !content.text.includes("&")) return content;
+  const escapes: Readonly<Record<string, string>> = {
+    "&amp;": "&", "&gt;": ">", "&lt;": "<", "&nbsp;": "\u00a0", "&quot;": '"', "&#39;": "'",
+  };
+  const decodeGap = (value: string) => value.replace(/&amp;|&gt;|&lt;|&nbsp;|&quot;|&#39;/gu, value => escapes[value]!);
+  const { mentions, hashtags, cashtags, links } = content.entities;
+  const ordered = [...mentions, ...hashtags, ...cashtags, ...links].sort((left, right) => left.start - right.start);
+  const moved = new Map<number, XSocialEntityRange>();
+  const parts: string[] = [];
+  let cursor = 0;
+  let length = 0;
+  for (const entity of ordered) {
+    const gap = decodeGap(content.text.slice(cursor, entity.start));
+    const token = content.text.slice(entity.start, entity.end);
+    parts.push(gap, token);
+    length += gap.length;
+    moved.set(entity.start, { start: length, end: length + token.length });
+    length += token.length;
+    cursor = entity.end;
+  }
+  parts.push(decodeGap(content.text.slice(cursor)));
+  const move = <T extends XSocialEntityRange>(entity: T): T => Object.freeze({ ...entity, ...moved.get(entity.start)! });
+  return Object.freeze({
+    ...content, text: parts.join(""),
+    entities: Object.freeze({
+      ...content.entities, mentions: Object.freeze(mentions.map(move)), hashtags: Object.freeze(hashtags.map(move)),
+      cashtags: Object.freeze(cashtags.map(move)), links: Object.freeze(links.map(move)),
+    }),
+  });
+}
+
+/** Internal wire-text semantics shared by reads and exact mutation bindings. */
+export function projectXSocialTweetContent(rawTweet: unknown): XSocialText {
+  const tweet = record(rawTweet, "X tweet text result");
+  const legacy = optionalRecord(tweet.legacy, "X tweet text legacy");
+  const note = optionalRecord(tweet.note_tweet, "X note_tweet");
+  if (note !== null) {
+    // A present but incomplete note must not authorize its truncated legacy preview.
+    const results = record(note.note_tweet_results, "X note_tweet_results");
+    record(results.result, "X note result");
+  }
+  return decodeLegacyPostText(projectText(tweet, legacy));
+}
+
 function projectMedia(legacy: RecordValue | null): XSocialPostSnapshot["media"] {
   const extended = optionalRecord(legacy?.extended_entities, "X extended entities");
   const basic = optionalRecord(legacy?.entities, "X legacy entities");
@@ -507,7 +553,9 @@ function projectSnapshot(raw: unknown): XSocialPostSnapshot {
   const legacy = optionalRecord(tweet.legacy, "X tweet legacy");
   const postId = id(tweet.rest_id, "X post id");
   agree(postId, optionalId(legacy?.id_str, "X legacy post id"), "X post id");
-  const content = projectText(tweet, legacy);
+  // Provider legacy post text has one escaping layer. DTO admission, note text
+  // and profile descriptions already have their own semantics and stay exact.
+  const content = projectXSocialTweetContent(tweet);
   const core = optionalRecord(tweet.core, "X tweet core");
   const results = optionalRecord(core?.user_results, "X tweet user results");
   const user = optionalRecord(results?.result, "X tweet author");

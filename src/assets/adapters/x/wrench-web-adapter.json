@@ -1,7 +1,7 @@
 {
  "schemaVersion": 4,
  "id": "x-web",
- "version": "1.20.0",
+ "version": "1.21.0",
  "displayName": "X (Authenticated Web API)",
  "surfaceId": "x",
  "origins": [
@@ -381,7 +381,7 @@
    }
   },
   "posts.publish": {
-   "description": "Observed contract: publish one confirmed X post of up to 25000 UTF-16 units through pixels-only optional PNG or MP4 upload scrub, CreateTweet response, exact text bind including note_tweet long-form, and fail-closed TweetResultByRestId Made with AI readback.",
+   "description": "Publish one confirmed post with optional ordered PNG/JPEG images or one MP4, binding immutable media bytes and order to the created post and independent readback.",
    "risk": "R3",
    "sideEffect": "Publishes one externally visible X post with the exact confirmed content and reply audience.",
    "idempotency": "local-at-most-once",
@@ -395,21 +395,35 @@
       "maxLength": 25000
      },
      "media": {
-      "type": "file",
-      "description": "Optional single plan-bound PNG or MP4",
-      "maxBytes": 536870912,
-      "mediaTypes": [
-       "image/png",
-       "video/mp4"
-      ]
+      "type": "array",
+      "description": "One to four ordered plan-bound PNG/JPEG images, or exactly one MP4",
+      "minItems": 1,
+      "maxItems": 4,
+      "items": {
+       "type": "file",
+       "maxBytes": 536870912,
+       "mediaTypes": [
+        "image/png",
+        "image/jpeg",
+        "video/mp4"
+       ],
+       "description": "Exact bounded media item for this X operation"
+      }
      },
-     "media_type": {
-      "type": "string",
-      "description": "Exact media type when one PNG or MP4 is attached",
-      "enum": [
-       "image/png",
-       "video/mp4"
-      ]
+     "media_types": {
+      "type": "array",
+      "description": "Exact media types aligned in order with media",
+      "minItems": 1,
+      "maxItems": 4,
+      "items": {
+       "type": "string",
+       "enum": [
+        "image/png",
+        "image/jpeg",
+        "video/mp4"
+       ],
+       "description": "Exact bounded media types item for this X operation"
+      }
      }
     },
     "required": [
@@ -419,7 +433,7 @@
    "webSession": {
     "site": "x",
     "action": "posts.publish",
-    "contractVersion": 5,
+    "contractVersion": 7,
     "timeoutMs": 600000,
     "maxOutputBytes": 2097152
    }
@@ -492,7 +506,7 @@
    }
   },
   "posts.repost": {
-   "description": "Capture-required contract reservation: set repost state only after an authorized live fixture proves current transaction-header and readback behavior.",
+   "description": "Set the authenticated account's exact desired repost state with bound viewer, current transaction header, strict mutation acknowledgement and independent exact-post readback.",
    "risk": "R3",
    "sideEffect": "Creates or removes the authenticated account's repost of the exact confirmed X post.",
    "idempotency": "local-at-most-once",
@@ -518,13 +532,13 @@
    "webSession": {
     "site": "x",
     "action": "posts.repost",
-    "contractVersion": 1,
+    "contractVersion": 2,
     "timeoutMs": 60000,
     "maxOutputBytes": 2097152
    }
   },
   "posts.quote": {
-   "description": "Capture-required contract reservation: publish one confirmed text-only quote only after an authorized live fixture proves current transaction-header and quote binding behavior.",
+   "description": "Publish one text-only quote of the exact confirmed post after a fresh parent read, using its current author handle, strict response binding and independent readback.",
    "risk": "R3",
    "sideEffect": "Publishes one externally visible X quote post for the exact confirmed source post.",
    "idempotency": "local-at-most-once",
@@ -552,7 +566,7 @@
    "webSession": {
     "site": "x",
     "action": "posts.quote",
-    "contractVersion": 2,
+    "contractVersion": 3,
     "timeoutMs": 600000,
     "maxOutputBytes": 2097152
    }
@@ -829,7 +843,7 @@
    }
   },
   "relationships.follow.set": {
-   "description": "Capture-required contract: Set the current account following relationship for one exact numeric target; current first-party request and independent readback require qualification.",
+   "description": "Set whether the current account follows this exact numeric user. The target acknowledgement is verified by an independent profile read and fresh account check; pending requests are refused.",
    "risk": "R2",
    "sideEffect": "Changes the following relationship of this exact account and target.",
    "idempotency": "local-at-most-once",
@@ -855,7 +869,7 @@
    "webSession": {
     "site": "x",
     "action": "relationships.follow.set",
-    "contractVersion": 1,
+    "contractVersion": 2,
     "timeoutMs": 60000,
     "maxOutputBytes": 2097152
    }

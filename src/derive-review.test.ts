@@ -5,8 +5,256 @@ import {
   parseDerivationReviewFixtures,
   reviewDerivationHarValue,
 } from "./derive-review";
+import { internalHarReviewTraversalDepth, reviewedInternalFieldNameForUrl } from "./har-internal";
 
 const targetOrigin = "https://example.com";
+
+function xMutationReview(operation: string, body: unknown, fixtures: Readonly<Record<string, string>>,
+  variables: unknown = {}, origin = "https://x.com", path?: string) {
+  const result = reviewDerivationHarValue({ log: { entries: [{
+    request: { method: "POST", url: origin + (path ?? `/i/api/graphql/abcdefghijklmnopqrstuv/${operation}`),
+      postData: { mimeType: "application/json", text: JSON.stringify({ variables }) } },
+    response: { status: 200, content: { mimeType: "application/json", text: JSON.stringify(body) } },
+  }] } }, origin, { kind: "entry", entryIndex: 0, fixtures });
+  if (result.kind !== "entry") throw new Error("Expected entry review");
+  return result;
+}
+
+describe("bounded X quote and repost evidence review", () => {
+  const parent = "quote-parent-fixture"; const actor = "quote-actor-fixture";
+  const created = "quote-created-fixture"; const attachment = "https://x.com/i/status/123456";
+  const quoteBody = (legacyParent = parent, nestedParent = parent) => ({ data: { create_tweet: { tweet_results: { result: {
+    rest_id: created, core: { user_results: { result: { rest_id: actor } } },
+    legacy: { full_text: "exact quote fixture", quoted_status_id_str: legacyParent, is_quote_status: true },
+    quoted_status_result: { result: { rest_id: nestedParent } },
+    credential: { quoted_status_id_str: "opaque-credential-fixture" },
+  } } } } });
+  test("keeps quote parent, created post and actor roles distinct without exposing values", () => {
+    const result = xMutationReview("CreateTweet", quoteBody(), { parent, actor, created, attachment, credential: "opaque-credential-fixture" },
+      { tweet_text: "exact quote fixture", attachment_url: attachment });
+    const matches = new Map(result.fixtureMatches.map(item => [item.label, item]));
+    expect(matches.get("attachment")?.locations).toEqual(["request.body.variables.attachment_url"]);
+    expect(matches.get("parent")?.locations).toEqual([
+      "response.body.data.create_tweet.tweet_results.result.legacy.quoted_status_id_str",
+      "response.body.data.create_tweet.tweet_results.result.quoted_status_result.result.rest_id",
+    ]);
+    expect(matches.get("created")?.locations).toEqual(["response.body.data.create_tweet.tweet_results.result.rest_id"]);
+    expect(matches.get("actor")?.locations).toEqual(["response.body.data.create_tweet.tweet_results.result.core.user_results.result.rest_id"]);
+    expect(matches.get("credential")?.locations).toEqual([]);
+    expect(result.fixtureMatches.every(item => !item.truncated)).toBe(true);
+    const serialized = JSON.stringify(result);
+    expect(serialized).toContain("is_quote_status");
+    for (const value of [parent, actor, created, attachment, "opaque-credential-fixture"]) expect(serialized).not.toContain(value);
+  });
+  test("a sibling or nested quote ID cannot stand in for the exact legacy parent field", () => {
+    const result = xMutationReview("CreateTweet", quoteBody("another-parent", parent), { parent });
+    expect(result.fixtureMatches[0]?.locations).toEqual([
+      "response.body.data.create_tweet.tweet_results.result.quoted_status_result.result.rest_id",
+    ]);
+    expect(result.fixtureMatches[0]?.locations).not.toContain("response.body.data.create_tweet.tweet_results.result.legacy.quoted_status_id_str");
+  });
+  test("retains the two closed repost response paths and ordinary request variable names", () => {
+    for (const enabled of [true, false]) {
+      const operation = enabled ? "CreateRetweet" : "DeleteRetweet";
+      const sourceAuthor = "source-author-fixture";
+      const source = { rest_id: parent, legacy: { user_id_str: sourceAuthor } };
+      const body = { data: enabled ? { create_retweet: { retweet_results: { result: {
+        rest_id: created, core: { user_results: { result: { rest_id: actor } } },
+        retweeted_status_result: { result: source },
+      } } } } : { unretweet: { source_tweet_results: { result: source } } } };
+      const result = xMutationReview(operation, body, { parent, created, actor, source_author: sourceAuthor }, { [enabled ? "tweet_id" : "source_tweet_id"]: parent });
+      const matches = new Map(result.fixtureMatches.map(item => [item.label, item]));
+      const targetPath = enabled
+        ? "response.body.data.create_retweet.retweet_results.result.retweeted_status_result.result"
+        : "response.body.data.unretweet.source_tweet_results.result";
+      expect(matches.get("parent")?.locations).toContain(`${targetPath}.rest_id`);
+      expect(matches.get("source_author")?.locations).toEqual([`${targetPath}.legacy.user_id_str`]);
+      expect(matches.get("actor")?.locations).toEqual(enabled
+        ? ["response.body.data.create_retweet.retweet_results.result.core.user_results.result.rest_id"]
+        : []);
+      expect(matches.get("parent")?.locations).toContain(`request.body.variables.${enabled ? "tweet_id" : "source_tweet_id"}`);
+      expect(result.fixtureMatches.every(item => !item.truncated)).toBe(true);
+      for (const value of [parent, actor, sourceAuthor, created]) expect(JSON.stringify(result)).not.toContain(value);
+    }
+  });
+  test("an outer repost or sibling result ID cannot masquerade as the changed source post", () => {
+    for (const enabled of [true, false]) {
+      const body = { data: enabled ? { create_retweet: { retweet_results: { result: {
+        rest_id: parent, retweeted_status_result: { result: { rest_id: "another-target" } },
+      } } } } : { unretweet: { source_tweet_results: { result: { rest_id: "another-target" } }, result: { rest_id: parent } } } };
+      const result = xMutationReview(enabled ? "CreateRetweet" : "DeleteRetweet", body, { parent });
+      const locations = result.fixtureMatches[0]?.locations;
+      expect(locations).toEqual([enabled
+        ? "response.body.data.create_retweet.retweet_results.result.rest_id"
+        : "response.body.data.unretweet.result.rest_id"]);
+      expect(result.fixtureMatches[0]?.truncated).toBe(false);
+    }
+  });
+  test("the new evidence vocabulary is confined to exact HTTPS X operation routes", () => {
+    for (const operation of ["CreateTweet", "CreateRetweet", "DeleteRetweet"]) {
+      const route = `/i/api/graphql/abcdefghijklmnopqrstuv/${operation}`;
+      expect(internalHarReviewTraversalDepth(new URL(`https://x.com${route}`))).toBe(16);
+      for (const url of [`http://x.com${route}`, `https://owner@x.com${route}`, `https://x.com.example.test${route}`,
+        `https://x.com${route}/extra`, `https://x.com${route.toLowerCase()}`, `https://x.com/i/api/graphql/short/${operation}`]) {
+        expect(internalHarReviewTraversalDepth(new URL(url))).toBe(8);
+        expect(reviewedInternalFieldNameForUrl(new URL(url), "quoted_status_id_str")).toBe(":dynamic");
+        expect(reviewedInternalFieldNameForUrl(new URL(url), "create_retweet")).toBe(":dynamic");
+      }
+    }
+    for (const [origin, path] of [["https://x.com.example.test", undefined], ["https://x.com", "/i/api/graphql/abcdefghijklmnopqrstuv/UnreviewedOperation"]] as const) {
+      const result = xMutationReview("CreateTweet", quoteBody(), { parent }, {}, origin, path);
+      const serialized = JSON.stringify(result);
+      expect(serialized).not.toContain("quoted_status_id_str");
+      expect(serialized).not.toContain("quoted_status_result");
+    }
+    expect(reviewedInternalFieldNameForUrl(new URL("https://x.com/i/api/graphql/abcdefghijklmnopqrstuv/UserByRestId"), "quoted_status_id_str")).toBe(":dynamic");
+    for (const [operation, fields] of [
+      ["UserByRestId", ["quoted_status_result", "is_quote_status", "create_retweet", "unretweet"]],
+      ["CreateTweet", ["create_retweet", "retweet_results", "unretweet", "source_tweet_results"]],
+      ["CreateRetweet", ["quoted_status_id_str", "unretweet", "source_tweet_results"]],
+      ["DeleteRetweet", ["quoted_status_id_str", "create_retweet", "retweet_results", "retweeted_status_result"]],
+    ] as const) {
+      const url = new URL(`https://x.com/i/api/graphql/abcdefghijklmnopqrstuv/${operation}`);
+      for (const field of fields) expect(reviewedInternalFieldNameForUrl(url, field)).toBe(":dynamic");
+    }
+  });
+  test("repost evidence retains credential opacity and truthful depth, array and node caps", () => {
+    for (const operation of ["CreateRetweet", "DeleteRetweet"]) {
+      const opaque = xMutationReview(operation, { data: { credential: { rest_id: parent }, token: [parent], cookie: { source_tweet_results: parent } } }, { parent });
+      expect(opaque.fixtureMatches).toEqual([{ label: "parent", locations: [], truncated: false }]);
+      let deep: unknown = parent;
+      for (let index = 0; index < 17; index++) deep = { legacy: deep };
+      for (const body of [deep, { items: [...Array(100).fill(false), parent] }, {
+        items: Array.from({ length: 100 }, () => Array.from({ length: 100 }, () => ({ rest_id: false }))), rest_id: parent,
+      }]) {
+        const result = xMutationReview(operation, body, { parent });
+        expect(result.fixtureMatches).toEqual([{ label: "parent", locations: [], truncated: true }]);
+        expect(JSON.stringify(result)).not.toContain(parent);
+      }
+    }
+  });
+});
+
+function xContractEvidenceHar(operation = "CreateTweet", mediaCount = 2, origin = "https://x.com"): unknown {
+  const media = Array.from({ length: mediaCount }, (_, index) => ({ id_str: String(700 + index), type: "photo" }));
+  const variables = operation === "UserByRestId"
+    ? { userId: "123", withSafetyModeUserFields: true }
+    : { tweet_text: "fixture post", media: { media_entities: media.map(item => ({ media_id: item.id_str, tagged_users: [] })) } };
+  const profile = { __typename: "User", rest_id: "123", core: { screen_name: "fixture_handle" },
+    relationship_perspectives: { following: false, follow_request_sent: false } };
+  return { log: { entries: [{
+    request: { method: operation === "UserByRestId" ? "GET" : "POST",
+      url: `${origin}/i/api/graphql/abcdefghijklmnopqrstuv/${operation}`
+        + (operation === "UserByRestId" ? `?variables=${encodeURIComponent(JSON.stringify(variables))}` : ""),
+      postData: operation === "UserByRestId" ? undefined : { mimeType: "application/json", text: JSON.stringify({ variables }) } },
+    response: { status: 200, content: { mimeType: "application/json", text: JSON.stringify({ data: operation === "UserByRestId"
+      ? { user: { result: profile } }
+      : { create_tweet: { tweet_results: { result: { rest_id: "456", core: { user_results: { result: profile } },
+        legacy: { full_text: "fixture post", extended_entities: { media } },
+        byId: { "private-map-key": { rest_id: "private-map-value" } },
+        credential: { rest_id: "private-credential-value" } } } } } }) } },
+  }] } };
+}
+
+describe("bounded X contract evidence review", () => {
+  const fixtures = { actor: "123", post: "456", text: "fixture post", first: "700", second: "701",
+    map: "private-map-value", credential: "private-credential-value" };
+  test("binds exact friendship form fields and response booleans without exposing values", () => {
+    for (const action of ["create", "destroy"] as const) {
+      const path = `/i/api/1.1/friendships/${action}.json`;
+      const har = { log: { entries: [{
+        request: { method: "POST", url: `https://x.com${path}`, postData: {
+          mimeType: "application/x-www-form-urlencoded", text: "include_blocking=1&user_id=987654321&private_token=private-credential-value",
+        } },
+        response: { status: 200, content: { mimeType: "application/json", text: JSON.stringify({
+          id_str: "987654321", following: action === "create", follow_request_sent: false,
+          private_token: "private-credential-value", "private-map-key": { value: "private-map-value" },
+        }) } },
+      }] } };
+      const result = reviewDerivationHarValue(har, "https://x.com", { kind: "entry", entryIndex: 0,
+        fixtures: { target: "987654321", enabled: "true", disabled: "false", field: "1", secret: "private-credential-value" } });
+      if (result.kind !== "entry") throw new Error("Expected entry");
+      const matches = new Map(result.fixtureMatches.map(item => [item.label, item]));
+      expect(result.structure.path).toBe(path);
+      expect(matches.get("target")?.locations).toEqual(["request.form.user_id[0]", "response.body.id_str"]);
+      expect(matches.get("field")?.locations).toEqual(["request.form.include_blocking[0]"]);
+      expect(matches.get(action === "create" ? "enabled" : "disabled")?.locations).toContain("response.body.following");
+      expect(matches.get("disabled")?.locations).toContain("response.body.follow_request_sent");
+      expect(matches.get("secret")?.locations).toEqual([]);
+      expect(result.fixtureMatches.every(item => !item.truncated)).toBe(true);
+      for (const privateValue of ["987654321", "private-credential-value", "private-map-key", "private-map-value", "private_token"]) {
+        expect(JSON.stringify(result)).not.toContain(privateValue);
+      }
+    }
+  });
+
+  test("keeps friendship lookalikes and unreviewed routes redacted", () => {
+    for (const [origin, path] of [
+      ["https://x.com.example.test", "/i/api/1.1/friendships/create.json"],
+      ["https://x.com", "/i/api/1.1/friendships/update.json"],
+      ["https://x.com", "/i/api/1.1/friendships/create.json/extra"],
+    ] as const) {
+      const result = reviewDerivationHarValue({ log: { entries: [{ request: { method: "POST", url: `${origin}${path}`,
+        postData: { mimeType: "application/x-www-form-urlencoded", text: "user_id=987654321" } },
+        response: { status: 200, content: { mimeType: "application/json", text: JSON.stringify({
+          id_str: "987654321", following: true, follow_request_sent: false,
+        }) } } }] } }, origin, { kind: "entry", entryIndex: 0, fixtures: { target: "987654321", enabled: "true" } });
+      if (result.kind !== "entry") throw new Error("Expected entry");
+      expect(result.structure.path).not.toContain("friendships");
+      expect(result.fixtureMatches.flatMap(item => item.locations)).not.toContain("request.form.user_id[0]");
+      expect(JSON.stringify(result)).not.toContain("response.body.following");
+    }
+  });
+  test("retains exact public fields and ordered media positions without disclosing fixture values", () => {
+    const result = reviewDerivationHarValue(xContractEvidenceHar(), "https://x.com", { kind: "entry", entryIndex: 0, fixtures });
+    if (result.kind !== "entry") throw new Error("Expected entry");
+    const matches = new Map(result.fixtureMatches.map(item => [item.label, item]));
+    expect(matches.get("actor")?.locations).toContain("response.body.data.create_tweet.tweet_results.result.core.user_results.result.rest_id");
+    expect(matches.get("post")?.locations).toEqual(["response.body.data.create_tweet.tweet_results.result.rest_id"]);
+    expect(matches.get("first")?.locations).toContain("request.body.variables.media.media_entities[0].media_id");
+    expect(matches.get("first")?.locations).toContain("response.body.data.create_tweet.tweet_results.result.legacy.extended_entities.media[0].id_str");
+    expect(matches.get("second")?.locations).toContain("request.body.variables.media.media_entities[1].media_id");
+    expect(result.fixtureMatches.every(item => !item.truncated)).toBe(true);
+    expect(matches.get("credential")?.locations).toEqual([]);
+    const serialized = JSON.stringify(result);
+    for (const secret of Object.values(fixtures)) expect(serialized).not.toContain(secret);
+    expect(serialized).not.toContain("private-map-key");
+  });
+  test("retains profile numeric-target and relationship schema with exact boolean probes", () => {
+    const result = reviewDerivationHarValue(xContractEvidenceHar("UserByRestId"), "https://x.com", {
+      kind: "entry", entryIndex: 0, fixtures: { actor: "123", enabled: "true", handle: "fixture_handle" },
+    });
+    if (result.kind !== "entry") throw new Error("Expected entry");
+    const matches = new Map(result.fixtureMatches.map(item => [item.label, item]));
+    expect(matches.get("actor")?.locations).toContain("request.query.variables[0].userId");
+    expect(matches.get("actor")?.locations).toContain("response.body.data.user.result.rest_id");
+    expect(matches.get("enabled")?.locations).toEqual(["request.query.variables[0].withSafetyModeUserFields"]);
+    expect(matches.get("handle")?.locations).toEqual(["response.body.data.user.result.core.screen_name"]);
+    expect(result.fixtureMatches.every(item => !item.truncated)).toBe(true);
+  });
+  test("extra media and excessive nesting still report truthful truncation", () => {
+    const result = reviewDerivationHarValue(xContractEvidenceHar("CreateTweet", 5), "https://x.com", { kind: "entry", entryIndex: 0, fixtures });
+    expect(result.kind === "entry" && result.fixtureMatches.every(item => item.truncated)).toBe(true);
+    expect(JSON.stringify(result)).not.toContain("media_entities[4]");
+    let nested: unknown = "deep fixture";
+    for (let index = 0; index < 17; index += 1) nested = { legacy: nested };
+    const deep = reviewDerivationHarValue({ log: { entries: [{
+      request: { method: "POST", url: "https://x.com/i/api/graphql/abcdefghijklmnopqrstuv/CreateTweet" },
+      response: { status: 200, content: { mimeType: "application/json", text: JSON.stringify(nested) } },
+    }] } }, "https://x.com", { kind: "entry", entryIndex: 0, fixtures: { deep: "deep fixture" } });
+    expect(deep.kind === "entry" && deep.fixtureMatches).toEqual([{ label: "deep", locations: [], truncated: true }]);
+  });
+  test("lookalike origins and unreviewed operation names keep default redaction and arrays", () => {
+    for (const [operation, origin] of [["UnreviewedOperation", "https://x.com"], ["CreateTweet", "https://x.com.example.test"]] as const) {
+      const result = reviewDerivationHarValue(xContractEvidenceHar(operation, 2, origin), origin, { kind: "entry", entryIndex: 0, fixtures });
+      const serialized = JSON.stringify(result);
+      expect(serialized).not.toContain(".media_entities[0]");
+      expect(serialized).not.toContain(".rest_id");
+      expect(serialized).not.toContain("private-map-key");
+      expect(serialized).not.toContain("private-credential-value");
+    }
+  });
+});
 
 function fixtureHar(): unknown {
   const variables = encodeURIComponent(JSON.stringify({ conversation_id: "conversation-fixture-123" }));

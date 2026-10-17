@@ -994,7 +994,7 @@ describe("ghostget manifest parsing", () => {
     const current = parseRuntimeManifest(currentValue);
     expect(current.ok).toBeTrue();
     if (!current.ok) return;
-    expect(current.value.version).toBe("1.20.0");
+    expect(current.value.version).toBe("1.21.0");
     const article = current.value.operations["articles.draft.save"];
     expect(article !== undefined && isWebSessionOperation(article)).toBeTrue();
     if (article === undefined || !isWebSessionOperation(article)) return;
@@ -1091,7 +1091,7 @@ describe("ghostget manifest parsing", () => {
     const publish = current.value.operations["posts.publish"];
     expect(publish !== undefined && isWebSessionOperation(publish)).toBeTrue();
     if (publish === undefined || !isWebSessionOperation(publish)) return;
-    expect(publish.webSession.contractVersion).toBe(5);
+    expect(publish.webSession.contractVersion).toBe(7);
     expect(publish.input.properties.body).toMatchObject({
       minLength: 1,
       maxLength: MAX_X_CREATE_TWEET_TEXT_LENGTH,
@@ -1778,7 +1778,7 @@ describe("schemaVersion 4 authenticated web-session binding", () => {
     properties.body = { ...properties.body, maxLength: 100_000 };
 
     expect(issues(candidate).some((issue) =>
-      issue.includes("input must exactly match authenticated web contract x/posts.publish@5"))).toBeTrue();
+      issue.includes("input must exactly match authenticated web contract x/posts.publish@7"))).toBeTrue();
   });
 
   test("rejects forged confirmation and replay semantics for a real X mutation", () => {
@@ -1792,7 +1792,7 @@ describe("schemaVersion 4 authenticated web-session binding", () => {
       if (operation !== undefined) operation[field] = value;
 
       expect(issues(candidate).some((issue) =>
-        issue.includes(`${field} must exactly match authenticated web contract x/posts.publish@5`))).toBeTrue();
+        issue.includes(`${field} must exactly match authenticated web contract x/posts.publish@7`))).toBeTrue();
     }
   });
 

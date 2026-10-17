@@ -131,10 +131,12 @@ Every call includes the current `accountId` and `expectedAccountRevision` from
 the host capability alone does not promise every provider route works.
 
 - `x.profile.get`, `x.post.get` and `x.feed.list` return versioned public-content
-  models. Feed sources include Home, Following, profile posts, replies and
-  highlights, likes, bookmarks, followers and following accounts. Likes, replies
-  and highlights have passed live semantic reads; installed native-app provider
-  qualification remains separate. Unsupported sources fail before
+  models. Feed sources include Home, Following, profile posts, replies,
+  highlights and the dedicated repost timeline, plus likes, bookmarks,
+  followers and following accounts. Likes, replies, highlights and profile
+  reposts have passed live semantic reads; installed native-app provider
+  qualification remains separate. Followers and following accounts belong to
+  the connected viewer. Unsupported sources fail before
   provider access. Pagination tokens bind the account revision and read inputs.
 - `x.notifications.list` and `x.explore.list` are separate closed requests.
   Explore accepts `trending` or `today-news`. A new request name does not enable
@@ -146,9 +148,10 @@ the host capability alone does not promise every provider route works.
 - `x.media.prepare` accepts absolute local paths for PNG, JPEG or MP4 files,
   returning temporary opaque attachment IDs and file metadata. Nonempty alt
   text remains rejected until its provider contract is qualified. The observed
-  publication route accepts text and one PNG or MP4; ordered images and JPEG
-  remain a separate guarded successor. Media capability records distinguish
-  these variants. The client never sends upload URLs or provider media IDs.
+  `posts.publish@7` route accepts text with optional one to four ordered
+  PNG/JPEG images, or one MP4. Media capability records expose the accepted
+  types and attachment limit. The client never sends upload URLs or provider
+  media IDs.
 - `x.action.prepare` accepts a closed intent, resolves its targets and saves a
   GhostGet invocation plan. Its result contains an opaque preparation ID,
   digest and review. `x.action.commit` names that same preparation and digest;

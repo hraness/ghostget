@@ -623,6 +623,7 @@ const operationVerbLabels: Readonly<Record<string, string>> = Object.freeze({
   list: "List",
   notify: "Notify",
   publish: "Publish",
+  quote: "Quote",
   read: "Read",
   repost: "Repost",
   save: "Save",

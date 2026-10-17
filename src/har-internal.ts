@@ -54,6 +54,7 @@ export const INTERNAL_HAR_REVIEW_BOUNDS = Object.freeze({
   maxTotalRevisions: 20_000,
   maxTraversalDepth: 8,
   maxLinkedInArticleTraversalDepth: 12,
+  maxXContractEvidenceTraversalDepth: 16,
   maxUrlCharacters: 4_096 + (2 * 1024 * 1024) + 8_192,
 } as const);
 
@@ -177,6 +178,64 @@ const reviewedTwitchGraphQlOperationNames: ReadonlySet<string> = new Set([
   "ChannelRoot_AboutPanel",
   "TopNav_CurrentUser",
 ] as const);
+
+// Presentation-only vocabulary for exact first-party evidence exchanges. This
+// does not register a query revision, admit a request, or expose any values.
+const reviewedXContractEvidenceFieldNames: ReadonlySet<string> = new Set([
+  "__typename", "attachment_url", "core", "create_tweet", "entities",
+  "extended_entities", "follow_request_sent", "following", "full_text",
+  "id_str", "legacy", "media_entities", "media_id", "media_key",
+  "relationship_perspectives", "rest_id", "tagged_users", "tweet",
+  "tweet_results", "tweet_text", "type", "user", "userId", "user_results",
+  "withSafetyModeUserFields",
+]);
+
+const reviewedXQuoteEvidenceFieldNames: ReadonlySet<string> = new Set([
+  "is_quote_status", "quoted_status_id_str", "quoted_status_result",
+]);
+
+const reviewedXRepostTweetFieldNames: ReadonlySet<string> = new Set([
+  "__typename", "core", "id_str", "legacy", "rest_id", "tweet", "user",
+  "user_id_str", "user_results",
+]);
+
+const reviewedXCreateRepostEvidenceFieldNames: ReadonlySet<string> = new Set([
+  "create_retweet", "retweet_results", "retweeted_status_id_str", "retweeted_status_result",
+]);
+
+const reviewedXDeleteRepostEvidenceFieldNames: ReadonlySet<string> = new Set([
+  "source_tweet_results", "unretweet",
+]);
+
+const reviewedXFriendshipEvidenceFieldNames: ReadonlySet<string> = new Set([
+  "user_id", "id_str", "following", "follow_request_sent",
+  "include_profile_interstitial_type", "include_blocking", "include_blocked_by",
+  "include_followed_by", "include_want_retweets", "include_mute_edge", "include_can_dm",
+  "include_can_media_tag", "include_ext_is_blue_verified", "include_ext_verified_type",
+  "include_ext_profile_image_shape", "skip_status",
+]);
+
+export function reviewedXContractEvidenceRoute(url: URL): "create" | "profile" | "repost-create" | "repost-delete" | "friendship" | null {
+  if (url.origin !== "https://x.com" || url.username !== "" || url.password !== "") return null;
+  if (/^\/i\/api\/1\.1\/friendships\/(?:create|destroy)\.json$/u.test(url.pathname)) return "friendship";
+  const match = /^\/i\/api\/graphql\/[A-Za-z0-9_-]{20,64}\/(CreateTweet|UserByRestId|CreateRetweet|DeleteRetweet)$/u.exec(url.pathname);
+  switch (match?.[1]) {
+    case "CreateTweet": return "create";
+    case "UserByRestId": return "profile";
+    case "CreateRetweet": return "repost-create";
+    case "DeleteRetweet": return "repost-delete";
+    default: return null;
+  }
+}
+
+export function internalHarReviewTraversalDepth(url: URL): number {
+  const xRoute = reviewedXContractEvidenceRoute(url);
+  return xRoute !== null && xRoute !== "friendship"
+    ? INTERNAL_HAR_REVIEW_BOUNDS.maxXContractEvidenceTraversalDepth
+    : isReviewedLinkedInArticleRoute(url)
+      ? INTERNAL_HAR_REVIEW_BOUNDS.maxLinkedInArticleTraversalDepth
+      : INTERNAL_HAR_REVIEW_BOUNDS.maxTraversalDepth;
+}
 
 /** Exact schema vocabulary reviewed only for LinkedIn's native Article route. */
 const reviewedLinkedInArticleFieldNames: ReadonlySet<string> = new Set([
@@ -363,6 +422,20 @@ export function isReviewedLinkedInArticleRoute(url: URL): boolean {
 }
 
 export function reviewedInternalFieldNameForUrl(url: URL, value: string): string {
+  const xRoute = reviewedXContractEvidenceRoute(url);
+  if (
+    xRoute !== null
+    && safeFieldName.test(value)
+    && !sensitiveName.test(value)
+    && (
+      ((xRoute === "create" || xRoute === "profile") && reviewedXContractEvidenceFieldNames.has(value))
+      || (xRoute === "create" && reviewedXQuoteEvidenceFieldNames.has(value))
+      || ((xRoute === "repost-create" || xRoute === "repost-delete") && reviewedXRepostTweetFieldNames.has(value))
+      || (xRoute === "repost-create" && reviewedXCreateRepostEvidenceFieldNames.has(value))
+      || (xRoute === "repost-delete" && reviewedXDeleteRepostEvidenceFieldNames.has(value))
+      || (xRoute === "friendship" && reviewedXFriendshipEvidenceFieldNames.has(value))
+    )
+  ) return value;
   if (
     isReviewedTwitchGraphQlRoute(url)
     && value.length <= INTERNAL_HAR_REVIEW_BOUNDS.maxFieldNameCharacters
@@ -538,6 +611,7 @@ function safePath(url: URL): string {
     )
   ) return pathname;
   if (isReviewedTwitchGraphQlRoute(url)) return "/gql";
+  if (reviewedXContractEvidenceRoute(url) === "friendship") return pathname;
   const xGraphQl = reviewedXGraphQlRoute(url);
   if (xGraphQl !== null) {
     return xGraphQl.reviewed
@@ -750,9 +824,7 @@ function requestFields(request: JsonRecord, url: URL): readonly string[] {
       : isReviewedTwitchGraphQlRoute(url)
         ? isReviewedTwitchStructuralContainer
         : undefined,
-    isReviewedLinkedInArticleRoute(url)
-      ? INTERNAL_HAR_REVIEW_BOUNDS.maxLinkedInArticleTraversalDepth
-      : INTERNAL_HAR_REVIEW_BOUNDS.maxTraversalDepth,
+    internalHarReviewTraversalDepth(url),
   );
   const xGraphQl = reviewedXGraphQlRoute(url);
   if (
@@ -862,9 +934,7 @@ function responseFields(response: unknown, url: URL): readonly string[] {
         : isReviewedTwitchGraphQlRoute(url)
           ? isReviewedTwitchStructuralContainer
           : undefined,
-      isReviewedLinkedInArticleRoute(url)
-        ? INTERNAL_HAR_REVIEW_BOUNDS.maxLinkedInArticleTraversalDepth
-        : INTERNAL_HAR_REVIEW_BOUNDS.maxTraversalDepth,
+      internalHarReviewTraversalDepth(url),
     );
     if (fields.size >= INTERNAL_HAR_REVIEW_BOUNDS.maxFieldPaths) break;
   }

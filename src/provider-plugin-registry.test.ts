@@ -517,8 +517,8 @@ describe("provider plugin definition and registry", () => {
       {
         id: "x-web",
         surface: "x",
-        version: "1.7.0",
-        current: "802de506e8b20f6423510683da933f1b0c9e0cef762a7cb35fd3f49248d73397",
+        version: "1.8.0",
+        current: "70a348f10812ddd64a2863b629de3eb511e77d8df67b1310117077f2a61fba5b",
         prior: "4588a6fa7e0f73b4321402d217c2ea1c99c0533cbf32c2e7d38737eb62340234",
         operation: "profiles.read",
         contractVersion: 1,

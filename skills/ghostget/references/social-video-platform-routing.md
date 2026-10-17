@@ -6,7 +6,7 @@ are authoritative and may change.
 
 | Surface | Candidate adapter | Video operation | Meaning |
 | --- | --- | --- | --- |
-| X | `x-web` | `posts.publish` when the installed schema accepts `video/mp4` | Consumer X post. Observed `x-web` `posts.publish` now accepts one plan-bound PNG or one MP4. |
+| X | `x-web` | `posts.publish` when the installed schema accepts `video/mp4` | Consumer X post. `posts.publish@7` accepts optional ordered PNG/JPEG images or one MP4, with matching `media` and `media_types` arrays. |
 | X | `x` | `posts.publish` when the installed schema accepts `video/mp4` | Official OAuth post. Already schemas MP4. |
 | LinkedIn | `linkedin` | video-capable `posts.publish` | Observed official OAuth member or explicitly bound organization post. |
 | LinkedIn | `linkedin-web` | `media.publish` | Observed consumer-web member video post; image `posts.publish` remains a separate observed contract. |
@@ -18,9 +18,13 @@ are authoritative and may change.
 | YouTube Shorts | `youtube-web` | `media.publish` when observed | Studio video upload. Community `posts.publish` is not a Short. |
 | Reddit | `reddit-web` | `media.publish` when observed | One video post in one exact confirmed subreddit. |
 
-At the 2026-08-23 reference revision, `x-web` `posts.publish` is observed
-for one plan-bound `image/png` or one plan-bound `video/mp4`. Official `x`
-and official `linkedin` already observe MP4 post contracts. `reddit-web`
+`x-web posts.publish@7` accepts text with optional one to four ordered
+plan-bound PNG/JPEG images, or exactly one plan-bound MP4. Supply `media` and
+aligned `media_types` arrays together; omit both for text-only posts. Mixing
+images and video is unavailable. The scalar `posts.publish@5` contract is
+retained for historical plans and recovery, while the reserved
+`posts.publish@6` contract stays `capture-required`. Official `x` and official
+`linkedin` observe MP4 post contracts. `reddit-web`
 `media.publish@9` observes one plan-bound MP4 plus a required plan-bound
 PNG/JPEG poster and explicit NSFW, spoiler, and reply declarations. Threads
 `media.publish@1` observes one plan-bound ISO BMFF MP4, exact dimensions, its

@@ -9,6 +9,7 @@ import {
   parseXWebFollowingReadback,
   parseXWebFollowMutationResponse,
   xWebFollowRequest,
+  xWebFollowReadVariables,
   xWebRepostVariables,
   type XWebFollowPorts,
 } from "./x-web-social-actions";
@@ -21,6 +22,25 @@ const FOLLOW_BODY_123456 = "include_profile_interstitial_type=1&include_blocking
   + "&include_ext_verified_type=1&include_ext_profile_image_shape=1&skip_status=1&user_id=123456";
 
 describe("X exact follow request and readback primitives", () => {
+  test("the numeric-target read emits only userId without safety flags or caller metadata", () => {
+    expect(xWebFollowReadVariables("9876543210123456789")).toEqual({ userId: "9876543210123456789" });
+    expect(Object.isFrozen(xWebFollowReadVariables("123"))).toBeTrue();
+    for (const input of [null, undefined, [], {}, 123, "", "@example", "1".repeat(20), "123&userId=456",
+      { userId: "123" }, { user_id: "123" }, { user_id: "123", withSafetyModeUserFields: true }]) {
+      expect(() => xWebFollowReadVariables(input)).toThrow("exact numeric ID");
+    }
+  });
+
+  test("property: numeric-target reads preserve exactly one bounded decimal identity", () => {
+    assertProperty(fc.property(fc.array(fc.integer({ min: 0, max: 9 }), { minLength: 1, maxLength: 19 }), digits => {
+      const target = digits.join("");
+      const variables = xWebFollowReadVariables(target);
+      expect(Object.keys(variables)).toEqual(["userId"]);
+      expect(JSON.parse(JSON.stringify(variables))).toEqual({ userId: target });
+      expect(Object.isFrozen(variables)).toBeTrue();
+    }), { numRuns: 100 });
+  });
+
   test("matches frontend response fields and fixed POST routes with exactly one numeric target", () => {
     for (const following of [true, false]) {
       expect(xWebFollowRequest({ user_id: "123456", following })).toEqual({
@@ -45,23 +65,35 @@ describe("X exact follow request and readback primitives", () => {
   });
 
   test("reads the viewer's following flag rather than the reverse followed_by flag", () => {
-    const observed = parseXWebFollowingReadback({ __typename: "User", rest_id: "123", relationship_perspectives: { following: true, followed_by: false } }, "123");
-    expect(observed).toEqual({ userId: "123", following: true, followRequestSent: null });
+    const observed = parseXWebFollowingReadback({ __typename: "User", rest_id: "123", follow_request_sent: false,
+      relationship_perspectives: { following: true, followed_by: false } }, "123");
+    expect(observed).toEqual({ userId: "123", following: true, followRequestSent: false });
     assertXWebFollowingDesiredState(observed, { user_id: "123", following: true });
     expect(() => assertXWebFollowingDesiredState(observed, { user_id: "123", following: false })).toThrow();
-    expect(() => parseXWebFollowingReadback({ rest_id: "123", relationship_perspectives: { followed_by: true } }, "123")).toThrow("following boolean");
+    expect(() => parseXWebFollowingReadback({ __typename: "User", rest_id: "123", follow_request_sent: false,
+      relationship_perspectives: { followed_by: true } }, "123")).toThrow("following boolean");
   });
 
-  test("supports exact visibility wrappers and compatible legacy state, rejecting drift and disagreement", () => {
-    expect(parseXWebFollowingReadback({ __typename: "UserWithVisibilityResults", user: {
-      __typename: "User", rest_id: "123", legacy: { following: false, follow_request_sent: false },
-    } }, "123")).toEqual({ userId: "123", following: false, followRequestSent: false });
-    for (const value of [{ __typename: "UserUnavailable", rest_id: "123" },
-      { rest_id: "456", relationship_perspectives: { following: true } },
-      { rest_id: "123", relationship_perspectives: { following: true }, legacy: { following: false } },
-      { rest_id: "123", relationship_perspectives: { following: false, follow_request_sent: true }, legacy: { follow_request_sent: false } }]) {
+  test("requires the observed User type and modern state, rejecting wrappers, aliases and disagreement", () => {
+    const exact = { __typename: "User", rest_id: "123", follow_request_sent: false, relationship_perspectives: { following: false } };
+    expect(parseXWebFollowingReadback(exact, "123")).toEqual({ userId: "123", following: false, followRequestSent: false });
+    for (const value of [null, [], { ...exact, __typename: "UserUnavailable" }, { ...exact, __typename: undefined },
+      { __typename: "UserWithVisibilityResults", user: exact }, { ...exact, rest_id: "456" },
+      { __typename: "User", rest_id: "123", legacy: { following: false, follow_request_sent: false } },
+      { ...exact, follow_request_sent: undefined }, { ...exact, follow_request_sent: "false" },
+      { ...exact, relationship_perspectives: { following: "false" } },
+      { ...exact, legacy: { following: true } },
+      { ...exact, relationship_perspectives: { following: false, follow_request_sent: true } },
+      { ...exact, legacy: { follow_request_sent: true } }]) {
       expect(() => parseXWebFollowingReadback(value, "123")).toThrow();
     }
+  });
+
+  test("top-level pending requests cannot masquerade as an already satisfied unfollow", () => {
+    const pending = parseXWebFollowingReadback({ __typename: "User", rest_id: "123", follow_request_sent: true,
+      relationship_perspectives: { following: false } }, "123");
+    expect(pending.followRequestSent).toBeTrue();
+    for (const following of [true, false]) expect(() => assertXWebFollowingDesiredState(pending, { user_id: "123", following })).toThrow();
   });
 
   test("a pending protected-account request never counts as a completed follow or unfollow", () => {
@@ -80,7 +112,7 @@ describe("X exact follow request and readback primitives", () => {
     for (const key of ["include_profile_interstitial_type", "include_blocking", "include_blocked_by", "include_followed_by",
       "include_want_retweets", "include_mute_edge", "include_can_dm", "include_can_media_tag", "include_ext_is_blue_verified",
       "include_ext_verified_type", "include_ext_profile_image_shape", "skip_status", "impression_id", "earned",
-      "engagement_metadata", "headers", "method", "pathname", "origin", "screen_name"]) {
+      "engagement_metadata", "headers", "method", "pathname", "origin", "screen_name", "mutationResponseBinding"]) {
       expect(() => xWebFollowRequest({ user_id: "123", following: true, [key]: "0" })).toThrow();
     }
   });
@@ -100,7 +132,8 @@ describe("X exact follow request and readback primitives", () => {
 
   test("property: exact identity and desired state bind all accepted relationship observations", () => {
     assertProperty(fc.property(fc.integer({ min: 1, max: 999_999 }), fc.boolean(), (target, following) => {
-      const observed = parseXWebFollowingReadback({ rest_id: String(target), relationship_perspectives: { following, followed_by: !following } }, String(target));
+      const observed = parseXWebFollowingReadback({ __typename: "User", rest_id: String(target), follow_request_sent: false,
+        relationship_perspectives: { following, followed_by: !following } }, String(target));
       assertXWebFollowingDesiredState(observed, { user_id: String(target), following });
       expect(() => assertXWebFollowingDesiredState(observed, { user_id: String(target + 1), following })).toThrow();
       expect(() => assertXWebFollowingDesiredState(observed, { user_id: String(target), following: !following })).toThrow();
@@ -152,7 +185,7 @@ describe("X exact ordinary-target repost variables", () => {
 
 describe("X follow production lifecycle", () => {
   function state(following: boolean, rest_id = "123", requested = false) {
-    return { rest_id, relationship_perspectives: { following, follow_request_sent: requested } };
+    return { __typename: "User", rest_id, follow_request_sent: requested, relationship_perspectives: { following } };
   }
   test("follow and unfollow each admit one exact target mutation and independently read the desired state", async () => {
     for (const following of [true, false]) {
@@ -186,6 +219,106 @@ describe("X follow production lifecycle", () => {
       mutate: async () => { mutations++; throw new Error("must not mutate"); },
     })).toMatchObject({ status: "failed", dispatchStarted: false });
     expect(mutations).toBe(0);
+  });
+  test("target acknowledgements may carry stale following booleans but still require independent desired state and a fresh actor", async () => {
+    for (const following of [true, false]) for (const acknowledgedFollowing of [true, false]) {
+      const events: string[] = []; let reads = 0; let mutations = 0;
+      const execution = await executeXWebFollowSet({ user_id: "123", following }, {
+        mutationResponseBinding: "target-acknowledgement",
+        requireViewer: async () => { events.push("viewer"); return "456"; },
+        readTarget: async id => { expect(id).toBe("123"); events.push("read"); return state(reads++ === 0 ? !following : following); },
+        mutate: async (request, admit) => {
+          expect(request.pathname).toBe(`/i/api/1.1/friendships/${following ? "create" : "destroy"}.json`);
+          events.push("mutation-ready"); await admit(); mutations++;
+          return { id_str: "123", following: acknowledgedFollowing, follow_request_sent: false };
+        },
+      }, { beforeDispatch: async () => { events.push("admit"); }, afterDispatchVerified: async () => { events.push("verified"); } });
+      expect(execution).toMatchObject({ status: "succeeded", dispatch: { planned: 1, started: 1, verified: 1 } });
+      expect(events).toEqual(["viewer", "read", "mutation-ready", "viewer", "admit", "read", "viewer", "verified"]);
+      expect(mutations).toBe(1); expect(reads).toBe(2);
+    }
+  });
+  test("legacy follow responses still require desired state before any independent read", async () => {
+    for (const following of [true, false]) {
+      let reads = 0; let mutations = 0;
+      const execution = await executeXWebFollowSet({ user_id: "123", following }, {
+        requireViewer: async () => "456", readTarget: async () => { reads++; return state(reads === 1 ? !following : following); },
+        mutate: async (_, admit) => { await admit(); mutations++; return { id_str: "123", following: !following, follow_request_sent: false }; },
+      });
+      expect(execution).toMatchObject({ status: "indeterminate", dispatch: { started: 1, verified: 0 } });
+      expect(mutations).toBe(1); expect(reads).toBe(1);
+    }
+  });
+  test("target acknowledgements exclude initial pending requests in either direction while legacy unfollow can cancel one", async () => {
+    for (const following of [true, false]) {
+      let mutations = 0; let admissions = 0;
+      const execution = await executeXWebFollowSet({ user_id: "123", following }, {
+        mutationResponseBinding: "target-acknowledgement",
+        requireViewer: async () => "456", readTarget: async () => state(false, "123", true),
+        mutate: async (_, admit) => { mutations++; await admit(); return null; },
+      }, { beforeDispatch: async () => { admissions++; } });
+      expect(execution).toMatchObject({ status: "failed", dispatchStarted: false, dispatch: { started: 0, verified: 0 } });
+      expect(mutations).toBe(0); expect(admissions).toBe(0);
+    }
+    let reads = 0; let mutations = 0;
+    const legacy = await executeXWebFollowSet({ user_id: "123", following: false }, {
+      requireViewer: async () => "456", readTarget: async () => state(false, "123", reads++ === 0),
+      mutate: async (_, admit) => { await admit(); mutations++; return { id_str: "123", following: false, follow_request_sent: false }; },
+    });
+    expect(legacy).toMatchObject({ status: "succeeded", dispatch: { started: 1, verified: 1 } });
+    expect(reads).toBe(2); expect(mutations).toBe(1);
+  });
+  test("target acknowledgement no-ops still bind the fresh actor without dispatch", async () => {
+    for (const following of [true, false]) for (const actorChanged of [true, false]) {
+      let actors = 0; let mutations = 0;
+      const execution = await executeXWebFollowSet({ user_id: "123", following }, {
+        mutationResponseBinding: "target-acknowledgement",
+        requireViewer: async () => actorChanged && actors++ > 0 ? "789" : "456", readTarget: async () => state(following),
+        mutate: async () => { mutations++; throw new Error("must not dispatch"); },
+      });
+      expect(execution).toMatchObject({ status: actorChanged ? "failed" : "succeeded", dispatchStarted: false });
+      expect(mutations).toBe(0);
+    }
+  });
+  test("malformed or pending target acknowledgements remain uncertain without a read or replay", async () => {
+    const exact = { id_str: "123", following: false, follow_request_sent: false };
+    for (const response of [null, [], { ...exact, id_str: undefined }, { ...exact, id_str: 123 }, { ...exact, id_str: "not-numeric" },
+      { ...exact, id_str: "789" }, { ...exact, following: undefined }, { ...exact, following: null }, { ...exact, following: "false" },
+      { ...exact, follow_request_sent: undefined }, { ...exact, follow_request_sent: null }, { ...exact, follow_request_sent: "false" },
+      { ...exact, follow_request_sent: true }, { ...exact, error: null }, { ...exact, errors: [] }]) {
+      let reads = 0; let mutations = 0; let verified = 0;
+      const execution = await executeXWebFollowSet({ user_id: "123", following: true }, {
+        mutationResponseBinding: "target-acknowledgement", requireViewer: async () => "456",
+        readTarget: async () => { reads++; return state(false); },
+        mutate: async (_, admit) => { await admit(); mutations++; return response; },
+      }, { afterDispatchVerified: async () => { verified++; } });
+      expect(execution).toMatchObject({ status: "indeterminate", dispatchStarted: true, dispatch: { started: 1, verified: 0 } });
+      expect(reads).toBe(1); expect(mutations).toBe(1); expect(verified).toBe(0);
+    }
+  });
+  test("target acknowledgement settlement rejects independent read and final actor drift without replay", async () => {
+    for (const following of [true, false]) for (const failure of ["target", "type", "state", "pending", "read", "actor", "actor-read"] as const) {
+      let actors = 0; let reads = 0; let mutations = 0; let verified = 0;
+      const execution = await executeXWebFollowSet({ user_id: "123", following }, {
+        mutationResponseBinding: "target-acknowledgement",
+        requireViewer: async () => {
+          if (actors++ < 2) return "456";
+          if (failure === "actor-read") throw new Error("private final actor read failed");
+          return failure === "actor" ? "789" : "456";
+        },
+        readTarget: async () => {
+          if (reads++ === 0) return state(!following);
+          if (failure === "read") throw new Error("private numeric read failed");
+          return { ...state(failure === "pending" ? false : failure === "state" ? !following : following,
+            failure === "target" ? "789" : "123", failure === "pending"), __typename: failure === "type" ? "UserUnavailable" : "User" };
+        },
+        mutate: async (_, admit) => { await admit(); mutations++; return { id_str: "123", following: !following, follow_request_sent: false }; },
+      }, { afterDispatchVerified: async () => { verified++; } });
+      expect(execution).toMatchObject({ status: "indeterminate", dispatchStarted: true, dispatch: { started: 1, verified: 0 } });
+      expect(reads).toBe(2); expect(mutations).toBe(1); expect(verified).toBe(0);
+      if (failure === "actor" || failure === "actor-read") expect(actors).toBe(3);
+      expect(JSON.stringify(execution)).not.toContain("private");
+    }
   });
   test("rejects switched actor, switched target, missing or contradictory pre-read state and denied admission without effects", async () => {
     for (const failure of ["actor", "target", "missing", "contradiction", "self", "admission"] as const) {
@@ -265,6 +398,20 @@ describe("X follow production lifecycle", () => {
         expect(result.status).toBe(!submitted ? "failed" : admissions === 1 && !readbackFault ? "succeeded" : "indeterminate");
         expect(JSON.stringify(result)).not.toContain("private");
       }), { numRuns: 100 });
+  });
+
+  test("property: target acknowledgement booleans cannot replace independent desired state or allow a replay", async () => {
+    await assertAsyncProperty(fc.asyncProperty(fc.boolean(), fc.boolean(), fc.boolean(), async (following, acknowledgedFollowing, readMatches) => {
+      let mutations = 0; let reads = 0; let actors = 0;
+      const execution = await executeXWebFollowSet({ user_id: "123", following }, {
+        mutationResponseBinding: "target-acknowledgement", requireViewer: async () => { actors++; return "456"; },
+        readTarget: async () => state(reads++ === 0 || !readMatches ? !following : following),
+        mutate: async (_, admit) => { await admit(); mutations++; return { id_str: "123", following: acknowledgedFollowing, follow_request_sent: false }; },
+      });
+      expect(execution).toMatchObject({ status: readMatches ? "succeeded" : "indeterminate",
+        dispatch: { started: 1, verified: readMatches ? 1 : 0 } });
+      expect(mutations).toBe(1); expect(reads).toBe(2); expect(actors).toBe(readMatches ? 3 : 2);
+    }), { numRuns: 100 });
   });
 
 });

@@ -27,6 +27,11 @@ export function parseXWebFollowInput(value: unknown): XWebFollowInput {
   return Object.freeze({ user_id: userId(input.user_id), following: input.following });
 }
 
+/** Numeric-target read only. Frontend module 869512 sends no safety-mode variable. */
+export function xWebFollowReadVariables(value: unknown): Readonly<{ userId: string }> {
+  return Object.freeze({ userId: userId(value) });
+}
+
 // Frontend main.3999c6d7f4dbb6c7a.js, module 825369: these are fixed
 // response-projection fields for an ordinary numeric-target relationship change.
 const FOLLOW_RESPONSE_FIELDS = Object.freeze({
@@ -98,20 +103,24 @@ export function parseXWebFollowMutationResponse(value: unknown, expectedUserId: 
 
 /** Accept the user-result subtree from the separately reviewed UserByRestId read. */
 export function parseXWebFollowingReadback(value: unknown, expectedUserId: string): XWebFollowingState {
-  let result = record(value, "X follow user readback");
-  if (result.__typename === "UserWithVisibilityResults") result = record(result.user, "X follow user readback.user");
-  if (result.__typename !== undefined && result.__typename !== "User") throw new Error("X follow target is unavailable");
-  const perspectives = result.relationship_perspectives === undefined ? null : record(result.relationship_perspectives, "X relationship perspectives");
+  const result = record(value, "X follow user readback");
+  if (result.__typename !== "User") throw new Error("X follow target is unavailable");
+  // The observed UserByRestId read returns current state in these exact fields;
+  // wrappers and legacy-only values cannot stand in for this independent read.
+  const perspectives = record(result.relationship_perspectives, "X relationship perspectives");
+  const modernFollowing = flag(perspectives.following, "X viewer following state");
+  if (typeof result.follow_request_sent !== "boolean") throw new Error("X follow readback omitted its exact follow request boolean");
+  const modernRequested = result.follow_request_sent;
   const legacy = result.legacy === undefined ? null : record(result.legacy, "X legacy relationship");
-  const modernFollowing = flag(perspectives?.following, "X viewer following state");
   const legacyFollowing = flag(legacy?.following, "X legacy following state");
-  const modernRequested = flag(perspectives?.follow_request_sent, "X viewer follow request state");
+  const perspectiveRequested = flag(perspectives.follow_request_sent, "X viewer follow request state");
   const legacyRequested = flag(legacy?.follow_request_sent, "X legacy follow request state");
   if ((modernFollowing !== null && legacyFollowing !== null && modernFollowing !== legacyFollowing)
-    || (modernRequested !== null && legacyRequested !== null && modernRequested !== legacyRequested)) {
+    || (legacyRequested !== null && modernRequested !== legacyRequested)
+    || (perspectiveRequested !== null && modernRequested !== perspectiveRequested)) {
     throw new Error("X follow readback disagreed across relationship fields");
   }
-  return state(result.rest_id, modernFollowing ?? legacyFollowing, modernRequested ?? legacyRequested, expectedUserId);
+  return state(result.rest_id, modernFollowing, modernRequested, expectedUserId);
 }
 
 /** Pending protected-account requests never masquerade as a completed follow. */
@@ -122,6 +131,8 @@ export function assertXWebFollowingDesiredState(observed: XWebFollowingState, ex
 }
 
 export type XWebFollowPorts = Readonly<{
+  /** Recipe-bound response semantics; callers cannot select this through operation input. */
+  mutationResponseBinding?: "target-acknowledgement";
   requireViewer: () => Promise<string>;
   readTarget: (userId: string) => Promise<unknown>;
   /** Invoke admission only after the fixed request and transaction ID are ready. Never replay it. */
@@ -149,8 +160,12 @@ export async function executeXWebFollowSet(inputValue: unknown, ports: XWebFollo
       return { status: "succeeded", output: { effect: "already-satisfied", userId: input.user_id, following: input.following },
         finalUrl, noOp: true, dispatchStarted: false, dispatch: { planned: 1, started: 0, verified: 0 } };
     }
-    // Reissuing a follow while a protected-account request is pending is not a new confirmed action.
-    if (input.following && initial.followRequestSent === true) throw new Error("X follow request is already pending");
+    // The observed ordinary-target recipe excludes pending requests in either
+    // direction; legacy unfollow may still cancel a pending protected request.
+    if (initial.followRequestSent === true
+      && (input.following || ports.mutationResponseBinding === "target-acknowledgement")) {
+      throw new Error("X follow request is already pending");
+    }
     const response = await ports.mutate(xWebFollowRequest(input), async () => {
       if (admissionAttempted) throw new Error("X follow dispatch admission cannot be repeated");
       admissionAttempted = true;
@@ -159,7 +174,15 @@ export async function executeXWebFollowSet(inputValue: unknown, ports: XWebFollo
       started = 1;
     });
     if (started !== 1) throw new Error("X follow transport escaped dispatch admission");
-    assertXWebFollowingDesiredState(parseXWebFollowMutationResponse(response, input.user_id), input);
+    const acknowledgement = parseXWebFollowMutationResponse(response, input.user_id);
+    if (ports.mutationResponseBinding === "target-acknowledgement") {
+      // The observed response's following boolean can reflect the old state.
+      // It acknowledges only this exact nonpending target; the independent
+      // numeric read below is the authority for the confirmed desired state.
+      if (acknowledgement.followRequestSent !== false) throw new Error("X friendship acknowledgement omitted its exact nonpending state");
+    } else {
+      assertXWebFollowingDesiredState(acknowledgement, input);
+    }
     assertXWebFollowingDesiredState(parseXWebFollowingReadback(await ports.readTarget(input.user_id), input.user_id), input);
     if (userId(await ports.requireViewer()) !== actor) throw new Error("X follow actor changed during readback");
     verified = 1;

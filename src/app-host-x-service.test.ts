@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
-import { existsSync, mkdtempSync, readdirSync, realpathSync, rmSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { APP_HOST_X_MAX_ACTION_TICKETS, AppHostXService, appHostXActionTickets, appHostXPlanAttachments, appHostXPublicationInput, type AppHostXActionTicket, type AppHostXActionTickets } from "./app-host-x-service";
@@ -8,17 +8,19 @@ import { parseAppHostXRequest } from "./app-host-x-validation";
 import type { AppHostAccount } from "./app-host-protocol";
 import type { AppHostXData, AppHostXMedia, AppHostXRequest } from "./app-host-x-protocol";
 import type { StoredPlan } from "./runtime";
-import { parseRuntimeManifest, validateOperationInput } from "./model";
+import { parseRuntimeManifest, validateOperationInput, type GhostgetManifest, type GhostgetOperation } from "./model";
 import { providerPluginRegistry } from "./provider-plugins";
 import { canonicalJson } from "./canonical-json";
 import { projectXSocialPost, projectXSocialProfile } from "./providers/x-web-model";
-import { listPrivateStateDirectory, type PrivateStateDirectoryEntry } from "./storage";
+import { installManifest, listPrivateStateDirectory, type PrivateStateDirectoryEntry } from "./storage";
 import { assertAsyncProperty, fc } from "./test-support";
 import { xWebPlugin } from "./plugins/x-web/plugin";
 import currentXManifest from "./assets/adapters/x/wrench-web-adapter.json";
+import archivedXManifest from "./assets/adapters/x/wrench-web-adapter.v1.20.0.json";
 import { appHostFailure } from "./app-host-transport";
 
 type Runtime = NonNullable<ConstructorParameters<typeof AppHostXService>[5]>;
+type ManifestReader = NonNullable<ConstructorParameters<typeof AppHostXService>[7]>;
 const revision = "a".repeat(64), planDigest = "b".repeat(64);
 const manifest = (() => {
   const parsed = parseRuntimeManifest(currentXManifest, providerPluginRegistry);
@@ -41,7 +43,7 @@ afterEach(() => {
   for (const service of services.splice(0)) service.close();
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
-function fixture(options: { tickets?: AppHostXActionTickets; deniedPlans?: Set<string>; revision?: string; incarnation?: string; realTickets?: boolean; environment?: Readonly<Record<string, string>> } = {}) {
+function fixture(options: { tickets?: AppHostXActionTickets; deniedPlans?: Set<string>; revision?: string; incarnation?: string; realTickets?: boolean; environment?: Readonly<Record<string, string>>; installedManifest?: GhostgetManifest | null; readInstalledManifest?: ManifestReader } = {}) {
   const initialRevision = options.revision ?? revision;
   let now = 1000, currentRevision = initialRevision, currentIncarnation = options.incarnation ?? "c".repeat(64), confirms = 0, executions = 0;
   const inputs: unknown[] = [], cancellations: string[] = [];
@@ -51,6 +53,7 @@ function fixture(options: { tickets?: AppHostXActionTickets; deniedPlans?: Set<s
   let output: unknown = { posts: [], cursor: "private-provider-cursor" };
   let readDelay = async () => {};
   let confirmation = async (_review: string, _signal: AbortSignal) => true;
+  let installed = options.installedManifest === undefined ? manifest : options.installedManifest, manifestReads = 0;
   let receipts: unknown[] = [];
   let ticketFailure = false;
   let saved = (value: StoredPlan) => value;
@@ -72,7 +75,12 @@ function fixture(options: { tickets?: AppHostXActionTickets; deniedPlans?: Set<s
   const service = new AppHostXService(options.environment ?? {}, providerPluginRegistry, (id, expected) => {
     if (id !== account.id || expected !== currentRevision) throw new Error("ACCOUNT_CHANGED");
     return account;
-  }, async (review, signal) => { confirms++; return confirmation(review, signal); }, () => now, runtime, options.realTickets ? undefined : tickets);
+  }, async (review, signal) => { confirms++; return confirmation(review, signal); }, () => now, runtime, options.realTickets ? undefined : tickets,
+  (environment, registry) => {
+    manifestReads++;
+    return options.readInstalledManifest?.(environment, registry) ?? (installed === null
+      ? { ok: false, issues: ["X fixture is not installed"] } : { ok: true, value: installed });
+  });
   services.push(service);
   const handle = (request: WithoutBinding<AppHostXRequest>) => service.handle({ ...request, accountId: account.id, expectedAccountRevision: initialRevision } as AppHostXRequest);
   const prepare = async () => action(await handle({ action: "x.action.prepare", intent: { action: "like", postId: "42" } } as never));
@@ -83,6 +91,7 @@ function fixture(options: { tickets?: AppHostXActionTickets; deniedPlans?: Set<s
     setReceipts: (value: unknown[]) => { receipts = value; }, auth, tickets,
     setSaved: (value: typeof saved) => { saved = value; }, setIncarnation: (value: string) => { currentIncarnation = value; },
     setExecution: (value: typeof execution) => { execution = value; },
+    setInstalledManifest: (value: GhostgetManifest | null) => { installed = value; }, manifestReads: () => manifestReads,
     failTickets: () => { ticketFailure = true; }, deniedPlans,
     counts: () => ({ confirms, executions }) };
 }
@@ -226,7 +235,7 @@ test("read preparation failures have an explicit safe category and never execute
   const account: AppHostAccount = { id: "fixture", provider: "x", subject: "123", displayName: "@fixture", browser: "chrome", profile: "Default", revision, status: "configured", identityVerification: "at-connection", disconnectDigest: "d".repeat(64) };
   let executions = 0;
   const runtime = { prepareReadInvocation: () => { throw new Error("private state path and account detail"); }, executeReadInvocation: async () => { executions++; throw new Error("must not execute"); } } as unknown as Runtime;
-  const service = new AppHostXService({}, providerPluginRegistry, () => account, undefined, undefined, runtime);
+  const service = new AppHostXService({}, providerPluginRegistry, () => account, undefined, undefined, runtime, undefined, () => ({ ok: true, value: manifest }));
   services.push(service);
   for (const request of [{ action: "x.explore.list", source: "trending", target: null, cursor: null, limit: 20 }, { action: "x.notifications.list", cursor: null, limit: 20 }] as const) {
     let failure: unknown;
@@ -266,19 +275,211 @@ test("deletion pre-reads the single exact owned post and retains its displayed m
   await expect(f.handle({ action: "x.action.prepare", intent: { action: "delete", postId: "42", expectedText: text } })).rejects.toThrow("deletion preview");
 });
 
-test("capabilities and deferred read execution share the qualification gate", async () => {
-  const f = fixture();
+test("archived 1.20 capabilities and unsupported repost execution share the installed qualification gate", async () => {
+  const installed = parseRuntimeManifest(archivedXManifest, providerPluginRegistry);
+  if (!installed.ok) throw new Error(installed.issues.join("; "));
+  expect(installed.value.version).toBe("1.20.0");
+  const f = fixture({ installedManifest: installed.value });
   const result = await f.handle({ action: "x.capabilities" });
   if (result.kind !== "x-capabilities") throw new Error("wrong capabilities");
   expect(result.capabilities.find(item => item.name === "profile-reposts")?.supported).toBe(true);
   expect(result.capabilities.find(item => item.name === "likes")?.supported).toBe(true);
   expect(result.capabilities.find(item => item.name === "post-media-images")?.supported).toBe(false);
   expect(result.capabilities.find(item => item.name === "post-media-jpeg")?.supported).toBe(false);
-  expect(result.capabilities.find(item => item.name === "post-media-video")?.supported).toBe(true);
+  expect(result.capabilities.find(item => item.name === "post-media-video")?.supported).toBe(false);
   expect(result.capabilities.find(item => item.name === "profile-replies")?.supported).toBe(true);
   expect(result.capabilities.find(item => item.name === "profile-highlights")?.supported).toBe(true);
+  expect(result.capabilities.find(item => item.name === "quote")?.supported).toBe(false);
+  expect(result.capabilities.find(item => item.name === "repost")?.supported).toBe(false);
+  expect(result.capabilities.find(item => item.name === "unrepost")?.supported).toBe(false);
   await expect(f.handle({ action: "x.action.prepare", intent: { action: "repost", postId: "42" } })).rejects.toThrow("reviewed provider contract");
   expect(f.inputs).toHaveLength(0);
+});
+
+function supportedCapabilities(value: AppHostXData): Readonly<Record<string, boolean>> {
+  if (value.kind !== "x-capabilities") throw new Error("wrong capabilities");
+  return Object.fromEntries(value.capabilities.map(item => [item.name, item.supported]));
+}
+
+for (const current of [
+  { intent: { action: "quote", postId: "42", text: "Exact fixture quote" }, operation: "posts.quote", version: 3,
+    input: { body: "Exact fixture quote", post_id: "42" } },
+  { intent: { action: "repost", postId: "42" }, operation: "posts.repost", version: 2,
+    input: { post_id: "42", reposted: true } },
+  { intent: { action: "unrepost", postId: "42" }, operation: "posts.repost", version: 2,
+    input: { post_id: "42", reposted: false } },
+  { intent: { action: "follow", subject: "43" }, operation: "relationships.follow.set", version: 2,
+    input: { user_id: "43", following: true } },
+  { intent: { action: "unfollow", subject: "43" }, operation: "relationships.follow.set", version: 2,
+    input: { user_id: "43", following: false } },
+] as const) test(`current installed observed successors advertise and prepare ${current.intent.action} without dispatch`, async () => {
+  expect(currentXManifest.operations[current.operation].webSession.contractVersion).toBe(current.version);
+  const operations = xWebPlugin.bindings.flatMap<{ readonly name: string; readonly contractVersion: number; readonly state: string }>(binding => binding.operations);
+  expect(operations.find(operation => operation.name === current.operation && operation.contractVersion === current.version)?.state).toBe("observed");
+  const f = fixture({ installedManifest: manifest });
+  const support = supportedCapabilities(await f.handle({ action: "x.capabilities" }));
+  expect(support).toMatchObject({ quote: true, repost: true, unrepost: true, follow: true, unfollow: true });
+  expect(f.inputs).toEqual([]);
+  const prepared = action(await f.handle({ action: "x.action.prepare", intent: current.intent }));
+  expect(prepared).toMatchObject({ state: "prepared", digest: planDigest, runId: `plan-${planDigest}` });
+  expect(prepared.preparationId).not.toBeNull();
+  expect(f.inputs).toEqual([{ operation: current.operation, input: current.input }]);
+  expect(f.tickets.read(planDigest)?.operation).toBe(current.operation);
+  expect(f.counts()).toEqual({ confirms: 0, executions: 0 });
+});
+
+test("installed capabilities use one read-only snapshot and never prepare an invocation", async () => {
+  const f = fixture();
+  const support = supportedCapabilities(await f.handle({ action: "x.capabilities" }));
+  expect(support).toMatchObject({ post: true, like: true, home: true, followers: true, trending: true, notifications: true });
+  expect(f.manifestReads()).toBe(1);
+  expect(f.inputs).toEqual([]);
+  expect(f.counts()).toEqual({ confirms: 0, executions: 0 });
+  f.setInstalledManifest(null);
+  await expect(f.handle(feed)).rejects.toThrow("reviewed provider contract");
+  await expect(f.handle({ action: "x.action.prepare", intent: { action: "post", text: "Must not prepare" } })).rejects.toThrow("reviewed provider contract");
+  expect(f.inputs).toEqual([]);
+});
+
+test("installed scalar publication never advertises ordered media or prepares current array input", async () => {
+  const parsed = parseRuntimeManifest(archivedXManifest, providerPluginRegistry);
+  if (!parsed.ok) throw new Error(parsed.issues.join("; "));
+  const f = fixture({ installedManifest: parsed.value });
+  const support = supportedCapabilities(await f.handle({ action: "x.capabilities" }));
+  expect(support).toMatchObject({ post: false, "post-media-images": false, "post-media-jpeg": false,
+    "post-media-video": false, like: true, home: true });
+  await expect(f.handle({ action: "x.action.prepare", intent: { action: "post", text: "Not the installed shape" } })).rejects.toThrow("reviewed provider contract");
+  expect(f.inputs).toEqual([]);
+});
+
+test("installed missing or unreadable manifests make every capability unsupported without runtime preparation", async () => {
+  for (const f of [fixture({ installedManifest: null }), fixture({ readInstalledManifest: () => {
+    throw new Error("private adapter path is unsafe");
+  } })]) {
+    expect(Object.values(supportedCapabilities(await f.handle({ action: "x.capabilities" }))).every(value => !value)).toBeTrue();
+    await expect(f.handle(feed)).rejects.toThrow("reviewed provider contract");
+    await expect(f.prepare()).rejects.toThrow("reviewed provider contract");
+    expect(f.inputs).toEqual([]);
+  }
+});
+
+test("installed operation admission refuses unknown versions, transport, schema and replay drift", async () => {
+  const publication = manifest.operations["posts.publish"]!;
+  if (publication.webSession === undefined) throw new Error("missing publication recipe");
+  const changes = [
+    { webSession: { ...publication.webSession, contractVersion: 5 } },
+    { webSession: { ...publication.webSession, contractVersion: 6 } },
+    { webSession: { ...publication.webSession, contractVersion: 8 } },
+    { webSession: { ...publication.webSession, site: "linkedin" } },
+    { webSession: { ...publication.webSession, action: "posts.quote" } },
+    { webSession: undefined, browser: { steps: [] } },
+    { input: { ...publication.input, properties: { ...publication.input.properties, body: { type: "string", maxLength: 100_000 } } } },
+    { risk: "R1" }, { sideEffect: "Only previews locally" }, { idempotency: "none" }, { dedupeWindowMs: 0 },
+  ];
+  for (const change of changes) {
+    const candidate = { ...manifest, operations: { ...manifest.operations,
+      "posts.publish": { ...publication, ...change } as GhostgetOperation } };
+    const f = fixture({ installedManifest: candidate });
+    const support = supportedCapabilities(await f.handle({ action: "x.capabilities" }));
+    expect(support).toMatchObject({ post: false, "post-media-images": false, "post-media-jpeg": false, "post-media-video": false });
+    await expect(f.handle({ action: "x.action.prepare", intent: { action: "post", text: "Exact text" } })).rejects.toThrow("reviewed provider contract");
+    expect(f.inputs).toEqual([]);
+  }
+  const described = fixture({ installedManifest: { ...manifest, version: "9.0.0", operations: { ...manifest.operations,
+    "posts.publish": { ...publication, description: "An alternate description grants no authority" } } } });
+  expect(supportedCapabilities(await described.handle({ action: "x.capabilities" })).post).toBeTrue();
+});
+
+test("installed feed and discovery capabilities require their own current operation entries", async () => {
+  const operations = Object.fromEntries(Object.entries(manifest.operations).filter(([name]) =>
+    !["feeds.read", "contacts.list", "explore.read", "notifications.list"].includes(name)));
+  const f = fixture({ installedManifest: { ...manifest, operations } });
+  const support = supportedCapabilities(await f.handle({ action: "x.capabilities" }));
+  expect(support).toMatchObject({ post: true, home: false, "profile-reposts": false, followers: false,
+    "following-accounts": false, trending: false, "today-news": false, notifications: false });
+  await expect(f.handle(feed)).rejects.toThrow("reviewed provider contract");
+  await expect(f.handle({ ...feed, source: "followers" })).rejects.toThrow("reviewed provider contract");
+  await expect(f.handle(news)).rejects.toThrow("reviewed provider contract");
+  await expect(f.handle({ action: "x.notifications.list", cursor: null, limit: 20 })).rejects.toThrow("reviewed provider contract");
+  expect(f.inputs).toEqual([]);
+});
+
+function defaultCapabilityReader(environment: Readonly<Record<string, string>>) {
+  const account: AppHostAccount = { id: "fixture", provider: "x", subject: "123", displayName: "@fixture", browser: "chrome", profile: "Default", revision, status: "configured", identityVerification: "at-connection", disconnectDigest: "d".repeat(64) };
+  const forbidden = (): never => { throw new Error("Capability inspection must not prepare or execute"); };
+  const runtime = { prepareReadInvocation: forbidden, prepareInvocation: forbidden,
+    executeReadInvocation: forbidden, createAndSaveInvocationPlan: forbidden } as unknown as Runtime;
+  const service = new AppHostXService(environment, providerPluginRegistry, () => account, forbidden, undefined, runtime);
+  services.push(service);
+  const request = { ...binding, action: "x.capabilities" } as const;
+  return () => service.handle(request);
+}
+
+function capabilityStateSnapshot(state: string) {
+  return Object.fromEntries([[".", { kind: "directory", mode: statSync(state).mode & 0o777 }],
+    ...readdirSync(state, { recursive: true, withFileTypes: true }).map(entry => {
+      const path = join(entry.parentPath, entry.name);
+      return [path.slice(state.length + 1), { kind: entry.isFile() ? "file" : "directory", mode: statSync(path).mode & 0o777,
+        ...(entry.isFile() ? { sha256: createHash("sha256").update(readFileSync(path)).digest("hex") } : {}) }];
+    })]);
+}
+
+test("installed default capability reader preserves absent and installed state bytes and modes", async () => {
+  const root = mkdtempSync(join(tmpdir(), "ghostget-x-capability-read-")); roots.push(root);
+  const state = join(root, "state"), environment = { GHOSTGET_STATE_HOME: state };
+  const inspect = defaultCapabilityReader(environment);
+  expect(Object.values(supportedCapabilities(await inspect())).every(value => !value)).toBeTrue();
+  expect(existsSync(state)).toBeFalse();
+  expect(readdirSync(root)).toEqual([]);
+  installManifest(manifest, { force: false, environment, registry: providerPluginRegistry });
+  const before = capabilityStateSnapshot(state);
+  expect(supportedCapabilities(await inspect())).toMatchObject({ post: true, home: true, trending: true });
+  expect(capabilityStateSnapshot(state)).toEqual(before);
+});
+
+test("installed capability inspection does not adopt empty or legacy unmarked state", async () => {
+  for (const legacyManifest of [false, true]) {
+    const root = mkdtempSync(join(tmpdir(), "ghostget-x-unmarked-capability-")); roots.push(root);
+    const state = join(root, "state"), environment = { GHOSTGET_STATE_HOME: state };
+    mkdirSync(state, { mode: legacyManifest ? 0o700 : 0o755 });
+    chmodSync(state, legacyManifest ? 0o700 : 0o755);
+    if (legacyManifest) {
+      const adapter = join(state, "adapters", "x-web");
+      mkdirSync(adapter, { recursive: true, mode: 0o700 });
+      writeFileSync(join(adapter, "io-adapter.json"), JSON.stringify(manifest) + "\n", { mode: 0o600 });
+    }
+    const before = capabilityStateSnapshot(state);
+    expect(Object.values(supportedCapabilities(await defaultCapabilityReader(environment)())).every(value => !value)).toBeTrue();
+    expect(capabilityStateSnapshot(state)).toEqual(before);
+    expect(existsSync(join(state, ".io-state.json"))).toBeFalse();
+    expect(statSync(state).mode & 0o777).toBe(legacyManifest ? 0o700 : 0o755);
+  }
+});
+
+test("installed capability inspection cannot recreate a marker or root lost between admission and reading", async () => {
+  for (const loss of ["marker", "root"] as const) {
+    const root = mkdtempSync(join(tmpdir(), "ghostget-x-capability-loss-")); roots.push(root);
+    const state = join(root, "state"), retained = join(root, "retained-state");
+    installManifest(manifest, { force: false, environment: { GHOSTGET_STATE_HOME: state }, registry: providerPluginRegistry });
+    let selections = 0;
+    let afterLoss: ReturnType<typeof capabilityStateSnapshot> | undefined;
+    // The second selection occurs inside the normal loader, after inspection
+    // has remembered the claimed root. No production race hook is needed.
+    const environment = { get GHOSTGET_STATE_HOME() {
+      if (++selections === 2) {
+        if (loss === "marker") unlinkSync(join(state, ".io-state.json"));
+        else renameSync(state, retained);
+        afterLoss = capabilityStateSnapshot(loss === "marker" ? state : retained);
+      }
+      return state;
+    } };
+    expect(Object.values(supportedCapabilities(await defaultCapabilityReader(environment)())).every(value => !value)).toBeTrue();
+    expect(selections).toBe(2);
+    expect(afterLoss).toBeDefined();
+    expect(capabilityStateSnapshot(loss === "marker" ? state : retained)).toEqual(afterLoss);
+    if (loss === "marker") expect(existsSync(join(state, ".io-state.json"))).toBeFalse();
+    else expect(existsSync(state)).toBeFalse();
+  }
 });
 
 test("a delayed read cannot return data after disconnect or host closure", async () => {
@@ -347,13 +548,16 @@ test("lost-response tickets reconcile only account-bound durable receipts and ne
   expect(f.counts()).toEqual({ confirms: 0, executions: 0 });
 });
 
-test("cancel and shutdown release unused plans; unsupported operations perform no provider read", async () => {
+test("cancel and shutdown release unused plans; archived 1.20 repost performs no provider read", async () => {
   const f = fixture(); const prepared = await f.prepare();
   await f.handle({ action: "x.action.cancel", preparationId: prepared.preparationId! } as never);
   expect(f.cancellations).toEqual([planDigest]);
   await f.prepare(); f.service.close();
   expect(f.cancellations).toEqual([planDigest, planDigest]);
-  const other = fixture();
+  const installed = parseRuntimeManifest(archivedXManifest, providerPluginRegistry);
+  if (!installed.ok) throw new Error(installed.issues.join("; "));
+  expect(installed.value.version).toBe("1.20.0");
+  const other = fixture({ installedManifest: installed.value });
   await expect(other.handle({ action: "x.action.prepare", intent: { action: "repost", postId: "42" } } as never)).rejects.toThrow("reviewed provider contract");
   expect(other.inputs).toEqual([]);
 });
@@ -637,27 +841,27 @@ function boundPlan(media: readonly AppHostXMedia[]): StoredPlan {
   return { digest: planDigest, plan: { input: { body: "review", media: media.map((item, index) => ({ kind: "file", reference: `sf1:${index + 1}:${item.sha256}:${item.byteLength}:${Buffer.from(item.mediaType).toString("base64url")}:asset-0${index + 1}.png` })), media_types: media.map(item => item.mediaType) } } } as unknown as StoredPlan;
 }
 
-test("publication v6 preserves ordered 1–4 images, one video and text-only inputs", () => {
-  expect(appHostXPublicationInput({ action: "post", text: "hello" }, [], 6)).toEqual({ body: "hello" });
+for (const contractVersion of [6, 7] as const) test(`publication v${contractVersion} preserves ordered 1–4 images, one video and text-only inputs`, () => {
+  expect(appHostXPublicationInput({ action: "post", text: "hello" }, [], contractVersion)).toEqual({ body: "hello" });
   for (let count = 1; count <= 4; count++) {
     const selected = Array.from({ length: count }, (_, index) => ({ path: `/staged/${index}`, media: attachment(index + 1, index % 2 === 0 ? "image/png" : "image/jpeg") }));
-    expect(appHostXPublicationInput({ action: "post", text: "hello" }, selected, 6)).toEqual({ body: "hello", media: selected.map(item => item.path), media_types: selected.map(item => item.media.mediaType) });
+    expect(appHostXPublicationInput({ action: "post", text: "hello" }, selected, contractVersion)).toEqual({ body: "hello", media: selected.map(item => item.path), media_types: selected.map(item => item.media.mediaType) });
   }
   const video = { path: "/staged/video", media: attachment(1, "video/mp4") };
-  expect(appHostXPublicationInput({ action: "post", text: "video" }, [video], 6)).toEqual({ body: "video", media: [video.path], media_types: ["video/mp4"] });
-  expect(() => appHostXPublicationInput({ action: "post" }, [video, { path: "/staged/image", media: attachment(2) }], 6)).toThrow("four images or one video");
-  expect(() => appHostXPublicationInput({ action: "reply", postId: "42" }, [video], 6)).toThrow("reviewed provider contract");
-  expect(() => appHostXPublicationInput({ action: "quote", postId: "42" }, [video], 6)).toThrow("reviewed provider contract");
-  expect(appHostXPublicationInput({ action: "reply", postId: "42", text: "reply" }, [], 6)).toEqual({ body: "reply", post_id: "42" });
+  expect(appHostXPublicationInput({ action: "post", text: "video" }, [video], contractVersion)).toEqual({ body: "video", media: [video.path], media_types: ["video/mp4"] });
+  expect(() => appHostXPublicationInput({ action: "post" }, [video, { path: "/staged/image", media: attachment(2) }], contractVersion)).toThrow("four images or one video");
+  expect(() => appHostXPublicationInput({ action: "reply", postId: "42" }, [video], contractVersion)).toThrow("reviewed provider contract");
+  expect(() => appHostXPublicationInput({ action: "quote", postId: "42" }, [video], contractVersion)).toThrow("reviewed provider contract");
+  expect(appHostXPublicationInput({ action: "reply", postId: "42", text: "reply" }, [], contractVersion)).toEqual({ body: "reply", post_id: "42" });
   expect(appHostXPublicationInput({ action: "post" }, [video], 5)).toEqual({ body: "", media: video.path, media_type: "video/mp4" });
   expect(() => appHostXPublicationInput({ action: "post" }, [{ path: "/staged/jpeg", media: attachment(1, "image/jpeg") }], 5)).toThrow("JPEG publishing needs");
   expect(() => appHostXPublicationInput({ action: "post" }, [{ path: "/staged/1", media: attachment(1) }, { path: "/staged/2", media: attachment(2) }], 5)).toThrow("Multiple images need");
 });
 
-test("default publication stays observed while the ordered-media successor is unqualified", async () => {
+test("qualified ordered-media publication becomes default without activating its reservation", async () => {
   const version = currentXManifest.operations["posts.publish"].webSession.contractVersion;
   const operations = xWebPlugin.bindings.flatMap<{ readonly name: string; readonly contractVersion: number; readonly state: string }>(binding => binding.operations);
-  expect(version).toBe(5);
+  expect(version).toBe(7);
   expect(operations.find(operation => operation.name === "posts.publish" && operation.contractVersion === version)?.state).toBe("observed");
   expect(operations.find(operation => operation.name === "posts.publish" && operation.contractVersion === 6)?.state).toBe("capture-required");
   const f = fixture();

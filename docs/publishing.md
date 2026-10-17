@@ -119,10 +119,6 @@ test -n "$run_id"
 gh run watch "$run_id" --repo hraness/ghostget --exit-status
 ```
 
-If the Release still needs a rerun, dispatch **Promote website production**
-with the tag as soon as the rerun publishes, rather than waiting for a later
-release.
-
 The canonical asset set is exactly:
 
 - `hraness-ghostget-<version>.tgz`, packed once with `npm pack --ignore-scripts`.
@@ -191,14 +187,15 @@ draft or another attempt fails closed and retains evidence;
 never delete/recreate it or silently relabel it. A completed release is accepted
 only with its original signed identity, never with a newly rebuilt artifact.
 Re-running all jobs after publication rebuilds under a new attempt, which that
-body check rejects, so that run can no longer complete npm. Manual website
-recovery still admits the Release through its earlier receipt attempt's job
-inventory or, when a failed-jobs rerun published it after that receipt attempt,
-through that rerun attempt's own job inventory.
+body check rejects, so that run can no longer complete npm. Canonical archive
+downloads verify the attested attempt's job inventory. If a failed-jobs rerun
+completed publication later, the same run must have a later attempt whose own
+four canonical jobs succeeded, within the reader's bounded attempt search.
 
 The Release workflow does not hold the production App key, touch production
-refs, or wait for Vercel. The separate production workflow cryptographically
-verifies the canonical archive before collecting the provider baseline.
+refs, or wait for Vercel. Merging reviewed history to `main` deploys the site
+through Vercel's Git integration. Canonical archive verification governs
+published package installation separately from website deployment.
 
 The `v0.16.13` request passed its complete source gate but failed canonical
 preparation because its npm archive exceeded the compressed-byte ceiling. No
@@ -332,12 +329,12 @@ changes the immutable Release or its tag.
 
 ## Install the canonical release
 
-These commands require the matching published immutable v0.18.96 release.
+These commands require the matching published immutable v0.18.97 release.
 
 For the CLI:
 
 ```sh
-bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.96/hraness-ghostget-0.18.96.tgz
+bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.97/hraness-ghostget-0.18.97.tgz
 ghostget --version
 ghostget doctor --json
 ```

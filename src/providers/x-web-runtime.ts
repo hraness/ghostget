@@ -57,8 +57,9 @@ import {
 } from "./read-failure";
 import { scrubXUploadImage } from "./x-image-provenance";
 import { parseXWebMediaInput, readBoundXWebMedia, type XWebMediaType } from "./x-web-media";
-import { executeXWebFollowSet, parseXWebRepostInput, xWebRepostVariables } from "./x-web-social-actions";
+import { executeXWebFollowSet, parseXWebFollowInput, parseXWebFollowingReadback, parseXWebRepostInput, xWebFollowReadVariables, xWebRepostVariables } from "./x-web-social-actions";
 import { hasExactKeys } from "../contracts-shape.js";
+import { projectXSocialPost, projectXSocialTweetContent } from "./x-web-model";
 import {
   rejectXTweetMadeWithAiLabel,
   X_UNLABELED_COPY_POLICY_ERROR,
@@ -90,9 +91,11 @@ import {
   validateXWebDeleteTweetMutation,
   validateXWebDesiredStateMutation,
   validateXWebRichArticleContentState,
+  xWebDescriptorMetadataSha256,
   xWebQueryDescriptorEvidenceSnapshot,
   XProfileTargetUnavailableError,
   type XWebBundleQueryDescriptor,
+  type XWebQuoteTarget,
   type XWebMutationOperationId,
   type XWebOperationType,
   type XWebProjectedPost,
@@ -134,8 +137,9 @@ export type XWebRuntimeDependencies = Partial<WebSessionNetworkDependencies>
     };
 
 type XBootstrap = {
-  readonly postsPublishContractVersion?: 6;
+  readonly postsPublishContractVersion?: 6 | 7;
   readonly postsRepostContractVersion?: 2;
+  readonly postsQuoteContractVersion?: 3;
   readonly auth: GhostgetAuth;
   readonly client: WebSessionClient;
   readonly html: string;
@@ -155,7 +159,7 @@ type XBootstrap = {
 };
 
 type Viewer = { readonly id: string; readonly screenName: string | null };
-export type XWebDesiredStateKind = "like" | "bookmark";
+export type XWebDesiredStateKind = "like" | "bookmark" | "repost";
 export type XWebDesiredStateReadback = {
   readonly kind: XWebDesiredStateKind;
   readonly enabled: boolean;
@@ -719,10 +723,12 @@ async function bootstrapX(
   });
   return {
     auth,
-    ...(recipe.action === "posts.publish" && recipe.contractVersion === 6
-      ? { postsPublishContractVersion: 6 as const } : {}),
+    ...(recipe.action === "posts.publish" && (recipe.contractVersion === 6 || recipe.contractVersion === 7)
+      ? { postsPublishContractVersion: recipe.contractVersion } : {}),
     ...(recipe.action === "posts.repost" && recipe.contractVersion === 2
       ? { postsRepostContractVersion: 2 as const } : {}),
+    ...(recipe.action === "posts.quote" && recipe.contractVersion === 3
+      ? { postsQuoteContractVersion: 3 as const } : {}),
     client,
     html,
     mainUrl,
@@ -945,6 +951,7 @@ async function graphQl(
   readOperation?: XWebSemanticOperationId,
   mutationOperation?: XWebMutationOperationId,
   beforeRequest?: () => Promise<void>,
+  quoteTarget?: XWebQuoteTarget,
 ): Promise<unknown> {
   const metadata = operationMetadata(bootstrap, descriptor);
   const url = new URL(`/i/api/graphql/${descriptor.queryId}/${descriptor.operationName}`, X_ORIGIN);
@@ -967,8 +974,11 @@ async function graphQl(
       mutationOperation,
       { url, method, descriptor, ...(body === undefined ? {} : { body }) },
       {
-        ...(bootstrap.postsPublishContractVersion === 6 ? { postsPublishContractVersion: 6 as const } : {}),
+        ...(bootstrap.postsPublishContractVersion === 6 || bootstrap.postsPublishContractVersion === 7
+          ? { postsPublishContractVersion: bootstrap.postsPublishContractVersion } : {}),
         ...(bootstrap.postsRepostContractVersion === 2 ? { postsRepostContractVersion: 2 as const } : {}),
+        ...(bootstrap.postsQuoteContractVersion === 3
+          ? { postsQuoteContractVersion: 3 as const, ...(quoteTarget === undefined ? {} : { postsQuoteTarget: quoteTarget }) } : {}),
       },
     );
   } else if (readOperation === undefined) {
@@ -1015,6 +1025,27 @@ async function graphQl(
     ...(body === undefined ? {} : { body }),
     maxBytes: bootstrap.maxOutputBytes,
   });
+}
+
+/** A closed numeric follow read, not a caller-selectable profile query. */
+async function readFollowTarget(bootstrap: XBootstrap, userId: string): Promise<unknown> {
+  const variables = xWebFollowReadVariables(userId);
+  const descriptor = await resolveDescriptor(bootstrap, "UserByRestId", "query");
+  const evidence = descriptorEvidence("UserByRestId", "query");
+  // For this newly qualified read, same-ID metadata drift is also a refusal.
+  if (xWebDescriptorMetadataSha256(descriptor.metadata) !== evidence.metadataSha256) {
+    throw new Error("X numeric follow read metadata changed from its reviewed descriptor");
+  }
+  const features = Object.fromEntries(descriptor.metadata.featureSwitches.map(name => [name, featureValue(bootstrap, name)]));
+  const url = new URL(`/i/api/graphql/${descriptor.queryId}/${descriptor.operationName}`, X_ORIGIN);
+  url.searchParams.set("variables", JSON.stringify(variables));
+  if (Object.keys(features).length > 0) url.searchParams.set("features", JSON.stringify(features));
+  // Public module 869512 and the observed GET contain no fieldToggles argument.
+  assertExactXWebGraphQlBinding({ url, method: "GET", descriptor });
+  const response = await bootstrap.client.requestJson({ url, method: "GET", headers: xHeaders(bootstrap, false),
+    maxBytes: bootstrap.maxOutputBytes });
+  const data = graphQlData(response, "X follow target readback");
+  return record(data.user, "X follow target readback.user").result;
 }
 
 async function viewer(bootstrap: XBootstrap): Promise<Viewer> {
@@ -1371,6 +1402,21 @@ async function tweetReadback(bootstrap: XBootstrap, id: string): Promise<JsonRec
   return result;
 }
 
+/** Quote3 uses the observed handle URL from one exact fresh parent read. */
+async function readQuoteTarget(bootstrap: XBootstrap, id: string): Promise<XWebQuoteTarget> {
+  const result = await tweetReadback(bootstrap, id);
+  if (result.__typename !== "Tweet") throw new Error("X quote parent is unavailable");
+  const parent = projectXSocialPost(result);
+  const core = record(result.core, "X quote parent core");
+  const users = record(core.user_results, "X quote parent user results");
+  const author = record(users.result, "X quote parent author");
+  if (author.__typename !== "User") throw new Error("X quote parent author is unavailable");
+  if (parent.id !== id || parent.authorId === null || parent.authorUsername === null) {
+    throw new Error("X quote parent omitted its exact author identity and handle");
+  }
+  return Object.freeze({ postId: parent.id, authorUsername: parent.authorUsername });
+}
+
 async function waitForTweetPublishReadback(
   bootstrap: XBootstrap,
   id: string,
@@ -1406,6 +1452,9 @@ function parseXWebPublishedMutationTarget(
   identifier: string,
   multiple = false,
 ): XWebPublishedMutationTarget {
+  if (typeof identifier !== "string" || identifier.length > 1_024) {
+    throw new Error("X provider-accepted post target exceeds its bound");
+  }
   let value: unknown;
   try {
     value = JSON.parse(identifier);
@@ -1441,6 +1490,23 @@ function parseXWebPublishedMutationTarget(
   return Object.freeze({ postId: parsed.postId, mediaIds: mediaId === null ? [] : [mediaId] });
 }
 
+/** Ordered targets, including reserved v6, share the successor v7 readback. */
+export function xWebPublishRecoveryContractVersion(identifier: string): 5 | 7 {
+  if (typeof identifier !== "string" || identifier.length > 1_024) {
+    throw new Error("X provider-accepted post target exceeds its bound");
+  }
+  let value: unknown;
+  try {
+    value = JSON.parse(identifier);
+  } catch {
+    throw new Error("X provider-accepted post target is not canonical JSON");
+  }
+  const target = record(value, "X provider-accepted post target");
+  const multiple = hasExactKeys(target, ["mediaIds", "postId"]);
+  parseXWebPublishedMutationTarget(identifier, multiple);
+  return multiple ? 7 : 5;
+}
+
 /**
  * Reconcile one exact response-bound X publish target with reviewed reads
  * only. Absence or drift throws so the kernel retains the unsettled ledger.
@@ -1456,18 +1522,28 @@ export async function readXWebPublishedMutationTarget(
 ): Promise<{ readonly present: true; readonly postId: string }> {
   const isPublish = recipe.action === "posts.publish";
   const isReply = recipe.action === "replies.create";
+  const isQuote = recipe.action === "posts.quote";
   if (
     recipe.site !== "x"
-    || (!isPublish && !isReply)
-    || (isPublish && ![3, 4, 5, 6].includes(recipe.contractVersion))
+    || (!isPublish && !isReply && !isQuote)
+    || (isPublish && ![3, 4, 5, 6, 7].includes(recipe.contractVersion))
     || (isReply && recipe.contractVersion !== 1)
+    || (isQuote && recipe.contractVersion !== 3)
   ) {
     throw new Error(
-      "X publish recovery supports only posts.publish@3 through @6, or replies.create@1",
+      "X publish recovery supports only posts.publish@3 through @7, replies.create@1, or posts.quote@3",
     );
   }
-  const multiple = isPublish && recipe.contractVersion === 6;
+  // The quote successor is text-only. Refuse media and cross-route fields
+  // before acquiring an account or resolving any provider descriptor.
+  if (isQuote && !hasExactKeys(input, ["body", "post_id"])) {
+    throw new Error("X quote recovery requires only body and post_id");
+  }
+  const multiple = isPublish && (recipe.contractVersion === 6 || recipe.contractVersion === 7);
   const target = parseXWebPublishedMutationTarget(identifier, multiple);
+  if (isQuote && target.mediaIds.length !== 0) {
+    throw new Error("X quote recovery requires a text-only accepted target");
+  }
   const hasMedia = input.media !== undefined;
   const selected = multiple ? parseXWebMediaInput(input) : null;
   const mediaType = selected === null ? xPublishMediaType(input.media_type, hasMedia) : selected[0]?.mediaType ?? null;
@@ -1479,30 +1555,36 @@ export async function readXWebPublishedMutationTarget(
   }
   const text = requiredString(input.body, "input.body", MAX_X_CREATE_TWEET_TEXT_LENGTH);
   const replyTo = isReply ? postId(input.post_id, "input.post_id") : null;
+  const quote = isQuote ? postId(input.post_id, "input.post_id") : null;
   const bootstrap = await bootstrapX(auth, recipe, options.dependencies);
   const viewer = await requireBoundViewer(bootstrap, auth);
   const readback = await tweetReadback(bootstrap, target.postId);
+  if (isQuote && readback.__typename !== "Tweet") {
+    throw new Error("X quote recovery readback did not return an available Tweet");
+  }
   const rebound = assertTweetBinding(
     readback,
     text,
     replyTo,
-    null,
+    quote,
     viewer.id,
     target.mediaIds[0] ?? null,
     mediaType,
     `X ${recipe.action} recovery readback`,
     target.mediaIds,
+    isQuote,
   );
   if (rebound.id !== target.postId) {
     throw new Error(`X ${recipe.action} recovery readback changed the accepted post ID`);
   }
+  if (isQuote) await requireBoundViewer(bootstrap, auth);
   return Object.freeze({ present: true, postId: target.postId });
 }
 
 async function desiredStateReadback(
   bootstrap: XBootstrap,
   id: string,
-  kind: XWebDesiredStateKind | "repost",
+  kind: XWebDesiredStateKind,
 ): Promise<boolean> {
   const result = await tweetReadback(bootstrap, id);
   const legacy = record(result.legacy, "X desired-state readback legacy");
@@ -1528,18 +1610,58 @@ export async function readXWebDesiredState(
     readonly dependencies?: XWebRuntimeDependencies;
   } = {},
 ): Promise<XWebDesiredStateReadback> {
-  if (recipe.site !== "x" || (recipe.action !== "likes.set" && recipe.action !== "content.save")) {
-    throw new Error("X recovery readback supports only likes.set and content.save");
+  const isLike = recipe.action === "likes.set";
+  const isBookmark = recipe.action === "content.save";
+  const isRepost = recipe.action === "posts.repost";
+  if (recipe.site !== "x" || (!isLike && !isBookmark && !isRepost)
+    || (isLike && recipe.contractVersion !== 1 && recipe.contractVersion !== 2)
+    || (isBookmark && recipe.contractVersion !== 1)
+    || (isRepost && recipe.contractVersion !== 2)) {
+    throw new Error("X recovery readback supports only likes.set@1 or @2, content.save@1, and posts.repost@2");
   }
+  const stateKey = isLike ? "liked" : isBookmark ? "saved" : "reposted";
+  if (isRepost) parseXWebRepostInput(input);
+  else if (!hasExactKeys(input, ["post_id", stateKey]) || typeof input[stateKey] !== "boolean") {
+    throw new Error(`X recovery readback requires only post_id and boolean ${stateKey}`);
+  }
+  const id = postId(input.post_id, "input.post_id");
   const bootstrap = await bootstrapX(auth, recipe, options.dependencies);
   await requireBoundViewer(bootstrap, auth);
-  const id = postId(input.post_id, "input.post_id");
-  const kind: XWebDesiredStateKind = recipe.action === "likes.set" ? "like" : "bookmark";
+  const kind: XWebDesiredStateKind = isLike ? "like" : isBookmark ? "bookmark" : "repost";
+  let enabled: boolean;
+  if (isRepost) {
+    const result = await tweetReadback(bootstrap, id);
+    if (result.__typename !== "Tweet") throw new Error("X repost recovery readback did not return an available Tweet");
+    const legacy = record(result.legacy, "X repost recovery readback legacy");
+    if (typeof legacy.retweeted !== "boolean") throw new Error("X desired-state readback omitted the exact repost boolean");
+    enabled = legacy.retweeted;
+    await requireBoundViewer(bootstrap, auth);
+  } else enabled = await desiredStateReadback(bootstrap, id, kind);
   return {
     kind,
-    enabled: await desiredStateReadback(bootstrap, id, kind),
+    enabled,
     postId: id,
   };
+}
+
+/** Observe one exact follow target with the closed numeric read, never a write. */
+export async function readXWebFollowingState(
+  recipe: WebSessionRecipe,
+  input: OperationInput,
+  auth: GhostgetAuth,
+  options: { readonly dependencies?: XWebRuntimeDependencies } = {},
+): Promise<{ readonly userId: string; readonly following: boolean }> {
+  if (recipe.site !== "x" || recipe.action !== "relationships.follow.set" || recipe.contractVersion !== 2) {
+    throw new Error("X follow recovery supports only relationships.follow.set@2");
+  }
+  const selected = parseXWebFollowInput(input);
+  const bootstrap = await bootstrapX(auth, recipe, options.dependencies);
+  const current = await requireBoundViewer(bootstrap, auth);
+  if (selected.user_id === current.id) throw new Error("X cannot follow the current viewer");
+  const observed = parseXWebFollowingReadback(await readFollowTarget(bootstrap, selected.user_id), selected.user_id);
+  if (observed.followRequestSent !== false) throw new Error("X follow recovery cannot settle a pending or unknown request");
+  await requireBoundViewer(bootstrap, auth);
+  return Object.freeze({ userId: observed.userId, following: observed.following });
 }
 
 export async function readXWebArticleDraftDesiredState(
@@ -2379,20 +2501,12 @@ function tweetMediaUrls(legacy: JsonRecord): readonly string[] {
  * Bind confirmed CreateTweet text from the long-form note_tweet record when
  * present. Live long posts keep a short preview in legacy.full_text; that
  * preview must not win over the exact note_tweet text or silently truncate.
+ * Legacy text uses the same validated, once-decoded TEXT gaps as rich reads.
  */
 function boundCreateTweetText(
   result: Readonly<Record<string, unknown>>,
-  legacy: Readonly<Record<string, unknown>>,
-): string | null {
-  if (
-    isRecord(result.note_tweet)
-    && isRecord(result.note_tweet.note_tweet_results)
-    && isRecord(result.note_tweet.note_tweet_results.result)
-    && typeof result.note_tweet.note_tweet_results.result.text === "string"
-  ) {
-    return result.note_tweet.note_tweet_results.result.text;
-  }
-  return typeof legacy.full_text === "string" ? legacy.full_text : null;
+): string {
+  return projectXSocialTweetContent(result).text;
 }
 
 function assertTweetBinding(
@@ -2405,6 +2519,7 @@ function assertTweetBinding(
   expectedMediaType: XPublishMediaType | null,
   label: string,
   expectedMediaIds?: readonly string[],
+  quoteCoreAuthor = false,
 ): { readonly id: string; readonly url: string } {
   const result = unwrapTweet(value, `${label}.result`);
   const id = postId(result.rest_id, "X created post rest_id");
@@ -2416,16 +2531,31 @@ function assertTweetBinding(
     (expectedMediaId === null && mediaIds.length !== 0)
     || (expectedMediaId !== null && canonicalJson(mediaIds) !== canonicalJson(expectedMediaIds ?? [expectedMediaId]))
   ) throw new Error("X created post response did not bind the confirmed media upload");
-  let returnedText = boundCreateTweetText(result, legacy);
-  if (returnedText !== null && mediaIds.length > 0) {
+  let returnedText = boundCreateTweetText(result);
+  if (mediaIds.length > 0) {
     // X appends each attached media entity's t.co url to legacy.full_text.
     const suffix = tweetMediaUrls(legacy).map((url) => ` ${url}`).join("");
     if (suffix.length > 0 && returnedText.endsWith(suffix)) {
       returnedText = returnedText.slice(0, returnedText.length - suffix.length);
     }
   }
-  if (returnedText !== expectedText) throw new Error("X created post response did not bind the confirmed text");
-  if (legacy.user_id_str !== expectedAuthorId) throw new Error("X created post response did not bind the confirmed viewer");
+  if (returnedText !== expectedText) {
+    throw new Error("X created post response did not bind the confirmed text");
+  }
+  if (quoteCoreAuthor) {
+    // The observed quote3 response binds its author through this exact core
+    // identity. A legacy echo is optional, but cannot contradict that author.
+    const core = record(result.core, `${label}.core`);
+    const users = record(core.user_results, `${label}.core.user_results`);
+    const author = record(users.result, `${label}.core.user_results.result`);
+    if ((author.__typename !== undefined && author.__typename !== "User")
+      || postId(author.rest_id, "X quote author rest_id") !== expectedAuthorId
+      || (legacy.user_id_str !== undefined && legacy.user_id_str !== expectedAuthorId)) {
+      throw new Error("X created quote response did not bind the confirmed viewer");
+    }
+  } else if (legacy.user_id_str !== expectedAuthorId) {
+    throw new Error("X created post response did not bind the confirmed viewer");
+  }
   const returnedReply = typeof legacy.in_reply_to_status_id_str === "string" ? legacy.in_reply_to_status_id_str : null;
   if (returnedReply !== replyTo) throw new Error("X created post response did not bind the confirmed reply target");
   const returnedQuote = typeof legacy.quoted_status_id_str === "string" ? legacy.quoted_status_id_str : null;
@@ -2444,6 +2574,7 @@ function createdTweet(
   expectedMediaId: string | null,
   expectedMediaType: XPublishMediaType | null,
   expectedMediaIds?: readonly string[],
+  quoteCoreAuthor = false,
 ): { readonly id: string; readonly url: string } {
   const data = graphQlData(response, "X CreateTweet response");
   const create = record(data.create_tweet, "X CreateTweet response.create_tweet");
@@ -2458,6 +2589,7 @@ function createdTweet(
     expectedMediaType,
     "X CreateTweet response",
     expectedMediaIds,
+    quoteCoreAuthor,
   );
 }
 
@@ -2466,7 +2598,11 @@ function createTweetVariables(
   replyTo: string | null,
   quote: string | null,
   mediaIds: readonly string[],
+  quoteTarget?: XWebQuoteTarget,
 ): Readonly<Record<string, unknown>> {
+  if (quoteTarget !== undefined && quoteTarget.postId !== quote) {
+    throw new Error("X quote attachment context changed its exact parent");
+  }
   // The reviewed CreateTweet contract has no made_with_ai or content_disclosure
   // input. Keep semantic_annotation_ids empty so the Ghostget-owned transport
   // cannot inherit a composer AI annotation.
@@ -2479,7 +2615,8 @@ function createTweetVariables(
     },
     semantic_annotation_ids: [],
     ...(replyTo === null ? {} : { reply: { in_reply_to_tweet_id: replyTo, exclude_reply_user_ids: [] } }),
-    ...(quote === null ? {} : { attachment_url: `${X_ORIGIN}/i/status/${quote}` }),
+    ...(quote === null ? {} : { attachment_url: quoteTarget === undefined
+      ? `${X_ORIGIN}/i/status/${quote}` : `${X_ORIGIN}/${quoteTarget.authorUsername}/status/${quoteTarget.postId}` }),
   };
 }
 
@@ -3048,17 +3185,19 @@ async function publishOne(
   ) => Promise<void>,
   beforeRequest?: () => Promise<void>,
   onFailureStage?: (stage: XPostFailureStage) => void,
+  quoteTarget?: XWebQuoteTarget,
 ): Promise<{ readonly id: string; readonly url: string }> {
   onFailureStage?.("post-request-preparation");
   const descriptor = await resolveDescriptor(bootstrap, "CreateTweet", "mutation");
   const response = await graphQl(
     bootstrap,
     descriptor,
-    createTweetVariables(text, replyTo, quote, media.map(item => item.id)),
+    createTweetVariables(text, replyTo, quote, media.map(item => item.id), quoteTarget),
     "POST",
     undefined,
     mutationOperation,
     beforeRequest,
+    quoteTarget,
   );
   onFailureStage?.("create-response-binding");
   const created = createdTweet(
@@ -3070,6 +3209,7 @@ async function publishOne(
     media[0]?.id ?? null,
     media[0]?.mediaType ?? null,
     media.map(item => item.id),
+    quoteTarget !== undefined,
   );
   onFailureStage?.("accepted-target-recording");
   await afterProviderAcceptedMutationTarget?.({
@@ -3098,6 +3238,7 @@ async function publishOne(
     media[0]?.mediaType ?? null,
     "X independent post readback",
     media.map(item => item.id),
+    quoteTarget !== undefined,
   );
   if (rebound.id !== created.id) {
     throw new Error("X independent post readback changed the created post ID");
@@ -3145,7 +3286,7 @@ async function executePublish(
     && (input.media !== undefined || input.media_type !== undefined || input.media_types !== undefined)
   ) throw new Error("X media upload is reviewed only for posts.publish");
   const boundMedia = action === "posts.publish"
-    ? recipe.contractVersion === 6
+    ? recipe.contractVersion === 6 || recipe.contractVersion === 7
       ? await readBoundXWebMedia(input, options.fileResolver, bootstrap.operationDeadline)
       : await readBoundXMedia(input, options.fileResolver, bootstrap.operationDeadline).then(value => value === null ? [] : [value])
     : [];
@@ -3160,6 +3301,8 @@ async function executePublish(
   let previous: string | null = action === "replies.create" ? postId(input.post_id, "input.post_id") : null;
   const quote = action === "posts.quote" ? postId(input.post_id, "input.post_id") : null;
   try {
+    const quoteTarget = quote !== null && recipe.contractVersion === 3
+      ? await readQuoteTarget(bootstrap, quote) : undefined;
     for (const [offset, text] of texts.entries()) {
       const index = offset + 1;
       const id = action === "threads.publish" ? `${action}[${index}]` : action;
@@ -3209,7 +3352,7 @@ async function executePublish(
               index,
               target: {
                 schemaVersion: 1,
-                identifier: canonicalJson(recipe.contractVersion === 6
+                identifier: canonicalJson(recipe.contractVersion === 6 || recipe.contractVersion === 7
                   ? { postId: accepted.id, mediaIds: accepted.mediaIds }
                   : { postId: accepted.id, mediaId: accepted.mediaId }),
               },
@@ -3218,6 +3361,7 @@ async function executePublish(
         (stage) => {
           failureStage = stage;
         },
+        quoteTarget,
       );
       posts.push(post);
       previous = post.id;
@@ -3527,11 +3671,11 @@ function assertDeletableTweet(result: JsonRecord, expectedText: string, viewerId
   if (legacy.user_id_str !== viewerId) {
     throw new Error("X delete pre-read did not bind the post to the confirmed viewer");
   }
-  let text = boundCreateTweetText(result, legacy);
-  // Rich read projections retain the exact provider text, including a media
+  let text = boundCreateTweetText(result);
+  // Rich read projections retain the normalized post text, including a media
   // t.co suffix. Older callers reviewed only the authored caption; accept that
   // representation solely when removing the exact bound media suffix.
-  if (text !== expectedText && text !== null) {
+  if (text !== expectedText) {
     const suffix = tweetMediaUrls(legacy).map((url) => ` ${url}`).join("");
     if (suffix.length > 0 && text.endsWith(suffix)) text = text.slice(0, text.length - suffix.length);
   }
@@ -3831,7 +3975,7 @@ export async function executeXWebOperation(
         feed: "search", query: target.value, limit: deferredRead.limit,
         ...(deferredRead.cursor === null ? {} : { cursor: deferredRead.cursor }),
       }, viewer), "X Trending selected search output");
-      return { status: "succeeded", output: { ...output, source: "trending" },
+      return { status: "succeeded", output: { ...output, modelVersion: 1, source: "trending" },
         finalUrl: `${X_ORIGIN}/search?q=${encodeURIComponent(target.value)}`,
         dispatchStarted: false, dispatch: { planned: 0, started: 0, verified: 0 } };
     }
@@ -3946,15 +4090,9 @@ export async function executeXWebOperation(
   }
   if (recipe.action === "relationships.follow.set") {
     return executeXWebFollowSet(input, {
+      ...(recipe.contractVersion === 2 ? { mutationResponseBinding: "target-acknowledgement" as const } : {}),
       requireViewer: async () => (await requireBoundViewer(bootstrap, auth)).id,
-      readTarget: async userId => {
-        // Missing reviewed UserByRestId evidence is deliberately a pre-dispatch failure.
-        // A handle lookup cannot replace this immutable numeric target readback.
-        const descriptor = await resolveDescriptor(bootstrap, "UserByRestId", "query");
-        const response = await graphQl(bootstrap, descriptor, { userId, withSafetyModeUserFields: true }, "GET");
-        const data = graphQlData(response, "X follow target readback");
-        return record(data.user, "X follow target readback.user").result;
-      },
+      readTarget: userId => readFollowTarget(bootstrap, userId),
       mutate: async (request, admit) => {
         const transaction = startWebSessionCleanupTrackedOperation(bootstrap.registerCleanupBarrier,
           publishCleanupResource => generateXClientTransactionId({ auth: bootstrap.auth,

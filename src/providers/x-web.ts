@@ -326,6 +326,7 @@ export const xWebQueryDescriptorEvidenceSnapshot = Object.freeze({
     { operationName: "DeleteTweet", operationType: "mutation", queryId: "nxpZCY2K-I6QoFHAHeojFQ", sourceChunk: "main.ec728870257106e0a.js", observedOn: "2026-10-08", metadataSha256: "643d5437104296e21d906ecb15b2c96ad278f20cfc4af53b12bb6069bd853726" },
     { operationName: "Viewer", operationType: "query", queryId: "TpQxQtWMTMnIAMPlMGMqNw", sourceChunk: "main.ec728870257106e0a.js", observedOn: "2026-10-08", metadataSha256: "7e4c519e8c9a04632ed216583d45e41dbd2ec97ddb5e7bffa09f05ef0f17ddd8" },
     { operationName: "UserByScreenName", operationType: "query", queryId: "AMIBMjtxEEATh4z8V9GtRg", sourceChunk: "main.ec728870257106e0a.js", observedOn: "2026-10-08", metadataSha256: "2b27dc4f52173019230116a978e72d5f9efb15396b1d759fe5d2a00a7eb29b4c" },
+    { operationName: "UserByRestId", operationType: "query", queryId: "mxaYWwt52eAb6OAzYHMVzg", sourceChunk: "main.3999c6d7f4dbb6c7a.js", observedOn: "2026-10-17", metadataSha256: "81ae66e15cf12e2581a6fe8df84921f30aca115186fb85ca29c8c28e8b390506" },
     { operationName: "Following", operationType: "query", queryId: "nyTOiXy603sofPjdrXYL9Q", sourceChunk: "main.ec728870257106e0a.js", observedOn: "2026-10-08", metadataSha256: "e100273168465653ceafeaff394ca1e2b7236d5d2cbea9238ce39c572d62ceaf" },
     { operationName: "Followers", operationType: "query", queryId: "NPvSAR1p8XUWh8J6PeP3-g", sourceChunk: "main.ec728870257106e0a.js", observedOn: "2026-10-08", metadataSha256: "e100273168465653ceafeaff394ca1e2b7236d5d2cbea9238ce39c572d62ceaf" },
     { operationName: "ArticleEntityDraftCreate", operationType: "mutation", queryId: "fCkdrI6zrnw_UtVa3WDHhw", sourceChunk: "bundle.TwitterArticles.a46d1c2f8088ffbaa.js", observedOn: "2026-10-08", metadataSha256: "b19e9490c1f27e73638e1eb7d2927bdff399159c8d409c549e1e9126880e7c4b" },
@@ -767,7 +768,11 @@ function rejectCreateTweetAiDisclosureFields(
   }
 }
 
-function validateCreateTweetVariables(operationId: XWebMutationOperationId, variables: JsonRecord, publishMediaLimit: 1 | 4 = 1): void {
+/** Internal quote3 context obtained from an exact current parent read. */
+export type XWebQuoteTarget = Readonly<{ postId: string; authorUsername: string }>;
+
+function validateCreateTweetVariables(operationId: XWebMutationOperationId, variables: JsonRecord, publishMediaLimit: 1 | 4 = 1,
+  quoteTarget?: XWebQuoteTarget): void {
   rejectCreateTweetAiDisclosureFields(variables, operationId);
   const relationKey = operationId === "replies.create" || operationId === "threads.reply"
     ? "reply"
@@ -816,8 +821,20 @@ function validateCreateTweetVariables(operationId: XWebMutationOperationId, vari
   }
   if (operationId === "posts.quote") {
     if (typeof variables.attachment_url !== "string") throw new Error("X posts.quote attachment_url must be a string");
-    const match = /^https:\/\/x\.com\/i\/status\/([0-9]{1,19})$/u.exec(variables.attachment_url);
-    if (match?.[1] === undefined) throw new Error("X posts.quote attachment_url must bind one exact X post");
+    if (quoteTarget === undefined) {
+      const match = /^https:\/\/x\.com\/i\/status\/([0-9]{1,19})$/u.exec(variables.attachment_url);
+      if (match?.[1] === undefined) throw new Error("X posts.quote attachment_url must bind one exact X post");
+    } else {
+      const target = record(quoteTarget, "X quote3 parent context");
+      exactMutationKeys(target, ["postId", "authorUsername"], "X quote3 parent context");
+      exactMutationPostId(target.postId, "X quote3 parent ID");
+      if (typeof target.authorUsername !== "string" || !/^[A-Za-z0-9_]{1,15}$/u.test(target.authorUsername)) {
+        throw new Error("X quote3 parent context requires one bounded author handle");
+      }
+      if (variables.attachment_url !== `https://x.com/${target.authorUsername}/status/${target.postId}`) {
+        throw new Error("X quote3 attachment_url must bind the exact observed parent and author");
+      }
+    }
   }
 }
 
@@ -1049,8 +1066,17 @@ function validateRichArticleUpdateVariables(operationId: XWebMutationOperationId
 export function authorizeXWebMutationRequest(
   operationId: XWebMutationOperationId,
   input: XWebGraphQlBindingInput,
-  options: { readonly postsPublishContractVersion?: 6; readonly postsRepostContractVersion?: 2 } = {},
+  options: {
+    readonly postsPublishContractVersion?: 6 | 7;
+    readonly postsRepostContractVersion?: 2;
+    readonly postsQuoteContractVersion?: 3;
+    readonly postsQuoteTarget?: XWebQuoteTarget;
+  } = {},
 ): XWebGraphQlBinding {
+  if ((options.postsQuoteContractVersion !== undefined || options.postsQuoteTarget !== undefined)
+    && (operationId !== "posts.quote" || options.postsQuoteContractVersion !== 3 || options.postsQuoteTarget === undefined)) {
+    throw new Error("X quote3 authorization requires its exact version and observed parent context");
+  }
   const expectedName = mutationOperationNames[operationId];
   if (expectedName === undefined) throw new Error("X mutation operation is not allowlisted");
   const binding = assertExactXWebGraphQlBinding(input);
@@ -1067,7 +1093,8 @@ export function authorizeXWebMutationRequest(
   if (body.queryId !== binding.queryId) throw new Error(`X ${operationId} body queryId drifted`);
   const variables = record(body.variables, `X ${operationId} variables`);
   if (expectedName === "CreateTweet") validateCreateTweetVariables(operationId, variables,
-    options.postsPublishContractVersion === 6 ? 4 : 1);
+    options.postsPublishContractVersion === 6 || options.postsPublishContractVersion === 7 ? 4 : 1,
+    options.postsQuoteTarget);
   else if (operationId === "articles.create") validateRichArticleCreateVariables(variables);
   else if (operationId === "articles.title" || operationId === "articles.content") {
     validateRichArticleUpdateVariables(operationId, variables);

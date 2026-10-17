@@ -62,7 +62,7 @@ describe("authenticated web-session contract identity", () => {
     // Writers use reviewed durable distribution identities. Runtime source
     // closure is verified independently.
     expect(webSessionContractHash(xLike)).toBe(
-      "def85baca6960c7bb560aae04fd992d65b3d817576b360d54e7264cd1edb90d7",
+      "e7ab2ce8500e2c3c53744e68a46d9cbea872840996d5a511c5a938688bf2972e",
     );
     expect(isCompatibleWebSessionContractHash(xLike,
       "c3000958b2d3e11c990c7fc06f701c723bd1d2a98714bf4ffca34a16dd1b63c6")).toBeTrue();

@@ -13,7 +13,7 @@ First-party traffic is not the same as a documented public API. Use this local c
 - [Use observed contracts](#use-observed-contracts)
 - [Export bookmarks](#export-bookmarks)
 - [Resolve current X material](#resolve-current-x-material)
-- [Preserve capture-required mutations](#preserve-capture-required-mutations)
+- [Use confirmed mutations](#use-confirmed-mutations)
 - [Other capture-required operations](#other-capture-required-operations)
 - [Risk and confirmation](#risk-and-confirmation)
 - [Recapture on drift](#recapture-on-drift)
@@ -178,8 +178,8 @@ warnings, appeals, and Community Notes retain reviewed text fields. Missing
 flag or relationship evidence stays unknown. Community Note labels currently
 carry plain visible text; their rich link entities are not exposed.
 
-The observed R2 web writes are `likes.set`, `content.save`, and
-`articles.draft.save`. Like and bookmark evidence comes from prior
+The observed R2 web writes are `likes.set`, `content.save`,
+`relationships.follow.set@2`, and `articles.draft.save`. Like and bookmark evidence comes from prior
 reversible live fixtures, not the current read-only probes. Preview the exact
 post ID and desired `liked` or `saved` boolean, confirm the returned digest, and
 inspect the receipt. ghostget does not mark either desired-state mutation
@@ -187,12 +187,13 @@ verified until an independent TweetResultByRestId readback matches that
 boolean. Article draft saving uses the separate exact unpublished Article
 readback described above.
 
-The separate observed R3 routes include `posts.publish@5`, text-only
-`replies.create`, and exact authored-post `content.delete@3`. Deletion binds
+The separate observed R3 routes include `posts.publish@7`, text-only
+`replies.create`, `posts.quote@3`, desired-state `posts.repost@2`, and exact
+authored-post `content.delete@3`. Deletion binds
 the confirmed text and current author before dispatch and verifies the exact
-post's absence afterward. Preview and confirm each exact action. Ordered
-multiple-image publishing, quotes, repost changes, follow/unfollow, and
-threads remain unavailable until their own contracts qualify.
+post's absence afterward. Publication accepts up to four ordered PNG/JPEG
+images or one MP4. Preview and confirm each exact action. Threads require
+their own qualified contract.
 
 Examples:
 
@@ -310,29 +311,52 @@ Acquire cookies through the auth layer. Route the reviewed CSRF value only to th
 
 Return `capture-required` on a missing or ambiguous operation revision, feature drift, token-source drift, response-shape drift, or account-binding failure. Do not launch the X composer to compensate.
 
-## Preserve capture-required mutations
+## Use confirmed mutations
 
-The current registry keeps these text/desired-state exchanges capture-required:
+`threads.publish` (`R3`) remains capture-required for an ordered root/self-reply
+schedule.
 
-- `threads.publish` (`R3`): one confirmed ordered root/self-reply schedule;
-- `posts.repost` (`R3`): exact desired repost state;
-- `posts.quote` (`R3`): one text quote bound to an exact post;
-- `relationships.follow.set` (`R2`): exact desired follow or unfollow state.
-
-Current `x-client-transaction-id` generation is code-owned: ghostget resolves the unique wrapper module, exported helper, and lazy-module evidence from the current first-party main bundle, calls that cached helper through one contained private agent-browser session, closes and cleans the session, then places the ephemeral value only on the already-reviewed in-origin mutation request. Drift or bootstrap failure occurs before the durable dispatch boundary and is never retried. This prerequisite does not by itself graduate the contract states listed above.
+Current `x-client-transaction-id` generation is code-owned: ghostget resolves the unique wrapper module, exported helper, and lazy-module evidence from the current first-party main bundle, calls that cached helper through one contained private agent-browser session, closes and cleans the session, then places the ephemeral value only on the already-reviewed in-origin mutation request. Drift or bootstrap failure occurs before the durable dispatch boundary and is never retried. This prerequisite does not by itself make a capture-required contract executable.
 
 `likes.set` and `content.save` (`R2`) bind the exact account and post, select only the matching create/delete mutation for the confirmed desired state, validate the operation-specific `Done` response, and independently read the same post through TweetResultByRestId before marking the dispatch verified. Separate reversible live fixtures proved bookmark false → true → false and like false → true → false, including both independent reads and restoration of the original false state. `articles.draft.save` is the separate observed private structured-text-and-inline-image contract above.
 
-`posts.publish@5` is the separate observed R3 post contract. It accepts exact
-text up to the reviewed CreateTweet 25000-unit bound without truncation, and at
-most one plan-bound PNG or MP4, binds the account and uploaded media ID, admits
+`posts.repost@2` (`R3`) accepts one exact post and desired `reposted` boolean.
+It checks the current state before dispatch, selects only CreateRetweet or
+DeleteRetweet as needed, validates that operation's response, and independently
+reads the same source post before reporting the requested state. The live
+fixture proved false → true → false and preserved the post's like and bookmark
+states. An uncertain result requires reconciliation; it never triggers a second
+mutation automatically.
+
+`relationships.follow.set@2` (`R2`) accepts an exact numeric `user_id` and
+desired `following` boolean. It binds the current account, reads the target,
+and submits one fixed follow or unfollow request when the state differs. The
+response must acknowledge that target with a boolean following field and no
+pending request. Its following field can reflect the earlier state; success
+requires an independent numeric-target read matching the requested state and
+a fresh account check. An already satisfied state is a no-op. Initial pending
+protected-account requests refuse in either direction. The version-one
+reservation stays capture-required.
+
+`posts.quote@3` (`R3`) publishes one text-only quote of the exact `post_id`.
+It first reads that parent, requires its available author and matching ID, and
+constructs the handle-form quote URL internally. The CreateTweet response must
+bind the created ID, author, exact text and quoted parent. Ghostget saves the
+created target before an independent readback of that same post. It does not
+accept caller-supplied quote URLs or media attachments.
+
+`posts.publish@7` is the observed R3 post contract. It accepts exact
+text up to the reviewed CreateTweet 25000-unit bound without truncation, with
+optional one-to-four ordered PNG/JPEG images or one MP4. It binds the account,
+immutable uploaded media bytes and order, admits
 one CreateTweet dispatch, binds long-form text from `note_tweet` when present,
-durably retains the response-bound post/media target before readback, and polls
+durably retains the response-bound post and ordered media targets before readback, and polls
 only that exact post through TweetResultByRestId. A live account that cannot
 accept that length fails closed. Prefer one long `posts.publish` over a
-`threads.publish` split. The separate ordered-media `posts.publish@6` remains
-capture-required. Threads, reposts, quotes, DMs, and Article
-publishing remain capture-required. Per-item `threads.publish` maxLength stays
+`threads.publish` split. Scalar `posts.publish@5` retains its historical
+single-PNG/MP4 schema; the `posts.publish@6` reservation remains
+capture-required. Threads, DMs, and Article publishing remain
+capture-required. Per-item `threads.publish` maxLength stays
 280 because reply composition and thread-split still use the short-item bound.
 
 CreateTweet sends empty `semantic_annotation_ids` and no AI or
@@ -371,8 +395,8 @@ Encrypted X Chat is not a normal HAR template. Plaintext and send require a sepa
 
 R1 reads run only after account binding and exclusion of seen/read
 acknowledgement requests. The private Article read additionally binds the exact
-requested Draft to the current viewer. Likes, bookmarks, and private Article
-draft saves are R2. Posts, replies, quotes, reposts, threads, DMs, and Article
+requested Draft to the current viewer. Likes, bookmarks, follow changes, and
+private Article draft saves are R2. Posts, replies, quotes, reposts, threads, DMs, and Article
 publication are R3.
 
 Preview the exact account realm, target, body/items, attachment hashes, reply settings, desired state, contract hash, and dispatch schedule. Confirm once. Require duplicate refusal. If a request left but its response or target binding is uncertain, report `indeterminate` and preserve the ledger.
