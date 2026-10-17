@@ -2637,16 +2637,28 @@
 // Preserve all prior allowances: 12,449,690 + 12,387 + 4,096 = 12,466,173 packed;
 // 25,497,133 + 353 + 1,656 = 25,499,142 unpacked. CI and canonical Release
 // independently measure and admit their actual platform archives.
+// The yt-dlp caption-capture identity repair adds no packed entry; its parser,
+// archive and ephemeral source, rebuilt dist chunks and changelog grow the
+// payload. Two clean Git ZIP snapshots of
+// e338c210b80fd9b199af6ba267c2d44e1345e17f, including committed dist, packed
+// independently with npm 11.19.0 / Node 24.20.0 / zlib 1.2.12 on darwin arm64
+// were byte-identical: 12,450,473 compressed / 25,499,969 payload bytes, 697
+// files/entries; SHA-256
+// baeac2afd071d91f7b170e4de9c8c61a748e4a8c992a627c3ed0ed76e721674a.
+// Every packed payload byte and mode matched its exact committed Git blob.
+// Preserve all prior allowances: 12,450,473 + 12,387 + 4,096 = 12,466,956 packed;
+// 25,499,969 + 353 + 1,656 = 25,501,978 unpacked. CI and canonical Release
+// independently measure and admit their actual platform archives.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Qualified X media, quote, repost and relationship writes 0.18.97",
+  scope: "yt-dlp caption capture identity repair 0.18.98",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   nodeVersion: "24.20.0",
   zlibVersion: "1.2.12",
   platform: "darwin-arm64",
-  archiveSha256: "c8714c9160cbf9dcc17c0d0a5297b6a63d08137dfbd0f1b4be4b5f4bb0aa3aa9",
-  packedBytes: 12_449_690,
-  unpackedBytes: 25_497_133,
+  archiveSha256: "baeac2afd071d91f7b170e4de9c8c61a748e4a8c992a627c3ed0ed76e721674a",
+  packedBytes: 12_450_473,
+  unpackedBytes: 25_499_969,
   entryCount: 697,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

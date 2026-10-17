@@ -78,7 +78,11 @@ const OWNED_CAPTURE_BOUNDARY_ARGS = [
 // `after_move` is the first point where a media capture's final file exists.
 // Transcript-only runs do not execute that stage, so they report at
 // `after_video`, which is the corresponding once-per-item completion boundary.
-const CAPTURE_IDENTITY_TEMPLATE = `${CAPTURE_IDENTITY_PREFIX}{"extractor":%(extractor_key,extractor|)j,"id":%(id|)j,"ext":%(ext|)j}`;
+// yt-dlp emits a `|default` literal raw, without JSON conversion. Every default
+// is therefore the JSON literal `null`, so an absent field still yields a
+// well-formed record. With `--skip-download`, yt-dlp selects no format and
+// `ext` is absent.
+const CAPTURE_IDENTITY_TEMPLATE = `${CAPTURE_IDENTITY_PREFIX}{"extractor":%(extractor_key,extractor|null)j,"id":%(id|null)j,"ext":%(ext|null)j}`;
 
 export interface YtDlpAuthOptions {
   readonly browser?: string;
@@ -131,7 +135,12 @@ export type YtDlpProbeResult =
 export interface YtDlpCaptureIdentity {
   readonly extractor: string;
   readonly id: string;
-  readonly ext: string;
+  /**
+   * Primary media extension. It is `null` only for a transcript capture,
+   * where `--skip-download` selects no format; media modes always carry a
+   * safe extension.
+   */
+  readonly ext: string | null;
 }
 
 export type YtDlpCaptureResult =
@@ -326,6 +335,7 @@ export function isSafeYtDlpCaptureExtension(value: unknown): value is string {
  */
 export function parseYtDlpCaptureIdentity(
   stdout: unknown,
+  mode: CaptureMode,
 ): ParseYtDlpCaptureIdentityResult {
   if (typeof stdout !== "string") {
     return { ok: false, diagnostic: "yt-dlp capture did not return an identity record" };
@@ -366,8 +376,14 @@ export function parseYtDlpCaptureIdentity(
   }
   const extractor = boundedIdentityString(value["extractor"]);
   const id = boundedIdentityString(value["id"]);
-  const ext = value["ext"];
-  if (extractor === null || id === null || !isSafeYtDlpCaptureExtension(ext)) {
+  const rawExt = value["ext"];
+  // Only a transcript capture may omit the primary media extension.
+  const ext = isSafeYtDlpCaptureExtension(rawExt)
+    ? rawExt
+    : rawExt === null && mode === "transcript"
+      ? null
+      : undefined;
+  if (extractor === null || id === null || ext === undefined) {
     return { ok: false, diagnostic: "yt-dlp capture returned a malformed identity record" };
   }
   return { ok: true, identity: { extractor, id, ext } };
@@ -432,7 +448,7 @@ export async function captureWithYtDlp(
   if (result.stdoutTruncated) {
     return { ok: false, diagnostic: "yt-dlp capture exceeded Ghostget media's identity output limit" };
   }
-  return parseYtDlpCaptureIdentity(result.stdout);
+  return parseYtDlpCaptureIdentity(result.stdout, options.mode);
 }
 
 export async function ytDlpVersion(

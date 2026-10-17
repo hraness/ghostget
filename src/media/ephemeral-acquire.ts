@@ -93,6 +93,8 @@ async function providerMedia(request: EphemeralMediaRequest, stage: EphemeralSta
     const result = await deps.capture({executable, url: request.url, signal, ...auth, mode, captureDirectory: directory, temporaryDirectory: temporary, caption: mode === 'transcript' ? selected : null, persistDescriptiveMetadata: true, audioOnly: true, maximumBytes: maxBytes, timeoutMs: request.timeoutMs ?? 600_000, privateRedactions: metadata.diagnosticRedactions});
     if (!result.ok) fail('permission-or-provider-failure');
     if (result.identity.extractor !== metadata.acquisitionIdentity.extractor || result.identity.id !== metadata.acquisitionIdentity.id) fail('integrity');
+    // Only a skip-download caption capture may omit the primary media extension.
+    if (mode === 'audio' && result.identity.ext === null) fail('integrity');
   };
   let caption: EphemeralMediaManifest['caption'] = null; const records: EphemeralMediaFile[] = [], warnings: string[] = [];
   if (selected) {
