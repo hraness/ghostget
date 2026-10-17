@@ -1238,7 +1238,7 @@ var OWNED_CAPTURE_BOUNDARY_ARGS = [
   "--no-keep-fragments",
   "--no-hls-split-discontinuity"
 ];
-var CAPTURE_IDENTITY_TEMPLATE = `${CAPTURE_IDENTITY_PREFIX}{"extractor":%(extractor_key,extractor|)j,"id":%(id|)j,"ext":%(ext|)j}`;
+var CAPTURE_IDENTITY_TEMPLATE = `${CAPTURE_IDENTITY_PREFIX}{"extractor":%(extractor_key,extractor|null)j,"id":%(id|null)j,"ext":%(ext|null)j}`;
 var defaultDependencies = { runProcess: (argv, options) => runProcess(argv, options) };
 var SHA256_PATTERN2 = /^[0-9a-f]{64}$/u;
 function authorizationIdentity(options) {
@@ -1382,7 +1382,7 @@ function boundedIdentityString2(value) {
 function isSafeYtDlpCaptureExtension(value) {
   return typeof value === "string" && value.length > 0 && value.length <= CAPTURE_EXTENSION_MAX_CODE_UNITS && /^[a-z0-9]+$/u.test(value) && !RESERVED_CAPTURE_EXTENSIONS.has(value);
 }
-function parseYtDlpCaptureIdentity(stdout) {
+function parseYtDlpCaptureIdentity(stdout, mode) {
   if (typeof stdout !== "string") {
     return { ok: false, diagnostic: "yt-dlp capture did not return an identity record" };
   }
@@ -1413,8 +1413,9 @@ function parseYtDlpCaptureIdentity(stdout) {
   }
   const extractor = boundedIdentityString2(value["extractor"]);
   const id = boundedIdentityString2(value["id"]);
-  const ext = value["ext"];
-  if (extractor === null || id === null || !isSafeYtDlpCaptureExtension(ext)) {
+  const rawExt = value["ext"];
+  const ext = isSafeYtDlpCaptureExtension(rawExt) ? rawExt : rawExt === null && mode === "transcript" ? null : undefined;
+  if (extractor === null || id === null || ext === undefined) {
     return { ok: false, diagnostic: "yt-dlp capture returned a malformed identity record" };
   }
   return { ok: true, identity: { extractor, id, ext } };
@@ -1476,7 +1477,7 @@ async function captureWithYtDlp(options, dependencies = defaultDependencies) {
   if (result.stdoutTruncated) {
     return { ok: false, diagnostic: "yt-dlp capture exceeded Ghostget media's identity output limit" };
   }
-  return parseYtDlpCaptureIdentity(result.stdout);
+  return parseYtDlpCaptureIdentity(result.stdout, options.mode);
 }
 
 // src/media/http.ts
@@ -2980,6 +2981,8 @@ async function providerMedia(request, stage, deps, signal, maxBytes, maxDuration
     if (!result.ok)
       fail("permission-or-provider-failure");
     if (result.identity.extractor !== metadata.acquisitionIdentity.extractor || result.identity.id !== metadata.acquisitionIdentity.id)
+      fail("integrity");
+    if (mode === "audio" && result.identity.ext === null)
       fail("integrity");
   };
   let caption = null;

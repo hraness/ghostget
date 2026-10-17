@@ -115,7 +115,7 @@ describe("yt-dlp argv", () => {
     const printIndex = argv.indexOf("--print");
     expect(printIndex).toBeGreaterThan(-1);
     expect(argv[printIndex + 1]).toBe(
-      'after_move:WRENCH_MEDIA_CAPTURE_IDENTITY_V1\t{"extractor":%(extractor_key,extractor|)j,"id":%(id|)j,"ext":%(ext|)j}',
+      'after_move:WRENCH_MEDIA_CAPTURE_IDENTITY_V1\t{"extractor":%(extractor_key,extractor|null)j,"id":%(id|null)j,"ext":%(ext|null)j}',
     );
     expect(argv[printIndex + 1]).not.toContain("url");
     expect(argv[printIndex + 1]).not.toContain("format");
@@ -205,7 +205,7 @@ describe("yt-dlp capture identity", () => {
       identityRecord("Cafe\u0301\ud83d\udd2e", " item-id ", "webm").trimEnd(),
       "",
     ].join("\n");
-    const result = parseYtDlpCaptureIdentity(output);
+    const result = parseYtDlpCaptureIdentity(output, "archive");
     expect(result).toEqual({
       ok: true,
       identity: { extractor: "Cafe\u0301\ud83d\udd2e", id: " item-id ", ext: "webm" },
@@ -216,7 +216,7 @@ describe("yt-dlp capture identity", () => {
 
   test("rejects a missing or non-string completion record", () => {
     for (const output of [undefined, null, 1, {}, "", "ordinary yt-dlp progress\n"]) {
-      expect(parseYtDlpCaptureIdentity(output)).toEqual({
+      expect(parseYtDlpCaptureIdentity(output, "archive")).toEqual({
         ok: false,
         diagnostic: "yt-dlp capture did not return an identity record",
       });
@@ -243,7 +243,7 @@ describe("yt-dlp capture identity", () => {
       `${rawIdentityRecord({ extractor: "Youtube", id: "id", ext: "mkv" })}trailing`,
     ];
     for (const output of malformed) {
-      expect(parseYtDlpCaptureIdentity(output)).toEqual({
+      expect(parseYtDlpCaptureIdentity(output, "archive")).toEqual({
         ok: false,
         diagnostic: "yt-dlp capture returned a malformed identity record",
       });
@@ -253,7 +253,7 @@ describe("yt-dlp capture identity", () => {
   test("accepts only bounded lowercase primary-media extensions", () => {
     for (const ext of ["3gp", "m4a", "mkv", "webm", "a1", "x".repeat(16)]) {
       expect(isSafeYtDlpCaptureExtension(ext)).toBeTrue();
-      expect(parseYtDlpCaptureIdentity(identityRecord("Generic", "item", ext))).toEqual({
+      expect(parseYtDlpCaptureIdentity(identityRecord("Generic", "item", ext), "archive")).toEqual({
         ok: true,
         identity: { extractor: "Generic", id: "item", ext },
       });
@@ -284,7 +284,7 @@ describe("yt-dlp capture identity", () => {
       "description",
     ]) {
       expect(isSafeYtDlpCaptureExtension(ext)).toBeFalse();
-      expect(parseYtDlpCaptureIdentity(identityRecord("Generic", "item", ext))).toEqual({
+      expect(parseYtDlpCaptureIdentity(identityRecord("Generic", "item", ext), "archive")).toEqual({
         ok: false,
         diagnostic: "yt-dlp capture returned a malformed identity record",
       });
@@ -295,9 +295,105 @@ describe("yt-dlp capture identity", () => {
   });
 
   test("rejects multiple prefixed records even when they agree", () => {
-    expect(parseYtDlpCaptureIdentity(`${identityRecord()}${identityRecord()}`)).toEqual({
+    expect(parseYtDlpCaptureIdentity(`${identityRecord()}${identityRecord()}`, "archive")).toEqual({
       ok: false,
       diagnostic: "yt-dlp capture returned multiple identity records",
+    });
+  });
+
+  test("defaults every absent identity field to the JSON literal null", () => {
+    for (const mode of ["archive", "audio", "video", "transcript"] as const) {
+      const argv = buildYtDlpCaptureArgv(captureOptions({
+        mode,
+        caption: mode === "transcript" ? { source: "manual", language: "en" } : null,
+      }));
+      const template = argv[argv.indexOf("--print") + 1] ?? "";
+      expect(template).toContain('"ext":%(ext|null)j}');
+      expect(template).toContain('"id":%(id|null)j');
+      expect(template).toContain('"extractor":%(extractor_key,extractor|null)j');
+      // An empty default is emitted raw and leaves `"ext":}`.
+      expect(template).not.toMatch(/\|\)j/u);
+    }
+  });
+
+  test("regression: a skip-download caption capture with no selected format yields an identity", () => {
+    // yt-dlp 2026.08.19 printed this record for a transcript capture of a
+    // public YouTube item under the earlier empty-default template.
+    const emptyDefault = `${CAPTURE_IDENTITY_PREFIX}{"extractor":"Youtube","id":"jNQXAC9IVRw","ext":}`;
+    for (const mode of ["archive", "audio", "video", "transcript"] as const) {
+      expect(parseYtDlpCaptureIdentity(emptyDefault, mode)).toEqual({
+        ok: false,
+        diagnostic: "yt-dlp capture returned a malformed identity record",
+      });
+    }
+    const nullDefault = `${CAPTURE_IDENTITY_PREFIX}{"extractor":"Youtube","id":"jNQXAC9IVRw","ext":null}\n`;
+    expect(parseYtDlpCaptureIdentity(nullDefault, "transcript")).toEqual({
+      ok: true,
+      identity: { extractor: "Youtube", id: "jNQXAC9IVRw", ext: null },
+    });
+  });
+
+  test("admits a null extension only for a transcript capture", () => {
+    const record = rawIdentityRecord({ extractor: "Youtube", id: "jNQXAC9IVRw", ext: null });
+    for (const mode of ["archive", "audio", "video"] as const) {
+      expect(parseYtDlpCaptureIdentity(record, mode)).toEqual({
+        ok: false,
+        diagnostic: "yt-dlp capture returned a malformed identity record",
+      });
+    }
+    expect(parseYtDlpCaptureIdentity(identityRecord("Youtube", "jNQXAC9IVRw", "mp4"), "transcript")).toEqual({
+      ok: true,
+      identity: { extractor: "Youtube", id: "jNQXAC9IVRw", ext: "mp4" },
+    });
+    for (const ext of ["", "vtt", "MP4", "../mp4", 1, false, {}]) {
+      expect(parseYtDlpCaptureIdentity(rawIdentityRecord({ extractor: "Youtube", id: "id", ext }), "transcript")).toEqual({
+        ok: false,
+        diagnostic: "yt-dlp capture returned a malformed identity record",
+      });
+    }
+  });
+
+  test("rejects a null extractor or id in every mode", () => {
+    for (const mode of ["archive", "audio", "video", "transcript"] as const) {
+      for (const value of [
+        { extractor: null, id: "id", ext: "mkv" },
+        { extractor: "Youtube", id: null, ext: "mkv" },
+        { extractor: null, id: null, ext: null },
+        { extractor: "Youtube", id: null, ext: null },
+        { extractor: null, id: "id", ext: null },
+      ]) {
+        expect(parseYtDlpCaptureIdentity(rawIdentityRecord(value), mode)).toEqual({
+          ok: false,
+          diagnostic: "yt-dlp capture returned a malformed identity record",
+        });
+      }
+    }
+  });
+
+  test("returns a transcript identity without a media extension from a skip-download process", async () => {
+    let printed: string | undefined;
+    const result = await captureWithYtDlp(captureOptions({
+      mode: "transcript",
+      caption: { source: "manual", language: "en" },
+    }), {
+      runProcess: (argv) => {
+        printed = argv[argv.indexOf("--print") + 1];
+        return Promise.resolve({
+          ok: true,
+          command: [],
+          exitCode: 0,
+          stdout: `${CAPTURE_IDENTITY_PREFIX}{"extractor":"Youtube","id":"jNQXAC9IVRw","ext":null}\n`,
+          stderr: "",
+          stdoutTruncated: false,
+          stderrTruncated: false,
+          elapsedMs: 1,
+        });
+      },
+    });
+    expect(printed).toStartWith("after_video:");
+    expect(result).toEqual({
+      ok: true,
+      identity: { extractor: "Youtube", id: "jNQXAC9IVRw", ext: null },
     });
   });
 
@@ -510,7 +606,7 @@ test("probe and capture prefer the same case-sensitive extractor key", async () 
       }),
     },
   );
-  const capture = parseYtDlpCaptureIdentity(identityRecord("Youtube", publicId));
+  const capture = parseYtDlpCaptureIdentity(identityRecord("Youtube", publicId), "archive");
   expect(probe).toMatchObject({
     ok: true,
     metadata: {

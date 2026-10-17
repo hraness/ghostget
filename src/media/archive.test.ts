@@ -201,7 +201,12 @@ function dependencies(
       }
       return {
         ok: true,
-        identity: { ...probeMetadata.acquisitionIdentity, ext: "webm" },
+        // A skip-download transcript capture selects no format, so yt-dlp
+        // reports no primary media extension.
+        identity: {
+          ...probeMetadata.acquisitionIdentity,
+          ext: options.mode === "transcript" ? null : "webm",
+        },
       };
     },
     derive: async (options) => {
@@ -1208,6 +1213,72 @@ describe("mediaUrl", () => {
       transcript: { kind: "provider", source: "manual", language: "en" },
     };
     await expectRevisionParentEmpty(root, metadata, request);
+  });
+
+  test("promotes a provider transcript whose skip-download capture reports no media extension", async () => {
+    const root = await mkdtemp(join(tmpdir(), "media-archive-test-"));
+    roots.push(root);
+    const deps = dependencies({ value: 0 });
+    const reported: (string | null)[] = [];
+    const captured = await mediaUrl({
+      url: metadata.canonicalUrl,
+      mode: "transcript",
+      language: "en",
+      libraryDirectory: root,
+      inheritYtDlpConfig: false,
+    }, {
+      ...deps,
+      capture: async (options) => {
+        const result = await deps.capture(options);
+        if (result.ok) reported.push(result.identity.ext);
+        return result;
+      },
+    });
+    expect(reported).toEqual([null]);
+    expect(captured.manifest.transcript).toMatchObject({ status: "available", source: "manual", language: "en" });
+  });
+
+  test("rejects an unclaimed media file when a transcript capture reports no media extension", async () => {
+    const root = await mkdtemp(join(tmpdir(), "media-archive-test-"));
+    roots.push(root);
+    const deps = dependencies({ value: 0 });
+    await expect(mediaUrl({
+      url: metadata.canonicalUrl,
+      mode: "transcript",
+      language: "en",
+      libraryDirectory: root,
+      inheritYtDlpConfig: false,
+    }, {
+      ...deps,
+      capture: async (options) => {
+        const result = await deps.capture(options);
+        await writeFile(join(options.captureDirectory, "media.webm"), "unrequested-media");
+        return result;
+      },
+    })).rejects.toMatchObject({ code: "ARCHIVE_CONFLICT" });
+  });
+
+  test("rejects a media capture whose adapter reports no primary media extension", async () => {
+    for (const mode of ["audio", "video", "archive"] as const) {
+      const root = await mkdtemp(join(tmpdir(), "media-archive-test-"));
+      roots.push(root);
+      const deps = dependencies({ value: 0 });
+      await expect(mediaUrl({
+        url: metadata.canonicalUrl,
+        mode,
+        language: "en",
+        libraryDirectory: root,
+        inheritYtDlpConfig: false,
+      }, {
+        ...deps,
+        capture: async (options) => {
+          const result = await deps.capture(options);
+          if (!result.ok) return result;
+          return { ok: true, identity: { ...result.identity, ext: null } };
+        },
+      })).rejects.toMatchObject({ code: "CAPTURE_FAILED" });
+      await expectRevisionParentEmpty(root, metadata, { mode });
+    }
   });
 
   test("checks every newly built media manifest against its requested mode", async () => {

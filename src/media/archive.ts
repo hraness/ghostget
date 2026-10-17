@@ -766,12 +766,17 @@ async function writeProviderMetadata(
   return path;
 }
 
+/**
+ * `expectedMediaExtension` is `null` only when the capture requested no
+ * primary media; any `media.*` file outside the owned sidecars is then
+ * unclaimed and rejected.
+ */
 export async function organizeCaptureFiles(
   itemRoot: string,
-  expectedMediaExtension: string,
+  expectedMediaExtension: string | null,
   persistDescriptiveSidecars = true,
 ): Promise<OrganizedCapture> {
-  if (!isSafeYtDlpCaptureExtension(expectedMediaExtension)) {
+  if (expectedMediaExtension !== null && !isSafeYtDlpCaptureExtension(expectedMediaExtension)) {
     throw new MediaArchiveError(
       "CAPTURE_FAILED",
       "the acquisition adapter returned an unsafe primary media extension",
@@ -797,7 +802,9 @@ export async function organizeCaptureFiles(
       "raw yt-dlp provider metadata",
     );
   }
-  const expectedMediaName = `media.${expectedMediaExtension}`;
+  const expectedMediaName = expectedMediaExtension === null
+    ? null
+    : `media.${expectedMediaExtension}`;
   const mediaFiles = files.filter((name) => name === expectedMediaName);
   const captionFiles = files.filter((name) => name.startsWith("media.") && extension(name) === "vtt");
   const thumbnailFiles = files.filter((name) => name.startsWith("media.") && imageExtensions.has(extension(name)));
@@ -2362,14 +2369,15 @@ async function mediaWithYtDlp(
     const captureAttemptTemporaryDirectory = join(captureAttempt, "temporary");
     await ensurePhysicalChildDirectory(captureAttemptDirectory);
     await ensurePhysicalChildDirectory(captureAttemptTemporaryDirectory);
+    const captureMode: CaptureMode = options.mode === "transcript" && localPlan?.kind === "ready"
+      ? "audio"
+      : options.mode;
     let capture: YtDlpCaptureResult;
     try {
       capture = await dependencies.capture({
         executable: ytDlpExecutable,
         url: options.url,
-        mode: options.mode === "transcript" && localPlan?.kind === "ready"
-          ? "audio"
-          : options.mode,
+        mode: captureMode,
         captureDirectory: captureAttemptDirectory,
         temporaryDirectory: captureAttemptTemporaryDirectory,
         caption,
@@ -2407,6 +2415,16 @@ async function mediaWithYtDlp(
       throw new MediaArchiveError(
         "CAPTURE_FAILED",
         "the completed download belongs to a different provider source than the probe",
+        { stagingDirectory: stagingItem },
+      );
+    }
+    if (capture.identity.ext === null && captureMode !== "transcript") {
+      // Only a skip-download transcript capture may omit its primary media
+      // extension. An injected adapter cannot widen that.
+      await rm(captureAttempt, { recursive: true, force: true });
+      throw new MediaArchiveError(
+        "CAPTURE_FAILED",
+        "the acquisition adapter returned no primary media extension for a media capture",
         { stagingDirectory: stagingItem },
       );
     }

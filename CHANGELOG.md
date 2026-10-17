@@ -7,6 +7,24 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.98
+
+Provider caption captures succeed again with current yt-dlp. A caption-only
+capture downloads no media, so yt-dlp reports no file extension; the identity
+record now writes that missing value as `null` instead of an empty value that
+made the record invalid JSON. Previously every YouTube caption capture failed
+after its captions were written, and ephemeral acquisition reported a
+permission or provider failure.
+
+- Every absent identity field now defaults to the JSON literal `null`. The
+  identity parser keeps its exact prefix and key set, still rejects a missing
+  or empty extractor and ID in every mode, and accepts a missing extension only
+  for caption-only captures. Audio, video and archive captures still require a
+  safe media extension.
+- Archive and ephemeral acquisition reject a media capture whose adapter
+  reports no extension. A caption-only archive capture claims no primary media
+  file and rejects any unrequested media file it finds.
+
 ## 0.18.97
 
 X publishes posts with ordered PNG/JPEG images or one MP4, creates text quotes,
