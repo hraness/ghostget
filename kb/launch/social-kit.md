@@ -248,7 +248,7 @@ Topics: Developer Tools, Artificial Intelligence, Open Source
 - measuredOn: September 22, 2026. website/source/index.html, Measured table summary
 - serviceCount: 19. website/provider-presentation.ts createProviderDirectory().providerCount
 - claimsNotVerified: 13. verification/claims.json, status not-verified
-- claimsTotal: 209. verification/claims.json, every claim
-- claimsEvidenced: 196. verification/claims.json, status evidenced
+- claimsTotal: 210. verification/claims.json, every claim
+- claimsEvidenced: 197. verification/claims.json, status evidenced
 - claimsConfigReadback: 9. verification/claims.json, layer configuration-readback
 - status: Latest release: v0.19.0. package.json version
