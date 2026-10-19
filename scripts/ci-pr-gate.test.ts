@@ -1,0 +1,917 @@
+import { describe, expect, test } from "bun:test";
+import { readdir, readFile } from "node:fs/promises";
+import fc from "fast-check";
+import { fileURLToPath } from "node:url";
+import { isDeepStrictEqual } from "node:util";
+
+import {
+  MACOS_MEDIA_TEST_FILES,
+  MACOS_PATTERNED_TESTS,
+  MACOS_TEST_FILES,
+  assertMacosCheckFilesExist,
+  macosCheckInvocations,
+} from "./ci-macos-check.js";
+import {
+  BUN_TEST_TIMEOUT_MS,
+  CI_UNIT_TEST_SHARD_COUNT,
+  assignUnitTestShards,
+  bunUnitTestArguments,
+  fileWeight,
+  filesForShard,
+  isSrcUnitTestFile,
+  listSrcUnitTestFiles,
+  parseShardRequest,
+} from "./ci-test-shard.js";
+import {
+  MAX_SOAK_TEST_TIMEOUT_MS,
+  listSoakTestFiles,
+  soakMultiplier,
+  soakTestArguments,
+} from "./verification-soak.js";
+import { QUINT_CI_SHARD_COUNT, assignQuintWorkShards, readQuintModels } from "./verification-tools.js";
+import { assertProperty } from "../src/test-support.js";
+
+const CHECKER_CACHE_SAVE_IF = "github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && steps.checker_downloads.outputs.cache-hit != 'true'";
+const CHECKER_CACHE_PATH = "~/.cache/ghostget-verification/downloads";
+
+const repositoryRoot = fileURLToPath(new URL("..", import.meta.url));
+const packageManifestUrl = new URL("../package.json", import.meta.url);
+const ciWorkflowUrl = new URL("../.github/workflows/ci.yml", import.meta.url);
+
+describe("PR CI test shards", () => {
+  test("rejects malformed shard requests and extra fields", () => {
+    expect(() => parseShardRequest(null)).toThrow("one object");
+    expect(() => parseShardRequest({ shard: 1 })).toThrow("shard and shardCount");
+    expect(() => parseShardRequest({ shard: 1, shardCount: 4, extra: true })).toThrow(
+      "unexpected field extra",
+    );
+    expect(() => parseShardRequest({ shard: 0, shardCount: 4 })).toThrow("shard");
+    expect(() => parseShardRequest({ shard: 5, shardCount: 4 })).toThrow("outside");
+    expect(() => parseShardRequest({ shard: 1, shardCount: 17 })).toThrow("shardCount");
+    expect(() => parseShardRequest({ shard: "01", shardCount: 4 })).toThrow("shard");
+    expect(parseShardRequest({ shard: "2", shardCount: "4" })).toEqual({
+      concurrency: 4,
+      shard: 2,
+      shardCount: 4,
+    });
+    expect(parseShardRequest({
+      concurrency: "8",
+      shard: 1,
+      shardCount: 4,
+    })).toEqual({
+      concurrency: 8,
+      shard: 1,
+      shardCount: 4,
+    });
+  });
+
+  test("lists every src unit test except the serialized omni runtime file", async () => {
+    const files = await listSrcUnitTestFiles(repositoryRoot);
+    expect(files.includes("src/omni-runtime.test.ts")).toBeFalse();
+    expect(files.includes("src/messaging-runtime-execution.test.ts")).toBeTrue();
+    expect(files.includes("src/media/http.integration.test.ts")).toBeTrue();
+    expect(files.every((file) => isSrcUnitTestFile(file))).toBeTrue();
+    expect(new Set(files).size).toBe(files.length);
+  });
+
+  test("packs the CI shards into a disjoint cover of the unit inventory", async () => {
+    const files = await listSrcUnitTestFiles(repositoryRoot);
+    const shards = assignUnitTestShards(files, CI_UNIT_TEST_SHARD_COUNT);
+    expect(shards).toHaveLength(CI_UNIT_TEST_SHARD_COUNT);
+    const combined = shards.flat();
+    expect([...combined].sort((left, right) => left.localeCompare(right))).toEqual([...files]);
+    expect(new Set(combined).size).toBe(files.length);
+    for (const [index, shard] of shards.entries()) {
+      expect(shard.length).toBeGreaterThan(0);
+      expect(await filesForShard(repositoryRoot, {
+        concurrency: 4,
+        shard: index + 1,
+        shardCount: CI_UNIT_TEST_SHARD_COUNT,
+      })).toEqual(shard);
+    }
+    const weights = shards.map((shard) =>
+      shard.reduce((sum, file) => sum + fileWeight(file), 0)
+    );
+    const heaviest = Math.max(...weights);
+    const lightest = Math.min(...weights);
+    expect(heaviest - lightest).toBeLessThanOrEqual(fileWeight("src/messaging-runtime-execution.test.ts"));
+    expect(bunUnitTestArguments(shards[0] ?? [], 4)).toContain("--no-orphans");
+    expect(() => bunUnitTestArguments([], 4)).toThrow("without files");
+  });
+
+  test("property: shard assignment is a deterministic partition", async () => {
+    const files = await listSrcUnitTestFiles(repositoryRoot);
+    assertProperty(
+      fc.property(fc.integer({ min: 1, max: 8 }), (shardCount) => {
+        const first = assignUnitTestShards(files, shardCount);
+        const second = assignUnitTestShards(files, shardCount);
+        expect(first).toEqual(second);
+        expect(first.flat().sort((left, right) => left.localeCompare(right))).toEqual([...files]);
+        expect(new Set(first.flat()).size).toBe(files.length);
+        expect(first.every((shard) => shard.length > 0)).toBeTrue();
+      }),
+      { numRuns: 32 },
+    );
+  });
+});
+
+describe("macOS PR check subset", () => {
+  test("keeps every darwin-owned file and the iMessage installer canary", async () => {
+    await assertMacosCheckFilesExist(repositoryRoot);
+    expect(MACOS_TEST_FILES).toContain("src/apple-photos-local-source.test.ts");
+    expect(MACOS_TEST_FILES).toContain("src/imessage-direct-plugin.test.ts");
+    expect(MACOS_TEST_FILES).toContain("src/provider-plugin-host.test.ts");
+    // The darwin-arm64 bundled-runtime install test skips on Linux runners.
+    expect(MACOS_TEST_FILES).toContain("src/providers/messaging-native-install.test.ts");
+    expect(MACOS_PATTERNED_TESTS).toEqual([
+      {
+        file: "src/ghostget.test.ts",
+        testNamePattern:
+          "keeps public iMessage installer filesystem failures prompt and path-free",
+      },
+    ]);
+    const invocations = macosCheckInvocations(4);
+    expect(invocations[0]).toEqual([
+      "test",
+      "--no-orphans",
+      "--timeout",
+      "180000",
+      "--max-concurrency",
+      "4",
+      ...MACOS_TEST_FILES,
+      ...MACOS_MEDIA_TEST_FILES,
+    ]);
+    expect(invocations[1]).toContain("--test-name-pattern");
+    expect(invocations[1]).toContain("src/ghostget.test.ts");
+  });
+
+  test("runs the media process-group, lock, and durability files so F_FULLFSYNC runs on macOS", async () => {
+    await assertMacosCheckFilesExist(repositoryRoot);
+    expect(MACOS_MEDIA_TEST_FILES).toEqual([
+      "src/media/lock.property.test.ts",
+      "src/media/lock.test.ts",
+      "src/media/manifest-durability.test.ts",
+      "src/media/process-group.test.ts",
+      "src/media/process-parent-exit.test.ts",
+    ]);
+    expect(MACOS_MEDIA_TEST_FILES.some((file) => MACOS_TEST_FILES.includes(file))).toBeFalse();
+    const durability = await readFile(new URL("../src/media/manifest-durability.test.ts", import.meta.url), "utf8");
+    expect(durability).toContain("test.skipIf(process.platform !== \"darwin\")(\"issues F_FULLFSYNC");
+  });
+
+  test("checks the CLI and shared-foundation menu while excluding desktop packaging", async () => {
+    const workflow = Bun.YAML.parse(await readFile(ciWorkflowUrl, "utf8")) as { jobs: { macos: { steps: { run?: string }[] }; required: { needs: string[] } } };
+    const manifest = JSON.parse(await readFile(packageManifestUrl, "utf8")) as { scripts: Record<string, string> };
+    const steps = workflow.jobs.macos.steps;
+    expect(steps.some(step => step.run === "bun run check:macos")).toBeTrue();
+    expect(steps.some(step => (step.run ?? "").includes("swift"))).toBeFalse();
+    expect(steps.some(step => (step.run ?? "").includes("menubar:check"))).toBeFalse();
+    expect(steps.some(step => (step.run ?? "").includes("desktop"))).toBeFalse();
+    expect(Object.keys(manifest.scripts).some(name => name.startsWith("desktop") || name.startsWith("menubar:"))).toBeFalse();
+    expect(workflow.jobs.required.needs).toContain("macos");
+  });
+});
+
+describe("complete local and release check composition", () => {
+  test("records the aligned toolchain in every source job before frozen installation", async () => {
+    type Step = { name?: string; uses?: string; if?: unknown; "continue-on-error"?: unknown; run?: string; with?: Record<string, unknown> };
+    type Job = { name: string; "runs-on": string; "timeout-minutes": number; if?: unknown; "continue-on-error"?: unknown; strategy?: unknown; steps: Step[] };
+    type Workflow = { jobs: Record<string, Job> };
+    const workflow = Bun.YAML.parse(await readFile(ciWorkflowUrl, "utf8")) as Workflow;
+    const sourceJobs = {
+      static: ["static", "ubuntu-latest", 15],
+      package: ["package", "ubuntu-latest", 20],
+      test: [`test \${{ matrix.shard }}/${String(CI_UNIT_TEST_SHARD_COUNT)}`, "ubuntu-latest", 25],
+      "test-omni": ["test-omni", "ubuntu-latest", 25],
+      standalone: ["standalone", "ubuntu-latest", 20],
+      macos: ["macOS", "macos-15", 45],
+      verification: ["verification", "ubuntu-latest", 30],
+      quint: [`quint \${{ matrix.shard }}/${String(QUINT_CI_SHARD_COUNT)}`, "ubuntu-latest", 45],
+    } as const;
+    const shardList = (count: number): number[] => Array.from({ length: count }, (_, index) => index + 1);
+    const expectedNode = {
+      uses: "actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38",
+      with: { "node-version": "24.20.0", "registry-url": "https://registry.npmjs.org", "package-manager-cache": false },
+    };
+    const expectedBun = {
+      uses: "oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6",
+      with: { "bun-version": "1.3.14" },
+    };
+    const expectedPin = {
+      name: "Pin npm",
+      run: [
+        "set -euo pipefail",
+        "npm install --global npm@11.19.0 \\",
+        "  --ignore-scripts \\",
+        "  --registry=https://registry.npmjs.org",
+        'test "$(npm --version)" = "11.19.0"',
+        "node -p 'JSON.stringify({ node: process.version, zlib: process.versions.zlib, platform: process.platform, arch: process.arch })'",
+        "",
+      ].join("\n"),
+    };
+    const record = { name: "Record exact source CI identity", run: "bun run ./scripts/release-source-ci.ts record" };
+    const install = { run: "bun install --frozen-lockfile --ignore-scripts" };
+    // The one admitted step condition: the last step of a verification or
+    // quint job only uploads checker output, and `always()` keeps that output
+    // from a failed or timed-out check. It can run more often, never gate or
+    // skip a check.
+    const retainsOutput = (id: string, step: Step, index: number, length: number): boolean =>
+      (id === "verification" || id === "quint") && index === length - 1 && step.if === "always()"
+      && step.run === undefined && step.uses?.startsWith("actions/upload-artifact@") === true;
+    // The other admitted condition: `static` alone saves the Bun package
+    // cache, only on a push to main. A save runs no check, so its condition
+    // cannot gate or skip one; pull-request jobs only restore.
+    const savesPackageCache = (id: string, step: Step): boolean =>
+      id === "static" && step.if === "github.event_name == 'push'"
+      && step.run === undefined && step.uses?.startsWith("actions/cache/save@") === true;
+    // Saving admitted downloads is auxiliary: no executable check may inherit
+    // this main-only cache condition, and retained diagnostics stay last.
+    const savesCheckerCache = (id: string, step: Step): boolean =>
+      (id === "verification" || id === "quint") && step.if === CHECKER_CACHE_SAVE_IF
+      && step.run === undefined && step.uses?.startsWith("actions/cache/save@") === true
+      && step.with?.path === CHECKER_CACHE_PATH;
+    const validate = (candidate: Workflow): void => {
+      if (!isDeepStrictEqual(Object.keys(candidate.jobs).sort(), [...Object.keys(sourceJobs), "required"].sort())) {
+        throw new Error("Source CI job inventory changed");
+      }
+      for (const [id, metadata] of Object.entries(sourceJobs)) {
+        const job = candidate.jobs[id];
+        if (job === undefined || !isDeepStrictEqual([job.name, job["runs-on"], job["timeout-minutes"]], metadata)
+          || job.if !== undefined || job["continue-on-error"] !== undefined
+          || job.steps.some((step, index) => (step.if !== undefined && !retainsOutput(id, step, index, job.steps.length)
+            && !savesPackageCache(id, step) && !savesCheckerCache(id, step))
+            || step["continue-on-error"] !== undefined)) {
+          throw new Error(`Source CI job ${id} is conditional or changed its execution boundary`);
+        }
+        const findOne = (predicate: (step: Step) => boolean, expected: Step): number => {
+          const indices = job.steps.flatMap((step, index) => predicate(step) ? [index] : []);
+          if (indices.length !== 1 || !isDeepStrictEqual(job.steps[indices[0]!], expected)) {
+            throw new Error(`Source CI job ${id} changed a required setup or identity step`);
+          }
+          return indices[0]!;
+        };
+        const nodeIndex = findOne(step => step.uses?.startsWith("actions/setup-node@") === true, expectedNode);
+        const bunIndex = findOne(step => step.uses?.startsWith("oven-sh/setup-bun@") === true, expectedBun);
+        const pinIndex = findOne(step => step.name === expectedPin.name, expectedPin);
+        const recordIndex = findOne(step => step.name === record.name || step.run?.includes("release-source-ci.ts") === true, record);
+        const installIndex = findOne(step => step.run?.includes("bun install") === true, install);
+        if (nodeIndex >= pinIndex || Math.max(nodeIndex, bunIndex, pinIndex) >= recordIndex || recordIndex + 1 !== installIndex) {
+          throw new Error(`Source CI job ${id} records before setup or after installation`);
+        }
+      }
+      if (!isDeepStrictEqual(candidate.jobs.test?.strategy, { "fail-fast": false, matrix: { shard: shardList(CI_UNIT_TEST_SHARD_COUNT) } })) {
+        throw new Error("Source CI no longer expands to every unit-test shard");
+      }
+      if (!isDeepStrictEqual(candidate.jobs.quint?.strategy, { "fail-fast": false, matrix: { shard: shardList(QUINT_CI_SHARD_COUNT) } })) {
+        throw new Error("Source CI no longer expands to every Quint model shard");
+      }
+    };
+    expect(() => validate(workflow)).not.toThrow();
+    const mutations: ((candidate: Workflow) => void)[] = [
+      candidate => { delete candidate.jobs.macos; },
+      candidate => { delete candidate.jobs.verification; },
+      candidate => { candidate.jobs.verification!["timeout-minutes"] = 360; },
+      candidate => { candidate.jobs.test!.strategy = { "fail-fast": false, matrix: { shard: [1, 2, 3] } }; },
+      candidate => { candidate.jobs.quint!.strategy = { "fail-fast": false, matrix: { shard: [1, 2, 3] } }; },
+      candidate => { delete candidate.jobs.quint; },
+      candidate => { candidate.jobs.quint!.if = "github.event_name == 'push'"; },
+      candidate => { candidate.jobs.static!["timeout-minutes"] = 5; },
+      candidate => { candidate.jobs.static!.if = "always()"; },
+      candidate => { candidate.jobs.static!["continue-on-error"] = true; },
+      candidate => { candidate.jobs.static!.steps.find(step => step.uses?.startsWith("actions/setup-node@"))!.with!["node-version"] = "24"; },
+      candidate => { candidate.jobs.static!.steps.find(step => step.uses?.startsWith("oven-sh/setup-bun@"))!.with!["bun-version"] = "latest"; },
+      candidate => { candidate.jobs.static!.steps.find(step => step.name === expectedPin.name)!.run = "npm install --global npm@latest"; },
+      candidate => { candidate.jobs.static!.steps = candidate.jobs.static!.steps.filter(step => step.name !== record.name); },
+      candidate => { candidate.jobs.static!.steps.push({ ...record }); },
+      candidate => { candidate.jobs.static!.steps.find(step => step.name === record.name)!.if = "always()"; },
+      candidate => { candidate.jobs.static!.steps.find(step => step.name === record.name)!["continue-on-error"] = true; },
+      candidate => { candidate.jobs.static!.steps.find(step => step.name === record.name)!.run = `${record.run} || true`; },
+      candidate => { const steps = candidate.jobs.static!.steps; const index = steps.findIndex(step => step.name === record.name); steps.splice(1, 0, ...steps.splice(index, 1)); },
+      candidate => { const steps = candidate.jobs.static!.steps; const index = steps.findIndex(step => step.name === record.name); steps.push(...steps.splice(index, 1)); },
+      candidate => { candidate.jobs.verification!.steps.find(step => step.run === "bun run verify:claims")!.if = "always()"; },
+      candidate => { candidate.jobs.quint!.steps.find(step => step.run?.includes("verification-tools.ts quint") === true)!.if = "always()"; },
+      candidate => { candidate.jobs.quint!.steps.at(-1)!.if = "success() || failure()"; },
+      candidate => { candidate.jobs.verification!.steps.at(-1)!.if = "success() || failure()"; },
+      candidate => { candidate.jobs.static!.steps.find(step => step.uses?.startsWith("actions/cache/save@") === true)!.if = "always()"; },
+      candidate => { candidate.jobs.static!.steps.find(step => step.uses?.startsWith("actions/cache/save@") === true)!.run = "true"; },
+      candidate => { candidate.jobs.verification!.steps.find(step => step.uses?.startsWith("actions/cache/save@"))!.if = "always()"; },
+      candidate => { candidate.jobs.quint!.steps.find(step => step.uses?.startsWith("actions/cache/save@"))!.run = "true"; },
+      candidate => { candidate.jobs.verification!.steps.find(step => step.uses?.startsWith("actions/cache/save@"))!.with!.path = "~/.aws"; },
+      candidate => { candidate.jobs.static!.steps.find(step => step.run === "bun run check:static")!.if = "github.event_name == 'push'"; },
+      candidate => { candidate.jobs.package!.steps.push({ ...candidate.jobs.static!.steps.find(step => step.uses?.startsWith("actions/cache/save@") === true)! }); },
+      candidate => { candidate.jobs.verification!.steps.at(-1)!.run = "true"; },
+      candidate => { const steps = candidate.jobs.verification!.steps; steps.splice(steps.length - 2, 0, steps.pop()!); },
+      candidate => { candidate.jobs.static!.steps.push({ ...candidate.jobs.verification!.steps.at(-1)! }); },
+    ];
+    for (const mutate of mutations) {
+      const changed = structuredClone(workflow);
+      mutate(changed);
+      expect(() => validate(changed)).toThrow();
+    }
+  });
+
+  test("checks the release npm compressor and strict archive parser before tagging", async () => {
+    type Step = { name?: string; uses?: string; if?: unknown; "continue-on-error"?: unknown; run?: string; with?: Record<string, unknown> };
+    type Job = { if?: unknown; "continue-on-error"?: unknown; needs?: string[]; steps: Step[] };
+    type Workflow = { jobs: Record<string, Job> };
+    const [ciSource, releaseSource] = await Promise.all([
+      readFile(ciWorkflowUrl, "utf8"),
+      readFile(new URL("../.github/workflows/release.yml", import.meta.url), "utf8"),
+    ]);
+    const ci = Bun.YAML.parse(ciSource) as Workflow;
+    const release = Bun.YAML.parse(releaseSource) as Workflow;
+    const packageJob = ci.jobs.package;
+    const releaseJob = release.jobs.verify;
+    if (packageJob === undefined || releaseJob === undefined) throw new Error("Missing package gate");
+    const node = (job: Job) => job.steps.find(step => step.uses?.startsWith("actions/setup-node@"));
+    const pin = (job: Job) => job.steps.find(step => step.name === "Pin npm");
+    expect(node(packageJob)).toEqual(node(releaseJob));
+    expect(node(packageJob)?.with).toEqual({
+      "node-version": "24.20.0",
+      "registry-url": "https://registry.npmjs.org",
+      "package-manager-cache": false,
+    });
+    expect(pin(packageJob)).toEqual(pin(releaseJob));
+    expect(pin(packageJob)?.run).toContain('test "$(npm --version)" = "11.19.0"');
+    expect(packageJob.if).toBeUndefined();
+    expect(packageJob["continue-on-error"]).toBeUndefined();
+    expect(packageJob.steps.every(step => step.if === undefined)).toBeTrue();
+    expect(packageJob.steps.every(step => step["continue-on-error"] === undefined)).toBeTrue();
+    const packed = packageJob.steps.find(step => step.name === "Check the canonical npm archive before tagging");
+    const packing = 'npm pack --ignore-scripts --json --pack-destination "$directory" \\\n  --registry=https://registry.npmjs.org > "$directory/npm-pack.json"';
+    if (packed === undefined) throw new Error("Missing canonical npm archive step");
+    expect(packed.run).toContain(packing);
+    expect(releaseJob.steps.find(step => step.name === "Prepare and install the exact canonical archive")?.run)
+      .toContain(packing);
+    expect(packed?.run).toContain('bun run ./scripts/package-artifact.ts "$directory/hraness-ghostget-$package_version.tgz"');
+    expect(packed.run).toBe([
+      "set -euo pipefail",
+      'directory="$(mktemp -d "$RUNNER_TEMP/ghostget-canonical-ci.XXXXXX")"',
+      'package_version="$(node -p \'require("./package.json").version\')"',
+      packing,
+      'cat "$directory/npm-pack.json"',
+      'bun run ./scripts/package-artifact.ts "$directory/hraness-ghostget-$package_version.tgz"',
+      'DIRECTORY="$directory" PACKAGE_VERSION="$package_version" bun --eval \'',
+      '  import { prepareReleaseDirectory } from "./scripts/github-release-artifact.ts";',
+      '  await prepareReleaseDirectory(process.env.DIRECTORY, {',
+      '    tag: `v${process.env.PACKAGE_VERSION}`, sourceSha: "0".repeat(40), workflowSha: "0".repeat(40), runId: 1, runAttempt: 1,',
+      '  });',
+      '  console.log("Synthetic canonical preparation passed; no release authority or provenance.");',
+      "'",
+      "",
+    ].join("\n"));
+    expect(packageJob.steps.indexOf(packed)).toBeGreaterThan(
+      packageJob.steps.findIndex(step => step.run === "bun run check:package"),
+    );
+    expect(ci.jobs.required?.needs).toContain("package");
+  });
+
+  test("keeps bun run check as the sequential union of the PR jobs", async () => {
+    const manifest = JSON.parse(await readFile(packageManifestUrl, "utf8")) as {
+      readonly scripts?: Record<string, string>;
+    };
+    expect(manifest.scripts?.["check:static"]).toBe(
+      "bun run typecheck && bun run check:effect && bun run website:check && bun run test:npm-release",
+    );
+    expect(manifest.scripts?.["check:package"]).toBe(
+      "bun run build && bun run check:private-boundary && bun run test:package",
+    );
+    expect(manifest.scripts?.["test:unit"]).toContain("./src");
+    expect(manifest.scripts?.["test:unit"]).toContain("omni-runtime.test.ts");
+    expect(manifest.scripts?.["test:omni"]).toContain("./src/omni-runtime.test.ts");
+    expect(manifest.scripts?.test).toBe("bun run test:unit && bun run test:omni");
+    expect(manifest.scripts?.check).toBe(
+      "bun run check:cost-surfaces && bun run check:static && bun run check:package && bun run test"
+      + " && bun run test:standalone && bun run verify",
+    );
+    expect(manifest.scripts?.verify).toBe("bun run verify:claims && bun run verify:quint && bun run verify:lean && bun run verify:oracles");
+    expect(manifest.scripts?.["check:macos"]).toBe("bun run ./scripts/ci-macos-check.ts");
+    expect(manifest.scripts?.["test:shard"]).toBe("bun run ./scripts/ci-test-shard.ts");
+    expect(manifest.scripts?.["test:npm-release"]).toBe(
+      "bun test --no-orphans --timeout 45000 --max-concurrency 1"
+      + " ./scripts/release-ref-authority.test.ts ./scripts/npm-release-workflow.test.ts"
+      + " ./scripts/github-release-artifact.test.ts ./scripts/ci-pr-gate.test.ts"
+      // The release publisher, census, Latest, and npm rerun models.
+      + " ./scripts/release-provider-outcome.test.ts ./scripts/github-release-publish-model.test.ts"
+      + " ./scripts/npm-publish-model.test.ts",
+    );
+  });
+
+  test("PR CI shards the complete Linux gate and keeps Required as the merge job", async () => {
+    const workflow = await readFile(ciWorkflowUrl, "utf8");
+    expect(workflow).toContain("bun run check:static");
+    expect(workflow).toContain("bun run check:package");
+    expect(workflow).toContain("bun run test:omni");
+    expect(workflow).toContain("bun run test:standalone");
+    expect(workflow).toContain("bun run check:macos");
+    expect(workflow).toContain("bun run ./scripts/ci-test-shard.ts");
+    expect(workflow).not.toMatch(/^      - run: bun run check$/gmu);
+    expect(workflow).toContain("needs: [static, package, test, test-omni, standalone, macos, verification, quint]");
+    expect(workflow.match(/^      - run: bun run verify$/gmu) ?? []).toHaveLength(0);
+    for (const phase of ["verify:claims", "verify:lean", "verify:oracles"]) {
+      expect(workflow.match(new RegExp(`^      - run: bun run ${phase}$`, "gmu"))).toHaveLength(1);
+    }
+    expect(workflow).toContain(`shard: [${Array.from({ length: QUINT_CI_SHARD_COUNT }, (_, index) => index + 1).join(", ")}]`);
+    expect(workflow.match(new RegExp(
+      `^      - run: bun run \\./scripts/verification-tools\\.ts quint \\$\\{\\{ matrix\\.shard \\}\\} ${String(QUINT_CI_SHARD_COUNT)}$`,
+      "gmu",
+    ))).toHaveLength(1);
+    // Every model's core, replay, and each mutant's Apalache check land in
+    // exactly one shard, so the matrix checks what verify:quint checks.
+    const models = await readQuintModels(repositoryRoot);
+    const shards = assignQuintWorkShards(models, QUINT_CI_SHARD_COUNT);
+    expect(shards).toHaveLength(QUINT_CI_SHARD_COUNT);
+    expect(shards.every((shard) => shard.length > 0)).toBe(true);
+    const units = shards.flat();
+    expect(units.filter((unit) => unit.core).map((unit) => unit.model.file).sort()).toEqual(models.map((model) => model.file).sort());
+    expect(units.filter((unit) => unit.replay).map((unit) => unit.model.file).sort()).toEqual(models.map((model) => model.file).sort());
+    expect(units.flatMap((unit) => unit.mutants.map((mutant) => `${unit.model.file} ${mutant.step} ${mutant.invariant}`)).sort())
+      .toEqual(models.flatMap((model) => model.mutants.map((mutant) => `${model.file} ${mutant.step} ${mutant.invariant}`)).sort());
+    // fence.qnt's fenceSafety check is the slowest single check; it runs alone.
+    const fenceShard = shards.find((shard) => shard.some((unit) => unit.core && unit.model.file === "fence.qnt"))!;
+    expect(fenceShard).toHaveLength(1);
+    expect(fenceShard[0]!.replay).toBeFalse();
+    expect(fenceShard[0]!.mutants).toEqual([]);
+    expect(workflow).toContain(`shard: [${Array.from({ length: CI_UNIT_TEST_SHARD_COUNT }, (_, index) =>
+      index + 1
+    ).join(", ")}]`);
+    expect(workflow).toContain(
+      `bun run ./scripts/ci-test-shard.ts \${{ matrix.shard }} ${String(CI_UNIT_TEST_SHARD_COUNT)}`,
+    );
+    for (const entrypoint of [
+      "dist/index.js",
+      "dist/client.js",
+      "dist/beeper-client.js",
+      "dist/apple-photos-client.js",
+      "dist/whatsapp-client.js",
+      "dist/omni-client.js",
+      "dist/messaging.js",
+      "dist/messaging-automation-api.js",
+    ] as const) {
+      expect(workflow).toContain(entrypoint);
+    }
+    expect(workflow).toContain("git status --porcelain --untracked-files=all -- dist bun.lock");
+  });
+});
+
+const NPM_RELEASE_ENVIRONMENT = "npm-release";
+const NPM_RELEASE_OWNER = { file: "release.yml", job: "publish_npm" } as const;
+// GitHub environment names are case-insensitive, so `NPM-Release` selects the
+// same protected environment and must count as a reference.
+const NPM_RELEASE_TOKEN = /(?<![\w./-])npm-release(?![\w./-])/giu;
+
+const workflowsUrl = new URL("../.github/workflows/", import.meta.url);
+const agentsUrl = new URL("../AGENTS.md", import.meta.url);
+
+type WorkflowSource = { readonly file: string; readonly source: string };
+
+function environmentName(environment: unknown): unknown {
+  if (typeof environment === "object" && environment !== null && !Array.isArray(environment)) {
+    return (environment as { name?: unknown }).name;
+  }
+  return environment;
+}
+
+function namesNpmRelease(environment: unknown): boolean {
+  const name = environmentName(environment);
+  return typeof name === "string" && name.toLowerCase() === NPM_RELEASE_ENVIRONMENT;
+}
+
+function isComputedEnvironment(environment: unknown): boolean {
+  const name = environmentName(environment);
+  return typeof name === "string" && name.includes("${{");
+}
+
+function isOwner(file: string, job: string): boolean {
+  return file === NPM_RELEASE_OWNER.file && job === NPM_RELEASE_OWNER.job;
+}
+
+/**
+ * Return every place outside `release.yml` `publish_npm` that names the
+ * `npm-release` environment. A textual mention that no job environment
+ * accounts for is also a violation, so reusable-workflow inputs, expressions,
+ * and step-level references cannot hide a second consumer. Names compare
+ * case-insensitively, as GitHub resolves them, and a job environment built
+ * from an expression is rejected because the scan cannot resolve it.
+ */
+function npmReleaseViolations(workflows: readonly WorkflowSource[]): readonly string[] {
+  const violations: string[] = [];
+  let ownerReferences = 0;
+  for (const { file, source } of workflows) {
+    const parsed = Bun.YAML.parse(source) as { jobs?: Record<string, { environment?: unknown }> } | null;
+    let structured = 0;
+    for (const [job, definition] of Object.entries(parsed?.jobs ?? {})) {
+      if (isComputedEnvironment(definition?.environment)) {
+        violations.push(`${file} job ${job} computes its environment name`);
+        continue;
+      }
+      if (!namesNpmRelease(definition?.environment)) continue;
+      structured += 1;
+      if (isOwner(file, job)) {
+        ownerReferences += 1;
+      } else {
+        violations.push(`${file} job ${job} references ${NPM_RELEASE_ENVIRONMENT}`);
+      }
+    }
+    const textual = source.match(NPM_RELEASE_TOKEN)?.length ?? 0;
+    if (textual > structured) {
+      violations.push(`${file} mentions ${NPM_RELEASE_ENVIRONMENT} ${String(textual - structured)} time(s) outside a job environment`);
+    }
+  }
+  if (ownerReferences !== 1) {
+    violations.push(`${NPM_RELEASE_OWNER.file} job ${NPM_RELEASE_OWNER.job} must reference ${NPM_RELEASE_ENVIRONMENT} exactly once`);
+  }
+  return violations;
+}
+
+async function checkedInWorkflows(): Promise<readonly WorkflowSource[]> {
+  const entries = await readdir(workflowsUrl, { withFileTypes: true });
+  const files = entries
+    .filter((entry) => entry.isFile() && /\.ya?ml$/u.test(entry.name))
+    .map((entry) => entry.name)
+    .sort((left, right) => left.localeCompare(right));
+  return Promise.all(files.map(async (file) => ({
+    file,
+    source: await readFile(new URL(file, workflowsUrl), "utf8"),
+  })));
+}
+
+describe("npm-release environment scan", () => {
+  test("only release.yml publish_npm references npm-release across every workflow", async () => {
+    const workflows = await checkedInWorkflows();
+    expect(workflows.map(({ file }) => file)).toContain(NPM_RELEASE_OWNER.file);
+    expect(npmReleaseViolations(workflows)).toEqual([]);
+  });
+
+  test("rejects a second job, a second workflow, an object form, and a textual mention", () => {
+    const owner = {
+      file: "release.yml",
+      source: "jobs:\n  publish_npm:\n    environment: npm-release\n",
+    };
+    expect(npmReleaseViolations([owner])).toEqual([]);
+    expect(npmReleaseViolations([{
+      file: "release.yml",
+      source: `${owner.source}  publish:\n    environment:\n      name: npm-release\n`,
+    }])).toEqual(["release.yml job publish references npm-release"]);
+    expect(npmReleaseViolations([owner, {
+      file: "ci.yml",
+      source: "jobs:\n  test:\n    environment: npm-release\n",
+    }])).toEqual(["ci.yml job test references npm-release"]);
+    expect(npmReleaseViolations([owner, {
+      file: "nightly.yml",
+      source: "jobs:\n  call:\n    uses: ./.github/workflows/x.yml\n    with:\n      target: npm-release\n",
+    }])).toEqual(["nightly.yml mentions npm-release 1 time(s) outside a job environment"]);
+    expect(npmReleaseViolations([owner, {
+      file: "ci.yml",
+      source: "jobs:\n  test:\n    environment: NPM-Release\n",
+    }])).toEqual(["ci.yml job test references npm-release"]);
+    expect(npmReleaseViolations([owner, {
+      file: "ci.yml",
+      source: "jobs:\n  test:\n    environment: npm-${{ 'release' }}\n",
+    }])).toEqual(["ci.yml job test computes its environment name"]);
+    expect(npmReleaseViolations([{ file: "release.yml", source: "jobs:\n  publish_npm: {}\n" }]))
+      .toEqual(["release.yml job publish_npm must reference npm-release exactly once"]);
+  });
+
+  test("property: the scan passes exactly when publish_npm is the sole npm-release consumer", () => {
+    const environment = fc.constantFrom<unknown>(
+      undefined,
+      NPM_RELEASE_ENVIRONMENT,
+      { name: NPM_RELEASE_ENVIRONMENT },
+      "NPM-Release",
+      { name: "Npm-Release" },
+      "production-ref-writer-key",
+      { name: "production" },
+    );
+    const jobs = fc.dictionary(
+      fc.constantFrom("publish_npm", "publish", "verify", "attest", "promote"),
+      fc.record({ environment }, { requiredKeys: [] }),
+    );
+    const workflows = fc.dictionary(
+      fc.constantFrom("release.yml", "ci.yml", "auto-tag.yml", "nightly.yml"),
+      jobs,
+      { minKeys: 1 },
+    );
+    assertProperty(fc.property(workflows, (generated) => {
+      const sources = Object.entries(generated).map(([file, jobMap]) => ({
+        file,
+        source: JSON.stringify({ jobs: jobMap }, null, 2),
+      }));
+      const references = Object.entries(generated).flatMap(([file, jobMap]) =>
+        Object.entries(jobMap)
+          .filter(([, job]) => {
+            const name = environmentName(job.environment);
+            return typeof name === "string" && name.toLowerCase() === NPM_RELEASE_ENVIRONMENT;
+          })
+          .map(([job]) => ({ file, job }))
+      );
+      const sole = references.length === 1 && references.every(({ file, job }) => isOwner(file, job));
+      expect(npmReleaseViolations(sources).length === 0).toBe(sole);
+    }));
+  });
+});
+
+describe("AGENTS.md control-plane ruleset readback", () => {
+  test("names all four live tag rulesets", async () => {
+    const agents = await readFile(agentsUrl, "utf8");
+    const readback = agents.split("\n").find((line) => line.startsWith("- At setup, after any control change, and during drift recovery"));
+    expect(readback).toBeDefined();
+    expect(readback).not.toContain("two exact active repository tag rulesets");
+    expect(readback).toContain("all four active repository tag rulesets");
+    for (const pattern of ["`refs/tags/v*`", "`refs/tags/desktop-v*-macos-arm64`"]) {
+      expect(readback).toContain(pattern);
+    }
+    for (const id of ["25394610", "25394591", "25395297", "25395313"]) {
+      expect(readback).toContain(`\`${id}\``);
+    }
+  });
+});
+
+const nightlyWorkflowUrl = new URL("../.github/workflows/verification-nightly.yml", import.meta.url);
+const NIGHTLY_SOAK_SHARDS = 6;
+
+describe("nightly verification workflow", () => {
+  type Step = { id?: string; name?: string; uses?: string; if?: unknown; run?: string; with?: Record<string, unknown>; env?: Record<string, unknown>; "timeout-minutes"?: number };
+  type Job = { name?: string; permissions?: unknown; environment?: unknown; needs?: unknown; if?: unknown; "continue-on-error"?: unknown; "timeout-minutes"?: number; strategy?: unknown; steps: Step[] };
+  type Workflow = { name?: string; on?: Record<string, unknown>; permissions?: unknown; concurrency?: unknown; jobs: Record<string, Job> };
+  const PINNED_ACTION = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)?@[0-9a-f]{40}$/u;
+  const COMMANDS = {
+    "quint-nightly": "bun run ./scripts/verification-tools.ts quint-nightly",
+    "property-soak": `bun run ./scripts/verification-soak.ts \${{ matrix.shard }} ${String(NIGHTLY_SOAK_SHARDS)}`,
+    mutants: "bun run ./scripts/verification-mutants.ts",
+    provenance: "bun run ./scripts/messaging-runtime-provenance.ts nightly",
+  } as const;
+
+  /**
+   * Throw unless the nightly workflow stays read-only, scheduled or manual,
+   * SHA-pinned, credential-free, and outside `Required`, and unless it runs
+   * each deeper check once with the CI toolchain and checker cache.
+   */
+  function validateNightly(candidate: Workflow, ci: Workflow): void {
+    if (!isDeepStrictEqual(Object.keys(candidate.on ?? {}).sort(), ["schedule", "workflow_dispatch"])) {
+      throw new Error("the nightly workflow must run only on a schedule or by manual dispatch");
+    }
+    if (!isDeepStrictEqual(candidate.permissions, { contents: "read" })) {
+      throw new Error("the nightly workflow must hold only contents: read");
+    }
+    if (!isDeepStrictEqual(Object.keys(candidate.jobs).sort(), [...Object.keys(COMMANDS), "report"].sort())) {
+      throw new Error("the nightly job inventory changed");
+    }
+    validateNightlyReport(candidate.jobs.report!);
+    const ciVerification = ci.jobs.verification;
+    const ciRequired = ci.jobs.required;
+    if (ciVerification === undefined || ciRequired === undefined) throw new Error("ci.yml lost its verification or Required job");
+    const ciStep = (prefix: string): Step | undefined => ciVerification.steps.find((step) => step.uses?.startsWith(prefix) === true);
+    const needs = Array.isArray(ciRequired.needs) ? ciRequired.needs as unknown[] : [];
+    for (const [id, job] of Object.entries(candidate.jobs)) {
+      if (id === "report") continue;
+      if (job.permissions !== undefined || job.environment !== undefined || job.if !== undefined
+        || job["continue-on-error"] !== undefined || job.needs !== undefined) {
+        throw new Error(`nightly job ${id} widens permissions, selects an environment, or changes its execution boundary`);
+      }
+      if (typeof job.name !== "string" || /required/iu.test(job.name) || needs.includes(id)) {
+        throw new Error(`nightly job ${id} is named or needed like Required`);
+      }
+      if (typeof job["timeout-minutes"] !== "number" || job["timeout-minutes"] > 360) {
+        throw new Error(`nightly job ${id} has no bounded timeout`);
+      }
+      for (const step of job.steps) {
+        if (step.uses !== undefined && !PINNED_ACTION.test(step.uses)) {
+          throw new Error(`nightly job ${id} uses an action that is not pinned to a full commit`);
+        }
+        if (step.uses?.startsWith("actions/checkout@") === true && step.with?.["persist-credentials"] !== false) {
+          throw new Error(`nightly job ${id} persists checkout credentials`);
+        }
+        if (step.run?.includes("${{ inputs") === true || step.run?.includes("${{ github.event") === true) {
+          throw new Error(`nightly job ${id} interpolates dispatch input into a shell command`);
+        }
+        const savesCheckerCache = id === "quint-nightly" && step.run === undefined
+          && step.uses?.startsWith("actions/cache/save@") === true && step.if === CHECKER_CACHE_SAVE_IF
+          && step.with?.path === CHECKER_CACHE_PATH;
+        if (step.if !== undefined && !(step.if === "always()" && step.uses?.startsWith("actions/upload-artifact@") === true) && !savesCheckerCache) {
+          throw new Error(`nightly job ${id} conditions a check step`);
+        }
+      }
+      for (const prefix of ["actions/checkout@", "actions/setup-node@", "oven-sh/setup-bun@"]) {
+        const own = job.steps.filter((step) => step.uses?.startsWith(prefix) === true);
+        const reference = ciStep(prefix);
+        if (own.length !== 1 || reference === undefined || own[0]!.uses !== reference.uses || !isDeepStrictEqual(own[0]!.with, reference.with)) {
+          throw new Error(`nightly job ${id} does not reuse the CI ${prefix.slice(0, -1)} step`);
+        }
+      }
+      const command = COMMANDS[id as keyof typeof COMMANDS];
+      if (job.steps.filter((step) => step.run === command).length !== 1) {
+        throw new Error(`nightly job ${id} does not run ${command} exactly once`);
+      }
+    }
+    for (const mode of ["restore", "save"]) {
+      const prefix = `actions/cache/${mode}@`;
+      const cache = candidate.jobs["quint-nightly"]?.steps.filter((step) => step.uses?.startsWith(prefix) === true) ?? [];
+      const ciCache = ci.jobs.quint?.steps.find(step => step.uses?.startsWith(prefix) === true && step.with?.path === CHECKER_CACHE_PATH);
+      if (cache.length !== 1 || ciCache === undefined || cache[0]!.uses !== ciCache.uses
+        || cache[0]!.id !== ciCache.id || cache[0]!.if !== ciCache.if || !isDeepStrictEqual(cache[0]!.with, ciCache.with)) {
+        throw new Error("the nightly Quint job must share the CI checker cache key and write policy");
+      }
+    }
+    const soak = candidate.jobs["property-soak"];
+    const shards = Array.from({ length: NIGHTLY_SOAK_SHARDS }, (_, index) => index + 1);
+    if (!isDeepStrictEqual(soak?.strategy, { "fail-fast": false, matrix: { shard: shards } })) {
+      throw new Error("the property soak must expand to every soak shard");
+    }
+    const provision = soak?.steps.findIndex((step) => step.run?.startsWith("fixture_browser_root=\"$(bun run ./scripts/provision-derive-browser.ts)\"") === true) ?? -1;
+    if (provision < 0 || soak!.steps[provision]!.run?.includes("--for-shard") === true
+      || provision > soak!.steps.findIndex((step) => step.run === COMMANDS["property-soak"])) {
+      throw new Error("every property soak shard must provision the native fixture browser before the soak");
+    }
+    const soakStep = soak?.steps.find((step) => step.run === COMMANDS["property-soak"]);
+    if (soakStep?.env?.GHOSTGET_PROPERTY_RUNS !== "${{ inputs.property_runs || '20' }}") {
+      throw new Error("the property soak must pass its multiplier only through GHOSTGET_PROPERTY_RUNS");
+    }
+  }
+
+  /**
+   * Throw unless the failure reporter runs only after a check job fails, needs
+   * every check job, holds only `issues: write`, checks out and uses no
+   * action, and reads no expression inside its shell command.
+   */
+  function validateNightlyReport(job: Job): void {
+    if (!isDeepStrictEqual(Array.isArray(job.needs) ? [...job.needs as unknown[]].sort() : job.needs, Object.keys(COMMANDS).sort())) {
+      throw new Error("the nightly failure reporter must need every check job");
+    }
+    if (job.if !== "${{ failure() }}") throw new Error("the nightly failure reporter must run only on failure");
+    if (!isDeepStrictEqual(job.permissions, { issues: "write" })) {
+      throw new Error("the nightly failure reporter must hold only issues: write");
+    }
+    if (job.environment !== undefined || job["continue-on-error"] !== undefined || job.strategy !== undefined) {
+      throw new Error("the nightly failure reporter changes its execution boundary");
+    }
+    if (typeof job["timeout-minutes"] !== "number" || job["timeout-minutes"] > 15) {
+      throw new Error("the nightly failure reporter has no short timeout");
+    }
+    if (job.steps.length !== 1) throw new Error("the nightly failure reporter must run one step");
+    const step = job.steps[0]!;
+    if (step.uses !== undefined || typeof step.run !== "string" || step.run.includes("${{") || step.if !== undefined) {
+      throw new Error("the nightly failure reporter must run one plain shell step without expressions or actions");
+    }
+    if (step.env?.GH_TOKEN !== "${{ github.token }}" || !/\bgh issue (?:create|comment)\b/u.test(step.run)) {
+      throw new Error("the nightly failure reporter must open or update the issue with the job token");
+    }
+  }
+
+  const load = async (): Promise<{ nightly: Workflow; ci: Workflow; source: string }> => {
+    const source = await readFile(nightlyWorkflowUrl, "utf8");
+    return {
+      nightly: Bun.YAML.parse(source) as Workflow,
+      ci: Bun.YAML.parse(await readFile(ciWorkflowUrl, "utf8")) as Workflow,
+      source,
+    };
+  };
+
+  test("stays read-only, pinned, outside Required, and on the CI toolchain", async () => {
+    const { nightly, ci, source } = await load();
+    expect(() => validateNightly(nightly, ci)).not.toThrow();
+    expect(source).not.toMatch(/secrets\.|id-token|pull_request|push:/u);
+    expect(ci.jobs.required?.needs).toEqual(["static", "package", "test", "test-omni", "standalone", "macos", "verification", "quint"]);
+  });
+
+  test("rejects each widened or weakened nightly variant", async () => {
+    const { nightly, ci } = await load();
+    const mutations: ((candidate: Workflow) => void)[] = [
+      candidate => { candidate.on = { ...candidate.on, pull_request: null }; },
+      candidate => { candidate.on = { ...candidate.on, push: { branches: ["main"] } }; },
+      candidate => { candidate.permissions = { contents: "write" }; },
+      candidate => { candidate.permissions = { contents: "read", "id-token": "write" }; },
+      candidate => { candidate.jobs["quint-nightly"]!.permissions = { actions: "write" }; },
+      candidate => { candidate.jobs.mutants!.environment = "npm-release"; },
+      candidate => { candidate.jobs.mutants!.name = "Required"; },
+      candidate => { candidate.jobs.mutants!["continue-on-error"] = true; },
+      candidate => { delete candidate.jobs.mutants; },
+      candidate => { candidate.jobs.extra = structuredClone(candidate.jobs.mutants!); },
+      candidate => { delete candidate.jobs["quint-nightly"]!["timeout-minutes"]; },
+      candidate => { candidate.jobs["quint-nightly"]!.steps[0]!.uses = "actions/checkout@v7"; },
+      candidate => { candidate.jobs["quint-nightly"]!.steps[0]!.with = {}; },
+      candidate => { candidate.jobs["quint-nightly"]!.steps.find(step => step.uses?.startsWith("oven-sh/setup-bun@"))!.with = { "bun-version": "latest" }; },
+      candidate => { candidate.jobs["quint-nightly"]!.steps.find(step => step.uses?.startsWith("actions/cache/restore@"))!.with!.key = "ghostget-verification-nightly"; },
+      candidate => { candidate.jobs["quint-nightly"]!.steps.find(step => step.uses?.startsWith("actions/cache/restore@"))!.id = "wrong"; },
+      candidate => { candidate.jobs["quint-nightly"]!.steps.find(step => step.uses?.startsWith("actions/cache/save@"))!.if = "always()"; },
+      candidate => { candidate.jobs["quint-nightly"]!.steps.find(step => step.uses?.startsWith("actions/cache/save@"))!.run = "true"; },
+      candidate => { candidate.jobs["quint-nightly"]!.steps.find(step => step.run === COMMANDS["quint-nightly"])!.run = "bun run ./scripts/verification-tools.ts quint"; },
+      candidate => { candidate.jobs["property-soak"]!.steps = candidate.jobs["property-soak"]!.steps.filter(step => step.run?.includes("provision-derive-browser") !== true); },
+      candidate => { candidate.jobs["property-soak"]!.steps.find(step => step.run?.includes("provision-derive-browser") === true)!.run = "fixture_browser_root=\"$(bun run ./scripts/provision-derive-browser.ts)\" --for-shard 1 8"; },
+      candidate => { candidate.jobs["quint-nightly"]!.steps.find(step => step.run === COMMANDS["quint-nightly"])!.if = "false"; },
+      candidate => { candidate.jobs.mutants!.steps.find(step => step.run === COMMANDS.mutants)!.run = `${COMMANDS.mutants} || true`; },
+      candidate => { candidate.jobs["property-soak"]!.strategy = { "fail-fast": false, matrix: { shard: [1, 2, 3] } }; },
+      candidate => { candidate.jobs["property-soak"]!.steps.find(step => step.run === COMMANDS["property-soak"])!.env = {}; },
+      candidate => { candidate.jobs["property-soak"]!.steps.push({ run: "echo ${{ inputs.property_runs }}" }); },
+      candidate => { delete candidate.jobs.report; },
+      candidate => { candidate.jobs.report!.permissions = { issues: "write", contents: "write" }; },
+      candidate => { candidate.jobs.report!.permissions = { issues: "write", actions: "write" }; },
+      candidate => { candidate.jobs.report!.if = "${{ always() }}"; },
+      candidate => { delete candidate.jobs.report!.if; },
+      candidate => { candidate.jobs.report!.needs = ["quint-nightly", "property-soak", "mutants"]; },
+      candidate => { candidate.jobs.report!.environment = "npm-release"; },
+      candidate => { delete candidate.jobs.report!["timeout-minutes"]; },
+      candidate => { candidate.jobs.report!.steps.unshift(structuredClone(candidate.jobs.mutants!.steps[0]!)); },
+      candidate => { candidate.jobs.report!.steps[0]!.run += "\necho ${{ github.event.inputs.property_runs }}"; },
+      candidate => { candidate.jobs.report!.steps[0]!.env = { ...candidate.jobs.report!.steps[0]!.env, GH_TOKEN: "${{ secrets.PAT }}" }; },
+      candidate => { candidate.jobs.mutants!.permissions = { issues: "write" }; },
+    ];
+    for (const mutate of mutations) {
+      const changed = structuredClone(nightly);
+      mutate(changed);
+      expect(() => validateNightly(changed, ci)).toThrow();
+    }
+    const required = structuredClone(ci);
+    (required.jobs.required!.needs as string[]).push("mutants");
+    expect(() => validateNightly(nightly, required)).toThrow("Required");
+  });
+
+  test("soaks every src property file across non-empty shards", async () => {
+    const files = await listSoakTestFiles(repositoryRoot);
+    const units = new Set(await listSrcUnitTestFiles(repositoryRoot));
+    expect(files.length).toBeGreaterThan(NIGHTLY_SOAK_SHARDS);
+    for (const file of files) {
+      expect(units.has(file)).toBe(true);
+      expect(await readFile(new URL(`../${file}`, import.meta.url), "utf8")).toMatch(/\bassert(?:Async)?Property\(/u);
+    }
+    expect(files).toContain("src/test-support.test.ts");
+    const shards = assignUnitTestShards(files, NIGHTLY_SOAK_SHARDS);
+    expect(shards).toHaveLength(NIGHTLY_SOAK_SHARDS);
+    expect(shards.every((shard) => shard.length > 0)).toBe(true);
+    expect(shards.flat().sort()).toEqual([...files].sort());
+  });
+
+  test("requires an explicit soak multiplier and caps the soak timeout", () => {
+    expect(() => soakMultiplier({})).toThrow("requires GHOSTGET_PROPERTY_RUNS");
+    expect(() => soakMultiplier({ GHOSTGET_PROPERTY_RUNS: "1" })).toThrow("at least 2");
+    expect(() => soakMultiplier({ GHOSTGET_PROPERTY_RUNS: "101" })).toThrow("from 1 to 100");
+    expect(soakMultiplier({ GHOSTGET_PROPERTY_RUNS: "20" })).toBe(20);
+    expect(soakTestArguments(["src/a.test.ts"], 2, 20)).toEqual([
+      "test", "--no-orphans", "--timeout", String(BUN_TEST_TIMEOUT_MS * 20), "--max-concurrency", "2", "src/a.test.ts",
+    ]);
+    expect(soakTestArguments(["src/a.test.ts"], 1, 100)[3]).toBe(String(MAX_SOAK_TEST_TIMEOUT_MS));
+    expect(() => soakTestArguments([], 1, 20)).toThrow("without files");
+  });
+});
+
+describe("CI run scheduling and caches", () => {
+  type Step = { name?: string; uses?: string; if?: unknown; run?: string; with?: Record<string, unknown> };
+  type Job = { "runs-on": string; steps: Step[] };
+  type Workflow = { concurrency?: unknown; jobs: Record<string, Job> };
+  const load = async (): Promise<Workflow> => Bun.YAML.parse(await readFile(ciWorkflowUrl, "utf8")) as Workflow;
+
+  test("cancels only superseded pull-request runs and gives every main push its own group", async () => {
+    // Release admission needs a successful push run on the exact tagged main
+    // commit; a later merge or a rerun must never cancel it.
+    expect((await load()).concurrency).toEqual({
+      group: "ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}",
+      "cancel-in-progress": "${{ github.event_name == 'pull_request' }}",
+    });
+  });
+
+  test("restores the Bun package cache in every Linux job and saves it only from static on main", async () => {
+    const workflow = await load();
+    const key = "bun-install-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}";
+    for (const [id, job] of Object.entries(workflow.jobs)) {
+      if (id === "required") continue;
+      const allRestores = job.steps.filter((step) => step.uses?.startsWith("actions/cache/restore@") === true);
+      const allSaves = job.steps.filter((step) => step.uses?.startsWith("actions/cache/save@") === true);
+      const checker = id === "verification" || id === "quint";
+      expect(allRestores).toHaveLength((job["runs-on"] === "ubuntu-latest" ? 1 : 0) + (checker ? 1 : 0));
+      expect(allSaves).toHaveLength(id === "static" || checker ? 1 : 0);
+      const restores = allRestores.filter(step => step.with?.path === "~/.bun/install/cache");
+      const saves = allSaves.filter(step => step.with?.path === "~/.bun/install/cache");
+      expect(job.steps.some((step) => step.uses?.startsWith("actions/cache@") === true && step.with?.path === "~/.bun/install/cache")).toBeFalse();
+      if (job["runs-on"] === "ubuntu-latest") {
+        expect(restores).toHaveLength(1);
+        expect(restores[0]!.with).toEqual({
+          path: "~/.bun/install/cache",
+          key,
+          "restore-keys": "bun-install-${{ runner.os }}-${{ runner.arch }}-\n",
+        });
+        const restoreIndex = job.steps.indexOf(restores[0]!);
+        const installIndex = job.steps.findIndex((step) => step.run?.includes("bun install") === true);
+        expect(restoreIndex).toBeLessThan(installIndex);
+      }
+      expect(saves).toHaveLength(id === "static" ? 1 : 0);
+      if (id === "static") {
+        expect(saves[0]!.if).toBe("github.event_name == 'push'");
+        expect(saves[0]!.with).toEqual({ path: "~/.bun/install/cache", key });
+        expect(job.steps.indexOf(saves[0]!)).toBeGreaterThan(job.steps.findIndex((step) => step.run?.includes("bun install") === true));
+      }
+    }
+  });
+
+  test("scopes pull-request Apalache work inside every quint shard without a new job", async () => {
+    const quint = (await load()).jobs.quint!;
+    const scope = quint.steps.filter((step) => step.run === "bun run ./scripts/verification-quint-scope.ts");
+    expect(scope).toHaveLength(1);
+    expect(scope[0]!.if).toBeUndefined();
+    expect(quint.steps.indexOf(scope[0]!)).toBeLessThan(quint.steps.findIndex((step) => step.run?.includes("verification-tools.ts quint") === true));
+    expect(quint.steps[0]!.with).toEqual({ "persist-credentials": false, "fetch-depth": 2 });
+    const source = await readFile(ciWorkflowUrl, "utf8");
+    // Only the scope script sets the scope variables; no workflow env sets them.
+    expect(source).not.toMatch(/GHOSTGET_QUINT_SKIP_APALACHE\s*:/u);
+    expect(source).not.toMatch(/GHOSTGET_QUINT_APALACHE_MODELS\s*:/u);
+  });
+});

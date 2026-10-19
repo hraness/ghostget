@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en" data-hraness-theme="paper" data-palette="gruvbox">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#fbf1c7" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">
+    <title>What a device integrity check tells an app</title>
+    <meta name="description" content="Device checks establish whether a phone matches an app’s requirements. Understand the policy before choosing a supported way to use the service.">
+    <meta name="robots" content="noindex, follow">
+    <link rel="canonical" href="https://ghostget.com/paypal-grapheneos-attestation/">
+    <link rel="icon" href="/icon.png" type="image/png" sizes="32x32">
+    <link rel="icon" href="/icon-96.png" type="image/png" sizes="96x96">
+    <link rel="apple-touch-icon" href="/apple-icon.png" sizes="180x180">
+    <link rel="stylesheet" href="{{CSS_ASSET}}">
+    <link rel="sitemap" type="application/xml" href="/sitemap.xml">
+    {{MARKDOWN_ALTERNATE}}
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="GhostGet">
+    <meta property="og:title" content="What a device integrity check tells an app">
+    <meta property="og:description" content="Device checks establish whether a phone matches an app’s requirements. Understand the policy before choosing a supported way to use the service.">
+    <meta property="og:url" content="https://ghostget.com/paypal-grapheneos-attestation/">
+    <meta property="og:image" content="https://ghostget.com/og.png">
+    <meta property="og:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="What a device integrity check tells an app">
+    <meta name="twitter:description" content="Device checks establish whether a phone matches an app’s requirements. Understand the policy before choosing a supported way to use the service.">
+    <meta name="twitter:image" content="https://ghostget.com/og.png">
+    <meta name="twitter:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
+    <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
+    <meta name="ghostget-posthog-key" content="{{POSTHOG_KEY}}">
+    <script type="application/ld+json">{{JSON_LD}}</script>
+    <script type="module" src="{{ANALYTICS_ASSET}}"></script>
+    <script type="module" src="{{FOIL_ASSET}}"></script>
+  </head>
+  <body data-hraness-landscape="page">
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="topbar guide-topbar">
+      <a aria-label="{{PORTFOLIO_NAME}} home" class="wordmark hraness-foil-text" data-foil="" href="/"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span> {{PORTFOLIO_NAME}}</a>
+      <nav aria-label="Primary">
+        <a href="/docs/tutorials/getting-started/">Install</a>
+        <a href="/docs/reference/provider-capabilities/">Providers</a>
+        <a href="/docs/">Docs</a>
+        <a href="https://github.com/hraness/ghostget">GitHub <span aria-hidden="true">↗</span></a>
+        <a href="https://account.hraness.com/">Account</a>
+      </nav>
+    </header>
+    <main class="guide-main" id="main" tabindex="-1">
+      <nav aria-label="More articles" class="breadcrumbs"><a href="/blog/">Blog</a></nav>
+      <article class="guide-article">
+<header class="guide-hero">
+<h1>What a device integrity check tells an app</h1>
+<p class="answer-lede">An app can require a particular operating-system identity, boot state, or device certification before it allows access. Passing that check means the device meets that policy. A rejected device may need a different supported access method even when its owner deliberately chose its security settings.</p>
+{{ESSAY_PROVENANCE}}
+</header>
+<section aria-labelledby="identify-the-check"><h2 id="identify-the-check">Identify which requirement failed</h2>
+<p>A device check can evaluate several things: whether the software was signed by an expected party, whether the boot process is locked, or whether the device belongs to a supported class. Those are specific signals. They do not describe every aspect of the phone’s security.</p>
+<p>Read the app’s error and support documentation before changing the device. An operating-system compatibility requirement and a compromised-account warning call for different responses.</p></section>
+<section aria-labelledby="policy-and-security"><h2 id="policy-and-security">Separate a service policy from a complete security assessment</h2>
+<p>A service chooses the devices it supports and the signals it accepts. A device owner chooses the software and settings they trust. Those choices can disagree: a configuration that the owner prefers may fall outside the service’s tested or accepted set.</p>
+<p>For example, <a href="https://developer.android.com/google/play/integrity/overview">Google Play Integrity</a> provides signals about an app, account, and device for a developer to use in its own access decisions. The application’s policy determines what happens after it receives those signals.</p></section>
+<section aria-labelledby="use-a-supported-route"><h2 id="use-a-supported-route">Choose a supported way to complete the task</h2>
+<p>Check whether the provider supports an updated app, a browser interface, or another device you own. Use its support process when the result conflicts with its documented requirements. Keep account access separate from experiments with operating-system changes so troubleshooting does not put the account’s recovery methods at risk.</p>
+<p>A tool that connects to the account should use a provider-supported connection. Adding an agent to the workflow does not change the service’s device requirements.</p></section>
+      </article>
+    </main>
+    {{HRANESS_SITE_FOOTER}}
+  </body>
+</html>

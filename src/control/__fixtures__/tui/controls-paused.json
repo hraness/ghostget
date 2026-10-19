@@ -1,0 +1,46 @@
+{
+  "product": "ghostget",
+  "version": null,
+  "health": "paused",
+  "headline": "Ghostget controls are paused",
+  "detail": "Another Ghostget control owner holds this state home, or none answered",
+  "confirmedAgeSeconds": null,
+  "accountId": null,
+  "accounts": [],
+  "approvals": [],
+  "attempts": [],
+  "connect": {
+    "available": false,
+    "providers": [],
+    "browsers": []
+  },
+  "permissions": {
+    "managed": false,
+    "revision": 0,
+    "allow": 0,
+    "ask": 0,
+    "deny": 0
+  },
+  "web": null,
+  "outputs": {
+    "files": [
+      {
+        "name": "x-timeline-2026-09-26.md",
+        "bytes": 18432,
+        "modifiedAt": "2026-09-26T11:55:00.000Z"
+      },
+      {
+        "name": "example-com.pdf",
+        "bytes": 402118,
+        "modifiedAt": "2026-09-26T09:00:00.000Z"
+      }
+    ],
+    "message": null,
+    "truncated": false
+  },
+  "notices": [],
+  "next": [
+    "ghostget control status",
+    "ghostget status"
+  ]
+}

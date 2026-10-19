@@ -1,0 +1,487 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# A pull request's newer push supersedes its older run, so PR runs share one
+# group per ref and cancel. Every push to main keeps its own run: release
+# admission needs a successful push run on the exact tagged main commit, so a
+# later merge or a rerun must never cancel an earlier commit's CI.
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# PR wall-clock is the slowest job. This workflow runs the complete Linux
+# `bun run check` work as a disjoint union of parallel jobs and retains
+# selected macOS coverage: eight unit-test shards, four Quint model shards,
+# and one job for the remaining formal-verification phases. Every source job
+# records its exact checkout and toolchain before its checks.
+jobs:
+  static:
+    name: static
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24.20.0"
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+      - name: Pin npm
+        run: |
+          set -euo pipefail
+          npm install --global npm@11.19.0 \
+            --ignore-scripts \
+            --registry=https://registry.npmjs.org
+          test "$(npm --version)" = "11.19.0"
+          node -p 'JSON.stringify({ node: process.version, zlib: process.versions.zlib, platform: process.platform, arch: process.arch })'
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.3.14"
+      # Restore-only: the frozen install still admits every package at its
+      # lockfile integrity, so the cache only spares downloads such as the
+      # GitHub release tarball dependency. Only `static` saves it, on main.
+      - name: Restore Bun package cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.bun/install/cache
+          key: bun-install-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            bun-install-${{ runner.os }}-${{ runner.arch }}-
+      - name: Record exact source CI identity
+        run: bun run ./scripts/release-source-ci.ts record
+      - run: bun install --frozen-lockfile --ignore-scripts
+      # The one cache writer: a main push saves the installed lockfile's
+      # packages, and every pull-request job only restores them.
+      - name: Save Bun package cache on main
+        if: github.event_name == 'push'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.bun/install/cache
+          key: bun-install-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
+      - run: bun run check:static
+  package:
+    name: package
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24.20.0"
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+      - name: Pin npm
+        run: |
+          set -euo pipefail
+          npm install --global npm@11.19.0 \
+            --ignore-scripts \
+            --registry=https://registry.npmjs.org
+          test "$(npm --version)" = "11.19.0"
+          node -p 'JSON.stringify({ node: process.version, zlib: process.versions.zlib, platform: process.platform, arch: process.arch })'
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.3.14"
+      # Restore-only: the frozen install still admits every package at its
+      # lockfile integrity, so the cache only spares downloads such as the
+      # GitHub release tarball dependency. Only `static` saves it, on main.
+      - name: Restore Bun package cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.bun/install/cache
+          key: bun-install-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            bun-install-${{ runner.os }}-${{ runner.arch }}-
+      - name: Record exact source CI identity
+        run: bun run ./scripts/release-source-ci.ts record
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - run: bun run check:package
+      - run: |
+          generated_status="$(git status --porcelain --untracked-files=all -- dist bun.lock)"
+          if [[ -n "$generated_status" ]]; then
+            printf '%s\n' "$generated_status"
+            exit 1
+          fi
+      - run: node --input-type=module -e 'await Promise.all(["./dist/index.js","./dist/client.js","./dist/beeper-client.js","./dist/apple-photos-client.js","./dist/whatsapp-client.js","./dist/omni-client.js","./dist/messaging.js","./dist/messaging-automation-api.js","./dist/contracts.js"].map((path) => import(path)))'
+      - name: Check the canonical npm archive before tagging
+        run: |
+          set -euo pipefail
+          directory="$(mktemp -d "$RUNNER_TEMP/ghostget-canonical-ci.XXXXXX")"
+          package_version="$(node -p 'require("./package.json").version')"
+          npm pack --ignore-scripts --json --pack-destination "$directory" \
+            --registry=https://registry.npmjs.org > "$directory/npm-pack.json"
+          cat "$directory/npm-pack.json"
+          bun run ./scripts/package-artifact.ts "$directory/hraness-ghostget-$package_version.tgz"
+          DIRECTORY="$directory" PACKAGE_VERSION="$package_version" bun --eval '
+            import { prepareReleaseDirectory } from "./scripts/github-release-artifact.ts";
+            await prepareReleaseDirectory(process.env.DIRECTORY, {
+              tag: `v${process.env.PACKAGE_VERSION}`, sourceSha: "0".repeat(40), workflowSha: "0".repeat(40), runId: 1, runAttempt: 1,
+            });
+            console.log("Synthetic canonical preparation passed; no release authority or provenance.");
+          '
+  test:
+    name: test ${{ matrix.shard }}/8
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24.20.0"
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+      - name: Pin npm
+        run: |
+          set -euo pipefail
+          npm install --global npm@11.19.0 \
+            --ignore-scripts \
+            --registry=https://registry.npmjs.org
+          test "$(npm --version)" = "11.19.0"
+          node -p 'JSON.stringify({ node: process.version, zlib: process.versions.zlib, platform: process.platform, arch: process.arch })'
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.3.14"
+      # Restore-only: the frozen install still admits every package at its
+      # lockfile integrity, so the cache only spares downloads such as the
+      # GitHub release tarball dependency. Only `static` saves it, on main.
+      - name: Restore Bun package cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.bun/install/cache
+          key: bun-install-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            bun-install-${{ runner.os }}-${{ runner.arch }}-
+      - name: Record exact source CI identity
+        run: bun run ./scripts/release-source-ci.ts record
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - name: Provision exact native fixture browser when selected
+        run: |
+          fixture_browser_root="$(bun run ./scripts/provision-derive-browser.ts --for-shard '${{ matrix.shard }}' 8)"
+          printf 'GHOSTGET_DERIVE_BROWSER_ROOT=%s\n' "$fixture_browser_root" >> "$GITHUB_ENV"
+      - run: bun run ./scripts/ci-test-shard.ts ${{ matrix.shard }} 8
+  test-omni:
+    name: test-omni
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24.20.0"
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+      - name: Pin npm
+        run: |
+          set -euo pipefail
+          npm install --global npm@11.19.0 \
+            --ignore-scripts \
+            --registry=https://registry.npmjs.org
+          test "$(npm --version)" = "11.19.0"
+          node -p 'JSON.stringify({ node: process.version, zlib: process.versions.zlib, platform: process.platform, arch: process.arch })'
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.3.14"
+      # Restore-only: the frozen install still admits every package at its
+      # lockfile integrity, so the cache only spares downloads such as the
+      # GitHub release tarball dependency. Only `static` saves it, on main.
+      - name: Restore Bun package cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.bun/install/cache
+          key: bun-install-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            bun-install-${{ runner.os }}-${{ runner.arch }}-
+      - name: Record exact source CI identity
+        run: bun run ./scripts/release-source-ci.ts record
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - run: bun run test:omni
+  standalone:
+    name: standalone
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24.20.0"
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+      - name: Pin npm
+        run: |
+          set -euo pipefail
+          npm install --global npm@11.19.0 \
+            --ignore-scripts \
+            --registry=https://registry.npmjs.org
+          test "$(npm --version)" = "11.19.0"
+          node -p 'JSON.stringify({ node: process.version, zlib: process.versions.zlib, platform: process.platform, arch: process.arch })'
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.3.14"
+      # Restore-only: the frozen install still admits every package at its
+      # lockfile integrity, so the cache only spares downloads such as the
+      # GitHub release tarball dependency. Only `static` saves it, on main.
+      - name: Restore Bun package cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.bun/install/cache
+          key: bun-install-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            bun-install-${{ runner.os }}-${{ runner.arch }}-
+      - name: Record exact source CI identity
+        run: bun run ./scripts/release-source-ci.ts record
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - run: bun run test:standalone
+  macos:
+    name: macOS
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24.20.0"
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+      - name: Pin npm
+        run: |
+          set -euo pipefail
+          npm install --global npm@11.19.0 \
+            --ignore-scripts \
+            --registry=https://registry.npmjs.org
+          test "$(npm --version)" = "11.19.0"
+          node -p 'JSON.stringify({ node: process.version, zlib: process.versions.zlib, platform: process.platform, arch: process.arch })'
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.3.14"
+      - name: Record exact source CI identity
+        run: bun run ./scripts/release-source-ci.ts record
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - run: bun run check:macos
+  verification:
+    name: verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24.20.0"
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+      - name: Pin npm
+        run: |
+          set -euo pipefail
+          npm install --global npm@11.19.0 \
+            --ignore-scripts \
+            --registry=https://registry.npmjs.org
+          test "$(npm --version)" = "11.19.0"
+          node -p 'JSON.stringify({ node: process.version, zlib: process.versions.zlib, platform: process.platform, arch: process.arch })'
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.3.14"
+      # Restore-only: the frozen install still admits every package at its
+      # lockfile integrity, so the cache only spares downloads such as the
+      # GitHub release tarball dependency. Only `static` saves it, on main.
+      - name: Restore Bun package cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.bun/install/cache
+          key: bun-install-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            bun-install-${{ runner.os }}-${{ runner.arch }}-
+      - name: Record exact source CI identity
+        run: bun run ./scripts/release-source-ci.ts record
+      - run: bun install --frozen-lockfile --ignore-scripts
+      # Checker archives are re-admitted at their pinned size and SHA-256 on
+      # every run, so the cache only saves downloads. The key ends in
+      # pinnedArchivesDigest() from scripts/verification-tools.ts, so any
+      # change to a pinned name, URL, size, or digest starts a fresh cache.
+      # Lean and Quint populate different archives. Separate immutable keys
+      # keep the first finisher from defining the other job's cache contents.
+      - name: Restore pinned checker downloads
+        id: checker_downloads
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ghostget-verification/downloads
+          key: ghostget-verification-lean-${{ runner.os }}-${{ runner.arch }}-pins-72eb5177a24cbf8d
+      # The Rust oracle under verification/oracles/ builds with the runner's
+      # rustup at the exact toolchain its rust-toolchain.toml names, and
+      # verify:oracles checks both versions again. `cargo build --locked`
+      # admits every crate only at the checksum Cargo.lock records. The whole
+      # oracle phase measured nine seconds on a cold runner, so it needs no
+      # Cargo cache step.
+      - name: Install the pinned Rust toolchain
+        working-directory: verification/oracles
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.97.1 --profile minimal --no-self-update
+          test "$(rustc --version | cut -d ' ' -f 2)" = "1.97.1"
+          test "$(cargo --version | cut -d ' ' -f 2)" = "1.97.1"
+          python3 --version
+      # `bun run verify` is `verify:claims && verify:quint && verify:lean &&
+      # verify:oracles`. This job runs the three phases that finish in about
+      # ninety seconds; the `quint` matrix below runs verify:quint's models as
+      # parallel shards. Each step bound leaves time inside the job bound to
+      # retain the logs of a failed or timed-out run.
+      - run: bun run verify:claims
+        timeout-minutes: 5
+      # The committed messaging binaries' compressed and decompressed pins,
+      # reviewed patch digests, and MESSAGING_NATIVE_ARTIFACTS constants are
+      # recomputed from the checked-in bytes on every run; the source rebuild
+      # of the same records runs in verification-nightly.yml.
+      - run: bun run ./scripts/messaging-runtime-provenance.ts verify
+        timeout-minutes: 3
+      - run: bun run verify:lean
+        timeout-minutes: 10
+      - run: bun run verify:oracles
+        timeout-minutes: 8
+      - name: Save pinned checker downloads on main
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && steps.checker_downloads.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ghostget-verification/downloads
+          key: ${{ steps.checker_downloads.outputs.cache-primary-key }}
+      - name: Retain checker output
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: verification-attempt-${{ github.run_attempt }}
+          path: artifacts/verification/
+          if-no-files-found: error
+          retention-days: 30
+  quint:
+    name: quint ${{ matrix.shard }}/4
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      # Depth 2 fetches a pull request merge commit's base parent, which the
+      # Apalache scope step diffs against.
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24.20.0"
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+      - name: Pin npm
+        run: |
+          set -euo pipefail
+          npm install --global npm@11.19.0 \
+            --ignore-scripts \
+            --registry=https://registry.npmjs.org
+          test "$(npm --version)" = "11.19.0"
+          node -p 'JSON.stringify({ node: process.version, zlib: process.versions.zlib, platform: process.platform, arch: process.arch })'
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.3.14"
+      # Restore-only: the frozen install still admits every package at its
+      # lockfile integrity, so the cache only spares downloads such as the
+      # GitHub release tarball dependency. Only `static` saves it, on main.
+      - name: Restore Bun package cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.bun/install/cache
+          key: bun-install-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            bun-install-${{ runner.os }}-${{ runner.arch }}-
+      - name: Record exact source CI identity
+        run: bun run ./scripts/release-source-ci.ts record
+      - run: bun install --frozen-lockfile --ignore-scripts
+      # On a pull request, this step reads the diff against the base parent
+      # (scripts/verification-quint-scope.ts). When nothing in it can change an
+      # Apalache verdict (no model, manifest, checker script, or workflow, and
+      # no Quint pin or lockfile-closure change in package.json or bun.lock),
+      # it sets GHOSTGET_QUINT_SKIP_APALACHE=1; when only listed model files
+      # change, it sets GHOSTGET_QUINT_APALACHE_MODELS to those files. The shard
+      # still typechecks, simulates, and replays every model. Any error runs
+      # every Apalache check. Push CI on main and the nightly run always check
+      # every model with Apalache, and release admission reads main push CI.
+      - name: Scope Apalache to model changes
+        run: bun run ./scripts/verification-quint-scope.ts
+      # Checker archives are re-admitted at their pinned size and SHA-256 on
+      # every run, so the cache only saves downloads. The key ends in
+      # pinnedArchivesDigest() from scripts/verification-tools.ts, so any
+      # change to a pinned name, URL, size, or digest starts a fresh cache.
+      - name: Restore pinned checker downloads
+        id: checker_downloads
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ghostget-verification/downloads
+          key: ghostget-verification-quint-${{ runner.os }}-${{ runner.arch }}-pins-72eb5177a24cbf8d
+      # One shard of `bun run verify:quint`: the same typecheck, seeded
+      # simulation, Apalache, mutant, and ITF replay checks at the same bounds,
+      # over the models scripts/verification-tools.ts assigns to this shard.
+      # Every model runs in exactly one shard; the shard packing is tested.
+      # Allow the bounded 25-minute checker plus model/replay overhead, then
+      # leave five job minutes for setup and retaining diagnostic artifacts.
+      - run: bun run ./scripts/verification-tools.ts quint ${{ matrix.shard }} 4
+        timeout-minutes: 40
+      - name: Save pinned checker downloads on main
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && steps.checker_downloads.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ghostget-verification/downloads
+          key: ${{ steps.checker_downloads.outputs.cache-primary-key }}
+      - name: Retain checker output
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: verification-quint-${{ matrix.shard }}-attempt-${{ github.run_attempt }}
+          path: artifacts/verification/
+          if-no-files-found: error
+          retention-days: 30
+  required:
+    name: Required
+    if: always()
+    needs: [static, package, test, test-omni, standalone, macos, verification, quint]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every selected job
+        env:
+          STATIC: ${{ needs.static.result }}
+          PACKAGE: ${{ needs.package.result }}
+          TEST: ${{ needs.test.result }}
+          TEST_OMNI: ${{ needs.test-omni.result }}
+          STANDALONE: ${{ needs.standalone.result }}
+          MACOS: ${{ needs.macos.result }}
+          VERIFICATION: ${{ needs.verification.result }}
+          QUINT: ${{ needs.quint.result }}
+        run: |
+          set -euo pipefail
+          for result in "$STATIC" "$PACKAGE" "$TEST" "$TEST_OMNI" "$STANDALONE" "$MACOS" "$VERIFICATION" "$QUINT"; do
+            if [[ "$result" != success ]]; then
+              printf 'Unexpected required job result: %s\n' "$result"
+              exit 1
+            fi
+          done

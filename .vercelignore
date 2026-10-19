@@ -1,0 +1,5 @@
+.env*
+.vercel
+dist
+node_modules
+website/dist

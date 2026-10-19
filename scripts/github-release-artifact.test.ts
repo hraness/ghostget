@@ -1,0 +1,984 @@
+import { describe, expect, test } from "bun:test";
+import { createHash } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
+import { runInNewContext } from "node:vm";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import * as crypto from "node:crypto";
+import fc from "fast-check";
+import { admitSourceCi, verifySourceCiLog, type SourceCiInput } from "./release-source-ci.js";
+import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { parseReleaseManifest, releaseAssetNames, releaseAssetByteLimit, type ReleaseAssetDescriptor } from "../website/github-release-artifact.mjs";
+import { attestationVerifyArguments, prepareReleaseDirectory, verifyBuildHandoff, verifyCanonicalReleaseRun, verifyReleaseDirectory } from "./github-release-artifact.js";
+import { downloadReleaseAsset, publishCanonicalRelease, validateReleaseAssets } from "./github-release-publish.js";
+import { releaseBody } from "../website/release-notes.mjs";
+import { MAX_PACKED_BYTES } from "./package-budget.js";
+import { assertProperty } from "../src/test-support.js";
+
+const tag = "v0.17.0";
+const sourceSha = "a".repeat(40);
+const workflowSha = "b".repeat(40);
+const manifest = parseReleaseManifest({ schema: "hraness-github-release-v1", repository: "hraness/ghostget", repositoryId: 1425391521,
+  package: "@hraness/ghostget", version: "0.17.0", tag, sourceSha, workflowSha, workflow: ".github/workflows/release.yml",
+  runId: 9001, runAttempt: 1, archive: { name: "hraness-ghostget-0.17.0.tgz", bytes: 4, sha256: "c".repeat(64), sha512: "d".repeat(128) } });
+const notes = "Ghostget reads one more source.\n\n## Changes\n\n- Read one more source.";
+const body = releaseBody(notes, `wrench-release-source-v1 repository=hraness/ghostget tag=${tag} source_sha=${sourceSha} workflow_run_id=9001\n\nghostget-release-attempt-v1 run_attempt=1`);
+const names = releaseAssetNames(tag);
+type Json = Record<string, any>;
+
+// These are transfer/identity fixtures, not an installable package or signed provenance.
+async function largeTransferFixture(directory: string) {
+  const tag = "v0.18.1"; const names = releaseAssetNames(tag);
+  const files = new Map<string, Buffer>([[names[0]!, Buffer.alloc(9 * 1024 * 1024, 42)], ["npm-pack.json", Buffer.from("[]\n")]]);
+  const digest = (name: string) => createHash("sha256").update(files.get(name)!).digest("hex");
+  const manifest = parseReleaseManifest({ schema: "hraness-github-release-v1", repository: "hraness/ghostget", repositoryId: 1425391521,
+    package: "@hraness/ghostget", version: "0.18.1", tag, sourceSha, workflowSha, workflow: ".github/workflows/release.yml",
+    runId: 9001, runAttempt: 1, archive: { name: names[0], bytes: files.get(names[0]!)!.length,
+      sha256: digest(names[0]!), sha512: createHash("sha512").update(files.get(names[0]!)!).digest("hex") } });
+  files.set("release-manifest.json", Buffer.from(`${JSON.stringify(manifest)}\n`));
+  files.set("SHA256SUMS", Buffer.from(names.slice(0, 3).map(name => `${digest(name)}  ${name}\n`).join("")));
+  files.set("provenance.jsonl", Buffer.from("synthetic verifier output fixture; no signed provenance\n"));
+  for (const [name, bytes] of files) await writeFile(join(directory, name), bytes);
+  const hashes = Object.fromEntries(names.slice(0, 4).map(name => [name, digest(name)]));
+  const assets = names.map((name, index) => ({ id: index + 10, name, size: files.get(name)!.length, digest: `sha256:${digest(name)}`,
+    state: "uploaded", browser_download_url: `https://github.com/hraness/ghostget/releases/download/${tag}/${name}`,
+    url: `https://api.github.com/repos/hraness/ghostget/releases/assets/${index + 10}` }));
+  return { tag, names, files, manifest, hashes, assets, bundleHash: digest("provenance.jsonl") };
+}
+
+describe("canonical archive transfer envelopes", () => {
+  test("property: foreign archive sizes are accepted exactly within the versioned transfer bound", () => {
+    assertProperty(fc.property(fc.integer({ min: 1, max: 100 }),
+      fc.oneof(fc.integer({ min: -1, max: 16 * 1024 * 1024 }), fc.constantFrom(null, "100", NaN, Infinity, 0.5)), (patch, bytes) => {
+        const tag = `v0.18.${patch}`; const name = releaseAssetNames(tag)[0]!;
+        const value = { ...manifest, tag, version: tag.slice(1), archive: { ...manifest.archive, name, bytes } };
+        const admissible = typeof bytes === "number" && Number.isSafeInteger(bytes) && bytes > 0 && bytes <= releaseAssetByteLimit(tag, name);
+        if (admissible) expect(parseReleaseManifest(value).archive.bytes).toBe(bytes);
+        else expect(() => parseReleaseManifest(value)).toThrow();
+      }));
+  });
+  test("keeps the measured package ceiling inside the archive transfer envelope", async () => {
+    const { version } = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+    const tag = `v${version}`;
+    expect(MAX_PACKED_BYTES).toBeLessThanOrEqual(releaseAssetByteLimit(tag, releaseAssetNames(tag)[0]!));
+  });
+  test("carries an archive above 8 MiB through handoff and draft download while retaining exact hashes and small auxiliary bounds", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ghostget-release-size-"));
+    try {
+      const f = await largeTransferFixture(directory);
+      await verifyBuildHandoff(directory, f.tag, f.hashes, f.bundleHash);
+      const { descriptors, missing } = validateReleaseAssets({ draft: true, assets: f.assets }, f.manifest, directory);
+      expect(missing).toEqual([]);
+      const archive = descriptors.find(asset => asset.name === f.names[0])!;
+      let calls = 0;
+      const run = (args: readonly string[], maximumBytes: number) => {
+        calls++;
+        expect(args).toEqual(["api", "--method", "GET", "/repos/hraness/ghostget/releases/assets/10", "-H", "Accept: application/octet-stream"]);
+        expect(maximumBytes).toBe(archive.bytes + 1);
+        return { status: 0, stdout: f.files.get(archive.name)! };
+      };
+      expect(downloadReleaseAsset(archive, f.tag, run)).toEqual(f.files.get(archive.name)!);
+      expect(calls).toBe(1);
+      for (const name of f.names) {
+        const oversized = { ...archive, name, bytes: releaseAssetByteLimit(f.tag, name) + 1 };
+        expect(() => downloadReleaseAsset(oversized, f.tag, run)).toThrow("bound");
+        const changedAssets = f.assets.map(asset => asset.name === name ? { ...asset, size: oversized.bytes } : asset);
+        expect(() => validateReleaseAssets({ draft: true, assets: changedAssets }, f.manifest, directory)).toThrow();
+      }
+      expect(calls).toBe(1);
+      expect(() => downloadReleaseAsset(archive, f.tag, () => ({ status: 0, stdout: Buffer.alloc(archive.bytes) }))).toThrow("differ");
+      expect(() => downloadReleaseAsset(archive, f.tag, () => ({ status: 0, stdout: Buffer.concat([f.files.get(archive.name)!, Buffer.from("x")]) }))).toThrow("differ");
+      expect(() => downloadReleaseAsset(archive, f.tag, () => ({ status: 1, stdout: f.files.get(archive.name)! }))).toThrow("complete");
+      await writeFile(join(directory, "npm-pack.json"), Buffer.alloc(1024 * 1024 + 1));
+      await expect(verifyBuildHandoff(directory, f.tag, f.hashes, f.bundleHash)).rejects.toThrow("bounded");
+    } finally { await rm(directory, { recursive: true, force: true }); }
+  });
+  test("preparation and full verification reach strict tar admission for a large archive instead of rejecting the transfer size", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ghostget-release-prepare-size-"));
+    try {
+      const f = await largeTransferFixture(directory); const m = f.manifest;
+      const signature = { certificate: {
+        issuer: "https://token.actions.githubusercontent.com", buildSignerURI: `https://github.com/hraness/ghostget/.github/workflows/release.yml@refs/tags/${f.tag}`,
+        buildSignerDigest: sourceSha, runnerEnvironment: "github-hosted", sourceRepositoryURI: "https://github.com/hraness/ghostget",
+        sourceRepositoryIdentifier: "1425391521", sourceRepositoryOwnerIdentifier: "307125679", sourceRepositoryOwnerURI: "https://github.com/hraness",
+        sourceRepositoryVisibilityAtSigning: "public", buildConfigURI: `https://github.com/hraness/ghostget/.github/workflows/release.yml@refs/tags/${f.tag}`,
+        buildConfigDigest: sourceSha, sourceRepositoryDigest: sourceSha, sourceRepositoryRef: `refs/tags/${f.tag}`, buildTrigger: "push",
+        runInvocationURI: "https://github.com/hraness/ghostget/actions/runs/9001/attempts/1",
+      } };
+      let checks = 0;
+      const run = () => { checks++; return JSON.stringify([{ verificationResult: { signature, verifiedTimestamps: [{ type: "fixture" }],
+        statement: { _type: "https://in-toto.io/Statement/v1", predicateType: "https://slsa.dev/provenance/v1",
+          subject: f.names.slice(0, 4).map(name => ({ name, digest: { sha256: f.hashes[name] } })) } } }]); };
+      await expect(verifyReleaseDirectory(directory, { tag: f.tag, sourceSha, workflowSha }, run)).rejects.toThrow("safely decompressed");
+      expect(checks).toBe(4);
+      for (const name of f.names.slice(2)) await rm(join(directory, name));
+      await expect(prepareReleaseDirectory(directory, { tag: f.tag, sourceSha, workflowSha, runId: m.runId, runAttempt: m.runAttempt })).rejects.toThrow("safely decompressed");
+      expect((await readdir(directory)).sort()).toEqual([...f.names.slice(0, 2)].sort());
+    } finally { await rm(directory, { recursive: true, force: true }); }
+  });
+  test("executes both source-free workflow programs on large files and rejects cap, hash and symlink substitutions", async () => {
+    const workflow = Bun.YAML.parse(await readFile(new URL("../.github/workflows/release.yml", import.meta.url), "utf8")) as Json;
+    const stages = [workflow.jobs.attest.steps.find((step: Json) => step.name === "Bind source-free attestation input"),
+      workflow.jobs.publish_npm.steps.find((step: Json) => step.id === "canonical")];
+    for (const [index, stage] of stages.entries()) {
+      const directory = await mkdtemp(join(tmpdir(), "ghostget-release-inline-size-"));
+      try {
+        const f = await largeTransferFixture(directory); const names = index === 0 ? f.names.slice(0, 4) : f.names;
+        if (index === 0) await rm(join(directory, "provenance.jsonl"));
+        const handoff = join(directory, "..", `${path.basename(directory)}-handoff`); await mkdir(handoff);
+        try {
+          const program = /node <<'NODE'\n([\s\S]*?)\nNODE/u.exec(stage.run)?.[1];
+          if (program === undefined) throw new Error("Missing source-free file verification program");
+          const env = { DIRECTORY: directory, HANDOFF_DIRECTORY: handoff, GITHUB_OUTPUT: join(handoff, "output"), VERIFIED_TAG: f.tag,
+            VERIFIED_SHA: sourceSha, EXPECTED_WORKFLOW_SHA: workflowSha, WORKFLOW_SHA: workflowSha, GITHUB_RUN_ID: "9001", GITHUB_RUN_ATTEMPT: "1",
+            EXPECTED_ARTIFACT_HASHES: JSON.stringify(f.hashes), EXPECTED_BUNDLE_SHA256: f.bundleHash };
+          const execute = (override?: (file: fs.PathLike) => fs.Stats) => runInNewContext(program + "\nbyteLimit;", {
+            process: { env }, require: (name: string) => {
+              if (name === "node:fs") return { ...fs, lstatSync: override ?? fs.lstatSync };
+              if (name === "node:path") return path; if (name === "node:crypto") return crypto;
+              throw new Error("Unexpected source-free dependency");
+            },
+          }, { timeout: 5000 });
+          const limit = execute();
+          for (const name of names) {
+            expect(limit(name)).toBe(releaseAssetByteLimit(f.tag, name));
+            expect(() => execute(file => {
+              const stat = fs.lstatSync(file);
+              if (String(file) === join(directory, name)) Object.defineProperty(stat, "size", { value: releaseAssetByteLimit(f.tag, name) + 1 });
+              return stat;
+            })).toThrow("bounded");
+          }
+          expect(() => execute(file => {
+            const stat = fs.lstatSync(file);
+            if (String(file) === join(directory, names[0]!)) stat.isSymbolicLink = () => true;
+            return stat;
+          })).toThrow("bounded");
+          env.EXPECTED_ARTIFACT_HASHES = JSON.stringify({ ...f.hashes, [names[0]!]: "0".repeat(64) });
+          expect(() => execute()).toThrow("differs");
+        } finally { await rm(handoff, { recursive: true, force: true }); }
+      } finally { await rm(directory, { recursive: true, force: true }); }
+    }
+  });
+});
+
+function sourceCiFixture(attempt = 1, prNumber = 50) {
+  const input: SourceCiInput = { source: "1".repeat(40), tree: "2".repeat(40), main: "3".repeat(40),
+    workflowSha256: "4".repeat(64), lockSha256: "5".repeat(64) };
+  const prefix = "repos/hraness/ghostget"; const head = "6".repeat(40);
+  const repo = { id: 1425391521, full_name: "hraness/ghostget" };
+  const parent = "7".repeat(40); const mergeBase = "8".repeat(40);
+  const responses: Json = {};
+  responses[`${prefix}/git/ref/heads/main`] = { ref: "refs/heads/main", object: { type: "commit", sha: input.main } };
+  for (const sha of [input.source, head]) responses[`${prefix}/git/commits/${sha}`] = { sha, tree: { sha: input.tree } };
+  responses[`${prefix}/git/commits/${input.source}`].parents = [{ sha: parent }];
+  const ciNames = ["static", "package", "test 1/8", "test 2/8", "test 3/8", "test 4/8", "test 5/8", "test 6/8", "test 7/8", "test 8/8", "test-omni", "standalone", "macOS", "verification", "quint 1/4", "quint 2/4", "quint 3/4", "quint 4/4", "Required"];
+  for (const [workflowId, path, event, runId, names] of [
+    [323493607, ".github/workflows/ci.yml", "push", 100, ciNames],
+    [351099999, "dynamic/github-code-scanning/codeql", "dynamic", 200, ["Analyze (javascript-typescript)", "Analyze (actions)", "Analyze (python)", "Analyze (rust)"]],
+  ] as const) {
+    responses[`${prefix}/actions/workflows/${workflowId}`] = { id: workflowId, path, state: "active" };
+    const run = { id: runId, workflow_id: workflowId, path, event, head_sha: input.source, head_branch: "main", run_attempt: attempt,
+      repository: repo, head_repository: repo, status: "completed", conclusion: "success",
+      run_started_at: "2026-09-09T01:00:00Z", updated_at: "2026-09-09T01:15:00Z" };
+    responses[`${prefix}/actions/workflows/${workflowId}/runs?head_sha=${input.source}&branch=main&event=${event}&per_page=100`] = {
+      total_count: 1, workflow_runs: [structuredClone(run)] };
+    responses[`${prefix}/actions/runs/${runId}`] = structuredClone(run);
+    responses[`${prefix}/actions/runs/${runId}/attempts/${attempt}`] = structuredClone(run);
+    const jobs = names.map((name, index) => ({ id: runId * 10 + index, name, run_id: runId, run_attempt: attempt,
+      head_sha: input.source, status: "completed", conclusion: "success",
+      started_at: "2026-09-09T01:00:01Z", completed_at: "2026-09-09T01:14:00Z",
+      steps: [{ name: "Record exact source CI identity", status: "completed", conclusion: "success" }] }));
+    responses[`${prefix}/actions/runs/${runId}/attempts/${attempt}/jobs?per_page=100`] = { total_count: jobs.length, jobs };
+    for (const job of jobs.filter(job => job.name !== "Required" && runId === 100)) {
+      const identity = { schema: "wrench-source-ci-v1", repositoryId: repo.id, source: input.source, tree: input.tree,
+        workflowCommit: input.source, workflowSha256: input.workflowSha256, lockSha256: input.lockSha256,
+        runId, runAttempt: attempt, node: "24.20.0", npm: "11.19.0", bun: "1.3.14", platform: job.name === "macOS" ? "darwin" : "linux",
+        runnerEnvironment: "github-hosted", event: "push", ref: "refs/heads/main" };
+      responses[`${prefix}/actions/jobs/${job.id}/logs`] = `2026-09-09T01:00:01.123Z [command]/usr/bin/git log -1 --format=%H\n2026-09-09T01:00:01.124Z ${input.source}\n2026-09-09T01:00:02.000Z WRENCH_SOURCE_CI_IDENTITY=${JSON.stringify(identity)}\n`;
+    }
+  }
+  const pr = { id: 9000, number: prNumber, merged: true, merged_at: "2026-09-09T00:50:00Z", state: "closed", merge_commit_sha: input.source,
+    merge_base_sha: null, base: { ref: "main", repo }, head: { sha: head, repo } };
+  responses[`${prefix}/commits/${input.source}/pulls?per_page=100`] = [pr];
+  responses[`${prefix}/pulls/${prNumber}`] = pr;
+  const associatedRepo = { id: repo.id, url: `https://api.github.com/${prefix}` };
+  const securityCheck = { id: 700, head_sha: head, name: "CodeQL", app: { id: 57789 }, status: "completed", conclusion: "success",
+    pull_requests: [{ number: prNumber, id: 9000, url: `https://api.github.com/${prefix}/pulls/${prNumber}`, head: { sha: head, repo: associatedRepo },
+      base: { ref: "main", repo: associatedRepo } }] };
+  responses[`${prefix}/commits/${head}/check-runs?per_page=100&filter=latest`] = { total_count: 1, check_runs: [securityCheck] };
+  // The currently running Release is deliberately not a required source job.
+  responses[`${prefix}/commits/${input.source}/check-runs?per_page=100&filter=latest`] = { total_count: 1,
+    check_runs: [{ id: 701, name: "Verify", app: { id: 15368 }, head_sha: input.source, status: "in_progress", conclusion: null }] };
+  const analyses = ["actions", "javascript-typescript", "python", "rust"].map((language, index) => ({ id: 800 + index,
+    commit_sha: input.source, category: `/language:${language}`, ref: "refs/heads/main", analysis_key: "dynamic/github-code-scanning/codeql:analyze",
+    tool: { name: "CodeQL", version: "2.27.0" }, environment: JSON.stringify({ category: `/language:${language}`, language }),
+    error: "", warning: "", created_at: "2026-09-09T01:10:00Z", url: `https://api.github.com/${prefix}/code-scanning/analyses/${800 + index}`, results_count: 41 }));
+  responses[`${prefix}/code-scanning/analyses?ref=refs%2Fheads%2Fmain&tool_name=CodeQL&per_page=20`] = analyses;
+  const calls: string[] = [];
+  const read = (path: string): unknown => { calls.push(path); if (!(path in responses)) throw new Error(`Unexpected fixture path: ${path}`); return structuredClone(responses[path]); };
+  const blobTree = (entries: Record<string, string>) => Object.entries(entries)
+    .map(([path, sha]) => ({ path, mode: "100644", type: "blob", sha }));
+  const movedMain = (trees: { base: Record<string, string>; head: Record<string, string>; parent: Record<string, string>; source: Record<string, string> }) => {
+    const shas = { base: "a".repeat(40), head: "b".repeat(40), parent: "c".repeat(40), source: input.tree };
+    responses[`${prefix}/git/commits/${head}`].tree = { sha: shas.head };
+    responses[`${prefix}/git/commits/${mergeBase}`] = { sha: mergeBase, tree: { sha: shas.base } };
+    responses[`${prefix}/git/commits/${parent}`] = { sha: parent, tree: { sha: shas.parent } };
+    responses[`${prefix}/compare/${parent}...${head}`] = { url: `https://api.github.com/${prefix}/compare/${parent}...${head}`,
+      base_commit: { sha: parent }, merge_base_commit: { sha: mergeBase }, status: "diverged", ahead_by: 1, behind_by: 1 };
+    for (const [name, sha] of Object.entries(shas)) {
+      responses[`${prefix}/git/trees/${sha}?recursive=1`] = { sha, truncated: false, url: `https://api.github.com/${prefix}/git/trees/${sha}`,
+        tree: blobTree(trees[name as keyof typeof trees]) };
+    }
+    return shas;
+  };
+  return { input, responses, read, calls, prefix, head, parent, mergeBase, analyses, movedMain, clock: () => Date.parse("2026-09-09T02:00:00Z") };
+}
+
+describe("exact source CI admission", () => {
+  test("keeps the reviewed four-language inventory bound to the current source tree", () => {
+    const result = Bun.spawnSync(["git", "ls-files", "-z", "*.swift"], { cwd: join(import.meta.dir, ".."), stdout: "pipe", stderr: "pipe" });
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout.toString()).toBe("");
+    for (const extension of ["*.rs", "*.py"]) {
+      const owned = Bun.spawnSync(["git", "ls-files", "-z", extension], { cwd: join(import.meta.dir, ".."), stdout: "pipe", stderr: "pipe" });
+      expect(owned.exitCode).toBe(0);
+      expect(owned.stdout.toString().length).toBeGreaterThan(0);
+    }
+  });
+  test("admits all nineteen jobs and eighteen real checkouts with exact toolchains and distinct security evidence", () => {
+    const fixture = sourceCiFixture(); const result = admitSourceCi(fixture.input, fixture.read, fixture.clock);
+    expect(result.ci.jobs).toHaveLength(19); expect(result.checkouts).toHaveLength(18);
+    expect(result.codeql.jobs.map(job => job.name).sort()).toEqual(["Analyze (actions)", "Analyze (javascript-typescript)", "Analyze (python)", "Analyze (rust)"]);
+    expect(result.security.prComparison).toHaveLength(1); expect(result.security.mainComparison).toEqual([]);
+    expect(result.security.exactAnalyses.map(value => value.category)).toEqual(["/language:actions", "/language:javascript-typescript", "/language:python", "/language:rust"]);
+    expect(result.security.exactAnalyses.map(value => value.resultsCount)).toEqual([41, 41, 41, 41]);
+    expect(result.security.distinction).toContain("do not assert zero alerts");
+    expect(fixture.calls.filter(path => path.endsWith("/logs"))).toHaveLength(18);
+    expect(fixture.calls.filter(path => path.endsWith("/git/ref/heads/main"))).toHaveLength(2);
+  });
+  test("admits the renamed ghostget repository only with the exact immutable repository identity", () => {
+    const renamed = (id: number) => {
+      const fixture = sourceCiFixture();
+      for (const runId of [100, 200]) for (const path of [`${fixture.prefix}/actions/runs/${runId}`, `${fixture.prefix}/actions/runs/${runId}/attempts/1`]) {
+        for (const repo of [fixture.responses[path].repository, fixture.responses[path].head_repository]) { repo.id = id; repo.full_name = "hraness/ghostget"; }
+      }
+      for (const repo of [fixture.responses[`${fixture.prefix}/pulls/50`].base.repo, fixture.responses[`${fixture.prefix}/pulls/50`].head.repo]) {
+        repo.id = id; repo.full_name = "hraness/ghostget";
+      }
+      return fixture;
+    };
+    const fixture = renamed(1425391521);
+    expect(() => admitSourceCi(fixture.input, fixture.read, fixture.clock)).not.toThrow();
+    const foreign = renamed(1);
+    expect(() => admitSourceCi(foreign.input, foreign.read, foreign.clock)).toThrow("foreign repository");
+  });
+  test("admits the exact analyses at the top of a full newest-first window and rejects an oversized window", () => {
+    const path = (f: ReturnType<typeof sourceCiFixture>) => `${f.prefix}/code-scanning/analyses?ref=refs%2Fheads%2Fmain&tool_name=CodeQL&per_page=20`;
+    const older = (f: ReturnType<typeof sourceCiFixture>, count: number) => Array.from({ length: count }, (_, index) => ({
+      ...f.analyses[index % 2]!, id: 900 + index, commit_sha: "c".repeat(40), created_at: "2026-09-08T01:10:00Z" }));
+    const full = sourceCiFixture();
+    full.responses[path(full)] = [...full.analyses, ...older(full, 16)];
+    expect(full.responses[path(full)]).toHaveLength(20);
+    expect(admitSourceCi(full.input, full.read, full.clock).security.exactAnalyses.map(analysis => analysis.id)).toEqual([800, 801, 802, 803]);
+    const oversized = sourceCiFixture();
+    oversized.responses[path(oversized)] = [...oversized.analyses, ...older(oversized, 19)];
+    expect(() => admitSourceCi(oversized.input, oversized.read, oversized.clock)).toThrow("missing or oversized newest window");
+    const absent = sourceCiFixture();
+    absent.responses[path(absent)] = older(absent, 20);
+    expect(() => admitSourceCi(absent.input, absent.read, absent.clock)).toThrow("exact main CodeQL analyses are missing or ambiguous");
+  });
+
+  test("admits only the current successful attempt while retaining older analyses", () => {
+    const fixture = sourceCiFixture(2);
+    fixture.analyses.push(...fixture.analyses.map(value => ({ ...value, id: value.id + 10, created_at: "2026-09-08T01:10:00Z" })));
+    const result = admitSourceCi(fixture.input, fixture.read, fixture.clock);
+    expect(result.ci.attempt).toBe(2); expect(result.codeql.attempt).toBe(2);
+    expect(result.security.exactAnalyses.map(value => value.id)).toEqual([800, 801, 802, 803]);
+  });
+  test("requires every current source language and rejects incomplete security coverage", () => {
+    for (const language of ["actions", "javascript-typescript", "python", "rust"]) {
+      const missingJob = sourceCiFixture();
+      const jobs = missingJob.responses[`${missingJob.prefix}/actions/runs/200/attempts/1/jobs?per_page=100`];
+      jobs.jobs = jobs.jobs.filter((job: Json) => job.name !== `Analyze (${language})`); jobs.total_count = jobs.jobs.length;
+      expect(() => admitSourceCi(missingJob.input, missingJob.read, missingJob.clock)).toThrow("complete successful job union is required");
+      const missingAnalysis = sourceCiFixture();
+      missingAnalysis.responses[`${missingAnalysis.prefix}/code-scanning/analyses?ref=refs%2Fheads%2Fmain&tool_name=CodeQL&per_page=20`] = missingAnalysis.analyses.filter(value => value.category !== `/language:${language}`);
+      expect(() => admitSourceCi(missingAnalysis.input, missingAnalysis.read, missingAnalysis.clock)).toThrow("exact main CodeQL analyses are missing or ambiguous");
+    }
+    for (const keepTypeScriptAnalysis of [false, true]) {
+      const fixture = sourceCiFixture();
+      const jobs = fixture.responses[`${fixture.prefix}/actions/runs/200/attempts/1/jobs?per_page=100`];
+      jobs.jobs = jobs.jobs.filter((job: Json) => job.name !== "Analyze (javascript-typescript)"); jobs.total_count = jobs.jobs.length;
+      if (!keepTypeScriptAnalysis) fixture.analyses.splice(1, 1);
+      expect(() => admitSourceCi(fixture.input, fixture.read, fixture.clock)).toThrow("complete successful job union is required");
+    }
+    const missingAnalysis = sourceCiFixture(); missingAnalysis.analyses.pop();
+    expect(() => admitSourceCi(missingAnalysis.input, missingAnalysis.read, missingAnalysis.clock)).toThrow("exact main CodeQL analyses are missing or ambiguous");
+    for (const mutate of [
+      (job: Json) => { job.name = "Analyze (unknown)"; },
+      (job: Json) => { job.name = "Analyze (actions)"; },
+      (job: Json) => { job.conclusion = "failure"; },
+      (job: Json) => { job.conclusion = "skipped"; },
+      (job: Json) => { job.run_attempt = 2; },
+      (job: Json) => { job.head_sha = "7".repeat(40); },
+    ]) {
+      const fixture = sourceCiFixture();
+      const typescript = fixture.responses[`${fixture.prefix}/actions/runs/200/attempts/1/jobs?per_page=100`].jobs.find((job: Json) => job.name === "Analyze (javascript-typescript)");
+      mutate(typescript);
+      expect(() => admitSourceCi(fixture.input, fixture.read, fixture.clock)).toThrow();
+    }
+  });
+  test("rejects an additional obsolete Swift job or analysis instead of silently ignoring it", () => {
+    for (const extra of ["job", "analysis", "both"]) {
+      const fixture = sourceCiFixture();
+      if (extra !== "analysis") {
+        const jobs = fixture.responses[`${fixture.prefix}/actions/runs/200/attempts/1/jobs?per_page=100`];
+        jobs.jobs.push({ ...jobs.jobs[0], id: 2004, name: "Analyze (swift)" }); jobs.total_count = jobs.jobs.length;
+      }
+      if (extra !== "job") fixture.analyses.push({ ...fixture.analyses[1]!, id: 900,
+        category: "/language:swift", environment: JSON.stringify({ category: "/language:swift", language: "swift" }),
+        url: `https://api.github.com/${fixture.prefix}/code-scanning/analyses/900` });
+      expect(() => admitSourceCi(fixture.input, fixture.read, fixture.clock)).toThrow(
+        extra === "analysis" ? "exact main CodeQL analyses are missing or ambiguous" : "complete successful job union is required",
+      );
+    }
+  });
+  test("rejects an unreviewed language in place of a current source job or analysis", () => {
+    for (const substitute of ["job", "analysis", "both"]) {
+      const fixture = sourceCiFixture();
+      if (substitute !== "analysis") {
+        const jobs = fixture.responses[`${fixture.prefix}/actions/runs/200/attempts/1/jobs?per_page=100`].jobs;
+        jobs.find((job: Json) => job.name === "Analyze (javascript-typescript)").name = "Analyze (rust)";
+      }
+      if (substitute !== "job") Object.assign(fixture.analyses[1]!, {
+        category: "/language:rust", environment: JSON.stringify({ category: "/language:rust", language: "rust" }),
+      });
+      expect(() => admitSourceCi(fixture.input, fixture.read, fixture.clock)).toThrow(
+        substitute === "analysis" ? "exact main CodeQL analyses are missing or ambiguous" : "complete successful job union is required",
+      );
+    }
+  });
+  test("binds TypeScript analysis to its exact source, configuration and own job interval", () => {
+    for (const mutate of [
+      (analysis: Json) => { analysis.id = 800; },
+      (analysis: Json) => { analysis.category = "/language:actions"; },
+      (analysis: Json) => { analysis.category = "/language:unknown"; },
+      (analysis: Json) => { analysis.commit_sha = "7".repeat(40); },
+      (analysis: Json) => { analysis.ref = "refs/pull/50/head"; },
+      (analysis: Json) => { analysis.analysis_key = "other:analyze"; },
+      (analysis: Json) => { analysis.environment = JSON.stringify({ category: "/language:javascript-typescript", language: "actions" }); },
+      (analysis: Json) => { analysis.environment = JSON.stringify({ category: "/language:actions", language: "javascript-typescript" }); },
+      (analysis: Json) => { analysis.error = "failed analysis"; },
+      (analysis: Json) => { analysis.warning = "incomplete extraction"; },
+      (analysis: Json) => { analysis.tool.name = "Other"; },
+      (analysis: Json) => { analysis.url += "/other"; },
+      (analysis: Json) => { analysis.created_at = "2026-09-08T01:10:00Z"; },
+    ]) {
+      const fixture = sourceCiFixture(); mutate(fixture.analyses[1]!);
+      expect(() => admitSourceCi(fixture.input, fixture.read, fixture.clock)).toThrow();
+    }
+    for (const field of ["started_at", "completed_at"]) {
+      const fixture = sourceCiFixture();
+      const typescript = fixture.responses[`${fixture.prefix}/actions/runs/200/attempts/1/jobs?per_page=100`].jobs.find((job: Json) => job.name === "Analyze (javascript-typescript)");
+      typescript[field] = field === "started_at" ? "2026-09-09T01:11:00Z" : "2026-09-09T01:09:00Z";
+      expect(() => admitSourceCi(fixture.input, fixture.read, fixture.clock)).toThrow("CodeQL analysis source, configuration, time, or outcome differs");
+    }
+  });
+  test("refuses two exact-source CodeQL runs even when the later run has both source languages", () => {
+    const fixture = sourceCiFixture();
+    const path = `${fixture.prefix}/actions/workflows/351099999/runs?head_sha=${fixture.input.source}&branch=main&event=dynamic&per_page=100`;
+    const inventory = fixture.responses[path];
+    const earlier = { ...inventory.workflow_runs[0], id: 199 };
+    inventory.workflow_runs.push(earlier); inventory.total_count = 2;
+    fixture.responses[`${fixture.prefix}/actions/runs/199/attempts/1/jobs?per_page=100`] = {
+      total_count: 2, jobs: fixture.responses[`${fixture.prefix}/actions/runs/200/attempts/1/jobs?per_page=100`].jobs.slice(0, 2),
+    };
+    expect(() => admitSourceCi(fixture.input, fixture.read, fixture.clock)).toThrow("exact-source workflow run is missing or ambiguous");
+    expect(fixture.calls.some(call => /\/actions\/runs\/(?:199|200)(?:\/|$)/u.test(call))).toBe(false);
+  });
+  test("rejects TypeScript-only evidence changes during the final source snapshot", () => {
+    for (const target of ["job", "analysis"]) {
+      const fixture = sourceCiFixture(); let reads = 0;
+      const path = target === "job" ? `${fixture.prefix}/actions/runs/200/attempts/1/jobs?per_page=100`
+        : `${fixture.prefix}/code-scanning/analyses?ref=refs%2Fheads%2Fmain&tool_name=CodeQL&per_page=20`;
+      expect(() => admitSourceCi(fixture.input, current => {
+        if (current === path && ++reads === 2) {
+          if (target === "job") fixture.responses[path].jobs.find((job: Json) => job.name === "Analyze (javascript-typescript)").completed_at = "2026-09-09T01:13:59Z";
+          else fixture.analyses[1]!.results_count += 1;
+        }
+        return fixture.read(current);
+      }, fixture.clock)).toThrow("source or provider evidence changed during admission");
+      expect(reads).toBe(2);
+    }
+  });
+  test("admits a current-repository closed PR CodeQL response with an empty association and exact provider summary", () => {
+    const fixture = sourceCiFixture(1, 203);
+    const checks = fixture.responses[`${fixture.prefix}/commits/${fixture.head}/check-runs?per_page=100&filter=latest`];
+    // Response shape follows GitHub check 102698893117; repository and source identity are fixture-local.
+    // The historical Wrench summary is separately rejected below; it is not rewritten provider evidence.
+    checks.check_runs = [{ id: 102698893117, name: "CodeQL", app: { id: 57789 }, head_sha: fixture.head,
+      status: "completed", conclusion: "success", pull_requests: [], output: {
+        summary: "[View all branch alerts](/hraness/ghostget/security/code-scanning?query=pr%3A203+tool%3ACodeQL+is%3Aopen).",
+      } }];
+    const result = admitSourceCi(fixture.input, fixture.read, fixture.clock);
+    expect(result.security.pullRequest).toBe(203);
+    expect(result.security.prComparison).toEqual([{ id: 102698893117, source: fixture.head, conclusion: "success" }]);
+    expect(result.security.sameMergedTree).toBe(fixture.input.tree);
+  });
+  test("refuses malformed summary fallback and never rescues contradictory nonempty associations", () => {
+    const summary = "[View all branch alerts](/hraness/ghostget/security/code-scanning?query=pr%3A50+tool%3ACodeQL+is%3Aopen).";
+    const mutations: ((check: Json) => void)[] = [
+      check => { delete check.pull_requests; },
+      check => { check.pull_requests = null; },
+      check => { check.pull_requests = {}; },
+      check => { delete check.output; },
+      check => { delete check.output.summary; },
+      check => { check.output.summary = null; },
+      check => { check.output.summary = 50; },
+      ...[summary.replace("pr%3A50", "pr%3A51"), summary.replace("/hraness/", "/foreign/"),
+        summary.replace("/ghostget/", "/other/"), summary.replace("/ghostget/", "/wrench/"), summary.replace("tool%3ACodeQL", "tool%3AOther"),
+        summary.replace("is%3Aopen", "is%3Aclosed"), summary.replace("pr%3A50", "pr:50"),
+        summary.replace("](/", "](https://github.com/"), summary + "\n", summary + summary, "extra " + summary,
+      ].map(value => (check: Json) => { check.output.summary = value; }),
+    ];
+    for (const mutate of mutations) {
+      const fixture = sourceCiFixture();
+      const check = fixture.responses[`${fixture.prefix}/commits/${fixture.head}/check-runs?per_page=100&filter=latest`].check_runs[0];
+      check.pull_requests = []; check.output = { summary }; mutate(check);
+      expect(() => admitSourceCi(fixture.input, fixture.read, fixture.clock)).toThrow();
+    }
+    for (const mutate of [
+      (associated: Json) => { associated.number = 51; },
+      (associated: Json) => { associated.id = 1; },
+      (associated: Json) => { associated.url += "/other"; },
+      (associated: Json) => { associated.head.sha = "7".repeat(40); },
+      (associated: Json) => { associated.base.ref = "other"; },
+      (associated: Json) => { associated.head.repo.id = 1; },
+      (associated: Json) => { associated.base.repo.url = "https://api.github.com/repos/foreign/ghostget"; },
+    ]) {
+      const fixture = sourceCiFixture();
+      const check = fixture.responses[`${fixture.prefix}/commits/${fixture.head}/check-runs?per_page=100&filter=latest`].check_runs[0];
+      check.output = { summary }; mutate(check.pull_requests[0]);
+      expect(() => admitSourceCi(fixture.input, fixture.read, fixture.clock)).toThrow();
+    }
+  });
+  test("requires terminal job evidence within 72 hours and the corresponding analysis interval", () => {
+    const fixture = sourceCiFixture();
+    const deadline = Date.parse("2026-09-09T01:14:00Z") + 72 * 60 * 60 * 1000;
+    expect(() => admitSourceCi(fixture.input, fixture.read, () => deadline)).not.toThrow();
+    expect(() => admitSourceCi(fixture.input, fixture.read, () => deadline + 1)).toThrow("stale");
+    expect(() => admitSourceCi(fixture.input, fixture.read, () => Date.parse("2026-09-09T01:13:59Z"))).toThrow("future");
+    for (const mutate of [
+      (job: Json) => { job.completed_at = "not-a-date"; },
+      (job: Json) => { job.started_at = "2026-09-09T01:14:01Z"; },
+      (job: Json) => { job.started_at = "2026-09-08T01:00:00Z"; },
+    ]) {
+      const changed = sourceCiFixture(); mutate(changed.responses[`${changed.prefix}/actions/runs/100/attempts/1/jobs?per_page=100`].jobs[0]);
+      expect(() => admitSourceCi(changed.input, changed.read, changed.clock)).toThrow();
+    }
+    fixture.responses[`${fixture.prefix}/actions/runs/200/attempts/1/jobs?per_page=100`].jobs[0].started_at = "2026-09-09T01:11:00Z";
+    expect(() => admitSourceCi(fixture.input, fixture.read, fixture.clock)).toThrow("analysis");
+    const calendar = sourceCiFixture();
+    for (const path of Object.keys(calendar.responses)) calendar.responses[path] = JSON.parse(JSON.stringify(calendar.responses[path]).replaceAll("2026-09-09", "2026-03-02"));
+    const marchClock = () => Date.parse("2026-03-02T02:00:00Z");
+    expect(() => admitSourceCi(calendar.input, calendar.read, marchClock)).not.toThrow();
+    calendar.responses[`${calendar.prefix}/actions/runs/100/attempts/1/jobs?per_page=100`].jobs[0].started_at = "2026-02-30T01:00:01Z";
+    expect(() => admitSourceCi(calendar.input, calendar.read, marchClock)).toThrow("invalid provider timestamp");
+  });
+  test("admits a moved main only when the released tree is byte-identical to a reviewed side", () => {
+    const blob = (n: number) => n.toString(16).padStart(40, "0");
+    const fixture = sourceCiFixture();
+    fixture.movedMain({
+      base: { "a.ts": blob(1), "b.ts": blob(1), "c.ts": blob(1) },
+      head: { "a.ts": blob(1), "b.ts": blob(2), "c.ts": blob(1), "d.ts": blob(9) },
+      parent: { "a.ts": blob(5), "b.ts": blob(1), "c.ts": blob(1), "e.ts": blob(7) },
+      source: { "a.ts": blob(5), "b.ts": blob(2), "c.ts": blob(1), "d.ts": blob(9), "e.ts": blob(7) },
+    });
+    const result = admitSourceCi(fixture.input, fixture.read, fixture.clock);
+    expect(result.security.reviewedHead).toBe(fixture.head);
+    expect(result.security.sameMergedTree).toBe(fixture.input.tree);
+    for (const second of [fixture.head, "f".repeat(40)]) {
+      const two = sourceCiFixture();
+      two.movedMain({
+        base: { "a.ts": blob(1) }, head: { "a.ts": blob(2) }, parent: { "a.ts": blob(1), "m.ts": blob(3) },
+        source: { "a.ts": blob(2), "m.ts": blob(3) },
+      });
+      two.responses[`${two.prefix}/git/commits/${two.input.source}`].parents = [{ sha: two.parent }, { sha: second }];
+      if (second === fixture.head) expect(admitSourceCi(two.input, two.read, two.clock).security.pullRequest).toBe(50);
+      else expect(() => admitSourceCi(two.input, two.read, two.clock)).toThrow("parentage differs");
+    }
+  });
+  test("rejects moved-main merges carrying unreviewed, dropped, or resolved content", () => {
+    const blob = (n: number) => n.toString(16).padStart(40, "0");
+    type Fixture = ReturnType<typeof sourceCiFixture>;
+    const trees = (f: Fixture) => f.movedMain({
+      base: { "a.ts": blob(1), "b.ts": blob(1), "c.ts": blob(1) },
+      head: { "a.ts": blob(1), "b.ts": blob(2), "c.ts": blob(1), "d.ts": blob(9) },
+      parent: { "a.ts": blob(5), "b.ts": blob(1), "c.ts": blob(1), "e.ts": blob(7) },
+      source: { "a.ts": blob(5), "b.ts": blob(2), "c.ts": blob(1), "d.ts": blob(9), "e.ts": blob(7) },
+    });
+    const sourceTree = (f: Fixture) => f.responses[`${f.prefix}/git/trees/${f.input.tree}?recursive=1`].tree as { path: string; sha: string }[];
+    const mutations: ((fixture: Fixture) => void)[] = [
+      f => { sourceTree(f).find(e => e.path === "a.ts")!.sha = blob(8); },                             // smuggled main-side bytes
+      f => { sourceTree(f).find(e => e.path === "b.ts")!.sha = blob(1); },                             // PR change rolled back
+      f => { sourceTree(f).push({ path: "z.ts", sha: blob(3) }); },                                    // unreviewed addition
+      f => { const t = sourceTree(f); t.splice(t.findIndex(e => e.path === "d.ts"), 1); },             // reviewed content dropped
+      f => { const t = sourceTree(f); t.splice(t.findIndex(e => e.path === "e.ts"), 1); },             // main change dropped
+      f => { const t = f.responses[`${f.prefix}/git/trees/${"b".repeat(40)}?recursive=1`].tree as { path: string; sha: string }[];
+        t.find(e => e.path === "a.ts")!.sha = blob(3); },                                              // overlap becomes a resolution
+      f => { const t = f.responses[`${f.prefix}/git/trees/${"a".repeat(40)}?recursive=1`].tree as { path: string }[];
+        t.splice(t.findIndex(e => e.path === "e.ts"), 1); const p = f.responses[`${f.prefix}/git/trees/${"c".repeat(40)}?recursive=1`].tree as { path: string }[];
+        p.splice(p.findIndex(e => e.path === "e.ts"), 1); },                                           // unreviewed extra then hides
+      f => { f.responses[`${f.prefix}/git/commits/${f.input.source}`].parents = []; },
+      f => { f.responses[`${f.prefix}/git/commits/${f.input.source}`].parents.push({ sha: "e".repeat(40) }); },
+      f => { f.responses[`${f.prefix}/compare/${f.parent}...${f.head}`].merge_base_commit.sha = "9".repeat(40); },
+      f => { f.responses[`${f.prefix}/compare/${f.parent}...${f.head}`].base_commit.sha = "9".repeat(40); },
+      f => { f.responses[`${f.prefix}/git/trees/${"c".repeat(40)}?recursive=1`].truncated = true; },
+      f => { const t = f.responses[`${f.prefix}/git/trees/${f.input.tree}?recursive=1`].tree as { path: string; sha: string }[];
+        t.push({ ...t[0]! }); },                                                                     // duplicate provider path
+      f => { f.responses[`${f.prefix}/git/trees/${f.input.tree}?recursive=1`].sha = "f".repeat(40); },
+    ];
+    for (const mutate of mutations) { const fixture = sourceCiFixture(); trees(fixture); mutate(fixture); expect(() => admitSourceCi(fixture.input, fixture.read, fixture.clock)).toThrow(); }
+  });
+  test("rejects incomplete, foreign, stale, failed, skipped, and ambiguous provider evidence", () => {
+    type Fixture = ReturnType<typeof sourceCiFixture>;
+    const mutations: ((fixture: Fixture) => void)[] = [
+      f => { f.responses[`${f.prefix}/git/ref/heads/main`].object.sha = f.head; },
+      f => { f.responses[`${f.prefix}/git/commits/${f.input.source}`].tree.sha = f.head; },
+      f => { f.responses[`${f.prefix}/actions/workflows/323493607`].state = "disabled_manually"; },
+      f => { f.responses[`${f.prefix}/actions/workflows/323493607`].path = ".github/workflows/other.yml"; },
+      f => { f.responses[`${f.prefix}/actions/runs/100`].workflow_id = 1; },
+      f => { f.responses[`${f.prefix}/actions/runs/100`].head_sha = f.head; },
+      f => { f.responses[`${f.prefix}/actions/runs/100`].event = "pull_request"; },
+      f => { f.responses[`${f.prefix}/actions/runs/100`].head_branch = "other"; },
+      f => { f.responses[`${f.prefix}/actions/runs/100`].head_repository.id = 1; },
+      f => { f.responses[`${f.prefix}/actions/runs/100`].repository.full_name = "foreign/ghostget"; },
+      f => { f.responses[`${f.prefix}/actions/runs/100`].run_attempt = 2; },
+      f => { f.responses[`${f.prefix}/actions/runs/100/attempts/1`].run_attempt = 2; },
+      f => { f.responses[`${f.prefix}/actions/runs/100/attempts/1`].status = "in_progress"; },
+      f => { f.responses[`${f.prefix}/actions/runs/100/attempts/1`].conclusion = "failure"; },
+      f => { f.responses[`${f.prefix}/actions/runs/100/attempts/1/jobs?per_page=100`].jobs.pop(); },
+      f => { f.responses[`${f.prefix}/actions/runs/100/attempts/1/jobs?per_page=100`].jobs[0].name = "unknown"; },
+      f => { f.responses[`${f.prefix}/actions/runs/100/attempts/1/jobs?per_page=100`].jobs[0].id = 1001; },
+      f => { f.responses[`${f.prefix}/actions/runs/100/attempts/1/jobs?per_page=100`].jobs[0].run_attempt = 2; },
+      f => { f.responses[`${f.prefix}/actions/runs/100/attempts/1/jobs?per_page=100`].jobs[0].head_sha = f.head; },
+      f => { f.responses[`${f.prefix}/actions/runs/100/attempts/1/jobs?per_page=100`].jobs[0].conclusion = "skipped"; },
+      f => { f.responses[`${f.prefix}/actions/runs/100/attempts/1/jobs?per_page=100`].jobs[0].steps = []; },
+      f => { f.responses[`${f.prefix}/actions/runs/200/attempts/1/jobs?per_page=100`].jobs[0].conclusion = "failure"; },
+      f => { f.responses[`${f.prefix}/pulls/50`].merged = false; },
+      f => { f.responses[`${f.prefix}/pulls/50`].base.ref = "other"; },
+      f => { f.responses[`${f.prefix}/git/commits/${f.head}`].tree.sha = f.head; },
+      f => { f.responses[`${f.prefix}/commits/${f.head}/check-runs?per_page=100&filter=latest`].check_runs[0].conclusion = "failure"; },
+      f => { f.responses[`${f.prefix}/commits/${f.head}/check-runs?per_page=100&filter=latest`].check_runs[0].app.id = 15368; },
+      f => { f.responses[`${f.prefix}/commits/${f.head}/check-runs?per_page=100&filter=latest`].check_runs[0].pull_requests[0].number = 51; },
+      f => { f.responses[`${f.prefix}/commits/${f.head}/check-runs?per_page=100&filter=latest`].check_runs[0].pull_requests[0].base.ref = "other"; },
+      f => { f.responses[`${f.prefix}/commits/${f.head}/check-runs?per_page=100&filter=latest`].check_runs[0].pull_requests[0].head.repo.id = 1; },
+      f => { f.responses[`${f.prefix}/commits/${f.input.source}/check-runs?per_page=100&filter=latest`].check_runs[0] = {
+        id: 701, head_sha: f.input.source, name: "CodeQL", app: { id: 57789 }, status: "completed", conclusion: "failure" }; },
+      f => { f.analyses[0]!.warning = "incomplete extraction"; },
+      f => { f.analyses[0]!.error = "failed analysis"; },
+      f => { f.analyses[0]!.commit_sha = f.head; },
+      f => { f.analyses[0]!.created_at = "2026-09-08T01:10:00Z"; },
+      f => { f.analyses[0]!.ref = "refs/heads/other"; },
+      f => { f.analyses[0]!.analysis_key = "other:analyze"; },
+      f => { f.analyses.push({ ...f.analyses[0]!, id: 810 }); },
+      f => { const key = Object.keys(f.responses).find(path => path.includes("/323493607/runs?"))!; f.responses[key].workflow_runs = []; },
+      f => { const key = Object.keys(f.responses).find(path => path.includes("/323493607/runs?"))!;
+        f.responses[key].workflow_runs.push({ ...f.responses[key].workflow_runs[0], id: 101 }); f.responses[key].total_count = 2; },
+    ];
+    for (const mutate of mutations) { const fixture = sourceCiFixture(); mutate(fixture); expect(() => admitSourceCi(fixture.input, fixture.read, fixture.clock)).toThrow(); }
+  });
+  test("rejects checkout, lock, workflow, toolchain, platform, and log identity substitutions", () => {
+    const f = sourceCiFixture(); const log = f.responses[`${f.prefix}/actions/jobs/1000/logs`] as string;
+    for (const [before, after] of [[f.input.source, f.head], [f.input.tree, f.head], [f.input.workflowSha256, "7".repeat(64)],
+      [f.input.lockSha256, "8".repeat(64)], ["24.20.0", "24.19.0"], ["11.19.0", "11.20.0"], ["1.3.14", "1.4.0"],
+      ['"runAttempt":1', '"runAttempt":2'], ['"runId":100', '"runId":101'], ['"linux"', '"darwin"'],
+      ['"github-hosted"', '"self-hosted"'], ['"push"', '"pull_request"'], ["refs/heads/main", "refs/heads/other"]]) {
+      expect(() => verifySourceCiLog(log.replaceAll(before!, after!), f.input, 100, 1, "static")).toThrow();
+    }
+    expect(() => verifySourceCiLog(log + log, f.input, 100, 1, "static")).toThrow();
+    expect(() => verifySourceCiLog(log.split("\n").slice(0, 2).join("\n"), f.input, 100, 1, "static")).toThrow();
+    assertProperty(fc.property(fc.string(), extra => {
+      const changed = log.replace('"schema":"wrench-source-ci-v1"', `"schema":"wrench-source-ci-v1","extra":${JSON.stringify(extra)}`);
+      expect(() => verifySourceCiLog(changed, f.input, 100, 1, "static")).toThrow();
+    }), { numRuns: 50 });
+  });
+  test("rechecks the exact attempt and source evidence after reading completed logs", () => {
+    const fixture = sourceCiFixture(); let reads = 0;
+    expect(() => admitSourceCi(fixture.input, path => {
+      if (path === `${fixture.prefix}/actions/runs/100` && ++reads === 2) fixture.responses[path].conclusion = "failure";
+      return fixture.read(path);
+    }, fixture.clock)).toThrow();
+    expect(reads).toBe(2);
+  });
+  test("retains unconditional fresh build, exact archive install and all later capability boundaries", async () => {
+    const yaml = await readFile(new URL("../.github/workflows/release.yml", import.meta.url), "utf8");
+    const workflow = Bun.YAML.parse(yaml) as Json;
+    const admission = { name: "Admit exact source CI and security", env: {
+      GH_TOKEN: "${{ github.token }}", DEFAULT_BRANCH: "${{ github.event.repository.default_branch }}",
+      VERIFIED_SOURCE_SHA: "${{ steps.identity.outputs.sha }}", VERIFIED_MAIN_SHA: "${{ steps.identity.outputs.main_sha }}",
+    }, run: "bun run ./scripts/release-source-ci.ts admit" };
+    const validate = (value: Json) => {
+      const job = value.jobs.verify;
+      if (job.if !== undefined || job["continue-on-error"] !== undefined || job.steps.some((step: Json) => step.if !== undefined || step["continue-on-error"] !== undefined)) throw new Error("conditional source acceptance");
+      const steps: Json[] = job.steps; const index = steps.findIndex(step => step.name === admission.name);
+      if (index < 0 || !isDeepStrictEqual(steps[index], admission) || steps.filter(step => step.run?.includes("release-source-ci.ts")).length !== 1
+        || steps[index - 1]?.name !== "Verify release identity" || steps[index + 1]?.run !== "bun install --frozen-lockfile --ignore-scripts"
+        || steps[index + 2]?.run !== "bun run build") throw new Error("admission ordering changed");
+      const archive = steps.findIndex(step => step.name === "Prepare and install the exact canonical archive");
+      if (archive <= index + 2 || !steps[archive]?.run.includes("github-release-artifact.ts prepare")
+        || !steps[archive]?.run.includes("package-smoke.ts") || !steps[archive]?.run.startsWith("set -euo pipefail\n")) throw new Error("exact artifact admission changed");
+    };
+    expect(() => validate(workflow)).not.toThrow();
+    for (const mutate of [
+      (w: Json) => { w.jobs.verify["continue-on-error"] = true; },
+      (w: Json) => { w.jobs.verify.steps.find((step: Json) => step.name === admission.name).if = "always()"; },
+      (w: Json) => { w.jobs.verify.steps.find((step: Json) => step.name === admission.name).run += " || true"; },
+      (w: Json) => { w.jobs.verify.steps.find((step: Json) => step.name === admission.name).env.VERIFIED_SOURCE_SHA = "${{ github.event.inputs.sha }}"; },
+      (w: Json) => { w.jobs.verify.steps = w.jobs.verify.steps.filter((step: Json) => step.name !== admission.name); },
+      (w: Json) => { w.jobs.verify.steps.find((step: Json) => step.run === "bun run build").run = "true"; },
+    ]) { const changed = structuredClone(workflow); mutate(changed); expect(() => validate(changed)).toThrow(); }
+  });
+});
+
+describe("canonical release publication and safe local input", () => {
+  test("pins all documented cryptographic verifier coordinates", () => {
+    const args = attestationVerifyArguments("/exact", manifest, "SHA256SUMS");
+    expect(args).toEqual(["attestation", "verify", "/exact/SHA256SUMS", "--repo", "hraness/ghostget",
+      "--signer-workflow", "hraness/ghostget/.github/workflows/release.yml", "--signer-digest", sourceSha,
+      "--source-digest", sourceSha, "--source-ref", `refs/tags/${tag}`, "--deny-self-hosted-runners",
+      "--bundle", "/exact/provenance.jsonl", "--format=json"]);
+    expect(() => attestationVerifyArguments("/exact", manifest, "../different")).toThrow();
+  });
+  test("verifies historical certificates against Wrench while current API lookup remains Ghostget", () => {
+    const historical = parseReleaseManifest({ ...manifest, tag: "v0.16.16", version: "0.16.16",
+      package: "@hraness/wrench", repository: "hraness/wrench",
+      archive: { ...manifest.archive, name: "hraness-wrench-0.16.16.tgz" } });
+    const args = attestationVerifyArguments("/exact", historical, "SHA256SUMS");
+    expect(args[args.indexOf("--repo") + 1]).toBe("hraness/wrench");
+    expect(args[args.indexOf("--signer-workflow") + 1]).toBe("hraness/wrench/.github/workflows/release.yml");
+    expect(() => parseReleaseManifest({ ...historical, repository: "hraness/ghostget" })).toThrow();
+  });
+  test("publishes a failed-jobs rerun only from the exact bytes an earlier attempt of its run attested", async () => {
+    // Regression: the publisher required the canonical manifest to name the
+    // current attempt, so rerunning a failed publish job could never publish the
+    // exact bytes that an earlier attempt of the same run had already attested.
+    const root = await mkdtemp(join(tmpdir(), "ghostget-rerun-publication-"));
+    try {
+      const canonical = join(root, "canonical"); const future = join(root, "future"); const bin = join(root, "bin");
+      await mkdir(canonical); await mkdir(future); await mkdir(bin);
+      const f = await largeTransferFixture(canonical);
+      const log = join(root, "gh.log"); const attestation = join(root, "attestation.json");
+      await writeFile(join(bin, "gh"), [
+        "#!/bin/bash",
+        'printf "%s\\n" "$*" >> "$FAKE_GH_LOG"',
+        'if [[ "$1" == attestation && "$2" == verify ]]; then cat "$FAKE_GH_ATTESTATION"; exit 0; fi',
+        "exit 1",
+        "",
+      ].join("\n"), { mode: 0o755 });
+      const attest = (runAttempt: number, hashes: Readonly<Record<string, string>>) => writeFile(attestation, JSON.stringify([{
+        verificationResult: {
+          signature: { certificate: {
+            issuer: "https://token.actions.githubusercontent.com", buildSignerURI: `https://github.com/hraness/ghostget/.github/workflows/release.yml@refs/tags/${f.tag}`,
+            buildSignerDigest: sourceSha, runnerEnvironment: "github-hosted", sourceRepositoryURI: "https://github.com/hraness/ghostget",
+            sourceRepositoryIdentifier: "1425391521", sourceRepositoryOwnerIdentifier: "307125679", sourceRepositoryOwnerURI: "https://github.com/hraness",
+            sourceRepositoryVisibilityAtSigning: "public", buildConfigURI: `https://github.com/hraness/ghostget/.github/workflows/release.yml@refs/tags/${f.tag}`,
+            buildConfigDigest: sourceSha, sourceRepositoryDigest: sourceSha, sourceRepositoryRef: `refs/tags/${f.tag}`, buildTrigger: "push",
+            runInvocationURI: `https://github.com/hraness/ghostget/actions/runs/9001/attempts/${runAttempt}`,
+          } },
+          verifiedTimestamps: [{ type: "fixture" }],
+          statement: { _type: "https://in-toto.io/Statement/v1", predicateType: "https://slsa.dev/provenance/v1",
+            subject: f.names.slice(0, 4).map(name => ({ name, digest: { sha256: hashes[name] } })) },
+        },
+      }]));
+      const publish = async (directory: string, hashes: Readonly<Record<string, string>>, overrides: Readonly<Record<string, string>> = {}) => {
+        await writeFile(log, "");
+        const child = Bun.spawn([process.execPath, "run", fileURLToPath(new URL("./github-release-publish.ts", import.meta.url)), directory], {
+          cwd: fileURLToPath(new URL("..", import.meta.url)),
+          env: { PATH: `${bin}:${process.env.PATH ?? ""}`, HOME: root, FAKE_GH_LOG: log, FAKE_GH_ATTESTATION: attestation,
+            GITHUB_RUN_ID: "9001", GITHUB_RUN_ATTEMPT: "2", VERIFIED_SHA: sourceSha, VERIFIED_TAG: f.tag, WORKFLOW_SHA: workflowSha,
+            EXPECTED_ARTIFACT_HASHES: JSON.stringify(hashes), EXPECTED_BUNDLE_SHA256: f.bundleHash, ...overrides },
+          stderr: "pipe", stdout: "pipe" });
+        const [exitCode, stderr] = await Promise.all([child.exited, new Response(child.stderr).text(), new Response(child.stdout).text()]);
+        const calls = (await readFile(log, "utf8")).split("\n").filter(line => line !== "");
+        return { exitCode, stderr, verifications: calls.filter(call => call.startsWith("attestation verify ")).length,
+          otherCalls: calls.filter(call => !call.startsWith("attestation verify ")) };
+      };
+
+      // Attempt 1 built, attested, and handed off these bytes; attempt 2 reran
+      // only the failed publish job. The publisher verifies all four signed
+      // subjects for attempt 1 and reaches strict package admission, which this
+      // synthetic transfer archive then fails, before any GitHub Release call.
+      await attest(1, f.hashes);
+      const rerun = await publish(canonical, f.hashes);
+      expect(rerun.exitCode).not.toBe(0);
+      expect(rerun.stderr).toContain("safely decompressed");
+      expect(rerun.verifications).toBe(4);
+      expect(rerun.otherCalls).toEqual([]);
+
+      // Provenance signed by the rerun attempt does not match bytes that name attempt 1.
+      await attest(2, f.hashes);
+      const resigned = await publish(canonical, f.hashes);
+      expect(resigned.exitCode).not.toBe(0);
+      expect(resigned.stderr).toContain("Verified certificate has a different runInvocationURI");
+      expect(resigned.verifications).toBe(1);
+      expect(resigned.otherCalls).toEqual([]);
+
+      // Bytes that claim a later attempt than the one running cannot have been attested yet.
+      const files = new Map(f.files);
+      files.set("release-manifest.json", Buffer.from(`${JSON.stringify({ ...f.manifest, runAttempt: 3 })}\n`));
+      const digest = (name: string) => createHash("sha256").update(files.get(name)!).digest("hex");
+      files.set("SHA256SUMS", Buffer.from(f.names.slice(0, 3).map(name => `${digest(name)}  ${name}\n`).join("")));
+      for (const [name, bytes] of files) await writeFile(join(future, name), bytes);
+      const futureHashes = Object.fromEntries(f.names.slice(0, 4).map(name => [name, digest(name)]));
+      await attest(3, futureHashes);
+      const later = await publish(future, futureHashes);
+      expect(later.exitCode).not.toBe(0);
+      expect(later.stderr).toContain("later attempt");
+      expect(later.verifications).toBe(0);
+      expect(later.otherCalls).toEqual([]);
+
+      // The run coordinates stay exact before any provenance is read.
+      await attest(1, f.hashes);
+      for (const [overrides, message] of [
+        [{ GITHUB_RUN_ATTEMPT: "" }, "GITHUB_RUN_ATTEMPT is not one positive Actions run coordinate"],
+        [{ GITHUB_RUN_ATTEMPT: "0" }, "GITHUB_RUN_ATTEMPT is not one positive Actions run coordinate"],
+        [{ GITHUB_RUN_ATTEMPT: "02" }, "GITHUB_RUN_ATTEMPT is not one positive Actions run coordinate"],
+        [{ GITHUB_RUN_ID: "9001x" }, "GITHUB_RUN_ID is not one positive Actions run coordinate"],
+        [{ GITHUB_RUN_ID: "9002" }, "GitHub release manifest does not bind expected runId"],
+      ] as const) {
+        const rejected = await publish(canonical, f.hashes, overrides);
+        expect(rejected.exitCode).not.toBe(0);
+        expect(rejected.stderr).toContain(message);
+        expect(rejected.verifications).toBe(0);
+        expect(rejected.otherCalls).toEqual([]);
+      }
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+  test("canonical download admits an attesting attempt whose failed publish a later rerun of its run completed", () => {
+    // Regression: the canonical download admitted the published Release only
+    // when its attesting attempt had also published it, so a Release published
+    // by rerunning that run's failed publish job could never be promoted.
+    const runPath = "repos/hraness/ghostget/actions/runs/9001";
+    const attemptRun = (runAttempt: number, conclusion: string): Json => ({
+      id: 9001, run_attempt: runAttempt, workflow_id: 389238077, path: ".github/workflows/release.yml", event: "push",
+      head_branch: tag, head_sha: sourceSha, status: "completed", conclusion,
+      actor: { id: 894119, login: "0thernet", type: "User" }, triggering_actor: { id: 894119, login: "0thernet", type: "User" },
+      repository: { id: 1425391521, full_name: "hraness/ghostget", private: false },
+      head_repository: { id: 1425391521, full_name: "hraness/ghostget", private: false },
+    });
+    const attemptJobs = (runAttempt: number, publish: string): Json => {
+      const jobs = ["Authorize owner release tag", "Verify", "Attest exact canonical build files", "Publish immutable GitHub Release",
+        "Publish exact npm package through OIDC", "Admit exact public npm package"].map((name, index) => ({
+        id: 6000 + runAttempt * 10 + index, name, run_id: 9001, run_attempt: runAttempt, head_sha: sourceSha, status: "completed",
+        conclusion: index < 3 || publish === "success" ? "success" : index === 3 ? publish : "skipped",
+      }));
+      return { total_count: jobs.length, jobs };
+    };
+    const verify = (responses: Readonly<Record<string, Json>>) => {
+      const reads: string[] = [];
+      const gh = (args: readonly string[]): string => {
+        const path = args[1] ?? "";
+        if (args.length !== 2 || args[0] !== "api" || !Object.hasOwn(responses, path)) throw new Error(`Unexpected gh ${args.join(" ")}`);
+        reads.push(path);
+        return JSON.stringify(responses[path]);
+      };
+      return { reads, verify: () => verifyCanonicalReleaseRun("9001", manifest, { tag, sourceSha }, gh) };
+    };
+    const receipt = {
+      [`${runPath}/attempts/1`]: attemptRun(1, "failure"),
+      [`${runPath}/attempts/1/jobs?per_page=100`]: attemptJobs(1, "failure"),
+    };
+    const rerun = verify({ ...receipt, [runPath]: attemptRun(2, "success"), [`${runPath}/attempts/2/jobs?per_page=100`]: attemptJobs(2, "success") });
+    expect(rerun.verify).not.toThrow();
+    expect(rerun.reads).toEqual([`${runPath}/attempts/1`, `${runPath}/attempts/1/jobs?per_page=100`, runPath,
+      `${runPath}/attempts/2/jobs?per_page=100`]);
+
+    // An attesting attempt that published reads no later attempt.
+    const published = verify({ [`${runPath}/attempts/1`]: attemptRun(1, "success"), [`${runPath}/attempts/1/jobs?per_page=100`]: attemptJobs(1, "success") });
+    expect(published.verify).not.toThrow();
+    expect(published.reads).toEqual([`${runPath}/attempts/1`, `${runPath}/attempts/1/jobs?per_page=100`]);
+
+    // The current attempt must be later and must itself prove all four canonical jobs.
+    for (const [attempt, current, jobs, message] of [
+      [1, attemptRun(1, "failure"), attemptJobs(1, "failure"), "later attempt"],
+      [2, attemptRun(2, "failure"), attemptJobs(2, "failure"), "Publish immutable GitHub Release job did not succeed in the current attempt"],
+      [2, { ...attemptRun(2, "success"), head_sha: "3".repeat(40) }, attemptJobs(2, "success"), "exact successful Release workflow identity"],
+    ] as const) {
+      const rejected = verify({ ...receipt, [runPath]: current, [`${runPath}/attempts/${String(attempt)}/jobs?per_page=100`]: jobs });
+      expect(rejected.verify).toThrow(message);
+    }
+
+    // Regression (plan D15): attempt 2 re-ran the failed jobs and published;
+    // attempt 3 re-ran all jobs and its publish failed. The download read only
+    // attempts 1 and 3 and refused the Release attempt 2 published.
+    const intermediate = verify({
+      ...receipt,
+      [runPath]: attemptRun(3, "failure"),
+      [`${runPath}/attempts/3/jobs?per_page=100`]: attemptJobs(3, "failure"),
+      [`${runPath}/attempts/2`]: attemptRun(2, "success"),
+      [`${runPath}/attempts/2/jobs?per_page=100`]: attemptJobs(2, "success"),
+    });
+    expect(intermediate.verify).not.toThrow();
+    expect(intermediate.reads).toEqual([`${runPath}/attempts/1`, `${runPath}/attempts/1/jobs?per_page=100`, runPath,
+      `${runPath}/attempts/3/jobs?per_page=100`, `${runPath}/attempts/2`, `${runPath}/attempts/2/jobs?per_page=100`]);
+
+    // The intermediate attempt must be exact and prove all four itself, and
+    // more than three attempts between receipt and current fails closed.
+    for (const [responses, message] of [
+      [{ [`${runPath}/attempts/2`]: { ...attemptRun(2, "success"), triggering_actor: { id: 7, login: "0thernet", type: "User" } },
+        [`${runPath}/attempts/2/jobs?per_page=100`]: attemptJobs(2, "success") }, "triggering_actor is not the exact release owner"],
+      [{ [`${runPath}/attempts/2`]: attemptRun(3, "success"), [`${runPath}/attempts/2/jobs?per_page=100`]: attemptJobs(2, "success") },
+        "does not match the triggering Release run attempt"],
+      [{ [`${runPath}/attempts/2`]: attemptRun(2, "failure"), [`${runPath}/attempts/2/jobs?per_page=100`]: attemptJobs(2, "failure") },
+        "no intermediate attempt proved the four canonical jobs"],
+    ] as const) {
+      const rejected = verify({ ...receipt, [runPath]: attemptRun(3, "failure"),
+        [`${runPath}/attempts/3/jobs?per_page=100`]: attemptJobs(3, "failure"), ...responses });
+      expect(rejected.verify).toThrow(message);
+    }
+    const tooWide = verify({ ...receipt, [runPath]: attemptRun(6, "failure"), [`${runPath}/attempts/6/jobs?per_page=100`]: attemptJobs(6, "failure") });
+    expect(tooWide.verify).toThrow("beyond the bounded 3");
+    expect(tooWide.reads).toEqual([`${runPath}/attempts/1`, `${runPath}/attempts/1/jobs?per_page=100`, runPath,
+      `${runPath}/attempts/6/jobs?per_page=100`]);
+  });
+  test("rejects a symlinked release directory before reading an artifact", async () => {
+    const root = await mkdtemp(join(tmpdir(), "ghostget-canonical-directory-"));
+    try {
+      await symlink(root, join(root, "link"));
+      await expect(verifyReleaseDirectory(join(root, "link"), {})).rejects.toThrow("ordinary directory");
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+  test("publishes only the exact draft inventory and preserves mismatched or ambiguous drafts", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ghostget-canonical-publisher-"));
+    try {
+      for (const name of names) await writeFile(join(directory, name), `fixture:${name}`);
+      const assets = await Promise.all(names.map(async (name, index) => {
+        const bytes = await readFile(join(directory, name));
+        return { id: index + 10, name, size: bytes.length, digest: `sha256:${createHash("sha256").update(bytes).digest("hex")}`,
+          state: "uploaded", browser_download_url: `https://github.com/hraness/ghostget/releases/download/${tag}/${name}`,
+          url: `https://api.github.com/repos/hraness/ghostget/releases/assets/${index + 10}` };
+      }));
+      const temporaryAssets = assets.map(asset => ({ ...asset,
+        browser_download_url: `https://github.com/hraness/ghostget/releases/download/untagged-ef6c1bd779e9dd4032bb/${asset.name}` }));
+      const hashes = Object.fromEntries(assets.slice(0, 4).map(asset => [asset.name, asset.digest.slice(7)]));
+      const bundleHash = assets[4]!.digest.slice(7);
+      await verifyBuildHandoff(directory, tag, hashes, bundleHash);
+      await expect(verifyBuildHandoff(directory, tag, { ...hashes, extra: "a".repeat(64) }, bundleHash)).rejects.toThrow();
+      await expect(verifyBuildHandoff(directory, tag, { ...hashes, [names[0]!]: "a".repeat(64) }, bundleHash)).rejects.toThrow();
+      await expect(verifyBuildHandoff(directory, tag, hashes, "b".repeat(64))).rejects.toThrow();
+      const predecessor = { id: 99, tag_name: "v0.16.11", draft: false, prerelease: false, immutable: true,
+        assets: [], published_at: "2026-09-08T01:00:00Z" };
+      const draft = (): Json => ({ id: 100, name: `Ghostget ${tag}`, tag_name: tag, target_commitish: sourceSha, body,
+        draft: true, prerelease: false, immutable: false, author: { id: 41898282, type: "Bot" }, assets: [] });
+      const execute = async (initial?: Json, fault = ""): Promise<{ writes: string[]; downloads: number[]; release: Json | undefined; error?: unknown }> => {
+        let release = initial === undefined ? undefined : structuredClone(initial); const writes: string[] = [];
+        const downloads: number[] = [];
+        const run = (args: readonly string[], input?: string): { status: number; stdout: string } => {
+          if (args[0] === "node") {
+            if (fault === "control-drift") throw new Error("release-control drift");
+            return { status: 0, stdout: `sha=${sourceSha}\ntag=${tag}\nmain_sha=${workflowSha}\n` };
+          }
+          if (args[1] === "release" && args[2] === "upload") {
+            const name = args[4]!.split("/").at(-1)!;
+            if (release === undefined || release.draft !== true || release.assets.some((asset: Json) => asset.name === name)) throw new Error("unexpected overwrite");
+            writes.push(`upload:${name}`); release.assets.push(structuredClone(temporaryAssets.find(asset => asset.name === name)!));
+            return { status: 0, stdout: "" };
+          }
+          if (args[1] !== "api") throw new Error(`Unexpected command ${args.join(" ")}`);
+          if (args[2] === "--include") {
+            const visible = release?.draft === false;
+            return { status: visible ? 0 : 1,
+              stdout: `HTTP/2 ${visible ? 200 : 404}\n\n${JSON.stringify(visible ? release : { message: "Not Found" })}` };
+          }
+          const method = args[3]; const endpoint = args[4]!;
+          if (method === "POST") { writes.push("create"); release = { ...draft(), ...JSON.parse(input!) }; return { status: 0, stdout: JSON.stringify(release) }; }
+          if (method === "PATCH") {
+            if (release?.assets.length !== 5) throw new Error("premature publication");
+            writes.push("publish"); release = { ...release, draft: false, immutable: true, published_at: "2026-09-09T01:00:00Z",
+              assets: fault === "published-temporary-url" ? release.assets : structuredClone(assets) };
+            return { status: 0, stdout: JSON.stringify(release) };
+          }
+          if (method !== "GET") throw new Error("Unsupported mutation");
+          let value: unknown;
+          if (endpoint.includes("releases?per_page=100&page=")) {
+            value = endpoint.endsWith("page=1") ? [predecessor, ...(release === undefined ? [] : [release])] : [];
+            if (fault === "duplicate-tag" && endpoint.endsWith("page=1")) value = [draft(), { ...draft(), id: 101 }];
+            if (fault === "duplicate-id" && endpoint.endsWith("page=1")) value = [draft(), draft()];
+            if (fault === "resumed-page" && endpoint.endsWith("page=2")) value = [predecessor];
+            if (fault === "nonempty-sentinel" && endpoint.endsWith("page=6")) value = [predecessor];
+          }
+          else if (endpoint.endsWith("/git/ref/heads/main")) value = { object: { type: "commit", sha: workflowSha } };
+          else if (endpoint.endsWith("/releases/latest")) value = release?.draft === false ? release : predecessor;
+          else if (endpoint.endsWith("/releases/100") || endpoint.endsWith(`/releases/tags/${tag}`)) {
+            value = fault === "id-readback-drift" || (fault === "post-upload-id-drift" && writes.length > 0)
+              ? { ...release, id: 101 } : release;
+          }
+          else throw new Error(`Unexpected API ${endpoint}`);
+          return { status: 0, stdout: JSON.stringify(value) };
+        };
+        const download = ({ id, bytes: expectedBytes }: ReleaseAssetDescriptor): Uint8Array => {
+          const asset = assets.find(asset => asset.id === id);
+          if (asset === undefined || expectedBytes !== asset.size || !release?.assets.some((current: Json) => current.id === id)) {
+            throw new Error("Download must bind one admitted uploaded asset and byte count");
+          }
+          downloads.push(id);
+          return fault === "remote-corrupt" || (fault === "published-corrupt" && release.draft === false)
+            ? Buffer.alloc(expectedBytes) : Buffer.from(`fixture:${asset.name}`);
+        };
+        try { await publishCanonicalRelease(directory, manifest, notes, run, download); return { writes, downloads, release }; }
+        catch (error) { return { writes, downloads, release, error }; }
+      };
+      const fresh = await execute(); expect(fresh.error).toBeUndefined();
+      expect(fresh.writes).toEqual(["create", ...names.map(name => `upload:${name}`), "publish"]);
+      expect(fresh.downloads).toHaveLength(10);
+      const partial = draft(); partial.assets = [temporaryAssets[0]];
+      const resumed = await execute(partial); expect(resumed.error).toBeUndefined();
+      expect(resumed.writes).toEqual([...names.slice(1).map(name => `upload:${name}`), "publish"]);
+      const completed = await execute(fresh.release); expect(completed.error).toBeUndefined(); expect(completed.writes).toEqual([]);
+      expect(completed.downloads).toHaveLength(5);
+      for (const altered of [
+        { ...draft(), target_commitish: workflowSha }, { ...draft(), body: `${body} different-attempt` },
+        { ...draft(), body: body.replace("one more source.", "one more source!") },
+        { ...draft(), immutable: true }, { ...draft(), author: { id: 894119, type: "User" } },
+        { ...draft(), assets: [{ ...assets[0], digest: `sha256:${"0".repeat(64)}` }] },
+        { ...draft(), assets: [assets[0], assets[0]] }, { ...draft(), assets: [{ ...assets[0], name: "unexpected" }] },
+      ]) {
+        const denied = await execute(altered); expect(denied.error).toBeDefined(); expect(denied.writes).toEqual([]);
+      }
+      const drift = await execute(undefined, "control-drift"); expect(drift.error).toBeDefined(); expect(drift.writes).toEqual([]);
+      for (const fault of ["duplicate-tag", "duplicate-id", "resumed-page", "nonempty-sentinel", "id-readback-drift"]) {
+        const denied = await execute(draft(), fault); expect(denied.error).toBeDefined(); expect(denied.writes).toEqual([]);
+      }
+      const readbackDrift = await execute(draft(), "post-upload-id-drift");
+      expect(readbackDrift.error).toBeDefined(); expect(readbackDrift.writes).toEqual([`upload:${names[0]}`]);
+      const temporaryPublished = await execute({ ...fresh.release, assets: temporaryAssets });
+      expect(temporaryPublished.error).toBeDefined(); expect(temporaryPublished.writes).toEqual([]);
+      const temporaryReadback = await execute({ ...draft(), assets: temporaryAssets }, "published-temporary-url");
+      expect(temporaryReadback.error).toBeDefined(); expect(temporaryReadback.writes).toEqual(["publish"]);
+      for (const browser_download_url of [
+        `https://github.com/other/ghostget/releases/download/untagged-ef6c1bd779e9dd4032bb/${names[0]}`,
+        "https://github.com/hraness/ghostget/releases/download/untagged-ef6c1bd779e9dd4032bb/wrong-name",
+        `https://github.com/hraness/ghostget/releases/download/untagged-EF6C1BD779E9DD4032BB/${names[0]}`,
+        `https://github.com/hraness/ghostget/releases/download/untagged-ef6c1bd779e9dd4032b/${names[0]}`,
+        `https://github.com/hraness/ghostget/releases/download/untagged-ef6c1bd779e9dd4032bb/${names[0]}?download=1`,
+        `https://github.com/hraness/ghostget/releases/download/untagged-ef6c1bd779e9dd4032bb/nested/${names[0]}`,
+      ]) {
+        const denied = await execute({ ...draft(), assets: [{ ...assets[0], browser_download_url }] });
+        expect(denied.error).toBeDefined(); expect(denied.writes).toEqual([]); expect(denied.downloads).toEqual([]);
+      }
+      expect(() => validateReleaseAssets({ assets, draft: "true" }, manifest, directory)).toThrow();
+      const completeDraft = { ...draft(), assets };
+      const corruptDraft = await execute(completeDraft, "remote-corrupt");
+      expect(corruptDraft.error).toBeDefined(); expect(corruptDraft.writes).toEqual([]);
+      const corruptReadback = await execute(completeDraft, "published-corrupt");
+      expect(corruptReadback.error).toBeDefined(); expect(corruptReadback.writes).toEqual(["publish"]);
+      const corruptCompleted = await execute(fresh.release, "remote-corrupt");
+      expect(corruptCompleted.error).toBeDefined(); expect(corruptCompleted.writes).toEqual([]);
+      expect(() => validateReleaseAssets({ draft: true, assets: [{ ...assets[0], url: "https://example.com/asset" }] }, manifest, directory)).toThrow();
+    } finally { await rm(directory, { recursive: true, force: true }); }
+  });
+});

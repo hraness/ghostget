@@ -1,0 +1,258 @@
+import { createHash, randomUUID } from "node:crypto";
+import { once } from "node:events";
+import type { Readable, Writable } from "node:stream";
+import { canonicalJson } from "./canonical-json";
+import { discoveryDiagnosticMessage } from "./messaging-automation-diagnostics";
+import { MessagingAutomationHost } from "./messaging-automation";
+import { MESSAGING_AUTOMATION_PROTOCOL as protocol, type AutomationGrantRequest, type AutomationProviderId, type AutomationProviderStatus } from "./messaging-automation-types";
+import { automationGroupOptions, automationArray, automationDigest, automationId, automationInteger, automationRecord, automationText, parseAutomationAction, automationInstant } from "./messaging-automation-validation";
+import { createMessagingAutomationSession } from "./messaging-automation-factory";
+import { enablePersistentStateHelpers } from "./storage";
+import type { ProviderPluginRegistry } from "./provider-plugin-registry";
+
+type Environment = Readonly<Record<string, string | undefined>>;
+export type AutomationHostAccount = Readonly<{ provider: AutomationProviderId; authId: string }>;
+export type AutomationHostSession = Readonly<{ host: MessagingAutomationHost; start(provider: AutomationProviderId, signal?: AbortSignal): Promise<AutomationProviderStatus> }>;
+type Asset = { bytes: Uint8Array; sha256: string; expires: number; plan: string | null };
+const MAX_ASSET = 16 * 1024 * 1024;
+const MAX_FRAME = 24 * 1024 * 1024;
+const MAX_RESPONSE = 32 * 1024 * 1024;
+const provider = (value: unknown): AutomationProviderId => { if (value !== "imessage" && value !== "whatsapp" && value !== "beeper") throw new Error("Invalid provider"); return value; };
+export class AutomationHostRecoveryRequired extends Error {}
+
+/** One trusted owner connection. No agent receives this port. */
+export class MessagingAutomationRpcServer {
+  private session: AutomationHostSession | undefined;
+  private initialized = false;
+  private initializing: Promise<AutomationHostSession> | undefined;
+  private closed = false;
+  private normalBusy = false;
+  private priorityBusy = 0;
+  private scopedBusy = 0;
+  private readonly enrollmentChains = new Map<string, Promise<unknown>>();
+  private readonly requests = new Set<string>();
+  private readonly assets = new Map<string, Asset>();
+  /** Plans currently inside submit(). Multiple scoped submits may run on
+   * different enrollment lanes, so asset resolution and sweeps consult the
+   * whole set; a plan-scoped asset is eligible only while its plan executes. */
+  private readonly executingPlans = new Set<string>();
+  private readonly abort = new AbortController();
+  private closing: Promise<void> | undefined;
+  constructor(private readonly options: Readonly<{
+    environment: Environment; registry: ProviderPluginRegistry;
+    now?: () => number;
+    createSession?: typeof createMessagingAutomationSession;
+  }>) {}
+  private now() { return this.options.now?.() ?? Date.now(); }
+  private sweep() { for (const [id, asset] of this.assets) if (asset.expires <= this.now() && (asset.plan === null || !this.executingPlans.has(asset.plan))) this.assets.delete(id); }
+  private host() { if (!this.session || this.closed) throw new Error("Host not ready"); return this.session.host; }
+  private async dispatch(method: string, raw: unknown): Promise<unknown> {
+    this.sweep();
+    if (method === "initialize") {
+      if (this.initialized || this.closed) throw new Error("Already initialized");
+      const r = automationRecord(raw, ["providers"]);
+      const accounts = automationArray(r.providers, 3).map(value => {
+        const item = automationRecord(value, ["provider", "authId"]); const authId = automationText(item.authId, 48);
+        if (!/^[a-z][a-z0-9-]{0,47}$/u.test(authId)) throw new Error("Invalid account identifier");
+        return { provider: provider(item.provider), authId };
+      });
+      if (accounts.length === 0 || new Set(accounts.map(item => item.provider)).size !== accounts.length) throw new Error("Distinct configured providers required");
+      this.initialized = true;
+      this.initializing = (this.options.createSession ?? createMessagingAutomationSession)({
+        providers: accounts, environment: this.options.environment, registry: this.options.registry,
+        resolveAsset: async id => {
+          this.sweep(); const asset = this.assets.get(id);
+          if (!asset || asset.plan === null || !this.executingPlans.has(asset.plan) || asset.expires <= this.now()) throw new Error("Asset is unavailable for this plan");
+          return { bytes: new Uint8Array(asset.bytes), sha256: asset.sha256 };
+        },
+      });
+      this.session = await this.initializing;
+      if (this.closed) throw new Error("Host closed during initialization");
+      return { initialized: true };
+    }
+    if (method === "close") { automationRecord(raw, []); await this.close(); return { closed: true }; }
+    const host = this.host();
+    if (method === "features") { automationRecord(raw, []); return host.features(); }
+    if (method === "status" || method === "start") {
+      const r = automationRecord(raw, ["provider"]); const selected = provider(r.provider);
+      return method === "status" ? host.providerStatus(selected, this.abort.signal) : this.session!.start(selected, this.abort.signal);
+    }
+    if (method === "conversations") { const r = automationGroupOptions(raw, ["provider", "limit"]); return host.conversations({ provider: provider(r.provider), limit: automationInteger(r.limit, 1, 200), includeGroups: r.includeGroups }, this.abort.signal); }
+    if (method === "enroll") { const r = automationRecord(raw, ["provider", "coordinate"]); return host.enroll({ provider: provider(r.provider), coordinate: r.coordinate }, this.abort.signal); }
+    if (method === "enrollments") { const r = automationGroupOptions(raw, []); return host.enrollments({ includeGroups: r.includeGroups }); }
+    if (method === "grant") {
+      const r = automationRecord(raw, ["intentId", "enrollmentId", "expectedBindingDigest", "actions", "expiresAt", "maximumActions", "minimumIntervalMs"]);
+      const { intentId, ...request } = r; return host.grant(request as AutomationGrantRequest, automationId(intentId));
+    }
+    if (method === "grant.by-intent") { const r = automationRecord(raw, ["intentId"]); return { grant: host.grantByIntent(automationId(r.intentId)) }; }
+    if (method === "grant.get") { const r = automationRecord(raw, ["grantId"]); return host.grantStatus(automationId(r.grantId)); }
+    if (method === "revoke") { const r = automationRecord(raw, ["grantId"]); host.revoke(automationId(r.grantId)); return { revoked: true }; }
+    if (method === "cancel") { const r = automationRecord(raw, ["planId"]); return { cancelled: host.cancel(automationId(r.planId)) }; }
+    if (method === "poll") { const r = automationRecord(raw, ["enrollmentId"]); return host.poll(automationId(r.enrollmentId), this.abort.signal); }
+    if (method === "history") { const r = automationRecord(raw, ["enrollmentId", "limit"]); return host.history({ enrollmentId: automationId(r.enrollmentId), limit: automationInteger(r.limit, 1, 200) }); }
+    if (method === "history.window") {
+      const r = automationRecord(raw, ["enrollmentId", "limit", "before", "after"]);
+      return host.historyWindow({ enrollmentId: automationId(r.enrollmentId), limit: automationInteger(r.limit, 1, 200), before: r.before === null ? null : automationInstant(r.before), after: r.after === null ? null : automationInstant(r.after) }, this.abort.signal);
+    }
+    if (method === "events") {
+      const r = automationRecord(raw, ["enrollmentIds", "cursor", "limit"]);
+      return host.events({ enrollmentIds: automationArray(r.enrollmentIds, 50).map(automationId), cursor: r.cursor === null ? null : automationText(r.cursor, 16_384), limit: automationInteger(r.limit, 1, 500) });
+    }
+    if (method === "asset") {
+      const r = automationRecord(raw, ["bytesBase64", "sha256"]); const digest = automationDigest(r.sha256);
+      if (typeof r.bytesBase64 !== "string" || r.bytesBase64.length > Math.ceil(MAX_ASSET / 3) * 4) throw new Error("Invalid asset length");
+      const bytes = Buffer.from(r.bytesBase64, "base64");
+      if (!bytes.length || bytes.length > MAX_ASSET || bytes.toString("base64") !== r.bytesBase64 || createHash("sha256").update(bytes).digest("hex") !== digest) throw new Error("Invalid asset");
+      if (this.assets.size >= 32 || [...this.assets.values()].reduce((sum, asset) => sum + asset.bytes.length, bytes.length) > 64 * 1024 * 1024) throw new Error("Asset capacity exceeded");
+      const assetId = `asset:${randomUUID()}`, expires = this.now() + 300_000;
+      this.assets.set(assetId, { bytes, sha256: digest, expires, plan: null });
+      return { assetId, bytes: bytes.length, sha256: digest, expiresAt: new Date(expires).toISOString() };
+    }
+    if (method === "prepare") {
+      const r = automationRecord(raw, ["enrollmentId", "expectedRevision", "intentId", "actions"]);
+      const actions = automationArray(r.actions, 8).map(parseAutomationAction);
+      const ids = new Set(actions.flatMap(action => action.kind === "attachment" || action.kind === "sticker" ? [action.assetId] : []));
+      for (const id of ids) { const asset = this.assets.get(id); if (!asset || asset.plan !== null) throw new Error("Missing or already-bound asset"); }
+      const plan = host.prepare({ enrollmentId: automationId(r.enrollmentId), expectedRevision: automationInteger(r.expectedRevision, 0, Number.MAX_SAFE_INTEGER), intentId: automationId(r.intentId), actions });
+      for (const id of ids) { const asset = this.assets.get(id)!; asset.plan = plan.id; asset.expires = Date.parse(plan.expiresAt); }
+      return plan;
+    }
+    if (method === "submit") {
+      const r = automationRecord(raw, ["planId", "grantId"]); const planId = automationId(r.planId); this.executingPlans.add(planId);
+      try { return await host.submit({ planId, grantId: automationId(r.grantId) }, this.abort.signal); }
+      finally { this.executingPlans.delete(planId); for (const [id, asset] of this.assets) if (asset.plan === planId) this.assets.delete(id); }
+    }
+    if (method === "run") { const r = automationRecord(raw, ["runId"]); return host.run(automationId(r.runId)); }
+    if (method === "run.by-intent") { const r = automationRecord(raw, ["intentId"]); return { run: host.runByIntent(automationId(r.intentId)) }; }
+    throw new Error("Unknown method");
+  }
+  /** Enrollment-scoped methods keep total order per enrollment but run
+   * concurrently across different enrollments: a poll on one conversation must
+   * not starve independent polls, reads and dispatches on the others. The
+   * journal's cursor claim and active-run checks already reject same-enrollment
+   * overlap; the chain turns that rejection into ordinary queueing. */
+  private async enrollmentKey(method: string, raw: unknown): Promise<string | null> {
+    const params = raw !== null && typeof raw === "object" ? raw as Record<string, unknown> : {};
+    if (method === "submit") return typeof params.planId === "string" ? this.host().planEnrollment(params.planId) : null;
+    return typeof params.enrollmentId === "string" ? params.enrollmentId : null;
+  }
+  /** A set poll joins every listed enrollment lane at once and shares one
+   * provider session across them. Lanes already running another operation are
+   * skipped rather than awaited — their owner is already syncing that journal —
+   * and report their current stored row, which may not have synced this tick
+   * (a mid-operation state is bounded; the next pollSet re-syncs it). */
+  private async dispatchPollSet(raw: unknown): Promise<unknown> {
+    const r = automationRecord(raw, ["enrollmentIds"]);
+    const ids = [...new Set(automationArray(r.enrollmentIds, 50).map(automationId))].sort();
+    const free: string[] = [], busy: string[] = [];
+    for (const id of ids) (this.enrollmentChains.has(id) ? busy : free).push(id);
+    // Classify and claim run in one synchronous stretch, so a free lane is
+    // provably unclaimed here — its tail is just this operation's gate.
+    const releases: (() => void)[] = [], tails: [string, Promise<unknown>][] = [];
+    for (const key of free) {
+      let release!: () => void;
+      const tail = new Promise<void>(resolve => { release = resolve; });
+      this.enrollmentChains.set(key, tail); tails.push([key, tail]);
+      releases.push(release);
+    }
+    try {
+      const host = this.host();
+      const results = free.length === 0 ? [] : [...await host.pollEnrollments(free, this.abort.signal)];
+      if (busy.length > 0) {
+        let rows: ReturnType<typeof host.enrollments> = [];
+        try { rows = host.enrollments({ includeGroups: true }); } catch { /* a corrupt unrelated row degrades busy entries below */ }
+        for (const id of busy) {
+          const enrollment = rows.find(item => item.id === id) ?? null;
+          results.push({ enrollmentId: id, enrollment, error: enrollment === null ? "Messaging enrollment is unavailable." : null });
+        }
+      }
+      return { results };
+    } finally {
+      for (const release of releases) release();
+      for (const [key, tail] of tails) void tail.then(() => { if (this.enrollmentChains.get(key) === tail) this.enrollmentChains.delete(key); });
+    }
+  }
+  private async dispatchScoped(method: string, raw: unknown): Promise<unknown> {
+    if (method === "pollSet") return this.dispatchPollSet(raw);
+    const key = await this.enrollmentKey(method, raw);
+    if (key === null) return this.dispatch(method, raw);
+    const previous = this.enrollmentChains.get(key) ?? Promise.resolve();
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const tail = previous.then(() => gate);
+    this.enrollmentChains.set(key, tail);
+    try { await previous; return await this.dispatch(method, raw); }
+    finally { release(); void tail.then(() => { if (this.enrollmentChains.get(key) === tail) this.enrollmentChains.delete(key); }); }
+  }
+  async handle(value: unknown): Promise<unknown> {
+    let id = "invalid", method = "", priority = false, scoped = false, admitted = false;
+    try {
+      const r = automationRecord(value, ["protocol", "id", "method", "params"]);
+      id = automationText(r.id, 64); if (!/^[A-Za-z0-9._:-]+$/u.test(id) || r.protocol !== protocol) throw new Error("Invalid envelope");
+      method = automationText(r.method, 32); priority = ["cancel", "revoke", "close"].includes(method);
+      scoped = ["features", "poll", "pollSet", "history", "history.window", "prepare", "grant", "submit", "events", "enrollments", "status", "run", "run.by-intent", "grant.get", "grant.by-intent"].includes(method);
+      if (this.requests.has(id) || (priority ? this.priorityBusy >= 8 : scoped ? this.scopedBusy >= 16 : this.normalBusy)) return { protocol, id, ok: false, error: { code: "not-ready", message: "The owner host is busy or this request is already active." } };
+      this.requests.add(id); admitted = true;
+      if (priority) this.priorityBusy++; else if (scoped) this.scopedBusy++; else this.normalBusy = true;
+      const result = scoped ? await this.dispatchScoped(method, r.params) : await this.dispatch(method, r.params);
+      return { protocol, id, ok: true, result };
+    } catch (error) {
+      return { protocol, id, ok: false, error: { code: error instanceof AutomationHostRecoveryRequired ? "recovery-required" : this.closed ? "not-ready" : "unavailable", message: error instanceof AutomationHostRecoveryRequired ? "Provider cleanup requires explicit host recovery; this instance cannot continue." : (!this.closed && method === "conversations" ? discoveryDiagnosticMessage(error) : null) ?? "The requested operation is unavailable. Review account permissions, provider setup, scope and current state." } };
+    } finally { if (admitted) { this.requests.delete(id); if (priority) this.priorityBusy--; else if (scoped) this.scopedBusy--; else this.normalBusy = false; } }
+  }
+  close(): Promise<void> {
+    this.closed = true; this.abort.abort(); this.assets.clear();
+    return this.closing ??= (async () => {
+      const session = this.session ?? await this.initializing?.catch(() => undefined);
+      if (session) { try { await session.host.close(); } catch { throw new AutomationHostRecoveryRequired("Host cleanup requires recovery"); } }
+    })();
+  }
+}
+
+export async function serveMessagingAutomationStdio(options: Readonly<{
+  input: Readable; output: Writable; environment: Environment; registry: ProviderPluginRegistry; signal?: AbortSignal;
+}>): Promise<void> {
+  // The automation host is long-lived and describes permissions on every
+  // provider operation, so it keeps one bound state helper per root.
+  enablePersistentStateHelpers();
+  const server = new MessagingAutomationRpcServer(options);
+  const pending = new Set<Promise<void>>(); let writing = Promise.resolve();
+  const write = (value: unknown) => writing = writing.then(async () => {
+    const frame = canonicalJson(value) + "\n";
+    if (Buffer.byteLength(frame) > MAX_RESPONSE) throw new Error("Owner response exceeds bound");
+    if (!options.output.write(frame)) {
+      const abort = new AbortController();
+      const timer = setTimeout(() => abort.abort(), 30_000);
+      try { await once(options.output, "drain", { signal: abort.signal }); }
+      finally { clearTimeout(timer); }
+    }
+  });
+  const stop = () => { options.input.destroy(); void server.close().catch(() => undefined); };
+  options.signal?.addEventListener("abort", stop, { once: true });
+  let buffer = Buffer.alloc(0); let failure: unknown;
+  try {
+    options.signal?.throwIfAborted();
+    for await (const chunk of options.input) {
+      const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as Uint8Array);
+      if (buffer.length + bytes.length > MAX_FRAME * 2) throw new Error("Owner frame exceeds bound");
+      buffer = Buffer.concat([buffer, bytes]);
+      for (;;) {
+        const newline = buffer.indexOf(10); if (newline < 0) break;
+        if (newline > MAX_FRAME || pending.size >= 10) throw new Error("Owner request capacity exceeded");
+        const line = buffer.subarray(0, newline); buffer = buffer.subarray(newline + 1);
+        const value: unknown = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(line));
+        let task: Promise<void>;
+        task = server.handle(value).then(write).catch(error => { failure ??= error; stop(); }).finally(() => pending.delete(task));
+        pending.add(task);
+      }
+      if (buffer.length > MAX_FRAME) throw new Error("Owner frame exceeds bound");
+    }
+    if (buffer.length) throw new Error("Owner request was truncated");
+  } catch (error) { failure ??= error; }
+  finally {
+    options.signal?.removeEventListener("abort", stop);
+    try { await server.close(); } catch (error) { failure ??= error; }
+    await Promise.allSettled(pending); await writing;
+  }
+  if (failure) throw failure;
+}

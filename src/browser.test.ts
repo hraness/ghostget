@@ -1,0 +1,6602 @@
+import { describe, expect, test } from "bun:test";
+import {
+  chmodSync,
+  existsSync,
+  lstatSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  truncateSync,
+  writeFileSync,
+} from "node:fs";
+import { hostname, tmpdir } from "node:os";
+import { spawnSync } from "node:child_process";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
+import { pathToFileURL } from "node:url";
+
+import type { GhostgetAuth } from "./auth";
+import {
+  adoptLiveLegacyBrowserCleanupResource,
+  bindLiveAgentBrowserCleanupResource,
+  browserCleanupBarrier,
+  browserCommandLifecycle,
+  browserCleanupResourceExtends,
+  browserCleanupResourceRootStatus,
+  browserRecoveryHandle,
+  browserResultData,
+  classifyBrowserProcessGroupProbe,
+  cloneBrowserProfile,
+  cloneProfile,
+  convergeBrowserCleanupResourceProof,
+  createBrowserSession,
+  executeBrowserRecipe,
+  isolatedEnvironment,
+  ownedBrowserProxyArguments,
+  ownedChromeLaunchArguments,
+  ownedDerivationGuardBrowserArguments,
+  parseBrowserCleanupResourceIdentity,
+  parseBrowserRecoveryHandle,
+  parseLastJson,
+  parseLastJsonWithExactLaunchHashes,
+  PreservedBrowserArtifactsError,
+  profilePath,
+  proveLaunchIntentAgentBrowserCleanupResourceQuiescent,
+  provePinnedAgentBrowserCleanupResourceAbsentRootQuiescence,
+  provePreparedAgentBrowserCleanupResourceQuiescent,
+  refreshBrowserCleanupResourceQuiescence,
+  recoverPinnedAgentBrowserCleanupResource,
+  reproveBrowserCleanupAfterArtifactsRemoval,
+  runCommand,
+  runtimeBrowserPolicyActions,
+  type BrowserCleanupResourceIdentityV1,
+  type BrowserCleanupResourceIdentityV2,
+} from "./browser";
+import type { BrowserRecipe, GhostgetManifest } from "./model";
+import { LightpandaCompatibilityError } from "./lightpanda-browser";
+import {
+  OperationDeadline,
+  type OperationDeadlineClock,
+} from "./operation-deadline";
+
+const TEST_CHILD_SIGNAL_TIMEOUT_MS = 45_000;
+const TEST_PROCESS_TIMEOUT_MS = 90_000;
+
+class FakeMonotonicClock implements OperationDeadlineClock {
+  #nowMs = 0;
+  #nextId = 1;
+  readonly #scheduled = new Map<number, {
+    readonly at: number;
+    readonly callback: () => void;
+  }>();
+
+  readonly now = (): number => this.#nowMs;
+
+  readonly schedule = (callback: () => void, delayMs: number): (() => void) => {
+    const id = this.#nextId;
+    this.#nextId += 1;
+    this.#scheduled.set(id, { at: this.#nowMs + delayMs, callback });
+    return () => {
+      this.#scheduled.delete(id);
+    };
+  };
+
+  advance(milliseconds: number): void {
+    this.#nowMs += milliseconds;
+    for (;;) {
+      const due = [...this.#scheduled.entries()]
+        .filter(([, value]) => value.at <= this.#nowMs)
+        .sort((left, right) =>
+          left[1].at - right[1].at || left[0] - right[0])[0];
+      if (due === undefined) return;
+      this.#scheduled.delete(due[0]);
+      due[1].callback();
+    }
+  }
+}
+
+async function waitUntil(
+  condition: () => boolean,
+  maximumMs = TEST_CHILD_SIGNAL_TIMEOUT_MS,
+): Promise<void> {
+  const deadline = performance.now() + maximumMs;
+  while (!condition()) {
+    if (performance.now() >= deadline) throw new Error("condition timed out");
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, 10);
+    });
+  }
+}
+
+async function rejectionMessage(operation: Promise<unknown>): Promise<string> {
+  try {
+    await operation;
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+  throw new Error("expected operation to reject");
+}
+
+async function rejectionValue(operation: Promise<unknown>): Promise<unknown> {
+  try {
+    await operation;
+  } catch (error) {
+    return error;
+  }
+  throw new Error("expected operation to reject");
+}
+
+function agentBrowserBoundaryEnvelope(value: {
+  readonly success: boolean;
+  readonly data: unknown;
+}): unknown {
+  return {
+    _boundary: {
+      nonce: "a".repeat(32),
+      origin: "unknown",
+    },
+    data: value.data,
+    error: null,
+    success: value.success,
+  };
+}
+
+function decodeBrowserRecoveryHandle(handle: string): Readonly<Record<
+  "session" | "config" | "socket" | "artifacts",
+  string
+>> {
+  const [version, ...segments] = handle.split(";");
+  if (version !== "v1" || segments.length !== 4) {
+    throw new Error("browser recovery handle has an unexpected version");
+  }
+  const decoded: Partial<Record<
+    "session" | "config" | "socket" | "artifacts",
+    string
+  >> = {};
+  for (const segment of segments) {
+    const separator = segment.indexOf("=");
+    if (separator < 1) throw new Error("browser recovery handle is malformed");
+    const label = segment.slice(0, separator);
+    if (
+      label !== "session"
+      && label !== "config"
+      && label !== "socket"
+      && label !== "artifacts"
+    ) throw new Error("browser recovery handle has an unknown field");
+    decoded[label] = Buffer.from(
+      segment.slice(separator + 1),
+      "base64url",
+    ).toString("utf8");
+  }
+  if (
+    decoded.session === undefined
+    || decoded.config === undefined
+    || decoded.socket === undefined
+    || decoded.artifacts === undefined
+  ) throw new Error("browser recovery handle omitted a field");
+  return decoded as Readonly<Record<
+    "session" | "config" | "socket" | "artifacts",
+    string
+  >>;
+}
+
+const manifest: GhostgetManifest = {
+  schemaVersion: 1,
+  id: "example",
+  version: "1.0.0",
+  displayName: "Example",
+  origins: ["https://example.com"],
+  browserDomains: ["example.com", "*.example.com"],
+  operations: {},
+};
+
+const auth: GhostgetAuth = {
+  schemaVersion: 1,
+  id: "example",
+  kind: "cookie-source",
+  source: "chrome",
+};
+
+type RecoveryFixtureState = "launched" | "closed" | "inactive";
+
+function createPinnedBrowserRecoveryFixture() {
+  const artifactsDirectory = mkdtempSync(join(tmpdir(), "io-browser-"));
+  const socketDirectory = mkdtempSync(join("/tmp", "io-ab-"));
+  chmodSync(artifactsDirectory, 0o700);
+  chmodSync(socketDirectory, 0o700);
+  const session = "io-125-abcdef123456";
+  const configPath = join(artifactsDirectory, "agent-browser.json");
+  const cdpUrl = "ws://127.0.0.1:43125/devtools/browser/exact-recovery";
+  const launchHash = "18446744073709551615";
+  const owner = {
+    pid: 43_125,
+    bootId: "a".repeat(64),
+    processStartId: "b".repeat(64),
+  } as const;
+  writeFileSync(configPath, "{}\n", { mode: 0o600 });
+  writeFileSync(join(artifactsDirectory, "action-policy.json"), "{}\n", {
+    mode: 0o600,
+  });
+  const directoryIdentity = (path: string) => {
+    const stats = lstatSync(path, { bigint: true });
+    return {
+      device: stats.dev.toString(),
+      inode: stats.ino.toString(),
+      birthtimeNs: stats.birthtimeNs.toString(),
+      mode: "448" as const,
+      uid: stats.uid.toString(),
+    };
+  };
+  const resource = parseBrowserCleanupResourceIdentity({
+    kind: "agent-browser-session-v2",
+    recoveryHandle: browserRecoveryHandle({
+      session,
+      configPath,
+      socketDirectory,
+      artifactsDirectory,
+    }),
+    session,
+    socketDirectory,
+    socketDirectoryIdentity: directoryIdentity(socketDirectory),
+    artifactsDirectory,
+    artifactsDirectoryIdentity: directoryIdentity(artifactsDirectory),
+    phase: "controlled",
+    control: {
+      kind: "agent-browser-control-v1",
+      version: "0.32.3",
+      session,
+      socketDirectory,
+      daemonOwner: owner,
+      engine: "chrome",
+      launchHash,
+      cdpUrl,
+    },
+  }) as BrowserCleanupResourceIdentityV2;
+  const lifecycle = (
+    state: Exclude<RecoveryFixtureState, "inactive">,
+    currentLaunchHash = launchHash,
+  ) => ({
+    effectiveLaunch: state === "launched"
+      ? {
+          browserLaunched: true,
+          engine: "chrome",
+          launchHash: currentLaunchHash,
+        }
+      : {
+          browserLaunched: false,
+          engine: "chrome",
+          launchHash: null,
+        },
+    launched: false,
+    relaunchedBrowser: false,
+    restartedBackground: false,
+    restoreStatus: "not_configured",
+    reused: true,
+    saveStatus: "not_attempted",
+  });
+  const sessionInfo = (
+    state: RecoveryFixtureState,
+    currentLaunchHash = launchHash,
+  ): unknown => {
+    if (state === "inactive") {
+      return {
+        success: true,
+        data: {
+          active: false,
+          namespace: null,
+          pid: null,
+          runtime: null,
+          runtimeError: null,
+          session,
+          socketDir: socketDirectory,
+          version: null,
+        },
+      };
+    }
+    const currentLifecycle = lifecycle(state, currentLaunchHash);
+    const launched = state === "launched";
+    return {
+      success: true,
+      data: {
+        active: true,
+        namespace: null,
+        pid: owner.pid,
+        runtime: {
+          backgroundPid: owner.pid,
+          browserLaunched: launched,
+          compatibilityStatus: "current",
+          effectiveLaunch: currentLifecycle.effectiveLaunch,
+          engine: "chrome",
+          launchHash: launched ? currentLaunchHash : null,
+          lifecycle: currentLifecycle,
+          namespace: null,
+          pageCount: launched ? 1 : 0,
+          restoreCheckFn: null,
+          restoreCheckText: null,
+          restoreCheckUrl: null,
+          restoreKey: null,
+          restoreLoadedPath: null,
+          restoreSave: "auto",
+          restoreSavedPath: null,
+          restoreStatus: "not_configured",
+          restoreStatusDetail: null,
+          restoreValidationPending: false,
+          saveStatus: "not_attempted",
+          session,
+          socketDir: socketDirectory,
+        },
+        runtimeError: null,
+        session,
+        socketDir: socketDirectory,
+        version: "0.32.3",
+      },
+    };
+  };
+  const cdpInfo = (currentLaunchHash = launchHash): unknown => ({
+    success: true,
+    data: {
+      cdpUrl,
+      lifecycle: lifecycle("launched", currentLaunchHash),
+    },
+  });
+  const commandResult = (
+    value: unknown,
+    exitCode = 0,
+  ) => ({
+    stdout: `${JSON.stringify(value).replace(
+      /"launchHash":"([0-9]+)"/gu,
+      '"launchHash":$1',
+    )}\n`,
+    stderr: "",
+    exitCode,
+  });
+  return {
+    artifactsDirectory,
+    cdpInfo,
+    cdpUrl,
+    commandResult,
+    launchHash,
+    owner,
+    resource,
+    session,
+    sessionInfo,
+    socketDirectory,
+    cleanup: () => {
+      rmSync(socketDirectory, { recursive: true, force: true });
+      rmSync(artifactsDirectory, { recursive: true, force: true });
+    },
+  };
+}
+
+describe("retired DOM recipe boundary", () => {
+  test("rejects every direct recipe execution before browser startup", () => {
+    let startupCalls = 0;
+    const recipe: BrowserRecipe = {
+      steps: [{ kind: "navigate", path: "/" }, { kind: "read" }],
+      timeoutMs: 1_000,
+      maxOutputBytes: 1_024,
+    };
+    expect(executeBrowserRecipe(manifest, recipe, {}, auth, {
+      headed: false,
+      createSession: () => {
+        startupCalls += 1;
+        throw new Error("must not start");
+      },
+    })).rejects.toThrow("runtime DOM action recipes are disabled");
+    expect(startupCalls).toBe(0);
+  });
+});
+
+describe("browser process isolation helpers", () => {
+  test("published Chromium provider honors an explicit keychain for custom profile paths", async () => {
+    const sweetCookieRoot = dirname(
+      createRequire(import.meta.url).resolve("@steipete/sweet-cookie/package.json"),
+    );
+    const providerPath = [
+      join(sweetCookieRoot, "dist", "providers", "chromeSqliteMac.js"),
+      join(
+        sweetCookieRoot,
+        "packages",
+        "core",
+        "dist",
+        "providers",
+        "chromeSqliteMac.js",
+      ),
+    ].find(existsSync);
+    if (providerPath === undefined) {
+      throw new Error(
+        "the pinned Sweet Cookie Chromium keychain seam is unavailable",
+      );
+    }
+    type KeychainTarget = {
+      readonly account: string;
+      readonly services: readonly string[];
+      readonly label: string;
+    };
+    type KeychainResolver = (
+      dbPath: string,
+      browser?: "chrome" | "brave" | "arc" | "chromium",
+    ) => KeychainTarget;
+    const providerModule: unknown = await import(pathToFileURL(providerPath).href);
+    if (
+      typeof providerModule !== "object"
+      || providerModule === null
+      || !("resolveKeychainForDb" in providerModule)
+      || typeof providerModule.resolveKeychainForDb !== "function"
+    ) throw new Error("the pinned Sweet Cookie Chromium keychain seam is unavailable");
+    const resolveKeychain = providerModule.resolveKeychainForDb as KeychainResolver;
+
+    expect(resolveKeychain(
+      "/Users/example/Library/Application Support/Google/Chrome for Testing/Default/Cookies",
+      "chromium",
+    )).toEqual({
+      account: "Chromium",
+      services: ["Chromium Safe Storage"],
+      label: "Chromium Safe Storage",
+    });
+    expect(resolveKeychain(
+      "/Users/example/Library/Application Support/Chromium/Default/Cookies",
+      "chrome",
+    )).toEqual({
+      account: "Chrome",
+      services: ["Chrome Safe Storage"],
+      label: "Chrome Safe Storage",
+    });
+    expect(resolveKeychain(
+      "/Users/example/Library/Application Support/Arc/User Data/Default/Cookies",
+    )).toEqual({
+      account: "Arc",
+      services: ["Arc Safe Storage"],
+      label: "Arc Safe Storage",
+    });
+  });
+
+  test("authorizes the pinned concrete actions emitted by every semantic recipe primitive", () => {
+    for (const action of [
+      "getbyrole", "getbytext", "getbylabel", "getbyplaceholder", "getbyalttext", "getbytitle", "getbytestid",
+      "fill", "type", "hover", "focus", "click", "press", "upload", "select", "check", "uncheck", "ischecked",
+      "waitfortext", "waitforurl", "url", "inputvalue", "close",
+      "session_info", "cdp_url",
+    ]) expect(runtimeBrowserPolicyActions.includes(action as (typeof runtimeBrowserPolicyActions)[number])).toBeTrue();
+    expect(runtimeBrowserPolicyActions).not.toContain("evaluate");
+  });
+
+  test("pins owned Chrome onboarding suppression inside the single proxy launch-argument value", () => {
+    const arguments_ = ownedBrowserProxyArguments(
+      "http://127.0.0.1:43124",
+      "Default",
+    );
+    expect(arguments_.filter((argument) => argument === "--args")).toHaveLength(1);
+    const launchArguments = arguments_[arguments_.indexOf("--args") + 1]?.split("\n") ?? [];
+    expect(launchArguments).toContain("--profile-directory=Default");
+    expect(launchArguments).toContain("--no-first-run");
+    expect(launchArguments).toContain("--no-default-browser-check");
+    expect(arguments_.slice(0, 2)).toEqual([
+      "--proxy",
+      "http://127.0.0.1:43124",
+    ]);
+    expect(() => ownedChromeLaunchArguments(["--user-data-dir=/private/profile"])).toThrow("not reviewed");
+    expect(() => ownedChromeLaunchArguments(["--flag,hidden-override"])).toThrow("not reviewed");
+    expect(() => ownedChromeLaunchArguments(["--flag\n--hidden-override"])).toThrow("not reviewed");
+  });
+
+  test("loads only the exact private MV3 derivation guard beside the hardened proxy", () => {
+    const extension = "/private/wrench/derivation/network-guard-extension";
+    const arguments_ = ownedDerivationGuardBrowserArguments(
+      "http://127.0.0.1:43124",
+      extension,
+    );
+    expect(arguments_.slice(0, 2)).toEqual(["--proxy", "http://127.0.0.1:43124"]);
+    expect(arguments_.filter((value) => value === "--args")).toHaveLength(1);
+    const chromeArguments = arguments_[3]?.split("\n") ?? [];
+    for (const required of [
+      "--disable-quic",
+      "--disable-dns-prefetch",
+      "--disable-background-networking",
+      "--disable-component-update",
+      "--disable-default-apps",
+      "--disable-sync",
+      "--disable-features=AsyncDns",
+      "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
+      "--proxy-bypass-list=<-loopback>",
+      `--disable-extensions-except=${extension}`,
+      `--load-extension=${extension}`,
+    ]) expect(chromeArguments).toContain(required);
+    expect(() => ownedDerivationGuardBrowserArguments(
+      "http://127.0.0.1:43124",
+      "/private/wrench/derivation/other-extension",
+    )).toThrow("invalid");
+    expect(() => ownedDerivationGuardBrowserArguments(
+      "http://127.0.0.1:43124",
+      "/private/wrench,other/network-guard-extension",
+    )).toThrow("invalid");
+  });
+
+  test("treats a permission-denied process-group probe as live", () => {
+    expect(classifyBrowserProcessGroupProbe(
+      1,
+      "kill: (-43124) - Operation not permitted\n",
+    )).toBe("live");
+    expect(classifyBrowserProcessGroupProbe(
+      1,
+      "kill: (-43124) - No such process\n",
+    )).toBe("gone");
+  });
+
+  test("adds pinned evaluation only for an explicit code-owned session", async () => {
+    const observedPolicies: string[][] = [];
+    for (const allowCodeOwnedEvaluation of [false, true]) {
+      let observed: string[] | null = null;
+      const session = await createBrowserSession(manifest, auth, {
+        headed: false,
+        timeoutMs: 1_000,
+        maxOutputBytes: 64 * 1024,
+        ...(allowCodeOwnedEvaluation ? { allowCodeOwnedEvaluation: true } : {}),
+        dependencies: {
+          runCommand: (command, options) => {
+            const policyIndex = command.indexOf("--action-policy");
+            if (policyIndex >= 0) {
+              const policyPath = command[policyIndex + 1];
+              if (policyPath === undefined) throw new Error("missing fake action policy path");
+              const policy = JSON.parse(readFileSync(policyPath, "utf8")) as { readonly allow?: unknown };
+              if (!Array.isArray(policy.allow) || !policy.allow.every((item) => typeof item === "string")) {
+                throw new Error("invalid fake action policy");
+              }
+              observed = [...policy.allow];
+            }
+            if (command.includes("batch")) {
+              const batch = JSON.parse(options.stdin ?? "[]") as readonly unknown[];
+              return Promise.resolve({
+                stdout: `${JSON.stringify(batch.map(() => ({ success: true, data: null })))}\n`,
+                stderr: "",
+                exitCode: 0,
+              });
+            }
+            return Promise.resolve({ stdout: "{\"success\":true}\n", stderr: "", exitCode: 0 });
+          },
+          startNetworkProxy: () => Promise.resolve({
+            url: "http://127.0.0.1:43124",
+            port: 43_124,
+            close: () => Promise.resolve(),
+          }),
+          acquireCookieRecords: () => Promise.resolve({ cookies: [], warnings: [] }),
+        },
+      });
+      expect(session.cleanupResourceIdentity).toBeUndefined();
+      await session.close();
+      await session.cleanup();
+      if (observed === null) throw new Error("fake browser did not observe an action policy");
+      observedPolicies.push(observed);
+    }
+    expect(observedPolicies[0]).not.toContain("evaluate");
+    expect(observedPolicies[1]).toContain("evaluate");
+  });
+
+  test("publishes a birth-bound root before launch and monotonically pins its live browser", async () => {
+    const events: string[] = [];
+    type PublishedCleanupResource = Parameters<
+      NonNullable<
+        Parameters<typeof createBrowserSession>[2]["publishCleanupResource"]
+      >
+    >[0];
+    const published: PublishedCleanupResource[] = [];
+    const cleanupEvents: string[] = [];
+    let browserClosed = false;
+    let daemonLive = true;
+    const launchHash = "18446744073709551615";
+    const exactLaunchHashJson = (value: unknown): string =>
+      JSON.stringify(value).replaceAll(
+        `"launchHash":"${launchHash}"`,
+        `"launchHash":${launchHash}`,
+      );
+    const lifecycle = {
+      effectiveLaunch: {
+        browserLaunched: true,
+        engine: "chrome",
+        launchHash,
+      },
+      launched: false,
+      relaunchedBrowser: false,
+      restartedBackground: false,
+      restoreStatus: "not_configured",
+      reused: true,
+      saveStatus: "not_attempted",
+    } as const;
+    const activeSessionInfo = () => {
+      const resource = published[0];
+      if (resource === undefined) throw new Error("missing published root identity");
+      if (browserClosed && !daemonLive) {
+        return {
+          success: true,
+          data: {
+            active: false,
+            namespace: null,
+            pid: null,
+            runtime: null,
+            runtimeError: null,
+            session: resource.session,
+            socketDir: resource.socketDirectory,
+            version: null,
+          },
+        };
+      }
+      const currentLifecycle = browserClosed
+        ? {
+            ...lifecycle,
+            effectiveLaunch: {
+              browserLaunched: false,
+              engine: "chrome",
+              launchHash: null,
+            },
+          } as const
+        : lifecycle;
+      return {
+        success: true,
+        data: {
+          active: true,
+          namespace: null,
+          pid: process.pid,
+          runtime: {
+            backgroundPid: process.pid,
+            browserLaunched:
+              currentLifecycle.effectiveLaunch.browserLaunched,
+            compatibilityStatus: "current",
+            effectiveLaunch: currentLifecycle.effectiveLaunch,
+            engine: "chrome",
+            launchHash: currentLifecycle.effectiveLaunch.launchHash,
+            lifecycle: currentLifecycle,
+            namespace: null,
+            pageCount: browserClosed ? 0 : 1,
+            restoreCheckFn: null,
+            restoreCheckText: null,
+            restoreCheckUrl: null,
+            restoreKey: null,
+            restoreLoadedPath: null,
+            restoreSave: "auto",
+            restoreSavedPath: null,
+            restoreStatus: "not_configured",
+            restoreStatusDetail: null,
+            restoreValidationPending: false,
+            saveStatus: "not_attempted",
+            session: resource.session,
+            socketDir: resource.socketDirectory,
+          },
+          runtimeError: null,
+          session: resource.session,
+          socketDir: resource.socketDirectory,
+          version: "0.32.3",
+        },
+      };
+    };
+    const session = await createBrowserSession(manifest, auth, {
+      headed: false,
+      timeoutMs: 1_000,
+      maxOutputBytes: 64 * 1024,
+      publishCleanupResource: Object.assign(
+        (resource: PublishedCleanupResource) => {
+          if (published.length === 0) {
+            expect(events).toEqual([]);
+            expect(resource).toMatchObject({ phase: "prepared", control: null });
+            events.push("published-prepared");
+          } else {
+            expect(browserCleanupResourceExtends(
+              published[published.length - 1]!,
+              resource,
+            )).toBeTrue();
+            events.push(`published-${resource.kind === "agent-browser-session-v2"
+              ? resource.phase
+              : "legacy"}`);
+          }
+          published.push(resource);
+          const socket = lstatSync(resource.socketDirectory, {
+            bigint: true,
+          });
+          const artifacts = lstatSync(resource.artifactsDirectory, {
+            bigint: true,
+          });
+          expect(resource.socketDirectoryIdentity).toEqual({
+            device: socket.dev.toString(),
+            inode: socket.ino.toString(),
+            birthtimeNs: socket.birthtimeNs.toString(),
+            mode: "448",
+            uid: socket.uid.toString(),
+          });
+          expect(resource.artifactsDirectoryIdentity).toEqual({
+            device: artifacts.dev.toString(),
+            inode: artifacts.ino.toString(),
+            birthtimeNs: artifacts.birthtimeNs.toString(),
+            mode: "448",
+            uid: artifacts.uid.toString(),
+          });
+        },
+        {
+          markBrowserCleanupQuiescent: (
+            resource: PublishedCleanupResource,
+          ): void => {
+            if (resource.kind !== "agent-browser-session-v2") {
+              throw new Error("expected a v2 cleanup journal resource");
+            }
+            expect(browserCleanupResourceRootStatus(resource, "artifacts"))
+              .toBe("match");
+            expect(browserCleanupResourceRootStatus(resource, "socket"))
+              .toBe("match");
+            cleanupEvents.push("journal-quiescent");
+          },
+          markBrowserCleanupRootRemoved: (
+            resource: PublishedCleanupResource,
+            root: "artifacts" | "socket",
+          ): void => {
+            if (resource.kind !== "agent-browser-session-v2") {
+              throw new Error("expected a v2 cleanup journal resource");
+            }
+            expect(browserCleanupResourceRootStatus(resource, root))
+              .toBe("absent");
+            cleanupEvents.push(`journal-${root}`);
+          },
+        },
+      ),
+      dependencies: {
+        startNetworkProxy: () => {
+          expect(events).toEqual(["published-prepared"]);
+          events.push("proxy");
+          return Promise.resolve({
+            url: "http://127.0.0.1:43124",
+            port: 43_124,
+            close: () => Promise.resolve(),
+          });
+        },
+        runCommand: (command, options) => {
+          expect(events[0]).toBe("published-prepared");
+          if (command.includes("batch")) {
+            expect(events).toContain("published-launch-intent");
+          }
+          events.push("command");
+          if (command.includes("batch")) {
+            const batch = JSON.parse(
+              options.stdin ?? "[]",
+            ) as readonly unknown[];
+            return Promise.resolve({
+              stdout: `${JSON.stringify(batch.map(() => ({
+                success: true,
+                data: null,
+              })))}\n`,
+              stderr: "",
+              exitCode: 0,
+            });
+          }
+          if (command.includes("info")) {
+            return Promise.resolve({
+              stdout: `${exactLaunchHashJson(activeSessionInfo())}\n`,
+              stderr: "",
+              exitCode: 0,
+            });
+          }
+          if (command.includes("cdp-url")) {
+            return Promise.resolve({
+              stdout: `${exactLaunchHashJson({
+                success: true,
+                data: {
+                  cdpUrl: "ws://127.0.0.1:43125/devtools/browser/exact-test",
+                  lifecycle,
+                },
+              })}\n`,
+              stderr: "",
+              exitCode: 0,
+            });
+          }
+          if (command.includes("close")) browserClosed = true;
+          return Promise.resolve({
+            stdout: "{\"success\":true}\n",
+            stderr: "",
+            exitCode: 0,
+          });
+        },
+        cleanupLifecycle: {
+          ownerStatus: () => daemonLive
+            ? "exact-live-owner"
+            : "different-or-dead",
+          terminateOwner: () => {
+            cleanupEvents.push("terminate-daemon");
+            daemonLive = false;
+          },
+          cdpEndpointStatus: () => {
+            const latest = published[published.length - 1];
+            if (
+              latest?.kind === "agent-browser-session-v2"
+              && browserCleanupResourceRootStatus(latest, "artifacts")
+                === "absent"
+            ) cleanupEvents.push("deletion-reproof");
+            return Promise.resolve("unavailable");
+          },
+          sleep: () => Promise.resolve(),
+        },
+        removePrivateArtifact: (path) => {
+          const latest = published[published.length - 1];
+          if (latest === undefined) throw new Error("missing cleanup identity");
+          if (path === latest.artifactsDirectory) {
+            cleanupEvents.push("remove-artifacts");
+            rmSync(path, { recursive: true });
+            return;
+          }
+          if (path === latest.socketDirectory) {
+            cleanupEvents.push("remove-socket");
+            throw new Error("simulated socket removal failure");
+          }
+          throw new Error("unexpected cleanup root");
+        },
+        acquireCookieRecords: () =>
+          Promise.resolve({ cookies: [], warnings: [] }),
+      },
+    });
+    try {
+      const initial = published[0];
+      const launchIntent = published[1];
+      const latest = published[2];
+      if (
+        initial === undefined
+        || launchIntent === undefined
+        || latest === undefined
+      ) {
+        throw new Error("browser cleanup resource extensions were not published");
+      }
+      if (latest.kind !== "agent-browser-session-v2") {
+        throw new Error("latest browser cleanup resource is not v2");
+      }
+      expect(parseBrowserRecoveryHandle(
+        latest.recoveryHandle,
+      )).toMatchObject({
+        session: latest.session,
+        socketDirectory: latest.socketDirectory,
+        artifactsDirectory: latest.artifactsDirectory,
+      });
+      expect(initial).toMatchObject({
+        kind: "agent-browser-session-v2",
+        phase: "prepared",
+        control: null,
+      });
+      expect(launchIntent).toMatchObject({
+        kind: "agent-browser-session-v2",
+        phase: "launch-intent",
+        control: null,
+      });
+      expect(latest).toMatchObject({
+        kind: "agent-browser-session-v2",
+        phase: "controlled",
+        control: {
+          kind: "agent-browser-control-v1",
+          version: "0.32.3",
+          daemonOwner: { pid: process.pid },
+          engine: "chrome",
+          launchHash,
+          cdpUrl: "ws://127.0.0.1:43125/devtools/browser/exact-test",
+        },
+      });
+      expect(browserCleanupResourceExtends(initial, launchIntent)).toBeTrue();
+      expect(browserCleanupResourceExtends(launchIntent, latest)).toBeTrue();
+      expect(browserCleanupResourceExtends(initial, latest)).toBeFalse();
+      expect(browserCleanupResourceExtends(latest, initial)).toBeFalse();
+      expect(session.cleanupResourceIdentity).toEqual(latest);
+      await session.close();
+      expect(await rejectionMessage(session.cleanup())).toContain(
+        "did not remove every private resource",
+      );
+      const quiescentIndex = cleanupEvents.indexOf("journal-quiescent");
+      const artifactRemovalIndex = cleanupEvents.indexOf("remove-artifacts");
+      const artifactJournalIndex = cleanupEvents.indexOf("journal-artifacts");
+      const reproofIndex = cleanupEvents.indexOf("deletion-reproof");
+      const socketRemovalIndex = cleanupEvents.indexOf("remove-socket");
+      expect(quiescentIndex).toBeGreaterThanOrEqual(0);
+      expect(artifactRemovalIndex).toBeGreaterThan(quiescentIndex);
+      expect(artifactJournalIndex).toBeGreaterThan(artifactRemovalIndex);
+      expect(reproofIndex).toBeGreaterThan(artifactJournalIndex);
+      expect(socketRemovalIndex).toBeGreaterThan(reproofIndex);
+      expect(cleanupEvents).not.toContain("journal-socket");
+      expect(browserCleanupResourceRootStatus(latest, "artifacts")).toBe("absent");
+      expect(browserCleanupResourceRootStatus(latest, "socket")).toBe("match");
+    } finally {
+      if (session.cleanupResourceIdentity !== undefined) {
+        rmSync(session.cleanupResourceIdentity.socketDirectory, {
+          recursive: true,
+          force: true,
+        });
+        rmSync(session.cleanupResourceIdentity.artifactsDirectory, {
+          recursive: true,
+          force: true,
+        });
+      }
+    }
+  });
+
+  test("preserves output only after lost close acknowledgement reaches exact quiescence", async () => {
+    for (const closeOutcome of [
+      "closed-daemon",
+      "delayed-closed-daemon",
+      "natural-exit",
+      "slow-natural-exit",
+      "inactive-live",
+      "info-unavailable",
+      "deadline-before-term",
+      "post-signal-info-unavailable",
+      "still-launched",
+    ] as const) {
+    type PublishedCleanupResource = Parameters<
+      NonNullable<
+        Parameters<typeof createBrowserSession>[2]["publishCleanupResource"]
+      >
+    >[0];
+    let published: PublishedCleanupResource | null = null;
+    let daemonLive = true;
+    let browserClosed = false;
+    let clock = 0;
+    let recoverySleeps = 0;
+    let closeCommands = 0;
+    let cleanupStarted = false;
+    let postCloseSessionReads = 0;
+    const postCloseSessionTimeouts: Array<{
+      readonly remaining: number;
+      readonly timeout: number;
+    }> = [];
+    let terminationCount = 0;
+    let postCloseCdpInspections = 0;
+    let endpointRefusals = 0;
+    let quiescentCommits = 0;
+    let rootCommits = 0;
+    let unavailableSessionReads = closeOutcome === "info-unavailable" ? 2 : 0;
+    let postSignalUnavailableReads = closeOutcome
+      === "post-signal-info-unavailable"
+      ? 1
+      : 0;
+    const convergenceSessionReadLimit = closeOutcome === "still-launched"
+      ? 401
+      : closeOutcome === "deadline-before-term"
+        ? 2
+        : closeOutcome === "closed-daemon"
+          || closeOutcome === "post-signal-info-unavailable"
+          ? 3
+          : 4;
+    const launchHash = "41";
+    const exactLaunchHashJson = (value: unknown): string =>
+      JSON.stringify(value).replaceAll(
+        `"launchHash":"${launchHash}"`,
+        `"launchHash":${launchHash}`,
+      );
+    const currentLifecycle = () => ({
+      effectiveLaunch: {
+        browserLaunched: !browserClosed,
+        engine: "chrome",
+        launchHash: browserClosed ? null : launchHash,
+      },
+      launched: false,
+      relaunchedBrowser: false,
+      restartedBackground: false,
+      restoreStatus: "not_configured",
+      reused: true,
+      saveStatus: "not_attempted",
+    } as const);
+    const sessionInfo = (): unknown => {
+      const resource = published;
+      if (resource === null) throw new Error("missing published cleanup resource");
+      if (
+        !daemonLive
+        || (closeCommands > 0 && closeOutcome === "inactive-live")
+      ) {
+        return {
+          success: true,
+          data: {
+            active: false,
+            namespace: null,
+            pid: null,
+            runtime: null,
+            runtimeError: null,
+            session: resource.session,
+            socketDir: resource.socketDirectory,
+            version: null,
+          },
+        };
+      }
+      const lifecycle = currentLifecycle();
+      return {
+        success: true,
+        data: {
+          active: true,
+          namespace: null,
+          pid: process.pid,
+          runtime: {
+            backgroundPid: process.pid,
+            browserLaunched: lifecycle.effectiveLaunch.browserLaunched,
+            compatibilityStatus: "current",
+            effectiveLaunch: lifecycle.effectiveLaunch,
+            engine: "chrome",
+            launchHash: lifecycle.effectiveLaunch.launchHash,
+            lifecycle,
+            namespace: null,
+            pageCount: browserClosed ? 0 : 1,
+            restoreCheckFn: null,
+            restoreCheckText: null,
+            restoreCheckUrl: null,
+            restoreKey: null,
+            restoreLoadedPath: null,
+            restoreSave: "auto",
+            restoreSavedPath: null,
+            restoreStatus: "not_configured",
+            restoreStatusDetail: null,
+            restoreValidationPending: false,
+            saveStatus: "not_attempted",
+            session: resource.session,
+            socketDir: resource.socketDirectory,
+          },
+          runtimeError: null,
+          session: resource.session,
+          socketDir: resource.socketDirectory,
+          version: "0.32.3",
+        },
+      };
+    };
+    const publisher = Object.assign(
+      (resource: PublishedCleanupResource): void => {
+        published = resource;
+      },
+      {
+        markBrowserCleanupQuiescent: (): void => {
+          quiescentCommits += 1;
+        },
+        markBrowserCleanupRootRemoved: (): void => {
+          rootCommits += 1;
+        },
+      },
+    );
+    const session = await createBrowserSession(manifest, auth, {
+      headed: false,
+      timeoutMs: 1_000,
+      maxOutputBytes: 64 * 1024,
+      publishCleanupResource: publisher,
+      dependencies: {
+        startNetworkProxy: () => Promise.resolve({
+          url: "http://127.0.0.1:43124",
+          port: 43_124,
+          close: () => Promise.resolve(),
+        }),
+        acquireCookieRecords: () =>
+          Promise.resolve({ cookies: [], warnings: [] }),
+        runCommand: (command, options) => {
+          if (command.includes("batch")) {
+            const batch = JSON.parse(options.stdin ?? "[]") as readonly unknown[];
+            return Promise.resolve({
+              stdout: `${JSON.stringify(batch.map(() => ({
+                success: true,
+                data: { exact: "completed-output" },
+              })))}\n`,
+              stderr: "",
+              exitCode: 0,
+            });
+          }
+          if (command.includes("info")) {
+            if (cleanupStarted) {
+              const observedNow = closeOutcome === "still-launched" ? 0 : clock;
+              postCloseSessionReads += 1;
+              if (postCloseSessionReads <= convergenceSessionReadLimit) {
+                postCloseSessionTimeouts.push({
+                  remaining: Math.max(1, 10_000 - observedNow),
+                  timeout: options.timeoutMs,
+                });
+              }
+              if (
+                closeOutcome === "deadline-before-term"
+                && postCloseSessionReads === 2
+              ) clock = 10_000;
+            }
+            if (closeCommands > 0 && unavailableSessionReads > 0) {
+              unavailableSessionReads -= 1;
+              throw new Error("simulated transient session-info transport loss");
+            }
+            if (terminationCount > 0 && postSignalUnavailableReads > 0) {
+              postSignalUnavailableReads -= 1;
+              throw new Error("simulated post-signal session-info transport loss");
+            }
+            return Promise.resolve({
+              stdout: `${exactLaunchHashJson(sessionInfo())}\n`,
+              stderr: "",
+              exitCode: 0,
+            });
+          }
+          if (command.includes("cdp-url")) {
+            if (closeCommands > 0) postCloseCdpInspections += 1;
+            return Promise.resolve({
+              stdout: `${exactLaunchHashJson({
+                success: true,
+                data: {
+                  cdpUrl: "ws://127.0.0.1:43125/devtools/browser/natural-exit",
+                  lifecycle: currentLifecycle(),
+                },
+              })}\n`,
+              stderr: "",
+              exitCode: 0,
+            });
+          }
+          if (command.includes("close")) {
+            closeCommands += 1;
+            if (
+              closeOutcome === "closed-daemon"
+              || closeOutcome === "deadline-before-term"
+              || closeOutcome === "post-signal-info-unavailable"
+            ) browserClosed = true;
+            return Promise.resolve({
+              stdout: "{\"success\":false}\n",
+              stderr: "",
+              exitCode: 1,
+            });
+          }
+          throw new Error("unexpected browser command");
+        },
+        cleanupLifecycle: {
+          ownerStatus: () => daemonLive
+            ? "exact-live-owner"
+            : "different-or-dead",
+          terminateOwner: (owner) => {
+            const current = published;
+            if (
+              current === null
+              || current.kind !== "agent-browser-session-v2"
+              || current.phase !== "controlled"
+            ) throw new Error("controlled cleanup resource was not published");
+            expect(owner).toEqual(current.control.daemonOwner);
+            expect(
+              closeOutcome === "closed-daemon"
+              || closeOutcome === "delayed-closed-daemon"
+              || closeOutcome === "info-unavailable"
+              || closeOutcome === "post-signal-info-unavailable",
+            ).toBeTrue();
+            expect(browserClosed).toBeTrue();
+            terminationCount += 1;
+            daemonLive = false;
+          },
+          cdpEndpointStatus: () => {
+            endpointRefusals += 1;
+            return Promise.resolve("unavailable");
+          },
+          sleep: (milliseconds) => {
+            clock += milliseconds;
+            recoverySleeps += 1;
+            if (
+              (
+                closeOutcome === "natural-exit"
+                || closeOutcome === "inactive-live"
+              )
+              && recoverySleeps === 1
+            ) daemonLive = false;
+            if (
+              closeOutcome === "slow-natural-exit"
+              && recoverySleeps === 120
+            ) daemonLive = false;
+            if (
+              closeOutcome === "info-unavailable"
+              && recoverySleeps === 1
+            ) browserClosed = true;
+            if (
+              closeOutcome === "delayed-closed-daemon"
+              && recoverySleeps === 1
+            ) browserClosed = true;
+            return Promise.resolve();
+          },
+          now: () => closeOutcome === "still-launched" ? 0 : clock,
+        },
+      },
+    });
+    const resource = session.cleanupResourceIdentity;
+    if (resource === undefined) throw new Error("cleanup resource was not published");
+    try {
+      const completed = await session.runBatch(
+        [["get", "url"]],
+        1_000,
+        64 * 1024,
+      );
+      expect(await rejectionMessage(session.close())).toContain(
+        "neither acknowledged nor independently proved quiescent",
+      );
+      cleanupStarted = true;
+      const cleanupShouldFail = closeOutcome === "still-launched"
+        || closeOutcome === "deadline-before-term"
+        || closeOutcome === "post-signal-info-unavailable";
+      if (!cleanupShouldFail) {
+        await session.cleanup();
+      } else {
+        expect(await rejectionMessage(session.cleanup())).toContain(
+          "did not remove every private resource",
+        );
+      }
+      expect(completed).toEqual([{
+        success: true,
+        data: { exact: "completed-output" },
+      }]);
+      expect(closeCommands).toBe(1);
+      expect(postCloseCdpInspections).toBe(0);
+      expect(terminationCount).toBe(
+        closeOutcome === "closed-daemon"
+          || closeOutcome === "delayed-closed-daemon"
+          || closeOutcome === "info-unavailable"
+          || closeOutcome === "post-signal-info-unavailable"
+          ? 1
+          : 0,
+      );
+      expect(endpointRefusals).toBe(
+        cleanupShouldFail ? 0 : 12,
+      );
+      expect(quiescentCommits).toBe(
+        cleanupShouldFail ? 0 : 1,
+      );
+      expect(rootCommits).toBe(
+        cleanupShouldFail ? 0 : 2,
+      );
+      expect(existsSync(resource.artifactsDirectory)).toBe(
+        cleanupShouldFail,
+      );
+      expect(existsSync(resource.socketDirectory)).toBe(
+        cleanupShouldFail,
+      );
+      expect(postCloseSessionTimeouts).toHaveLength(
+        convergenceSessionReadLimit,
+      );
+      for (const observation of postCloseSessionTimeouts) {
+        expect(observation.timeout).toBeGreaterThanOrEqual(1);
+        expect(observation.timeout).toBeLessThanOrEqual(
+          observation.remaining,
+        );
+      }
+      expect(unavailableSessionReads).toBe(0);
+      expect(postSignalUnavailableReads).toBe(0);
+      if (closeOutcome === "delayed-closed-daemon") {
+        expect(postCloseSessionTimeouts[0]?.timeout).toBe(10_000);
+        expect(postCloseSessionTimeouts[1]?.timeout).toBe(9_975);
+      }
+      if (closeOutcome === "slow-natural-exit") {
+        expect(recoverySleeps).toBeGreaterThan(80);
+        expect(recoverySleeps).toBeLessThan(400);
+      }
+      if (cleanupShouldFail) {
+        expect(recoverySleeps).toBe(
+          closeOutcome === "still-launched" ? 400 : 0,
+        );
+        const sleepsAfterFirstCleanup = recoverySleeps;
+        const readsAfterFirstCleanup = postCloseSessionReads;
+        const closeCommandsAfterFirstCleanup = closeCommands;
+        const terminationsAfterFirstCleanup = terminationCount;
+        const cdpInspectionsAfterFirstCleanup = postCloseCdpInspections;
+        const endpointRefusalsAfterFirstCleanup = endpointRefusals;
+        const quiescentCommitsAfterFirstCleanup = quiescentCommits;
+        const rootCommitsAfterFirstCleanup = rootCommits;
+        const artifactsExistAfterFirstCleanup = existsSync(
+          resource.artifactsDirectory,
+        );
+        const socketExistsAfterFirstCleanup = existsSync(
+          resource.socketDirectory,
+        );
+        expect(await rejectionMessage(session.cleanup())).toContain(
+          "did not remove every private resource",
+        );
+        expect(recoverySleeps).toBe(sleepsAfterFirstCleanup);
+        expect(postCloseSessionReads).toBe(readsAfterFirstCleanup);
+        expect(closeCommands).toBe(closeCommandsAfterFirstCleanup);
+        expect(terminationCount).toBe(terminationsAfterFirstCleanup);
+        expect(postCloseCdpInspections).toBe(
+          cdpInspectionsAfterFirstCleanup,
+        );
+        expect(endpointRefusals).toBe(endpointRefusalsAfterFirstCleanup);
+        expect(quiescentCommits).toBe(quiescentCommitsAfterFirstCleanup);
+        expect(rootCommits).toBe(rootCommitsAfterFirstCleanup);
+        expect(existsSync(resource.artifactsDirectory)).toBe(
+          artifactsExistAfterFirstCleanup,
+        );
+        expect(existsSync(resource.socketDirectory)).toBe(
+          socketExistsAfterFirstCleanup,
+        );
+      }
+    } finally {
+      rmSync(resource.artifactsDirectory, { recursive: true, force: true });
+      rmSync(resource.socketDirectory, { recursive: true, force: true });
+    }
+    }
+  });
+
+  test("publishes prepared roots before profile-clone effects can fail", async () => {
+    const unavailableProfile = join(
+      tmpdir(),
+      `wrench-missing-profile-${crypto.randomUUID()}`,
+    );
+    const publication: {
+      resource: BrowserCleanupResourceIdentityV2 | null;
+    } = { resource: null };
+    const error = await rejectionValue(createBrowserSession(manifest, {
+      schemaVersion: 1,
+      id: "missing-profile",
+      kind: "browser-profile",
+      profile: unavailableProfile,
+      trustUnfilteredEgress: true,
+    }, {
+      headed: false,
+      timeoutMs: 1_000,
+      maxOutputBytes: 64 * 1024,
+      publishCleanupResource: (resource) => {
+        if (resource.kind !== "agent-browser-session-v2") {
+          throw new Error("expected a v2 cleanup resource");
+        }
+        publication.resource = resource;
+      },
+    }));
+    expect(error).toBeInstanceOf(PreservedBrowserArtifactsError);
+    const prepared = publication.resource;
+    if (prepared === null) throw new Error("prepared roots were not published");
+    try {
+      expect(prepared).toMatchObject({ phase: "prepared", control: null });
+      expect(browserCleanupResourceRootStatus(prepared, "socket")).toBe("match");
+      expect(browserCleanupResourceRootStatus(prepared, "artifacts")).toBe("match");
+    } finally {
+      rmSync(prepared.socketDirectory, { recursive: true, force: true });
+      rmSync(prepared.artifactsDirectory, { recursive: true, force: true });
+    }
+  });
+
+  test("preserves exact roots when cleanup publication may have committed before throwing", async () => {
+    const publication: {
+      resource: BrowserCleanupResourceIdentityV2 | null;
+    } = { resource: null };
+    const removalAttempts: string[] = [];
+    const error = await rejectionValue(createBrowserSession(manifest, auth, {
+      headed: false,
+      timeoutMs: 1_000,
+      maxOutputBytes: 64 * 1024,
+      publishCleanupResource: (resource) => {
+        if (resource.kind !== "agent-browser-session-v2") {
+          throw new Error("expected a v2 cleanup resource");
+        }
+        publication.resource = resource;
+        throw new Error("simulated failure after durable publication");
+      },
+      dependencies: {
+        removePrivateArtifact: (path) => {
+          removalAttempts.push(path);
+          rmSync(path, { recursive: true, force: true });
+        },
+      },
+    }));
+
+    expect(error).toBeInstanceOf(PreservedBrowserArtifactsError);
+    expect(removalAttempts).toEqual([]);
+    const resource = publication.resource;
+    if (resource === null) throw new Error("cleanup publication was not attempted");
+    try {
+      expect(browserCleanupResourceRootStatus(resource, "artifacts")).toBe("match");
+      expect(browserCleanupResourceRootStatus(resource, "socket")).toBe("match");
+    } finally {
+      rmSync(resource.artifactsDirectory, { recursive: true, force: true });
+      rmSync(resource.socketDirectory, { recursive: true, force: true });
+    }
+  });
+
+  test("cleans definitely published prepared roots inline when later setup fails", async () => {
+    type PublishedCleanupResource = Parameters<
+      NonNullable<
+        Parameters<typeof createBrowserSession>[2]["publishCleanupResource"]
+      >
+    >[0];
+    const publication: { resource: PublishedCleanupResource | null } = {
+      resource: null,
+    };
+    let sessionReads = 0;
+    const cleanupEvents: string[] = [];
+    const publisher = Object.assign(
+      (resource: PublishedCleanupResource): void => {
+        publication.resource = resource;
+      },
+      {
+        markBrowserCleanupQuiescent: (): void => {
+          cleanupEvents.push("journal-quiescent");
+        },
+        markBrowserCleanupRootRemoved: (
+          _resource: PublishedCleanupResource,
+          root: "artifacts" | "socket",
+        ): void => {
+          cleanupEvents.push(`journal-${root}`);
+        },
+      },
+    );
+    let proxyStarts = 0;
+    const failure = await rejectionValue(createBrowserSession(
+      manifest,
+      {
+        schemaVersion: 1,
+        id: "missing-profile",
+        kind: "browser-profile",
+        profile: join(
+          tmpdir(),
+          `ghostget-missing-profile-${crypto.randomUUID()}`,
+        ),
+        trustUnfilteredEgress: true,
+      },
+      {
+        headed: false,
+        timeoutMs: 1_000,
+        maxOutputBytes: 64 * 1024,
+        publishCleanupResource: publisher,
+        dependencies: {
+          startNetworkProxy: () => {
+            proxyStarts += 1;
+            return Promise.reject(new Error("network proxy must not start"));
+          },
+          runCommand: (command) => {
+            if (!command.includes("info")) {
+              throw new Error("unexpected browser command during prepared cleanup");
+            }
+            const resource = publication.resource;
+            if (resource === null) {
+              throw new Error("prepared cleanup resource was not published");
+            }
+            sessionReads += 1;
+            return Promise.resolve({
+              stdout: `${JSON.stringify({
+                success: true,
+                data: {
+                  active: false,
+                  namespace: null,
+                  pid: null,
+                  runtime: null,
+                  runtimeError: null,
+                  session: resource.session,
+                  socketDir: resource.socketDirectory,
+                  version: null,
+                },
+              })}\n`,
+              stderr: "",
+              exitCode: 0,
+            });
+          },
+        },
+      },
+    ));
+
+    expect(failure).toBeInstanceOf(Error);
+    expect(failure).not.toBeInstanceOf(PreservedBrowserArtifactsError);
+    expect(proxyStarts).toBe(0);
+    const resource = publication.resource;
+    if (resource === null) throw new Error("prepared roots were not published");
+    try {
+      expect(resource).toMatchObject({ phase: "prepared", control: null });
+      expect(sessionReads).toBe(4);
+      expect(cleanupEvents).toEqual([
+        "journal-quiescent",
+        "journal-artifacts",
+        "journal-socket",
+      ]);
+      expect(existsSync(resource.artifactsDirectory)).toBeFalse();
+      expect(existsSync(resource.socketDirectory)).toBeFalse();
+    } finally {
+      rmSync(resource.artifactsDirectory, { recursive: true, force: true });
+      rmSync(resource.socketDirectory, { recursive: true, force: true });
+    }
+  });
+
+  test("retains published setup roots when durable cleanup journaling is unavailable", async () => {
+    type PublishedCleanupResource = Parameters<
+      NonNullable<
+        Parameters<typeof createBrowserSession>[2]["publishCleanupResource"]
+      >
+    >[0];
+    const publication: { resource: PublishedCleanupResource | null } = {
+      resource: null,
+    };
+    const failure = await rejectionValue(createBrowserSession(
+      manifest,
+      auth,
+      {
+        headed: false,
+        timeoutMs: 1_000,
+        maxOutputBytes: 64 * 1024,
+        publishCleanupResource: (resource) => {
+          publication.resource = resource;
+        },
+        dependencies: {
+          startNetworkProxy: () =>
+            Promise.reject(new Error("simulated setup failure")),
+        },
+      },
+    ));
+
+    expect(failure).toBeInstanceOf(PreservedBrowserArtifactsError);
+    const resource = publication.resource;
+    if (resource === null) throw new Error("prepared roots were not published");
+    if (resource.kind !== "agent-browser-session-v2") {
+      throw new Error("prepared cleanup resource was not v2");
+    }
+    try {
+      expect(resource).toMatchObject({ phase: "prepared", control: null });
+      expect(browserCleanupResourceRootStatus(resource, "artifacts")).toBe(
+        "match",
+      );
+      expect(browserCleanupResourceRootStatus(resource, "socket")).toBe(
+        "match",
+      );
+    } finally {
+      rmSync(resource.artifactsDirectory, { recursive: true, force: true });
+      rmSync(resource.socketDirectory, { recursive: true, force: true });
+    }
+  });
+
+  test("proves only an unchanged prepared and doubly inactive session quiescent", async () => {
+    const fixture = createPinnedBrowserRecoveryFixture();
+    const prepared = parseBrowserCleanupResourceIdentity({
+      ...fixture.resource,
+      phase: "prepared",
+      control: null,
+    }) as BrowserCleanupResourceIdentityV2;
+    let reads = 0;
+    try {
+      expect(await refreshBrowserCleanupResourceQuiescence(
+        prepared,
+        {
+          runCommand: (command) => {
+            expect(command.includes("info")).toBeTrue();
+            reads += 1;
+            return Promise.resolve(fixture.commandResult(
+              fixture.sessionInfo("inactive"),
+            ));
+          },
+        },
+      )).toEqual(prepared);
+      expect(reads).toBe(2);
+      expect(browserCleanupResourceRootStatus(prepared, "socket")).toBe("match");
+      expect(browserCleanupResourceRootStatus(prepared, "artifacts")).toBe("match");
+
+      rmSync(prepared.socketDirectory, { recursive: true });
+      expect(browserCleanupResourceRootStatus(prepared, "socket")).toBe("absent");
+      writeFileSync(prepared.socketDirectory, "replacement", { mode: 0o600 });
+      expect(browserCleanupResourceRootStatus(prepared, "socket")).toBe("conflict");
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  test("refuses prepared recovery when the second session read becomes active", async () => {
+    const fixture = createPinnedBrowserRecoveryFixture();
+    const prepared = parseBrowserCleanupResourceIdentity({
+      ...fixture.resource,
+      phase: "prepared",
+      control: null,
+    }) as BrowserCleanupResourceIdentityV2;
+    let reads = 0;
+    try {
+      const message = await rejectionMessage(
+        provePreparedAgentBrowserCleanupResourceQuiescent(prepared, {
+          runCommand: () => {
+            reads += 1;
+            return Promise.resolve(fixture.commandResult(
+              fixture.sessionInfo(reads === 1 ? "inactive" : "launched"),
+            ));
+          },
+        }),
+      );
+      expect(message).toContain("state changed");
+      expect(message).not.toContain(fixture.session);
+      expect(reads).toBe(2);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  test("accepts only equality or one exact browser cleanup identity extension", () => {
+    const artifactsDirectory = mkdtempSync(join(tmpdir(), "io-browser-"));
+    const socketDirectory = mkdtempSync(join("/tmp", "io-ab-"));
+    chmodSync(artifactsDirectory, 0o700);
+    chmodSync(socketDirectory, 0o700);
+    const session = "io-123-abcdef123456";
+    const configPath = join(artifactsDirectory, "agent-browser.json");
+    writeFileSync(configPath, "{}\n", { mode: 0o600 });
+    const directoryIdentity = (path: string) => {
+      const stats = lstatSync(path, { bigint: true });
+      return {
+        device: stats.dev.toString(),
+        inode: stats.ino.toString(),
+        birthtimeNs: stats.birthtimeNs.toString(),
+        mode: "448" as const,
+        uid: stats.uid.toString(),
+      };
+    };
+    try {
+      const base = parseBrowserCleanupResourceIdentity({
+        kind: "agent-browser-session-v2",
+        recoveryHandle: browserRecoveryHandle({
+          session,
+          configPath,
+          socketDirectory,
+          artifactsDirectory,
+        }),
+        session,
+        socketDirectory,
+        socketDirectoryIdentity: directoryIdentity(socketDirectory),
+        artifactsDirectory,
+        artifactsDirectoryIdentity: directoryIdentity(artifactsDirectory),
+        phase: "prepared",
+        control: null,
+      }) as BrowserCleanupResourceIdentityV2;
+      const launchIntent = parseBrowserCleanupResourceIdentity({
+        ...base,
+        phase: "launch-intent",
+        control: null,
+      }) as BrowserCleanupResourceIdentityV2;
+      const pinned = parseBrowserCleanupResourceIdentity({
+        ...launchIntent,
+        phase: "controlled",
+        control: {
+          kind: "agent-browser-control-v1",
+          version: "0.32.3",
+          session,
+          socketDirectory,
+          daemonOwner: {
+            pid: 43125,
+            bootId: "a".repeat(64),
+            processStartId: "b".repeat(64),
+          },
+          engine: "chrome",
+          launchHash: "18446744073709551615",
+          cdpUrl: "ws://127.0.0.1:43125/devtools/browser/exact-test",
+        },
+      });
+      if (
+        pinned.kind !== "agent-browser-session-v2"
+        || pinned.phase !== "controlled"
+      ) {
+        throw new Error("expected a controlled v2 cleanup resource");
+      }
+      const legacy: BrowserCleanupResourceIdentityV1 = {
+        kind: "agent-browser-session-v1",
+        recoveryHandle: base.recoveryHandle,
+        session,
+        socketDirectory,
+        socketDirectoryIdentity: {
+          device: base.socketDirectoryIdentity.device,
+          inode: base.socketDirectoryIdentity.inode,
+        },
+        artifactsDirectory,
+        artifactsDirectoryIdentity: {
+          device: base.artifactsDirectoryIdentity.device,
+          inode: base.artifactsDirectoryIdentity.inode,
+        },
+      };
+
+      expect(browserCleanupResourceExtends(base, base)).toBeTrue();
+      expect(browserCleanupResourceExtends(base, launchIntent)).toBeTrue();
+      expect(browserCleanupResourceExtends(base, pinned)).toBeFalse();
+      expect(browserCleanupResourceExtends(launchIntent, pinned)).toBeTrue();
+      expect(browserCleanupResourceExtends(pinned, pinned)).toBeTrue();
+      expect(browserCleanupResourceExtends(pinned, base)).toBeFalse();
+      expect(browserCleanupResourceExtends(pinned, launchIntent)).toBeFalse();
+      expect(browserCleanupResourceExtends(legacy, base)).toBeFalse();
+      expect(browserCleanupResourceExtends(legacy, pinned)).toBeTrue();
+      expect(browserCleanupResourceExtends(pinned, {
+        ...pinned,
+        control: {
+          ...pinned.control,
+          launchHash: "1",
+        },
+      })).toBeFalse();
+
+      expect(() => parseBrowserCleanupResourceIdentity({
+        ...base,
+        unexpected: "private-value",
+      })).toThrow("malformed");
+      expect(() => parseBrowserCleanupResourceIdentity({
+        ...base,
+        phase: "controlled",
+      })).toThrow("phase");
+      expect(() => parseBrowserCleanupResourceIdentity({
+        ...pinned,
+        phase: "launch-intent",
+      })).toThrow("inconsistent");
+      expect(() => parseBrowserCleanupResourceIdentity({
+        ...base,
+        socketDirectoryIdentity: {
+          ...base.socketDirectoryIdentity,
+          birthtimeNs: "0",
+        },
+      })).toThrow("malformed");
+      expect(() => parseBrowserCleanupResourceIdentity({
+        ...pinned,
+        control: {
+          ...pinned.control!,
+          session: "io-123-000000000000",
+        },
+      })).toThrow("changed resource identity");
+      expect(() => parseBrowserCleanupResourceIdentity({
+        ...pinned,
+        control: {
+          ...pinned.control!,
+          cdpUrl: "ws://localhost:43125/devtools/browser/exact-test",
+        },
+      })).toThrow("malformed");
+      const accessor = { ...base } as Record<string, unknown>;
+      Object.defineProperty(accessor, "control", {
+        enumerable: true,
+        get: () => null,
+      });
+      expect(() => parseBrowserCleanupResourceIdentity(accessor)).toThrow(
+        "malformed",
+      );
+    } finally {
+      rmSync(socketDirectory, { recursive: true, force: true });
+      rmSync(artifactsDirectory, { recursive: true, force: true });
+    }
+  });
+
+  test("rejects a daemon or launch identity drift while binding a live cleanup pin", async () => {
+    const artifactsDirectory = mkdtempSync(join(tmpdir(), "io-browser-"));
+    const socketDirectory = mkdtempSync(join("/tmp", "io-ab-"));
+    chmodSync(artifactsDirectory, 0o700);
+    chmodSync(socketDirectory, 0o700);
+    const session = "io-124-abcdef123456";
+    const configPath = join(artifactsDirectory, "agent-browser.json");
+    writeFileSync(configPath, "{}\n", { mode: 0o600 });
+    writeFileSync(join(artifactsDirectory, "action-policy.json"), "{}\n", {
+      mode: 0o600,
+    });
+    const statsIdentity = (path: string) => {
+      const stats = lstatSync(path, { bigint: true });
+      return {
+        device: stats.dev.toString(),
+        inode: stats.ino.toString(),
+        birthtimeNs: stats.birthtimeNs.toString(),
+        mode: "448" as const,
+        uid: stats.uid.toString(),
+      };
+    };
+    const base = parseBrowserCleanupResourceIdentity({
+      kind: "agent-browser-session-v2",
+      recoveryHandle: browserRecoveryHandle({
+        session,
+        configPath,
+        socketDirectory,
+        artifactsDirectory,
+      }),
+      session,
+      socketDirectory,
+      socketDirectoryIdentity: statsIdentity(socketDirectory),
+      artifactsDirectory,
+      artifactsDirectoryIdentity: statsIdentity(artifactsDirectory),
+      phase: "launch-intent",
+      control: null,
+    }) as BrowserCleanupResourceIdentityV2;
+    const lifecycle = (launchHash: string) => ({
+      effectiveLaunch: {
+        browserLaunched: true,
+        engine: "chrome",
+        launchHash,
+      },
+      launched: false,
+      relaunchedBrowser: false,
+      restartedBackground: false,
+      restoreStatus: "not_configured",
+      reused: true,
+      saveStatus: "not_attempted",
+    });
+    const activeInfo = (launchHash: string) => ({
+      success: true,
+      data: {
+        active: true,
+        namespace: null,
+        pid: 43125,
+        runtime: {
+          backgroundPid: 43125,
+          browserLaunched: true,
+          compatibilityStatus: "current",
+          effectiveLaunch: lifecycle(launchHash).effectiveLaunch,
+          engine: "chrome",
+          launchHash,
+          lifecycle: lifecycle(launchHash),
+          namespace: null,
+          pageCount: 1,
+          restoreCheckFn: null,
+          restoreCheckText: null,
+          restoreCheckUrl: null,
+          restoreKey: null,
+          restoreLoadedPath: null,
+          restoreSave: "auto",
+          restoreSavedPath: null,
+          restoreStatus: "not_configured",
+          restoreStatusDetail: null,
+          restoreValidationPending: false,
+          saveStatus: "not_attempted",
+          session,
+          socketDir: socketDirectory,
+        },
+        runtimeError: null,
+        session,
+        socketDir: socketDirectory,
+        version: "0.32.3",
+      },
+    });
+    let sessionReads = 0;
+    try {
+      let preparedCommandCount = 0;
+      const prepared = parseBrowserCleanupResourceIdentity({
+        ...base,
+        phase: "prepared",
+        control: null,
+      }) as BrowserCleanupResourceIdentityV2;
+      expect(await rejectionMessage(bindLiveAgentBrowserCleanupResource(
+        prepared,
+        {
+          runCommand: () => {
+            preparedCommandCount += 1;
+            throw new Error("prepared claims must not inspect live control");
+          },
+        },
+      ))).toContain("cannot accept");
+      expect(preparedCommandCount).toBe(0);
+
+      for (const lifecycleDrift of [
+        { launched: true },
+        { relaunchedBrowser: true },
+        { restartedBackground: true },
+        { restoreStatus: "restored" },
+        { saveStatus: "saved" },
+      ] as const) {
+        expect(await rejectionMessage(bindLiveAgentBrowserCleanupResource(base, {
+          runCommand: (command) => {
+            const current = activeInfo("41");
+            const value = command.includes("info")
+              ? {
+                  ...current,
+                  data: {
+                    ...current.data,
+                    runtime: {
+                      ...current.data.runtime,
+                      lifecycle: {
+                        ...current.data.runtime.lifecycle,
+                        ...lifecycleDrift,
+                      },
+                    },
+                  },
+                }
+              : {
+                  success: true,
+                  data: {
+                    cdpUrl: "ws://127.0.0.1:43125/devtools/browser/exact-test",
+                    lifecycle: lifecycle("41"),
+                  },
+                };
+            return Promise.resolve({
+              stdout: `${JSON.stringify(value).replaceAll(
+                '"launchHash":"41"',
+                '"launchHash":41',
+              )}\n`,
+              stderr: "",
+              exitCode: 0,
+            });
+          },
+        }))).toContain("lifecycle changed shape");
+      }
+
+      expect(await rejectionMessage(bindLiveAgentBrowserCleanupResource(base, {
+        captureOwner: () => ({
+          pid: 43125,
+          bootId: "a".repeat(64),
+          processStartId: "b".repeat(64),
+        }),
+        ownerStatus: () => "exact-live-owner",
+        runCommand: (command) => {
+          if (command.includes("info")) {
+            sessionReads += 1;
+            const launchHash = sessionReads === 1 ? "41" : "42";
+            return Promise.resolve({
+              stdout: `${JSON.stringify(activeInfo(launchHash)).replaceAll(
+                `"launchHash":"${launchHash}"`,
+                `"launchHash":${launchHash}`,
+              )}\n`,
+              stderr: "",
+              exitCode: 0,
+            });
+          }
+          return Promise.resolve({
+            stdout: `${JSON.stringify({
+              success: true,
+              data: {
+                cdpUrl: "ws://127.0.0.1:43125/devtools/browser/exact-test",
+                lifecycle: lifecycle("41"),
+              },
+            }).replaceAll(
+              `"launchHash":"41"`,
+              `"launchHash":41`,
+            )}\n`,
+            stderr: "",
+            exitCode: 0,
+          });
+        },
+      }))).toContain("changed while it was bound");
+      expect(sessionReads).toBe(3);
+
+      sessionReads = 0;
+      let cdpReads = 0;
+      expect(await rejectionMessage(bindLiveAgentBrowserCleanupResource(base, {
+        captureOwner: () => ({
+          pid: 43125,
+          bootId: "a".repeat(64),
+          processStartId: "b".repeat(64),
+        }),
+        ownerStatus: () => "exact-live-owner",
+        runCommand: (command) => {
+          if (command.includes("info")) {
+            sessionReads += 1;
+            return Promise.resolve({
+              stdout: `${JSON.stringify(activeInfo("41")).replaceAll(
+                '"launchHash":"41"',
+                '"launchHash":41',
+              )}\n`,
+              stderr: "",
+              exitCode: 0,
+            });
+          }
+          cdpReads += 1;
+          return Promise.resolve({
+            stdout: `${JSON.stringify({
+              success: true,
+              data: {
+                cdpUrl: cdpReads === 1
+                  ? "ws://127.0.0.1:43125/devtools/browser/exact-test"
+                  : "ws://127.0.0.1:43125/devtools/browser/drifted-test",
+                lifecycle: lifecycle("41"),
+              },
+            }).replaceAll(
+              '"launchHash":"41"',
+              '"launchHash":41',
+            )}\n`,
+            stderr: "",
+            exitCode: 0,
+          });
+        },
+      }))).toContain("changed while it was bound");
+      expect(sessionReads).toBe(3);
+      expect(cdpReads).toBe(2);
+
+      for (const lifecycleDrift of [
+        { launched: true },
+        { relaunchedBrowser: true },
+        { restartedBackground: true },
+        { restoreStatus: "restored" },
+        { saveStatus: "saved" },
+      ] as const) {
+        expect(await rejectionMessage(bindLiveAgentBrowserCleanupResource(base, {
+          captureOwner: () => ({
+            pid: 43125,
+            bootId: "a".repeat(64),
+            processStartId: "b".repeat(64),
+          }),
+          ownerStatus: () => "exact-live-owner",
+          runCommand: (command) => {
+            const value = command.includes("info")
+              ? activeInfo("41")
+              : {
+                  success: true,
+                  data: {
+                    cdpUrl: "ws://127.0.0.1:43125/devtools/browser/exact-test",
+                    lifecycle: {
+                      ...lifecycle("41"),
+                      ...lifecycleDrift,
+                    },
+                  },
+                };
+            return Promise.resolve({
+              stdout: `${JSON.stringify(value).replaceAll(
+                '"launchHash":"41"',
+                '"launchHash":41',
+              )}\n`,
+              stderr: "",
+              exitCode: 0,
+            });
+          },
+        }))).toContain("lifecycle changed shape");
+      }
+
+      sessionReads = 0;
+      expect(await rejectionMessage(adoptLiveLegacyBrowserCleanupResource({
+        kind: "agent-browser-session-v1",
+        recoveryHandle: base.recoveryHandle,
+        session,
+        socketDirectory,
+        socketDirectoryIdentity: {
+          device: base.socketDirectoryIdentity.device,
+          inode: base.socketDirectoryIdentity.inode,
+        },
+        artifactsDirectory,
+        artifactsDirectoryIdentity: {
+          device: base.artifactsDirectoryIdentity.device,
+          inode: base.artifactsDirectoryIdentity.inode,
+        },
+      }, {
+        runCommand: () => Promise.resolve({
+          stdout: `${JSON.stringify({
+            success: true,
+            data: {
+              active: false,
+              namespace: null,
+              pid: null,
+              runtime: null,
+              runtimeError: null,
+              session,
+              socketDir: socketDirectory,
+              version: null,
+            },
+          })}\n`,
+          stderr: "",
+          exitCode: 0,
+        }),
+      }))).toContain("live control identity is unavailable");
+    } finally {
+      rmSync(socketDirectory, { recursive: true, force: true });
+      rmSync(artifactsDirectory, { recursive: true, force: true });
+    }
+  });
+
+  test("binds live cleanup after a fresh open with reused false and a _boundary envelope", async () => {
+    const artifactsDirectory = mkdtempSync(join(tmpdir(), "io-browser-"));
+    const socketDirectory = mkdtempSync(join("/tmp", "io-ab-"));
+    chmodSync(artifactsDirectory, 0o700);
+    chmodSync(socketDirectory, 0o700);
+    const session = "io-126-abcdef123456";
+    const configPath = join(artifactsDirectory, "agent-browser.json");
+    writeFileSync(configPath, "{}\n", { mode: 0o600 });
+    writeFileSync(join(artifactsDirectory, "action-policy.json"), "{}\n", {
+      mode: 0o600,
+    });
+    const statsIdentity = (path: string) => {
+      const stats = lstatSync(path, { bigint: true });
+      return {
+        device: stats.dev.toString(),
+        inode: stats.ino.toString(),
+        birthtimeNs: stats.birthtimeNs.toString(),
+        mode: "448" as const,
+        uid: stats.uid.toString(),
+      };
+    };
+    const base = parseBrowserCleanupResourceIdentity({
+      kind: "agent-browser-session-v2",
+      recoveryHandle: browserRecoveryHandle({
+        session,
+        configPath,
+        socketDirectory,
+        artifactsDirectory,
+      }),
+      session,
+      socketDirectory,
+      socketDirectoryIdentity: statsIdentity(socketDirectory),
+      artifactsDirectory,
+      artifactsDirectoryIdentity: statsIdentity(artifactsDirectory),
+      phase: "launch-intent",
+      control: null,
+    }) as BrowserCleanupResourceIdentityV2;
+    const lifecycle = (reused: boolean) => ({
+      effectiveLaunch: {
+        browserLaunched: true,
+        engine: "chrome",
+        launchHash: "41",
+      },
+      launched: false,
+      relaunchedBrowser: false,
+      restartedBackground: false,
+      restoreStatus: "not_configured",
+      reused,
+      saveStatus: "not_attempted",
+    });
+    const activeInfo = (reused: boolean) => ({
+      success: true,
+      data: {
+        active: true,
+        namespace: null,
+        pid: 43126,
+        runtime: {
+          backgroundPid: 43126,
+          browserLaunched: true,
+          compatibilityStatus: "current",
+          effectiveLaunch: lifecycle(reused).effectiveLaunch,
+          engine: "chrome",
+          launchHash: "41",
+          lifecycle: lifecycle(reused),
+          namespace: null,
+          pageCount: 1,
+          restoreCheckFn: null,
+          restoreCheckText: null,
+          restoreCheckUrl: null,
+          restoreKey: null,
+          restoreLoadedPath: null,
+          restoreSave: "auto",
+          restoreSavedPath: null,
+          restoreStatus: "not_configured",
+          restoreStatusDetail: null,
+          restoreValidationPending: false,
+          saveStatus: "not_attempted",
+          session,
+          socketDir: socketDirectory,
+        },
+        runtimeError: null,
+        session,
+        socketDir: socketDirectory,
+        version: "0.32.3",
+      },
+    });
+    const cdpInfo = (reused: boolean) => ({
+      success: true,
+      data: {
+        cdpUrl: "ws://127.0.0.1:43126/devtools/browser/exact-test",
+        lifecycle: lifecycle(reused),
+      },
+    });
+    const commandResult = (value: unknown) => ({
+      stdout: `${JSON.stringify(value).replaceAll(
+        '"launchHash":"41"',
+        '"launchHash":41',
+      )}\n`,
+      stderr: "",
+      exitCode: 0,
+    });
+    const owner = {
+      pid: 43126,
+      bootId: "a".repeat(64),
+      processStartId: "b".repeat(64),
+    } as const;
+    const bindWith = (
+      sessionValue: unknown,
+      cdpValue: unknown,
+    ) => bindLiveAgentBrowserCleanupResource(base, {
+      captureOwner: () => owner,
+      ownerStatus: () => "exact-live-owner",
+      runCommand: (command) => Promise.resolve(commandResult(
+        command.includes("info") ? sessionValue : cdpValue,
+      )),
+    });
+    try {
+      for (const reused of [false, true] as const) {
+        for (const wrap of [
+          (value: { readonly success: boolean; readonly data: unknown }) => value,
+          agentBrowserBoundaryEnvelope,
+        ] as const) {
+          const bound = await bindWith(wrap(activeInfo(reused)), wrap(cdpInfo(reused)));
+          expect(bound.phase).toBe("controlled");
+          expect(bound.session).toBe(session);
+          expect(bound.socketDirectory).toBe(socketDirectory);
+          expect(bound.control).toEqual({
+            kind: "agent-browser-control-v1",
+            version: "0.32.3",
+            session,
+            socketDirectory,
+            daemonOwner: owner,
+            engine: "chrome",
+            launchHash: "41",
+            cdpUrl: "ws://127.0.0.1:43126/devtools/browser/exact-test",
+          });
+        }
+      }
+
+      for (const statusDrift of [
+        { saveStatus: "not_configured" },
+        { restoreStatus: "not_attempted" },
+        { restoreStatus: "not_attempted", saveStatus: "not_configured" },
+      ] as const) {
+        const driftedInfo = activeInfo(false);
+        const bound = await bindWith(
+          agentBrowserBoundaryEnvelope({
+            ...driftedInfo,
+            data: {
+              ...driftedInfo.data,
+              runtime: {
+                ...driftedInfo.data.runtime,
+                lifecycle: {
+                  ...driftedInfo.data.runtime.lifecycle,
+                  ...statusDrift,
+                },
+              },
+            },
+          }),
+          agentBrowserBoundaryEnvelope(cdpInfo(false)),
+        );
+        expect(bound.phase).toBe("controlled");
+      }
+
+      expect(await rejectionMessage(bindWith(
+        agentBrowserBoundaryEnvelope({
+          ...activeInfo(false),
+          data: {
+            ...activeInfo(false).data,
+            session: "io-999-ffffffffffff",
+          },
+        }),
+        agentBrowserBoundaryEnvelope(cdpInfo(false)),
+      ))).toContain("session identity changed");
+      expect(await rejectionMessage(bindWith(
+        agentBrowserBoundaryEnvelope({
+          ...activeInfo(false),
+          data: {
+            ...activeInfo(false).data,
+            socketDir: "/tmp/io-ab-not-the-bound-socket",
+          },
+        }),
+        agentBrowserBoundaryEnvelope(cdpInfo(false)),
+      ))).toContain("session identity changed");
+      expect(await rejectionMessage(bindWith(
+        {
+          ...agentBrowserBoundaryEnvelope(activeInfo(false)) as Record<string, unknown>,
+          extra: true,
+        },
+        cdpInfo(false),
+      ))).toContain("session result is malformed");
+      expect(await rejectionMessage(bindWith(
+        activeInfo(false),
+        {
+          _boundary: { nonce: "not-a-hex-nonce", origin: "unknown" },
+          data: cdpInfo(false).data,
+          error: null,
+          success: true,
+        },
+      ))).toContain("CDP result is malformed");
+      expect(await rejectionMessage(bindWith(
+        activeInfo(false),
+        {
+          _boundary: { nonce: "a".repeat(32), origin: "agent-browser" },
+          data: cdpInfo(false).data,
+          error: null,
+          success: true,
+        },
+      ))).toContain("CDP result is malformed");
+    } finally {
+      rmSync(socketDirectory, { recursive: true, force: true });
+      rmSync(artifactsDirectory, { recursive: true, force: true });
+    }
+  });
+
+  test("recovers the exact 0.32.3 browser-closed daemon lifecycle with SIGTERM", async () => {
+    const fixture = createPinnedBrowserRecoveryFixture();
+    let state: RecoveryFixtureState = "launched";
+    let ownerLive = true;
+    let terminationCount = 0;
+    let cdpInspectionCount = 0;
+    let endpointRefusalCount = 0;
+    try {
+      const recovered = await refreshBrowserCleanupResourceQuiescence(
+        fixture.resource,
+        {
+          runCommand: (command) => {
+            if (command.includes("info")) {
+              return Promise.resolve(fixture.commandResult(
+                fixture.sessionInfo(state),
+              ));
+            }
+            if (command.includes("cdp-url")) {
+              expect(state).toBe("launched");
+              cdpInspectionCount += 1;
+              return Promise.resolve(fixture.commandResult(fixture.cdpInfo()));
+            }
+            if (command.includes("close")) {
+              expect(state).toBe("launched");
+              state = "closed";
+              return Promise.resolve(fixture.commandResult({ success: true }));
+            }
+            throw new Error("unexpected recovery command");
+          },
+          ownerStatus: () =>
+            ownerLive ? "exact-live-owner" : "different-or-dead",
+          terminateOwner: (owner) => {
+            expect(owner).toEqual(fixture.owner);
+            expect(state).toBe("closed");
+            terminationCount += 1;
+            ownerLive = false;
+            state = "inactive";
+          },
+          cdpEndpointStatus: (cdpUrl) => {
+            expect(cdpUrl).toBe(fixture.cdpUrl);
+            endpointRefusalCount += 1;
+            return Promise.resolve("unavailable");
+          },
+          sleep: () => Promise.resolve(),
+          now: () => 0,
+        },
+      );
+      expect(recovered).toEqual(fixture.resource);
+      expect(terminationCount).toBe(1);
+      expect(cdpInspectionCount).toBe(1);
+      expect(endpointRefusalCount).toBe(3);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  test("resumes after a prior close by terminating the exact closed daemon without closing again", async () => {
+    const fixture = createPinnedBrowserRecoveryFixture();
+    let state: RecoveryFixtureState = "closed";
+    let ownerLive = true;
+    let sessionInspectionCount = 0;
+    let closeCount = 0;
+    let cdpInspectionCount = 0;
+    let terminationCount = 0;
+    try {
+      await recoverPinnedAgentBrowserCleanupResource(fixture.resource, {
+        runCommand: (command) => {
+          if (command.includes("info")) {
+            sessionInspectionCount += 1;
+            return Promise.resolve(fixture.commandResult(
+              fixture.sessionInfo(state),
+            ));
+          }
+          if (command.includes("close")) closeCount += 1;
+          if (command.includes("cdp-url")) cdpInspectionCount += 1;
+          throw new Error("closed-daemon recovery repeated a browser command");
+        },
+        ownerStatus: () =>
+          ownerLive ? "exact-live-owner" : "different-or-dead",
+        terminateOwner: (owner) => {
+          expect(owner).toEqual(fixture.owner);
+          expect(state).toBe("closed");
+          terminationCount += 1;
+          ownerLive = false;
+          state = "inactive";
+        },
+        cdpEndpointStatus: () => Promise.resolve("unavailable"),
+        sleep: () => Promise.resolve(),
+        now: () => 0,
+      });
+      expect(sessionInspectionCount).toBe(4);
+      expect(closeCount).toBe(0);
+      expect(cdpInspectionCount).toBe(0);
+      expect(terminationCount).toBe(1);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  test("falls back to SIGTERM only after an unsuccessful close preserves the exact pin", async () => {
+    const fixture = createPinnedBrowserRecoveryFixture();
+    let state: RecoveryFixtureState = "launched";
+    let ownerLive = true;
+    let terminationCount = 0;
+    let cdpInspectionCount = 0;
+    try {
+      await recoverPinnedAgentBrowserCleanupResource(fixture.resource, {
+        runCommand: (command) => {
+          if (command.includes("info")) {
+            return Promise.resolve(fixture.commandResult(
+              fixture.sessionInfo(state),
+            ));
+          }
+          if (command.includes("cdp-url")) {
+            cdpInspectionCount += 1;
+            return Promise.resolve(fixture.commandResult(fixture.cdpInfo()));
+          }
+          if (command.includes("close")) {
+            return Promise.resolve(fixture.commandResult(
+              { success: false },
+              1,
+            ));
+          }
+          throw new Error("unexpected recovery command");
+        },
+        ownerStatus: () =>
+          ownerLive ? "exact-live-owner" : "different-or-dead",
+        terminateOwner: () => {
+          terminationCount += 1;
+          ownerLive = false;
+          state = "inactive";
+        },
+        cdpEndpointStatus: () => Promise.resolve("unavailable"),
+        sleep: () => Promise.resolve(),
+        now: () => 0,
+      });
+      expect(terminationCount).toBe(1);
+      expect(cdpInspectionCount).toBe(2);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  test("does not signal after post-close control drift", async () => {
+    const fixture = createPinnedBrowserRecoveryFixture();
+    let sessionReadCount = 0;
+    let terminationCount = 0;
+    try {
+      const message = await rejectionMessage(
+        recoverPinnedAgentBrowserCleanupResource(fixture.resource, {
+          runCommand: (command) => {
+            if (command.includes("info")) {
+              sessionReadCount += 1;
+              const launchHash = sessionReadCount > 2 ? "42" : fixture.launchHash;
+              return Promise.resolve(fixture.commandResult(
+                fixture.sessionInfo("launched", launchHash),
+              ));
+            }
+            if (command.includes("cdp-url")) {
+              return Promise.resolve(fixture.commandResult(fixture.cdpInfo()));
+            }
+            if (command.includes("close")) {
+              return Promise.resolve(fixture.commandResult(
+                { success: false },
+                1,
+              ));
+            }
+            throw new Error("unexpected recovery command");
+          },
+          ownerStatus: () => "exact-live-owner",
+          terminateOwner: () => {
+            terminationCount += 1;
+          },
+        }),
+      );
+      expect(message).toContain("control identity changed");
+      expect(message).not.toContain(fixture.session);
+      expect(message).not.toContain(fixture.socketDirectory);
+      expect(message).not.toContain(String(fixture.owner.pid));
+      expect(message).not.toContain(fixture.cdpUrl);
+      expect(terminationCount).toBe(0);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  test("requires the exact owner to die after SIGTERM", async () => {
+    const fixture = createPinnedBrowserRecoveryFixture();
+    let state: RecoveryFixtureState = "launched";
+    let terminationCount = 0;
+    let sleepCount = 0;
+    try {
+      const message = await rejectionMessage(
+        recoverPinnedAgentBrowserCleanupResource(fixture.resource, {
+          runCommand: (command) => {
+            if (command.includes("info")) {
+              return Promise.resolve(fixture.commandResult(
+                fixture.sessionInfo(state),
+              ));
+            }
+            if (command.includes("cdp-url")) {
+              return Promise.resolve(fixture.commandResult(fixture.cdpInfo()));
+            }
+            if (command.includes("close")) {
+              state = "closed";
+              return Promise.resolve(fixture.commandResult({ success: true }));
+            }
+            throw new Error("unexpected recovery command");
+          },
+          ownerStatus: () => "exact-live-owner",
+          terminateOwner: () => {
+            terminationCount += 1;
+          },
+          sleep: () => {
+            sleepCount += 1;
+            return Promise.resolve();
+          },
+          now: () => 0,
+        }),
+      );
+      expect(message).toContain("did not stop after SIGTERM");
+      expect(terminationCount).toBe(1);
+      expect(sleepCount).toBe(200);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  test("bounds endpoint refusal polling with a frozen test clock", async () => {
+    const fixture = createPinnedBrowserRecoveryFixture();
+    let state: RecoveryFixtureState = "launched";
+    let ownerLive = true;
+    let endpointReads = 0;
+    let sleepCount = 0;
+    let terminationCount = 0;
+    try {
+      const message = await rejectionMessage(
+        recoverPinnedAgentBrowserCleanupResource(fixture.resource, {
+          runCommand: (command) => {
+            if (command.includes("info")) {
+              return Promise.resolve(fixture.commandResult(
+                fixture.sessionInfo(state),
+              ));
+            }
+            if (command.includes("cdp-url")) {
+              return Promise.resolve(fixture.commandResult(fixture.cdpInfo()));
+            }
+            if (command.includes("close")) {
+              state = "closed";
+              return Promise.resolve(fixture.commandResult({ success: true }));
+            }
+            throw new Error("unexpected recovery command");
+          },
+          ownerStatus: () => ownerLive
+            ? "exact-live-owner"
+            : "different-or-dead",
+          terminateOwner: () => {
+            terminationCount += 1;
+            ownerLive = false;
+            state = "inactive";
+          },
+          cdpEndpointStatus: () => {
+            endpointReads += 1;
+            return Promise.resolve("available");
+          },
+          sleep: () => {
+            sleepCount += 1;
+            return Promise.resolve();
+          },
+          now: () => 0,
+        }),
+      );
+      expect(message).toContain("endpoint remained available");
+      expect(endpointReads).toBe(201);
+      expect(sleepCount).toBe(200);
+      expect(terminationCount).toBe(1);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  test("proves an already-dead pinned session without signaling", async () => {
+    const fixture = createPinnedBrowserRecoveryFixture();
+    let sessionInspectionCount = 0;
+    let endpointRefusalCount = 0;
+    let terminationCount = 0;
+    try {
+      await recoverPinnedAgentBrowserCleanupResource(fixture.resource, {
+        runCommand: (command) => {
+          if (!command.includes("info")) {
+            throw new Error("dead recovery must only inspect the session");
+          }
+          sessionInspectionCount += 1;
+          return Promise.resolve(fixture.commandResult(
+            fixture.sessionInfo("inactive"),
+          ));
+        },
+        ownerStatus: () => "different-or-dead",
+        terminateOwner: () => {
+          terminationCount += 1;
+        },
+        cdpEndpointStatus: () => {
+          endpointRefusalCount += 1;
+          return Promise.resolve("unavailable");
+        },
+        sleep: () => Promise.resolve(),
+        now: () => 0,
+      });
+      expect(sessionInspectionCount).toBe(3);
+      expect(endpointRefusalCount).toBe(3);
+      expect(terminationCount).toBe(0);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  test("proves a live pinned daemon that exits before its first session read without signaling", async () => {
+    const fixture = createPinnedBrowserRecoveryFixture();
+    const ownerStatuses = [
+      "exact-live-owner",
+      "different-or-dead",
+      "different-or-dead",
+      "different-or-dead",
+    ] as const;
+    let ownerReads = 0;
+    let sessionReads = 0;
+    let endpointRefusals = 0;
+    let terminationCount = 0;
+    try {
+      expect(await recoverPinnedAgentBrowserCleanupResource(
+        fixture.resource,
+        {
+          runCommand: (command) => {
+            if (!command.includes("info")) {
+              throw new Error("natural-exit recovery must only inspect the session");
+            }
+            sessionReads += 1;
+            return Promise.resolve(fixture.commandResult(
+              fixture.sessionInfo("inactive"),
+            ));
+          },
+          ownerStatus: () => {
+            const status = ownerStatuses[ownerReads];
+            if (status === undefined) {
+              throw new Error("natural-exit recovery inspected the owner too often");
+            }
+            ownerReads += 1;
+            return status;
+          },
+          terminateOwner: () => {
+            terminationCount += 1;
+          },
+          cdpEndpointStatus: (cdpUrl) => {
+            expect(cdpUrl).toBe(fixture.cdpUrl);
+            endpointRefusals += 1;
+            return Promise.resolve("unavailable");
+          },
+          sleep: () => Promise.resolve(),
+          now: () => 0,
+        },
+      )).toEqual(fixture.resource);
+      expect(ownerReads).toBe(4);
+      expect(sessionReads).toBe(4);
+      expect(endpointRefusals).toBe(3);
+      expect(terminationCount).toBe(0);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  test("converges without effects when the pinned daemon exits at later cleanup observation boundaries", async () => {
+    for (const exitPoint of [
+      "between-session-reads",
+      "around-cdp-inspection",
+      "during-close-acknowledgement",
+    ] as const) {
+      const fixture = createPinnedBrowserRecoveryFixture();
+      let state: RecoveryFixtureState = "launched";
+      let ownerLive = true;
+      let sessionReads = 0;
+      let cdpReads = 0;
+      let closeCommands = 0;
+      let endpointRefusals = 0;
+      let terminationCount = 0;
+      try {
+        expect(await recoverPinnedAgentBrowserCleanupResource(
+          fixture.resource,
+          {
+            runCommand: (command) => {
+              if (command.includes("info")) {
+                sessionReads += 1;
+                if (
+                  exitPoint === "between-session-reads"
+                  && sessionReads === 2
+                ) {
+                  ownerLive = false;
+                  state = "inactive";
+                }
+                return Promise.resolve(fixture.commandResult(
+                  fixture.sessionInfo(state),
+                ));
+              }
+              if (command.includes("cdp-url")) {
+                cdpReads += 1;
+                if (exitPoint === "around-cdp-inspection") {
+                  ownerLive = false;
+                  state = "inactive";
+                  return Promise.resolve(fixture.commandResult(
+                    { success: false },
+                    1,
+                  ));
+                }
+                return Promise.resolve(fixture.commandResult(fixture.cdpInfo()));
+              }
+              if (command.includes("close")) {
+                closeCommands += 1;
+                if (exitPoint !== "during-close-acknowledgement") {
+                  throw new Error("natural-exit fixture closed unexpectedly");
+                }
+                ownerLive = false;
+                state = "inactive";
+                return Promise.resolve(fixture.commandResult(
+                  { success: false },
+                  1,
+                ));
+              }
+              throw new Error("unexpected natural-exit recovery command");
+            },
+            ownerStatus: () => ownerLive
+              ? "exact-live-owner"
+              : "different-or-dead",
+            terminateOwner: () => {
+              terminationCount += 1;
+            },
+            cdpEndpointStatus: (cdpUrl) => {
+              expect(cdpUrl).toBe(fixture.cdpUrl);
+              endpointRefusals += 1;
+              return Promise.resolve("unavailable");
+            },
+            sleep: () => Promise.resolve(),
+            now: () => 0,
+          },
+        )).toEqual(fixture.resource);
+        expect(terminationCount).toBe(0);
+        expect(endpointRefusals).toBe(3);
+        expect(sessionReads).toBe(
+          exitPoint === "around-cdp-inspection"
+            ? 4
+            : exitPoint === "between-session-reads"
+            ? 5
+            : 6,
+        );
+        expect(cdpReads).toBe(1);
+        expect(closeCommands).toBe(
+          exitPoint === "during-close-acknowledgement" ? 1 : 0,
+        );
+      } finally {
+        fixture.cleanup();
+      }
+    }
+  });
+
+  test("rejects an inactive first session read unless the live owner is re-proved dead", async () => {
+    for (const expected of [
+      {
+        status: "exact-live-owner" as const,
+        message: "daemon and session identity disagree",
+      },
+      {
+        status: "unknown" as const,
+        message: "daemon state became indeterminate",
+      },
+    ]) {
+      const fixture = createPinnedBrowserRecoveryFixture();
+      let ownerReads = 0;
+      let sessionReads = 0;
+      let endpointReads = 0;
+      let terminationCount = 0;
+      try {
+        const message = await rejectionMessage(
+          recoverPinnedAgentBrowserCleanupResource(fixture.resource, {
+            runCommand: (command) => {
+              if (!command.includes("info")) {
+                throw new Error("owner reproof must not control the browser");
+              }
+              sessionReads += 1;
+              return Promise.resolve(fixture.commandResult(
+                fixture.sessionInfo("inactive"),
+              ));
+            },
+            ownerStatus: () => {
+              ownerReads += 1;
+              return ownerReads === 1 ? "exact-live-owner" : expected.status;
+            },
+            terminateOwner: () => {
+              terminationCount += 1;
+            },
+            cdpEndpointStatus: () => {
+              endpointReads += 1;
+              return Promise.resolve("unavailable");
+            },
+          }),
+        );
+        expect(message).toContain(expected.message);
+        expect(ownerReads).toBe(2);
+        expect(sessionReads).toBe(1);
+        expect(endpointReads).toBe(0);
+        expect(terminationCount).toBe(0);
+      } finally {
+        fixture.cleanup();
+      }
+    }
+  });
+
+  test("rejects a changed repeated session proof after the live owner exits", async () => {
+    for (const expected of [
+      {
+        value: (fixture: ReturnType<typeof createPinnedBrowserRecoveryFixture>) =>
+          fixture.sessionInfo("closed"),
+        message: "session remained active",
+      },
+      {
+        value: () => ({ success: true, data: null }),
+        message: "agent-browser session data is malformed",
+      },
+    ]) {
+      const fixture = createPinnedBrowserRecoveryFixture();
+      let ownerReads = 0;
+      let sessionReads = 0;
+      let endpointReads = 0;
+      let terminationCount = 0;
+      try {
+        const message = await rejectionMessage(
+          recoverPinnedAgentBrowserCleanupResource(fixture.resource, {
+            runCommand: (command) => {
+              if (!command.includes("info")) {
+                throw new Error("session reproof must not control the browser");
+              }
+              sessionReads += 1;
+              return Promise.resolve(fixture.commandResult(
+                sessionReads === 1
+                  ? fixture.sessionInfo("inactive")
+                  : expected.value(fixture),
+              ));
+            },
+            ownerStatus: () => {
+              ownerReads += 1;
+              return ownerReads === 1
+                ? "exact-live-owner"
+                : "different-or-dead";
+            },
+            terminateOwner: () => {
+              terminationCount += 1;
+            },
+            cdpEndpointStatus: () => {
+              endpointReads += 1;
+              return Promise.resolve("unavailable");
+            },
+          }),
+        );
+        expect(message).toContain(expected.message);
+        expect(ownerReads).toBe(3);
+        expect(sessionReads).toBe(2);
+        expect(endpointReads).toBe(0);
+        expect(terminationCount).toBe(0);
+      } finally {
+        fixture.cleanup();
+      }
+    }
+  });
+
+  test("rejects private-root replacement around the natural-exit session reproof", async () => {
+    for (const rootName of ["socket", "artifacts"] as const) {
+      for (const replacementPoint of ["before", "during"] as const) {
+        const fixture = createPinnedBrowserRecoveryFixture();
+        const root = rootName === "socket"
+          ? fixture.socketDirectory
+          : fixture.artifactsDirectory;
+        let ownerReads = 0;
+        let sessionReads = 0;
+        let endpointReads = 0;
+        let terminationCount = 0;
+        const replaceRoot = (): void => {
+          rmSync(root, { recursive: true, force: true });
+          mkdirSync(root, { mode: 0o700 });
+          chmodSync(root, 0o700);
+        };
+        try {
+          const message = await rejectionMessage(
+            recoverPinnedAgentBrowserCleanupResource(fixture.resource, {
+              runCommand: (command) => {
+                if (!command.includes("info")) {
+                  throw new Error("root reproof must not control the browser");
+                }
+                sessionReads += 1;
+                if (replacementPoint === "during" && sessionReads === 2) {
+                  replaceRoot();
+                }
+                return Promise.resolve(fixture.commandResult(
+                  fixture.sessionInfo("inactive"),
+                ));
+              },
+              ownerStatus: () => {
+                ownerReads += 1;
+                if (ownerReads === 2 && replacementPoint === "before") {
+                  replaceRoot();
+                }
+                return ownerReads === 1
+                  ? "exact-live-owner"
+                  : "different-or-dead";
+              },
+              terminateOwner: () => {
+                terminationCount += 1;
+              },
+              cdpEndpointStatus: () => {
+                endpointReads += 1;
+                return Promise.resolve("unavailable");
+              },
+            }),
+          );
+          expect(message).toContain("private root identity changed");
+          expect(ownerReads).toBe(replacementPoint === "before" ? 2 : 3);
+          expect(sessionReads).toBe(replacementPoint === "before" ? 1 : 2);
+          expect(endpointReads).toBe(0);
+          expect(terminationCount).toBe(0);
+        } finally {
+          fixture.cleanup();
+        }
+      }
+    }
+  });
+
+  test("rejects owner liveness changes after accepting the natural-exit transition", async () => {
+    for (const expected of [
+      {
+        statuses: [
+          "exact-live-owner",
+          "different-or-dead",
+          "exact-live-owner",
+          "exact-live-owner",
+        ] as const,
+        message: "pinned owner is not quiescent",
+        sessionReads: 2,
+        endpointReads: 0,
+      },
+      {
+        statuses: [
+          "exact-live-owner",
+          "different-or-dead",
+          "different-or-dead",
+          "unknown",
+        ] as const,
+        message: "daemon quiescence changed",
+        sessionReads: 3,
+        endpointReads: 3,
+      },
+    ]) {
+      const fixture = createPinnedBrowserRecoveryFixture();
+      let ownerReads = 0;
+      let sessionReads = 0;
+      let endpointReads = 0;
+      let terminationCount = 0;
+      try {
+        const message = await rejectionMessage(
+          recoverPinnedAgentBrowserCleanupResource(fixture.resource, {
+            runCommand: (command) => {
+              if (!command.includes("info")) {
+                throw new Error("owner-drift reproof must not control the browser");
+              }
+              sessionReads += 1;
+              return Promise.resolve(fixture.commandResult(
+                fixture.sessionInfo("inactive"),
+              ));
+            },
+            ownerStatus: () => {
+              const status = expected.statuses[ownerReads];
+              if (status === undefined) {
+                throw new Error("owner-drift reproof inspected the owner too often");
+              }
+              ownerReads += 1;
+              return status;
+            },
+            terminateOwner: () => {
+              terminationCount += 1;
+            },
+            cdpEndpointStatus: () => {
+              endpointReads += 1;
+              return Promise.resolve("unavailable");
+            },
+            sleep: () => Promise.resolve(),
+            now: () => 0,
+          }),
+        );
+        expect(message).toContain(expected.message);
+        expect(ownerReads).toBe(expected.statuses.length);
+        expect(sessionReads).toBe(expected.sessionReads);
+        expect(endpointReads).toBe(expected.endpointReads);
+        expect(terminationCount).toBe(0);
+      } finally {
+        fixture.cleanup();
+      }
+    }
+  });
+
+  test("keeps natural-exit recovery fail-closed across the shared quiescence proof", async () => {
+    type TailCase = Readonly<{
+      message: string;
+      ownerStatuses: readonly (
+        | "exact-live-owner"
+        | "different-or-dead"
+        | "unknown"
+      )[];
+      sessionStates: readonly RecoveryFixtureState[];
+      endpointStatuses: readonly (
+        | "available"
+        | "unavailable"
+        | "indeterminate"
+      )[];
+      replaceArtifactsAfterEndpointRead?: number;
+    }>;
+    const cases: readonly TailCase[] = [
+      {
+        message: "session quiescence changed",
+        ownerStatuses: [
+          "exact-live-owner",
+          "different-or-dead",
+          "different-or-dead",
+        ],
+        sessionStates: ["inactive", "inactive", "closed"],
+        endpointStatuses: [],
+      },
+      {
+        message: "endpoint state is indeterminate",
+        ownerStatuses: [
+          "exact-live-owner",
+          "different-or-dead",
+          "different-or-dead",
+        ],
+        sessionStates: ["inactive", "inactive", "inactive"],
+        endpointStatuses: ["indeterminate"],
+      },
+      {
+        message: "session quiescence changed",
+        ownerStatuses: [
+          "exact-live-owner",
+          "different-or-dead",
+          "different-or-dead",
+          "different-or-dead",
+        ],
+        sessionStates: ["inactive", "inactive", "inactive", "closed"],
+        endpointStatuses: ["unavailable", "unavailable", "unavailable"],
+      },
+      {
+        message: "private root identity changed",
+        ownerStatuses: [
+          "exact-live-owner",
+          "different-or-dead",
+          "different-or-dead",
+          "different-or-dead",
+        ],
+        sessionStates: ["inactive", "inactive", "inactive", "inactive"],
+        endpointStatuses: ["unavailable", "unavailable", "unavailable"],
+        replaceArtifactsAfterEndpointRead: 3,
+      },
+    ];
+
+    for (const expected of cases) {
+      const fixture = createPinnedBrowserRecoveryFixture();
+      let ownerReads = 0;
+      let sessionReads = 0;
+      let endpointReads = 0;
+      let terminationCount = 0;
+      try {
+        const message = await rejectionMessage(
+          recoverPinnedAgentBrowserCleanupResource(fixture.resource, {
+            runCommand: (command) => {
+              if (!command.includes("info")) {
+                throw new Error("shared-tail reproof must not control the browser");
+              }
+              const state = expected.sessionStates[sessionReads];
+              if (state === undefined) {
+                throw new Error("shared-tail reproof inspected the session too often");
+              }
+              sessionReads += 1;
+              return Promise.resolve(fixture.commandResult(
+                fixture.sessionInfo(state),
+              ));
+            },
+            ownerStatus: () => {
+              const status = expected.ownerStatuses[ownerReads];
+              if (status === undefined) {
+                throw new Error("shared-tail reproof inspected the owner too often");
+              }
+              ownerReads += 1;
+              return status;
+            },
+            terminateOwner: () => {
+              terminationCount += 1;
+            },
+            cdpEndpointStatus: () => {
+              const status = expected.endpointStatuses[endpointReads];
+              if (status === undefined) {
+                throw new Error("shared-tail reproof inspected the endpoint too often");
+              }
+              endpointReads += 1;
+              if (
+                expected.replaceArtifactsAfterEndpointRead === endpointReads
+              ) {
+                rmSync(fixture.artifactsDirectory, {
+                  recursive: true,
+                  force: true,
+                });
+                mkdirSync(fixture.artifactsDirectory, { mode: 0o700 });
+                chmodSync(fixture.artifactsDirectory, 0o700);
+              }
+              return Promise.resolve(status);
+            },
+            sleep: () => Promise.resolve(),
+            now: () => 0,
+          }),
+        );
+        expect(message).toContain(expected.message);
+        expect(ownerReads).toBe(
+          expected.replaceArtifactsAfterEndpointRead === undefined
+            ? expected.ownerStatuses.length
+            : expected.ownerStatuses.length - 1,
+        );
+        expect(sessionReads).toBe(
+          expected.replaceArtifactsAfterEndpointRead === undefined
+            ? expected.sessionStates.length
+            : expected.sessionStates.length - 1,
+        );
+        expect(endpointReads).toBe(expected.endpointStatuses.length);
+        expect(terminationCount).toBe(0);
+      } finally {
+        fixture.cleanup();
+      }
+    }
+  });
+
+  test("re-proves prepared deletion safety from the surviving exact socket root", async () => {
+    const fixture = createPinnedBrowserRecoveryFixture();
+    const prepared = parseBrowserCleanupResourceIdentity({
+      ...fixture.resource,
+      phase: "prepared",
+      control: null,
+    }) as BrowserCleanupResourceIdentityV2;
+    rmSync(prepared.artifactsDirectory, { recursive: true });
+    let sessionReads = 0;
+    let temporaryConfig: string | null = null;
+    try {
+      expect(await reproveBrowserCleanupAfterArtifactsRemoval(prepared, {
+        runCommand: (command, options) => {
+          expect(command.includes("close")).toBeFalse();
+          expect(command.includes("batch")).toBeFalse();
+          expect(command.includes("info")).toBeTrue();
+          expect(options.cwd).toBe(prepared.socketDirectory);
+          const configIndex = command.indexOf("--config");
+          temporaryConfig = command[configIndex + 1] ?? null;
+          if (temporaryConfig === null) throw new Error("missing temporary config");
+          expect(dirname(temporaryConfig)).toBe(prepared.socketDirectory);
+          expect(lstatSync(temporaryConfig).mode & 0o777).toBe(0o600);
+          sessionReads += 1;
+          return Promise.resolve(fixture.commandResult(
+            fixture.sessionInfo("inactive"),
+          ));
+        },
+        ownerStatus: () => {
+          throw new Error("prepared deletion reproof must not inspect an owner");
+        },
+        cdpEndpointStatus: () => {
+          throw new Error("prepared deletion reproof must not inspect CDP");
+        },
+      })).toEqual(prepared);
+      expect(sessionReads).toBe(2);
+      expect(temporaryConfig).not.toBeNull();
+      expect(existsSync(temporaryConfig!)).toBeFalse();
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  test("re-proves controlled deletion safety with dead-owner and endpoint refusals before and after", async () => {
+    const fixture = createPinnedBrowserRecoveryFixture();
+    rmSync(fixture.resource.artifactsDirectory, { recursive: true });
+    let sessionReads = 0;
+    let endpointRefusals = 0;
+    let temporaryConfig: string | null = null;
+    try {
+      expect(await reproveBrowserCleanupAfterArtifactsRemoval(
+        fixture.resource,
+        {
+          runCommand: (command) => {
+            expect(command.includes("close")).toBeFalse();
+            expect(command.includes("batch")).toBeFalse();
+            expect(command.includes("info")).toBeTrue();
+            temporaryConfig = command[command.indexOf("--config") + 1] ?? null;
+            sessionReads += 1;
+            return Promise.resolve(fixture.commandResult(
+              fixture.sessionInfo("inactive"),
+            ));
+          },
+          ownerStatus: () => "different-or-dead",
+          terminateOwner: () => {
+            throw new Error("deletion reproof must never signal");
+          },
+          cdpEndpointStatus: (cdpUrl) => {
+            expect(cdpUrl).toBe(fixture.cdpUrl);
+            endpointRefusals += 1;
+            return Promise.resolve("unavailable");
+          },
+        },
+      )).toEqual(fixture.resource);
+      expect(sessionReads).toBe(2);
+      expect(endpointRefusals).toBe(6);
+      expect(temporaryConfig).not.toBeNull();
+      expect(existsSync(temporaryConfig!)).toBeFalse();
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  test("fails closed at every partial-root deletion reproof boundary", async () => {
+    const changedRoot = createPinnedBrowserRecoveryFixture();
+    rmSync(changedRoot.artifactsDirectory, { recursive: true });
+    rmSync(changedRoot.socketDirectory, { recursive: true });
+    writeFileSync(changedRoot.socketDirectory, "replacement", { mode: 0o600 });
+    try {
+      expect(await rejectionMessage(
+        reproveBrowserCleanupAfterArtifactsRemoval(changedRoot.resource),
+      )).toContain("roots changed");
+    } finally {
+      changedRoot.cleanup();
+    }
+
+    const liveOwner = createPinnedBrowserRecoveryFixture();
+    rmSync(liveOwner.artifactsDirectory, { recursive: true });
+    try {
+      expect(await rejectionMessage(
+        reproveBrowserCleanupAfterArtifactsRemoval(liveOwner.resource, {
+          ownerStatus: () => "exact-live-owner",
+        }),
+      )).toContain("owner is not quiescent");
+    } finally {
+      liveOwner.cleanup();
+    }
+
+    const activeSession = createPinnedBrowserRecoveryFixture();
+    const prepared = parseBrowserCleanupResourceIdentity({
+      ...activeSession.resource,
+      phase: "prepared",
+      control: null,
+    }) as BrowserCleanupResourceIdentityV2;
+    rmSync(activeSession.artifactsDirectory, { recursive: true });
+    try {
+      expect(await rejectionMessage(
+        reproveBrowserCleanupAfterArtifactsRemoval(prepared, {
+          runCommand: () => Promise.resolve(activeSession.commandResult(
+            activeSession.sessionInfo("launched"),
+          )),
+        }),
+      )).toContain("remained active");
+    } finally {
+      activeSession.cleanup();
+    }
+
+    const liveEndpoint = createPinnedBrowserRecoveryFixture();
+    rmSync(liveEndpoint.artifactsDirectory, { recursive: true });
+    try {
+      expect(await rejectionMessage(
+        reproveBrowserCleanupAfterArtifactsRemoval(liveEndpoint.resource, {
+          ownerStatus: () => "different-or-dead",
+          cdpEndpointStatus: () => Promise.resolve("available"),
+        }),
+      )).toContain("endpoint refusal is unproved");
+    } finally {
+      liveEndpoint.cleanup();
+    }
+
+    const launchIntent = createPinnedBrowserRecoveryFixture();
+    const unpinned = parseBrowserCleanupResourceIdentity({
+      ...launchIntent.resource,
+      phase: "launch-intent",
+      control: null,
+    }) as BrowserCleanupResourceIdentityV2;
+    try {
+      expect(await rejectionMessage(
+        refreshBrowserCleanupResourceQuiescence(unpinned, {
+          runCommand: () => Promise.resolve(launchIntent.commandResult(
+            launchIntent.sessionInfo("launched"),
+          )),
+        }),
+      )).toContain("remained active");
+      rmSync(launchIntent.artifactsDirectory, { recursive: true });
+      expect(await rejectionMessage(
+        reproveBrowserCleanupAfterArtifactsRemoval(unpinned, {
+          runCommand: () => Promise.resolve(launchIntent.commandResult(
+            launchIntent.sessionInfo("launched"),
+          )),
+        }),
+      )).toContain("remained active");
+    } finally {
+      launchIntent.cleanup();
+    }
+  });
+
+  test("proves a pinned controlled session quiescent when a private root is already absent", async () => {
+    const bothAbsent = createPinnedBrowserRecoveryFixture();
+    let ownerReads = 0;
+    let endpointRefusals = 0;
+    rmSync(bothAbsent.socketDirectory, { recursive: true, force: true });
+    rmSync(bothAbsent.artifactsDirectory, { recursive: true, force: true });
+    try {
+      expect(
+        await provePinnedAgentBrowserCleanupResourceAbsentRootQuiescence(
+          bothAbsent.resource,
+          {
+            ownerStatus: (owner) => {
+              expect(owner).toEqual(bothAbsent.owner);
+              ownerReads += 1;
+              return "different-or-dead";
+            },
+            cdpEndpointStatus: (cdpUrl) => {
+              expect(cdpUrl).toBe(bothAbsent.cdpUrl);
+              endpointRefusals += 1;
+              return Promise.resolve("unavailable");
+            },
+            runCommand: () => {
+              throw new Error("absent-root proof probed the session store");
+            },
+            sleep: () => Promise.resolve(),
+            now: () => 0,
+          },
+        ),
+      ).toEqual(bothAbsent.resource);
+      expect(ownerReads).toBe(3);
+      expect(endpointRefusals).toBe(3);
+    } finally {
+      bothAbsent.cleanup();
+    }
+
+    const socketAbsent = createPinnedBrowserRecoveryFixture();
+    rmSync(socketAbsent.socketDirectory, { recursive: true, force: true });
+    try {
+      expect(
+        await provePinnedAgentBrowserCleanupResourceAbsentRootQuiescence(
+          socketAbsent.resource,
+          {
+            ownerStatus: () => "different-or-dead",
+            cdpEndpointStatus: () => Promise.resolve("unavailable"),
+            sleep: () => Promise.resolve(),
+            now: () => 0,
+          },
+        ),
+      ).toEqual(socketAbsent.resource);
+    } finally {
+      socketAbsent.cleanup();
+    }
+
+    const prepared = createPinnedBrowserRecoveryFixture();
+    const preparedResource = parseBrowserCleanupResourceIdentity({
+      ...prepared.resource,
+      phase: "prepared",
+      control: null,
+    }) as BrowserCleanupResourceIdentityV2;
+    rmSync(prepared.socketDirectory, { recursive: true, force: true });
+    rmSync(prepared.artifactsDirectory, { recursive: true, force: true });
+    try {
+      expect(
+        await provePinnedAgentBrowserCleanupResourceAbsentRootQuiescence(
+          preparedResource,
+        ),
+      ).toEqual(preparedResource);
+    } finally {
+      prepared.cleanup();
+    }
+  });
+
+  test("fails closed when an absent-root proof still has live or conflicting state", async () => {
+    const matching = createPinnedBrowserRecoveryFixture();
+    try {
+      expect(await rejectionMessage(
+        provePinnedAgentBrowserCleanupResourceAbsentRootQuiescence(
+          matching.resource,
+        ),
+      )).toContain("absent-root boundary is not absent");
+    } finally {
+      matching.cleanup();
+    }
+
+    const liveOwner = createPinnedBrowserRecoveryFixture();
+    rmSync(liveOwner.socketDirectory, { recursive: true, force: true });
+    try {
+      expect(await rejectionMessage(
+        provePinnedAgentBrowserCleanupResourceAbsentRootQuiescence(
+          liveOwner.resource,
+          {
+            ownerStatus: () => "exact-live-owner",
+            cdpEndpointStatus: () => Promise.resolve("unavailable"),
+            sleep: () => Promise.resolve(),
+            now: () => 0,
+          },
+        ),
+      )).toContain("pinned owner is not quiescent");
+      expect(existsSync(liveOwner.artifactsDirectory)).toBeTrue();
+    } finally {
+      liveOwner.cleanup();
+    }
+
+    const liveEndpoint = createPinnedBrowserRecoveryFixture();
+    rmSync(liveEndpoint.socketDirectory, { recursive: true, force: true });
+    rmSync(liveEndpoint.artifactsDirectory, { recursive: true, force: true });
+    try {
+      expect(await rejectionMessage(
+        provePinnedAgentBrowserCleanupResourceAbsentRootQuiescence(
+          liveEndpoint.resource,
+          {
+            ownerStatus: () => "different-or-dead",
+            cdpEndpointStatus: () => Promise.resolve("available"),
+            sleep: () => Promise.resolve(),
+            now: () => 0,
+          },
+        ),
+      )).toContain("endpoint remained available");
+    } finally {
+      liveEndpoint.cleanup();
+    }
+
+    const replaced = createPinnedBrowserRecoveryFixture();
+    rmSync(replaced.socketDirectory, { recursive: true, force: true });
+    rmSync(replaced.artifactsDirectory, { recursive: true, force: true });
+    mkdirSync(replaced.artifactsDirectory, { mode: 0o700 });
+    chmodSync(replaced.artifactsDirectory, 0o700);
+    try {
+      expect(await rejectionMessage(
+        provePinnedAgentBrowserCleanupResourceAbsentRootQuiescence(
+          replaced.resource,
+          {
+            ownerStatus: () => "different-or-dead",
+            cdpEndpointStatus: () => Promise.resolve("unavailable"),
+            sleep: () => Promise.resolve(),
+            now: () => 0,
+          },
+        ),
+      )).toContain("private root identity changed");
+    } finally {
+      replaced.cleanup();
+    }
+  });
+
+  test("converges a still-settling cleanup proof inside the shared deadline", async () => {
+    const fixture = createPinnedBrowserRecoveryFixture();
+    let sessionReads = 0;
+    let endpointRefusals = 0;
+    try {
+      const recovered = await convergeBrowserCleanupResourceProof(
+        fixture.resource,
+        "full-roots",
+        {
+          runCommand: (command) => {
+            if (command.includes("info")) {
+              sessionReads += 1;
+              return Promise.resolve(fixture.commandResult(
+                fixture.sessionInfo(
+                  sessionReads === 1 ? "closed" : "inactive",
+                ),
+              ));
+            }
+            throw new Error("unexpected convergence command");
+          },
+          ownerStatus: () => "different-or-dead",
+          cdpEndpointStatus: (cdpUrl) => {
+            expect(cdpUrl).toBe(fixture.cdpUrl);
+            endpointRefusals += 1;
+            return Promise.resolve("unavailable");
+          },
+          sleep: () => Promise.resolve(),
+          now: () => 0,
+        },
+      );
+      expect(recovered).toEqual(fixture.resource);
+      expect(sessionReads).toBe(4);
+      expect(endpointRefusals).toBe(3);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  test("keeps cleanup proof convergence fail-closed for boundary and identity failures", async () => {
+    const fixture = createPinnedBrowserRecoveryFixture();
+    let sessionReads = 0;
+    try {
+      expect(await rejectionMessage(
+        convergeBrowserCleanupResourceProof(
+          fixture.resource,
+          "full-roots",
+          {
+            runCommand: (command) => {
+              if (command.includes("info")) {
+                sessionReads += 1;
+                return Promise.resolve(fixture.commandResult(
+                  fixture.sessionInfo("inactive"),
+                ));
+              }
+              throw new Error("unexpected convergence command");
+            },
+            ownerStatus: () => "different-or-dead",
+            cdpEndpointStatus: () => Promise.resolve("indeterminate"),
+            sleep: () => Promise.resolve(),
+            now: () => 0,
+          },
+        ),
+      )).toContain("endpoint state is indeterminate");
+      expect(sessionReads).toBe(2);
+      expect(existsSync(fixture.socketDirectory)).toBeTrue();
+      expect(existsSync(fixture.artifactsDirectory)).toBeTrue();
+    } finally {
+      fixture.cleanup();
+    }
+
+    const exhausted = createPinnedBrowserRecoveryFixture();
+    let clock = 0;
+    let exhaustedReads = 0;
+    try {
+      expect(await rejectionMessage(
+        convergeBrowserCleanupResourceProof(
+          exhausted.resource,
+          "full-roots",
+          {
+            runCommand: (command) => {
+              if (command.includes("info")) {
+                exhaustedReads += 1;
+                return Promise.resolve(exhausted.commandResult(
+                  exhausted.sessionInfo("closed"),
+                ));
+              }
+              throw new Error("unexpected convergence command");
+            },
+            ownerStatus: () => "different-or-dead",
+            cdpEndpointStatus: () => Promise.resolve("unavailable"),
+            sleep: () => Promise.resolve(),
+            now: () => {
+              clock += 50;
+              return clock;
+            },
+          },
+        ),
+      )).toContain("session remained active");
+      expect(exhaustedReads).toBeGreaterThan(1);
+      expect(existsSync(exhausted.socketDirectory)).toBeTrue();
+      expect(existsSync(exhausted.artifactsDirectory)).toBeTrue();
+    } finally {
+      exhausted.cleanup();
+    }
+  });
+
+  test("strips inherited agent-browser and proxy settings", () => {
+    const environment = isolatedEnvironment("/tmp/wrench-test-socket", {
+      PATH: "/usr/bin:/bin",
+      AGENT_BROWSER_SESSION: "ambient-session",
+      HTTPS_PROXY: "http://ambient-proxy.invalid",
+      http_proxy: "http://ambient-proxy.invalid",
+    });
+    expect(environment).toEqual({
+      PATH: "/usr/bin:/bin",
+      AGENT_BROWSER_SOCKET_DIR: "/tmp/wrench-test-socket",
+    });
+  });
+
+  test("parses only the last valid JSON diagnostic line", () => {
+    expect(parseLastJson("diagnostic\n{not json}\n{\"success\":true}\nignored-after\n")).toEqual({ success: true });
+    expect(() => parseLastJson("diagnostic only\n")).toThrow("did not return JSON");
+  });
+
+  test("preserves every nested launchHash as an exact canonical decimal string", () => {
+    expect(parseLastJsonWithExactLaunchHashes([
+      "diagnostic",
+      "{not json}",
+      JSON.stringify({ ignored: true }),
+      "{\"launchHash\":18446744073709551615,\"nested\":[{\"launch\\u0048ash\":9007199254740993},{\"launchHash\":0}],\"ordinary\":42}",
+      "ignored-after",
+      "",
+    ].join("\n"))).toEqual({
+      launchHash: "18446744073709551615",
+      nested: [
+        { launchHash: "9007199254740993" },
+        { launchHash: "0" },
+      ],
+      ordinary: 42,
+    });
+  });
+
+  test("rejects non-u64 launchHash values instead of rounding or coercing them", () => {
+    const invalid = [
+      "18446744073709551616",
+      "-1",
+      "1.0",
+      "1e0",
+      "true",
+      "\"1\"",
+      "{}",
+      "[]",
+    ];
+    for (const value of invalid) {
+      expect(() => parseLastJsonWithExactLaunchHashes(
+        `{\"success\":true}\n{\"launchHash\":${value}}\n`,
+      )).toThrow("launchHash");
+    }
+    expect(parseLastJsonWithExactLaunchHashes(
+      "{\"browserLaunched\":false,\"launchHash\":null}\n",
+    )).toEqual({ browserLaunched: false, launchHash: null });
+  });
+
+  test("rejects duplicate decoded launchHash fields without parser ambiguity", () => {
+    expect(() => parseLastJsonWithExactLaunchHashes(
+      "{\"launchHash\":1,\"launch\\u0048ash\":18446744073709551616}\n",
+    )).toThrow("duplicate launchHash");
+    expect(() => parseLastJsonWithExactLaunchHashes(
+      "{\"launchHash\":1,\"launch\\u0048ash\":2}\n",
+    )).toThrow("duplicate launchHash");
+    expect(parseLastJsonWithExactLaunchHashes(
+      "{\"notLaunchHash\":18446744073709551615,\"launchHashSuffix\":18446744073709551615}\n",
+    )).toEqual({
+      notLaunchHash: 18_446_744_073_709_552_000,
+      launchHashSuffix: 18_446_744_073_709_552_000,
+    });
+  });
+
+  test("reads pinned batch result envelopes and rejects missing results", () => {
+    expect(browserResultData({ success: true, result: { url: "https://example.com/" } })).toEqual({ url: "https://example.com/" });
+    expect(browserResultData({ success: true, data: { url: "https://legacy.example/" } })).toEqual({ url: "https://legacy.example/" });
+    expect(() => browserResultData({ success: true })).toThrow("omitted its result");
+    expect(() => browserResultData({ success: false, error: "denied" })).toThrow("denied");
+  });
+
+  test("clones profiles without symlinks, cache directories, or lock files", () => {
+    const directory = mkdtempSync(join(tmpdir(), "wrench-profile-test-"));
+    chmodSync(directory, 0o700);
+    try {
+      const source = join(directory, "source");
+      const destination = join(directory, "destination");
+      mkdirSync(source);
+      writeFileSync(join(source, "Cookies"), "cookie-db", { mode: 0o600 });
+      writeFileSync(join(source, "SingletonLock"), "lock", { mode: 0o600 });
+      mkdirSync(join(source, "Cache"));
+      writeFileSync(join(source, "Cache", "cached"), "cache", { mode: 0o600 });
+      symlinkSync(join(source, "Cookies"), join(source, "linked-secret"));
+
+      cloneProfile(source, destination);
+      expect(existsSync(join(destination, "Cookies"))).toBeTrue();
+      expect(existsSync(join(destination, "SingletonLock"))).toBeFalse();
+      expect(existsSync(join(destination, "Cache"))).toBeFalse();
+      expect(existsSync(join(destination, "linked-secret"))).toBeFalse();
+      expect(lstatSync(destination).isDirectory()).toBeTrue();
+
+      const sourceLink = join(directory, "source-link");
+      symlinkSync(source, sourceLink);
+      expect(() => cloneProfile(sourceLink, join(directory, "linked-destination"))).toThrow("real directory");
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("maps one selected Chromium profile into a private Default user-data snapshot", () => {
+    const directory = mkdtempSync(join(tmpdir(), "wrench-selected-profile-test-"));
+    chmodSync(directory, 0o700);
+    try {
+      const userData = join(directory, "Arc User Data");
+      const source = join(userData, "Profile 1");
+      const privateRoot = join(directory, "private");
+      mkdirSync(userData);
+      mkdirSync(source);
+      mkdirSync(privateRoot, { mode: 0o700 });
+      mkdirSync(join(source, "Local Storage"));
+      mkdirSync(join(source, "IndexedDB"));
+      mkdirSync(join(source, "Cache"));
+      writeFileSync(join(userData, "Local State"), "{\"os_crypt\":{\"encrypted_key\":\"bounded\"}}", { mode: 0o600 });
+      writeFileSync(join(source, "Preferences"), "{\"selected\":true}", { mode: 0o600 });
+      writeFileSync(join(source, "Local Storage", "state"), "signed-in-local-state", { mode: 0o600 });
+      writeFileSync(join(source, "IndexedDB", "state"), "signed-in-indexed-db", { mode: 0o600 });
+      writeFileSync(join(source, "Cache", "discard"), "cache", { mode: 0o600 });
+      const beforeLocalState = readFileSync(join(userData, "Local State"));
+      const beforePreferences = readFileSync(join(source, "Preferences"));
+
+      const cloned = cloneBrowserProfile(realpathSync(source), privateRoot);
+      const clonedProfile = join(cloned.userDataPath, cloned.profileDirectory ?? "");
+
+      expect(cloned).toEqual({
+        userDataPath: join(privateRoot, "profile-user-data"),
+        profileDirectory: "Default",
+      });
+      expect(readFileSync(join(privateRoot, "profile-user-data", "Local State"))).toEqual(beforeLocalState);
+      expect(readFileSync(join(clonedProfile, "Preferences"))).toEqual(beforePreferences);
+      expect(readFileSync(join(clonedProfile, "Local Storage", "state"), "utf8")).toBe("signed-in-local-state");
+      expect(readFileSync(join(clonedProfile, "IndexedDB", "state"), "utf8")).toBe("signed-in-indexed-db");
+      expect(existsSync(join(clonedProfile, "Cache"))).toBeFalse();
+      expect(lstatSync(join(privateRoot, "profile-user-data")).mode & 0o777).toBe(0o700);
+      expect(lstatSync(clonedProfile).mode & 0o777).toBe(0o700);
+      expect(lstatSync(join(privateRoot, "profile-user-data", "Local State")).mode & 0o777).toBe(0o600);
+      expect(readFileSync(join(userData, "Local State"))).toEqual(beforeLocalState);
+      expect(readFileSync(join(source, "Preferences"))).toEqual(beforePreferences);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("snapshots a closed Chromium profile with verified abandoned singleton links", () => {
+    const directory = mkdtempSync(join(tmpdir(), "ghostget-stale-profile-test-"));
+    try {
+      const source = join(directory, "Default");
+      const privateRoot = join(directory, "private");
+      mkdirSync(source);
+      mkdirSync(privateRoot, { mode: 0o700 });
+      writeFileSync(join(directory, "Local State"), "{}");
+      writeFileSync(join(source, "Preferences"), "{}");
+      const child = spawnSync(process.execPath, ["--eval", "console.log(process.pid)"], { encoding: "utf8" });
+      expect(child.status).toBe(0);
+      symlinkSync(`${hostname()}-${child.stdout.trim()}`, join(directory, "SingletonLock"));
+      symlinkSync(join(directory, "missing", "SingletonSocket"), join(directory, "SingletonSocket"));
+      symlinkSync("123", join(directory, "SingletonCookie"));
+      const cloned = cloneBrowserProfile(source, privateRoot);
+      expect(readFileSync(join(cloned.userDataPath, "Default", "Preferences"), "utf8")).toBe("{}");
+      expect(lstatSync(join(directory, "SingletonLock")).isSymbolicLink()).toBeTrue();
+      expect(existsSync(join(cloned.userDataPath, "SingletonLock"))).toBeFalse();
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("keeps generic custom and named profiles compatible", () => {
+    const directory = mkdtempSync(join(tmpdir(), "wrench-generic-profile-test-"));
+    chmodSync(directory, 0o700);
+    try {
+      const source = join(directory, "custom-profile");
+      const privateRoot = join(directory, "private");
+      mkdirSync(source);
+      mkdirSync(privateRoot, { mode: 0o700 });
+      writeFileSync(join(source, "state"), "custom-state", { mode: 0o600 });
+      const cloned = cloneBrowserProfile(realpathSync(source), privateRoot);
+      expect(cloned).toEqual({ userDataPath: join(privateRoot, "profile") });
+      expect(readFileSync(join(cloned.userDataPath, "state"), "utf8")).toBe("custom-state");
+      expect(profilePath("Work")).toBeNull();
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("fails closed on linked, nonregular, or oversized Chromium Local State", () => {
+    const directory = mkdtempSync(join(tmpdir(), "wrench-local-state-bound-test-"));
+    chmodSync(directory, 0o700);
+    try {
+      const linkedData = join(directory, "linked-data");
+      const linkedProfile = join(linkedData, "Profile 1");
+      const linkedPrivate = join(directory, "linked-private");
+      mkdirSync(linkedData);
+      mkdirSync(linkedProfile);
+      mkdirSync(linkedPrivate, { mode: 0o700 });
+      writeFileSync(join(directory, "real-local-state"), "{}", { mode: 0o600 });
+      symlinkSync(join(directory, "real-local-state"), join(linkedData, "Local State"));
+      expect(() => cloneBrowserProfile(realpathSync(linkedProfile), linkedPrivate)).toThrow("regular file");
+
+      const nonregularData = join(directory, "nonregular-data");
+      const nonregularProfile = join(nonregularData, "Profile 1");
+      mkdirSync(nonregularData);
+      mkdirSync(nonregularProfile);
+      mkdirSync(join(nonregularData, "Local State"));
+      expect(() => cloneBrowserProfile(realpathSync(nonregularProfile), join(directory, "nonregular-private"))).toThrow("regular file");
+
+      const oversizedData = join(directory, "oversized-data");
+      const oversizedProfile = join(oversizedData, "Profile 1");
+      mkdirSync(oversizedData);
+      mkdirSync(oversizedProfile);
+      const oversizedState = join(oversizedData, "Local State");
+      writeFileSync(oversizedState, "", { mode: 0o600 });
+      truncateSync(oversizedState, 16 * 1024 * 1024 + 1);
+      expect(() => cloneBrowserProfile(realpathSync(oversizedProfile), join(directory, "oversized-private"))).toThrow("safety bound");
+
+      const sourceLink = join(directory, "selected-profile-link");
+      symlinkSync(oversizedProfile, sourceLink);
+      let message = "";
+      try {
+        profilePath(sourceLink);
+      } catch (error) {
+        message = error instanceof Error ? error.message : String(error);
+      }
+      expect(message).toContain("real directory");
+      expect(message).not.toContain(sourceLink);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("launches a hybrid Arc snapshot and seeds only cookies selected for each exact target", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "wrench-hybrid-profile-test-"));
+    chmodSync(directory, 0o700);
+    try {
+      const userData = join(directory, "Arc User Data");
+      const source = join(userData, "Profile 1");
+      mkdirSync(userData);
+      mkdirSync(source);
+      mkdirSync(join(source, "Local Storage"));
+      mkdirSync(join(source, "IndexedDB"));
+      writeFileSync(join(userData, "Local State"), "{\"os_crypt\":{}}", { mode: 0o600 });
+      writeFileSync(join(source, "Preferences"), "source-must-not-change", { mode: 0o600 });
+      writeFileSync(join(source, "Local Storage", "state"), "local", { mode: 0o600 });
+      writeFileSync(join(source, "IndexedDB", "state"), "indexed", { mode: 0o600 });
+      const before = readFileSync(join(source, "Preferences"));
+      const invocations: { readonly command: readonly string[]; readonly stdin?: string }[] = [];
+      const cookieSelections: {
+        readonly sources: readonly string[];
+        readonly profile?: string;
+        readonly requireExplicitCookieScope: boolean;
+        readonly url: string;
+      }[] = [];
+      let proxyClosed = 0;
+      const session = await createBrowserSession(manifest, {
+        schemaVersion: 1,
+        id: "arc-main",
+        kind: "browser-profile",
+        profile: realpathSync(source),
+        browserExecutable: "/Applications/Chromium.app/Contents/MacOS/Chromium",
+        trustUnfilteredEgress: true,
+        cookieSource: "arc",
+        cookieProfile: "Profile 1",
+      }, {
+        headed: false,
+        timeoutMs: 30_000,
+        maxOutputBytes: 64 * 1024,
+        dependencies: {
+          runCommand: (command, options) => {
+            invocations.push({ command: [...command], ...(options.stdin === undefined ? {} : { stdin: options.stdin }) });
+            if (command.includes("batch")) {
+              const batch = JSON.parse(options.stdin ?? "[]") as readonly unknown[];
+              return Promise.resolve({
+                stdout: `${JSON.stringify(batch.map(() => ({ success: true, data: null })))}\n`,
+                stderr: "",
+                exitCode: 0,
+              });
+            }
+            return Promise.resolve({ stdout: "{\"success\":true}\n", stderr: "", exitCode: 0 });
+          },
+          startNetworkProxy: (options) => {
+            expect(options.allowPrivateNetwork).toBeFalse();
+            return Promise.resolve({
+              url: "http://127.0.0.1:43123",
+              port: 43_123,
+              close: () => {
+                proxyClosed += 1;
+                return Promise.resolve();
+              },
+            });
+          },
+          acquireCookieRecords: (options, target) => {
+            cookieSelections.push({
+              sources: options.cookieSources,
+              ...(options.cookieProfile === undefined ? {} : { profile: options.cookieProfile }),
+              requireExplicitCookieScope: options.requireExplicitCookieScope === true,
+              url: target.href,
+            });
+            return Promise.resolve({
+              cookies: [{
+                name: "session",
+                value: "private-cookie-value",
+                domain: target.hostname,
+                hostOnly: true,
+                path: "/",
+                secure: true,
+                httpOnly: true,
+                sameSite: "Lax" as const,
+                expires: 0,
+              }],
+              warnings: [],
+            });
+          },
+        },
+      });
+      const launch = invocations.find(({ command }) => command.includes("batch"));
+      expect(launch).toBeDefined();
+      const profileIndex = launch?.command.indexOf("--profile") ?? -1;
+      const privateProfile = profileIndex < 0 ? undefined : launch?.command[profileIndex + 1];
+      expect(privateProfile).toEndWith("/profile-user-data");
+      expect(privateProfile).not.toBe(realpathSync(source));
+      expect(launch?.command).not.toContain("--allowed-domains");
+      const executableIndex = launch?.command.indexOf("--executable-path") ?? -1;
+      expect(executableIndex).toBeGreaterThan(-1);
+      expect(launch?.command[executableIndex + 1]).toBe(
+        "/Applications/Chromium.app/Contents/MacOS/Chromium",
+      );
+      const browserArgumentsIndex = launch?.command.indexOf("--args") ?? -1;
+      expect(browserArgumentsIndex < 0 ? "" : launch?.command[browserArgumentsIndex + 1]).toContain("--profile-directory=Default");
+      expect(browserArgumentsIndex < 0 ? "" : launch?.command[browserArgumentsIndex + 1]).toContain("--no-first-run");
+      expect(browserArgumentsIndex < 0 ? "" : launch?.command[browserArgumentsIndex + 1]).toContain("--no-default-browser-check");
+      expect(privateProfile === undefined ? false : existsSync(join(privateProfile, "Default", "Local Storage", "state"))).toBeTrue();
+      expect(privateProfile === undefined ? false : existsSync(join(privateProfile, "Local State"))).toBeTrue();
+      expect(cookieSelections).toEqual([{
+        sources: ["arc"],
+        profile: "Profile 1",
+        requireExplicitCookieScope: true,
+        url: "https://example.com/",
+      }]);
+      const batches = invocations.flatMap(({ stdin }) => stdin === undefined ? [] : [JSON.parse(stdin) as readonly (readonly string[])[]]);
+      expect(batches.some((batch) => batch.some((command) =>
+        command[0] === "cookies" && command[1] === "set" && command.includes("--url") && command.includes("https://example.com")))).toBeTrue();
+      expect(invocations.some(({ command }) => command.includes(realpathSync(source)))).toBeFalse();
+      expect(readFileSync(join(source, "Preferences"))).toEqual(before);
+
+      await session.close();
+      await session.cleanup();
+      expect(proxyClosed).toBe(1);
+      expect(privateProfile === undefined ? true : existsSync(privateProfile)).toBeFalse();
+      expect(readFileSync(join(source, "Preferences"))).toEqual(before);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("reports an actionable encoded handle when early rollback cannot remove every private root", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "wrench-browser-rollback-test-"));
+    const specialTempRoot = join(directory, "private root ü\\segment");
+    mkdirSync(specialTempRoot, { recursive: true });
+    const previousTempRoot = process.env.TMPDIR;
+    const cleanupAttempts: string[] = [];
+    process.env.TMPDIR = specialTempRoot;
+    try {
+      const failure = await rejectionValue(browserCleanupBarrier(
+        createBrowserSession(manifest, {
+          schemaVersion: 1,
+          id: "missing-profile",
+          kind: "browser-profile",
+          profile: join(specialTempRoot, "missing profile"),
+          trustUnfilteredEgress: true,
+        }, {
+          headed: false,
+          timeoutMs: 1_000,
+          maxOutputBytes: 64 * 1024,
+          dependencies: {
+            removePrivateArtifact: (path) => {
+              cleanupAttempts.push(path);
+              throw new Error("simulated private-root removal failure");
+            },
+          },
+        }),
+      ));
+
+      expect(failure).toBeInstanceOf(PreservedBrowserArtifactsError);
+      if (!(failure instanceof PreservedBrowserArtifactsError)) {
+        throw new Error("expected preserved browser artifacts");
+      }
+      expect(cleanupAttempts).toHaveLength(2);
+      expect(new Set(cleanupAttempts).size).toBe(2);
+      expect(failure.recoveryHandle).toMatch(/^[A-Za-z0-9_;=-]+$/u);
+      expect(failure.recoveryHandle).not.toContain(" ");
+      expect(failure.recoveryHandle).not.toContain("ü");
+      expect(failure.recoveryHandle).not.toContain("\\");
+
+      const recovered = decodeBrowserRecoveryHandle(failure.recoveryHandle);
+      // Recovery handles retain their frozen pre-Ghostget session identity.
+      expect(recovered.session).toStartWith("io-");
+      expect(recovered.artifacts).toStartWith(specialTempRoot);
+      expect(recovered.artifacts).toContain("io-browser-");
+      expect(recovered.config).toBe(join(
+        recovered.artifacts,
+        "agent-browser.json",
+      ));
+      expect(recovered.socket).toContain("io-ab-");
+      expect(cleanupAttempts).toEqual([
+        recovered.socket,
+        recovered.artifacts,
+      ]);
+      expect(existsSync(recovered.socket)).toBeTrue();
+      expect(existsSync(recovered.artifacts)).toBeTrue();
+    } finally {
+      if (previousTempRoot === undefined) delete process.env.TMPDIR;
+      else process.env.TMPDIR = previousTempRoot;
+      for (const path of cleanupAttempts) {
+        rmSync(path, { recursive: true, force: true });
+      }
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("retains setup roots when proxy cleanup cannot be verified", async () => {
+    let proxyCloseCalls = 0;
+    let recovered:
+      | Readonly<Record<"session" | "config" | "socket" | "artifacts", string>>
+      | undefined;
+    try {
+      const failure = await rejectionValue(browserCleanupBarrier(
+        createBrowserSession(manifest, {
+          schemaVersion: 1,
+          id: "browser-work",
+          kind: "browser-profile",
+          profile: "Work",
+          trustUnfilteredEgress: true,
+        }, {
+          headed: false,
+          timeoutMs: 1_000,
+          maxOutputBytes: 64 * 1024,
+          dependencies: {
+            startNetworkProxy: () => Promise.resolve({
+              url: "http://127.0.0.1:43124",
+              port: 43_124,
+              close: () => {
+                proxyCloseCalls += 1;
+                return new Promise<never>(() => undefined);
+              },
+            }),
+            runCommand: (command) => {
+              if (command.includes("batch")) {
+                return Promise.resolve({
+                  stdout: "",
+                  stderr: "",
+                  exitCode: 1,
+                });
+              }
+              return Promise.resolve({
+                stdout: "{\"success\":true}\n",
+                stderr: "",
+                exitCode: 0,
+              });
+            },
+          },
+        }),
+      ));
+
+      expect(failure).toBeInstanceOf(PreservedBrowserArtifactsError);
+      if (!(failure instanceof PreservedBrowserArtifactsError)) {
+        throw new Error("expected preserved browser artifacts");
+      }
+      recovered = decodeBrowserRecoveryHandle(failure.recoveryHandle);
+      expect(proxyCloseCalls).toBe(1);
+      expect(existsSync(recovered.socket)).toBeTrue();
+      expect(existsSync(recovered.artifacts)).toBeTrue();
+    } finally {
+      if (recovered !== undefined) {
+        rmSync(recovered.socket, { recursive: true, force: true });
+        rmSync(recovered.artifacts, { recursive: true, force: true });
+      }
+    }
+  });
+
+  test("rejects a pre-aborted browser budget before setup has any side effect", async () => {
+    const caller = new AbortController();
+    caller.abort("private cancellation reason");
+    const deadline = new OperationDeadline(1_000, { signal: caller.signal });
+    let dependencyCalls = 0;
+
+    try {
+      expect(await rejectionMessage(createBrowserSession(manifest, auth, {
+        headed: false,
+        timeoutMs: 1_000,
+        maxOutputBytes: 64 * 1024,
+        operationDeadline: deadline,
+        dependencies: {
+          runCommand: () => {
+            dependencyCalls += 1;
+            return Promise.reject(new Error("must not run"));
+          },
+          startNetworkProxy: () => {
+            dependencyCalls += 1;
+            return Promise.reject(new Error("must not start"));
+          },
+          acquireCookieRecords: () => {
+            dependencyCalls += 1;
+            return Promise.reject(new Error("must not read"));
+          },
+        },
+      }))).toContain("browser session setup was cancelled");
+      expect(dependencyCalls).toBe(0);
+    } finally {
+      deadline.dispose();
+    }
+
+    expect(await rejectionMessage(runCommand(
+      ["/wrench-test-command-must-not-exist"],
+      {
+        cwd: tmpdir(),
+        environment: {},
+        timeoutMs: 1_000,
+        maxOutputBytes: 1_024,
+        signal: caller.signal,
+      },
+    ))).toContain("agent-browser command was cancelled");
+  });
+
+  test("spends one descending budget across proxy, launch, cookie read, and injection", async () => {
+    const clock = new FakeMonotonicClock();
+    const deadline = new OperationDeadline(1_000, { clock });
+    const observed: { readonly step: string; readonly timeoutMs: number }[] = [];
+    const session = await createBrowserSession(manifest, auth, {
+      headed: false,
+      timeoutMs: 1_000,
+      maxOutputBytes: 64 * 1024,
+      operationDeadline: deadline,
+      dependencies: {
+        startNetworkProxy: (options) => {
+          observed.push({
+            step: "proxy",
+            timeoutMs: options.timeoutMs ?? -1,
+          });
+          clock.advance(100);
+          return Promise.resolve({
+            url: "http://127.0.0.1:43124",
+            port: 43_124,
+            close: () => Promise.resolve(),
+          });
+        },
+        runCommand: (command, options) => {
+          if (command.includes("batch")) {
+            const batch = JSON.parse(options.stdin ?? "[]") as readonly unknown[];
+            observed.push({
+              step: observed.some(({ step }) => step === "launch")
+                ? "inject"
+                : "launch",
+              timeoutMs: options.timeoutMs,
+            });
+            clock.advance(100);
+            return Promise.resolve({
+              stdout: `${JSON.stringify(batch.map(() => ({
+                success: true,
+                data: null,
+              })))}\n`,
+              stderr: "",
+              exitCode: 0,
+            });
+          }
+          return Promise.resolve({
+            stdout: "{\"success\":true}\n",
+            stderr: "",
+            exitCode: 0,
+          });
+        },
+        acquireCookieRecords: (options, target) => {
+          observed.push({ step: "cookies", timeoutMs: options.timeoutMs });
+          clock.advance(100);
+          return Promise.resolve({
+            cookies: [{
+              name: "session",
+              value: "private",
+              domain: target.hostname,
+              hostOnly: true,
+              path: "/",
+              secure: true,
+              httpOnly: true,
+              sameSite: "Lax" as const,
+              expires: 0,
+            }],
+            warnings: [],
+          });
+        },
+      },
+    });
+
+    expect(observed).toEqual([
+      { step: "proxy", timeoutMs: 1_000 },
+      { step: "launch", timeoutMs: 900 },
+      { step: "cookies", timeoutMs: 800 },
+      { step: "inject", timeoutMs: 700 },
+    ]);
+    await session.close();
+    await session.cleanup();
+    deadline.dispose();
+  });
+
+  test("does not begin cookie injection after the total setup deadline expires", async () => {
+    const clock = new FakeMonotonicClock();
+    const deadline = new OperationDeadline(1_000, { clock });
+    const batches: (readonly (readonly string[])[])[] = [];
+    let proxyClosed = 0;
+
+    try {
+      expect(await rejectionMessage(createBrowserSession(manifest, auth, {
+        headed: false,
+        timeoutMs: 1_000,
+        maxOutputBytes: 64 * 1024,
+        operationDeadline: deadline,
+        dependencies: {
+          startNetworkProxy: () => {
+            clock.advance(100);
+            return Promise.resolve({
+              url: "http://127.0.0.1:43124",
+              port: 43_124,
+              close: () => {
+                proxyClosed += 1;
+                return Promise.resolve();
+              },
+            });
+          },
+          runCommand: (command, options) => {
+            if (command.includes("batch")) {
+              const batch = JSON.parse(options.stdin ?? "[]") as readonly (readonly string[])[];
+              batches.push(batch);
+              clock.advance(100);
+              return Promise.resolve({
+                stdout: `${JSON.stringify(batch.map(() => ({
+                  success: true,
+                  data: null,
+                })))}\n`,
+                stderr: "",
+                exitCode: 0,
+              });
+            }
+            return Promise.resolve({
+              stdout: "{\"success\":true}\n",
+              stderr: "",
+              exitCode: 0,
+            });
+          },
+          acquireCookieRecords: () => {
+            clock.advance(800);
+            return Promise.resolve({ cookies: [], warnings: [] });
+          },
+        },
+      }))).toContain("browser session setup timed out");
+      expect(batches).toEqual([[["open", "https://example.com"]]]);
+      expect(proxyClosed).toBe(1);
+    } finally {
+      deadline.dispose();
+    }
+  });
+
+  test("never lets close or cleanup race an unsettled aborted batch", async () => {
+    const clock = new FakeMonotonicClock();
+    const deadline = new OperationDeadline(1_000, { clock });
+    let batchCalls = 0;
+    let closeCalls = 0;
+    let proxyClosed = 0;
+    const activeBatchState: {
+      resolve: ((result: {
+        readonly stdout: string;
+        readonly stderr: string;
+        readonly exitCode: number;
+      }) => void) | null;
+    } = { resolve: null };
+    const activeBatch = new Promise<{
+      readonly stdout: string;
+      readonly stderr: string;
+      readonly exitCode: number;
+    }>((resolve) => {
+      activeBatchState.resolve = resolve;
+    });
+    const session = await createBrowserSession(manifest, {
+      schemaVersion: 1,
+      id: "browser-work",
+      kind: "browser-profile",
+      profile: "Work",
+      trustUnfilteredEgress: true,
+    }, {
+      headed: false,
+      timeoutMs: 1_000,
+      maxOutputBytes: 64 * 1024,
+      operationDeadline: deadline,
+      dependencies: {
+        startNetworkProxy: () => Promise.resolve({
+          url: "http://127.0.0.1:43124",
+          port: 43_124,
+          close: () => {
+            proxyClosed += 1;
+            return Promise.resolve();
+          },
+        }),
+        runCommand: (command, options) => {
+          if (command.includes("close")) {
+            closeCalls += 1;
+            return Promise.resolve({
+              stdout: "{\"success\":true}\n",
+              stderr: "",
+              exitCode: 0,
+            });
+          }
+          const batch = JSON.parse(options.stdin ?? "[]") as readonly unknown[];
+          batchCalls += 1;
+          if (batchCalls === 2) return activeBatch;
+          return Promise.resolve({
+            stdout: `${JSON.stringify(batch.map(() => ({
+              success: true,
+              data: null,
+            })))}\n`,
+            stderr: "",
+            exitCode: 0,
+          });
+        },
+        acquireCookieRecords: () =>
+          Promise.resolve({ cookies: [], warnings: [] }),
+      },
+    });
+
+    const operation = session.runBatch(
+      [["get", "url"]],
+      1_000,
+      64 * 1024,
+    );
+    clock.advance(1_000);
+    expect(await rejectionMessage(operation)).toContain(
+      "browser session setup timed out",
+    );
+    expect(await rejectionMessage(session.cleanup())).toContain(
+      "before the session closes",
+    );
+    expect(proxyClosed).toBe(0);
+
+    const closing = session.close();
+    await Promise.resolve();
+    expect(closeCalls).toBe(0);
+    activeBatchState.resolve?.({
+      stdout: "[{\"success\":true,\"data\":null}]\n",
+      stderr: "",
+      exitCode: 0,
+    });
+    await closing;
+    expect(closeCalls).toBe(1);
+    await session.cleanup();
+    expect(proxyClosed).toBe(1);
+    deadline.dispose();
+  });
+
+  test("aborting a SIGTERM-ignoring command escalates and reaps its process", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "wrench-browser-abort-test-"));
+    const pidPath = join(directory, "pid");
+    const controller = new AbortController();
+    let pid: number | null = null;
+    try {
+      const operation = runCommand(
+        [
+          process.execPath,
+          "-e",
+          [
+            "import { writeFileSync } from 'node:fs';",
+            `writeFileSync(${JSON.stringify(pidPath)}, String(process.pid));`,
+            "process.on('SIGTERM', () => undefined);",
+            "setInterval(() => undefined, 1_000);",
+          ].join("\n"),
+        ],
+        {
+          cwd: directory,
+          environment: {
+            LANG: "C",
+            LC_ALL: "C",
+            PATH: process.env.PATH ?? "/usr/bin:/bin",
+          },
+          timeoutMs: TEST_PROCESS_TIMEOUT_MS,
+          maxOutputBytes: 4_096,
+          signal: controller.signal,
+        },
+      );
+      await waitUntil(() => existsSync(pidPath));
+      pid = Number(readFileSync(pidPath, "utf8"));
+      expect(Number.isSafeInteger(pid)).toBeTrue();
+
+      controller.abort();
+      const failure = await rejectionValue(operation);
+      expect(failure).toBeInstanceOf(Error);
+      expect((failure as Error).name).toBe("BrowserCommandCleanupError");
+      expect((failure as Error).message).toContain("agent-browser command was cancelled");
+      expect((failure as Error).cause).toBeInstanceOf(Error);
+      expect(((failure as Error).cause as Error).message).toBe("agent-browser command was cancelled");
+      const lifecycle = browserCommandLifecycle(failure);
+      expect(lifecycle).not.toBeNull();
+      expect(lifecycle?.stopReason).toBe("cancelled");
+      expect(lifecycle?.beforeStop.wrapperExited).toBeFalse();
+      expect(lifecycle?.beforeStop.stdout.naturalEof).toBeFalse();
+      expect(lifecycle?.beforeStop.stderr.naturalEof).toBeFalse();
+      expect(lifecycle?.terminal.wrapperExited).toBeTrue();
+      expect(lifecycle?.terminal.stdout.naturalEof).toBeFalse();
+      expect(lifecycle?.terminal.stderr.naturalEof).toBeFalse();
+      expect(lifecycle?.terminal.originalGroupTerminationSucceeded).toBeTrue();
+      expect(lifecycle?.terminal.resourcesSettled).toBeTrue();
+      expect(Object.isFrozen(lifecycle)).toBeTrue();
+      expect(JSON.stringify(lifecycle)).not.toContain(directory);
+      expect(Object.keys(lifecycle ?? {}).sort()).toEqual(["beforeStop", "schemaVersion", "stopReason", "terminal"]);
+      expect(Object.keys(lifecycle?.beforeStop ?? {}).sort()).toEqual(["elapsedMs", "stderr", "stdout", "wrapperExitCode", "wrapperExited"]);
+      expect(Object.keys(lifecycle?.beforeStop.stdout ?? {}).sort()).toEqual(["bytes", "failed", "naturalEof"]);
+      expect(browserCommandLifecycle(new Error("unrelated"))).toBeNull();
+
+      let processIsLive = true;
+      try {
+        process.kill(pid, 0);
+      } catch (error) {
+        if (
+          typeof error === "object"
+          && error !== null
+          && "code" in error
+          && error.code === "ESRCH"
+        ) processIsLive = false;
+        else throw error;
+      }
+      expect(processIsLive).toBeFalse();
+    } finally {
+      if (pid !== null) {
+        try {
+          process.kill(pid, "SIGKILL");
+        } catch {
+          // The expected path has already reaped the test helper.
+        }
+      }
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("reports forced termination as unsafe when a descendant escapes the process group", async () => {
+    if (process.platform === "win32") return;
+    const directory = mkdtempSync(join(tmpdir(), "wrench-browser-escape-test-"));
+    const escapedPidPath = join(directory, "escaped-pid");
+    const controller = new AbortController();
+    let escapedPid: number | null = null;
+    try {
+      const operation = runCommand(
+        [
+          process.execPath,
+          "-e",
+          [
+            "import { spawn } from 'node:child_process';",
+            "import { writeFileSync } from 'node:fs';",
+            "const escaped = spawn(process.execPath, ['-e', 'setInterval(() => undefined, 1_000)'], { detached: true, stdio: 'ignore' });",
+            `writeFileSync(${JSON.stringify(escapedPidPath)}, String(escaped.pid));`,
+            "escaped.unref();",
+            "setInterval(() => undefined, 1_000);",
+          ].join("\n"),
+        ],
+        {
+          cwd: directory,
+          environment: {
+            LANG: "C",
+            LC_ALL: "C",
+            PATH: process.env.PATH ?? "/usr/bin:/bin",
+          },
+          timeoutMs: TEST_PROCESS_TIMEOUT_MS,
+          maxOutputBytes: 4_096,
+          signal: controller.signal,
+        },
+      );
+      await waitUntil(() => existsSync(escapedPidPath));
+      escapedPid = Number(readFileSync(escapedPidPath, "utf8"));
+      expect(Number.isSafeInteger(escapedPid)).toBeTrue();
+
+      controller.abort();
+      const failure = await rejectionValue(operation);
+      expect(failure).toBeInstanceOf(Error);
+      expect((failure as Error).message).toContain("descendant process cleanup could not be verified");
+      const lifecycle = browserCommandLifecycle(failure);
+      expect(lifecycle?.terminal.originalGroupTerminationSucceeded).toBeTrue();
+      expect(lifecycle?.terminal.resourcesSettled).toBeTrue();
+      // These observations cannot certify the still-live escaped descendant.
+
+      expect(() => process.kill(escapedPid!, 0)).not.toThrow();
+    } finally {
+      if (escapedPid !== null) {
+        try {
+          process.kill(escapedPid, "SIGKILL");
+        } catch {
+          // The regression helper may already have exited after a test error.
+        }
+      }
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("preserves private roots when command cleanup becomes unsafe after the setup deadline", async () => {
+    if (process.platform === "win32") return;
+    const helperDirectory = mkdtempSync(join(
+      tmpdir(),
+      "wrench-browser-late-cleanup-test-",
+    ));
+    const pidPath = join(helperDirectory, "pid");
+    const clock = new FakeMonotonicClock();
+    const deadline = new OperationDeadline(1_000, { clock });
+    let helperPid: number | null = null;
+    let artifactsDirectory: string | null = null;
+    let socketDirectory: string | null = null;
+    let closeCalls = 0;
+    try {
+      const operation = createBrowserSession(manifest, {
+        schemaVersion: 1,
+        id: "browser-work",
+        kind: "browser-profile",
+        profile: "Work",
+        trustUnfilteredEgress: true,
+      }, {
+        headed: false,
+        timeoutMs: TEST_PROCESS_TIMEOUT_MS,
+        maxOutputBytes: 4_096,
+        operationDeadline: deadline,
+        dependencies: {
+          startNetworkProxy: () => Promise.resolve({
+            url: "http://127.0.0.1:43124",
+            port: 43_124,
+            close: () => Promise.resolve(),
+          }),
+          runCommand: (command, options) => {
+            artifactsDirectory = options.cwd;
+            socketDirectory = options.environment.AGENT_BROWSER_SOCKET_DIR
+              ?? null;
+            if (command.includes("close")) {
+              closeCalls += 1;
+              return Promise.resolve({
+                stdout: "{\"success\":true}\n",
+                stderr: "",
+                exitCode: 0,
+              });
+            }
+            return runCommand([
+              process.execPath,
+              "-e",
+              [
+                "import { writeFileSync } from 'node:fs';",
+                `writeFileSync(${JSON.stringify(pidPath)}, String(process.pid));`,
+                "setInterval(() => undefined, 1_000);",
+              ].join("\n"),
+            ], {
+              ...options,
+              cwd: helperDirectory,
+              environment: {
+                LANG: "C",
+                LC_ALL: "C",
+                PATH: process.env.PATH ?? "/usr/bin:/bin",
+              },
+              timeoutMs: TEST_PROCESS_TIMEOUT_MS,
+            });
+          },
+        },
+      });
+      await waitUntil(() => existsSync(pidPath));
+      helperPid = Number(readFileSync(pidPath, "utf8"));
+      expect(Number.isSafeInteger(helperPid)).toBeTrue();
+
+      clock.advance(1_000);
+      const failure = await rejectionValue(operation);
+      expect(failure).toBeInstanceOf(PreservedBrowserArtifactsError);
+      expect(closeCalls).toBe(0);
+      if (!(failure instanceof PreservedBrowserArtifactsError)) {
+        throw new Error("expected preserved browser artifacts");
+      }
+      const recovered = decodeBrowserRecoveryHandle(failure.recoveryHandle);
+      if (artifactsDirectory === null || socketDirectory === null) {
+        throw new Error("browser command did not expose its private roots");
+      }
+      expect(recovered.artifacts).toBe(artifactsDirectory);
+      expect(recovered.socket).toBe(socketDirectory);
+      expect(existsSync(recovered.artifacts)).toBeTrue();
+      expect(existsSync(recovered.socket)).toBeTrue();
+    } finally {
+      deadline.dispose();
+      if (helperPid !== null) {
+        try {
+          process.kill(helperPid, "SIGKILL");
+        } catch {
+          // The contained helper should already be gone.
+        }
+      }
+      if (socketDirectory !== null) {
+        rmSync(socketDirectory, { recursive: true, force: true });
+      }
+      if (artifactsDirectory !== null) {
+        rmSync(artifactsDirectory, { recursive: true, force: true });
+      }
+      rmSync(helperDirectory, { recursive: true, force: true });
+    }
+  });
+
+  test("bounds a stalled proxy cleanup and preserves the private roots", async () => {
+    let proxyCloseCalls = 0;
+    let recovered:
+      | Readonly<Record<"session" | "config" | "socket" | "artifacts", string>>
+      | undefined;
+    try {
+      const session = await createBrowserSession(manifest, {
+        schemaVersion: 1,
+        id: "browser-work",
+        kind: "browser-profile",
+        profile: "Work",
+        trustUnfilteredEgress: true,
+      }, {
+        headed: false,
+        timeoutMs: 1_000,
+        maxOutputBytes: 64 * 1024,
+        dependencies: {
+          startNetworkProxy: () => Promise.resolve({
+            url: "http://127.0.0.1:43124",
+            port: 43_124,
+            close: () => {
+              proxyCloseCalls += 1;
+              return new Promise<never>(() => undefined);
+            },
+          }),
+          runCommand: (command, options) => {
+            if (command.includes("batch")) {
+              const batch = JSON.parse(options.stdin ?? "[]") as readonly unknown[];
+              return Promise.resolve({
+                stdout: `${JSON.stringify(batch.map(() => ({
+                  success: true,
+                  data: null,
+                })))}\n`,
+                stderr: "",
+                exitCode: 0,
+              });
+            }
+            return Promise.resolve({
+              stdout: "{\"success\":true}\n",
+              stderr: "",
+              exitCode: 0,
+            });
+          },
+        },
+      });
+      if (session.recoveryHandle === undefined) {
+        throw new Error("browser session omitted its recovery handle");
+      }
+      recovered = decodeBrowserRecoveryHandle(session.recoveryHandle);
+      await session.close();
+
+      const startedAt = performance.now();
+      expect(await rejectionMessage(session.cleanup())).toContain(
+        "cleanup did not remove every private resource",
+      );
+      expect(performance.now() - startedAt).toBeLessThan(3_500);
+      expect(proxyCloseCalls).toBe(1);
+      expect(existsSync(recovered.socket)).toBeTrue();
+      expect(existsSync(recovered.artifacts)).toBeTrue();
+    } finally {
+      if (recovered !== undefined) {
+        rmSync(recovered.socket, { recursive: true, force: true });
+        rmSync(recovered.artifacts, { recursive: true, force: true });
+      }
+    }
+  });
+
+  test("closes the network proxy after browser close fails while preserving private roots", async () => {
+    let proxyCloseCalls = 0;
+    let recovered:
+      | Readonly<Record<"session" | "config" | "socket" | "artifacts", string>>
+      | undefined;
+    try {
+      const session = await createBrowserSession(manifest, {
+        schemaVersion: 1,
+        id: "browser-work",
+        kind: "browser-profile",
+        profile: "Work",
+        trustUnfilteredEgress: true,
+      }, {
+        headed: false,
+        timeoutMs: 1_000,
+        maxOutputBytes: 64 * 1024,
+        dependencies: {
+          startNetworkProxy: () => Promise.resolve({
+            url: "http://127.0.0.1:43124",
+            port: 43_124,
+            close: () => {
+              proxyCloseCalls += 1;
+              return Promise.resolve();
+            },
+          }),
+          runCommand: (command, options) => {
+            if (command.includes("batch")) {
+              const batch = JSON.parse(options.stdin ?? "[]") as readonly unknown[];
+              return Promise.resolve({
+                stdout: `${JSON.stringify(batch.map(() => ({
+                  success: true,
+                  data: null,
+                })))}\n`,
+                stderr: "",
+                exitCode: 0,
+              });
+            }
+            return Promise.resolve({
+              stdout: "",
+              stderr: "simulated close failure",
+              exitCode: 1,
+            });
+          },
+        },
+      });
+      if (session.recoveryHandle === undefined) {
+        throw new Error("browser session omitted its recovery handle");
+      }
+      recovered = decodeBrowserRecoveryHandle(session.recoveryHandle);
+
+      expect(await rejectionMessage(session.close())).toContain(
+        "agent-browser close failed",
+      );
+      const cleanupFailure = await rejectionValue(session.cleanup());
+      expect(cleanupFailure).toBeInstanceOf(AggregateError);
+      expect(cleanupFailure).toHaveProperty(
+        "message",
+        "browser session cleanup did not remove every private resource",
+      );
+      expect(
+        cleanupFailure instanceof AggregateError
+          ? cleanupFailure.errors.map((error) =>
+              error instanceof Error ? error.message : String(error))
+          : [],
+      ).toContain(
+        "refusing to delete private browser artifacts before the session closes",
+      );
+      expect(proxyCloseCalls).toBe(1);
+      expect(existsSync(recovered.socket)).toBeTrue();
+      expect(existsSync(recovered.artifacts)).toBeTrue();
+    } finally {
+      if (recovered !== undefined) {
+        rmSync(recovered.socket, { recursive: true, force: true });
+        rmSync(recovered.artifacts, { recursive: true, force: true });
+      }
+    }
+  });
+
+  test("bounds an unkillable command and reports preserved browser artifacts", async () => {
+    if (process.platform === "win32") return;
+    const directory = mkdtempSync(join(tmpdir(), "wrench-browser-unkillable-test-"));
+    const originalKill: typeof process.kill = process.kill.bind(process);
+    let pid: number | null = null;
+    let artifactsDirectory: string | null = null;
+    let socketDirectory: string | null = null;
+    let proxyClosed = 0;
+    try {
+      process.kill = (
+        target: number,
+        signal?: number | NodeJS.Signals,
+      ): true => {
+        if (target < 0) {
+          pid ??= -target;
+          return true;
+        }
+        return originalKill(target, signal);
+      };
+      const startedAt = performance.now();
+      const operation = browserCleanupBarrier(createBrowserSession(manifest, {
+        schemaVersion: 1,
+        id: "browser-work",
+        kind: "browser-profile",
+        profile: "Work",
+        trustUnfilteredEgress: true,
+      }, {
+        headed: false,
+        timeoutMs: 100,
+        maxOutputBytes: 4_096,
+        dependencies: {
+          startNetworkProxy: () => Promise.resolve({
+            url: "http://127.0.0.1:43124",
+            port: 43_124,
+            close: () => {
+              proxyClosed += 1;
+              return Promise.resolve();
+            },
+          }),
+          runCommand: (_command, options) => {
+            artifactsDirectory = options.cwd;
+            socketDirectory = options.environment.AGENT_BROWSER_SOCKET_DIR ?? null;
+            return runCommand([
+              process.execPath,
+              "-e",
+              [
+                "process.on('SIGTERM', () => undefined);",
+                "setInterval(() => undefined, 1_000);",
+              ].join("\n"),
+            ], {
+              ...options,
+              cwd: directory,
+              environment: {
+                LANG: "C",
+                LC_ALL: "C",
+                PATH: process.env.PATH ?? "/usr/bin:/bin",
+              },
+              timeoutMs: 100,
+            });
+          },
+        },
+      }));
+      const failure = await rejectionValue(operation);
+      const elapsedMs = performance.now() - startedAt;
+      expect(elapsedMs).toBeLessThan(5_000);
+      expect(pid).not.toBeNull();
+      expect(Number.isSafeInteger(pid)).toBeTrue();
+      expect(failure).toBeInstanceOf(PreservedBrowserArtifactsError);
+      if (!(failure instanceof PreservedBrowserArtifactsError)) {
+        throw new Error("expected preserved browser artifacts");
+      }
+      expect(proxyClosed).toBe(1);
+      const recovered = decodeBrowserRecoveryHandle(failure.recoveryHandle);
+      if (artifactsDirectory === null || socketDirectory === null) {
+        throw new Error("browser command did not expose its private roots");
+      }
+      expect(recovered.artifacts).toBe(artifactsDirectory);
+      expect(recovered.config).toBe(join(
+        recovered.artifacts,
+        "agent-browser.json",
+      ));
+      expect(recovered.socket).toBe(socketDirectory);
+      expect(existsSync(recovered.artifacts)).toBeTrue();
+      expect(existsSync(recovered.socket)).toBeTrue();
+    } finally {
+      process.kill = originalKill;
+      if (pid !== null) {
+        try {
+          originalKill(-pid, "SIGKILL");
+        } catch {
+          // A concurrent test failure may have already released the helper.
+        }
+      }
+      if (socketDirectory !== null) {
+        rmSync(socketDirectory, { recursive: true, force: true });
+      }
+      if (artifactsDirectory !== null) {
+        rmSync(artifactsDirectory, { recursive: true, force: true });
+      }
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("routes cookie-yielding sessions through Lightpanda only when provisioned", async () => {
+    const root = mkdtempSync(join(tmpdir(), "io-lightpanda-stub-"));
+    try {
+      const stub = join(root, "lightpanda");
+      writeFileSync(stub, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+      const provisionedExecutables: string[] = [];
+      const driverCommands: string[][] = [];
+      const driverGlobals: string[][] = [];
+      let chromeCommands = 0;
+      let serveClosed = 0;
+      const session = await createBrowserSession(manifest, auth, {
+        headed: false,
+        timeoutMs: 5_000,
+        maxOutputBytes: 64 * 1024,
+        engine: "auto",
+        environment: {
+          GHOSTGET_LIGHTPANDA_PATH: stub,
+          PATH: process.env.PATH ?? "/usr/bin:/bin",
+        },
+        dependencies: {
+          runCommand: () => {
+            chromeCommands += 1;
+            return Promise.resolve({
+              stdout: "{\"success\":true}\n",
+              stderr: "",
+              exitCode: 0,
+            });
+          },
+          startNetworkProxy: () => Promise.resolve({
+            url: "http://127.0.0.1:43124",
+            port: 43_124,
+            close: () => Promise.resolve(),
+          }),
+          acquireCookieRecords: () => Promise.resolve({
+            cookies: [{
+              name: "session",
+              value: "private-cookie-value",
+              domain: "example.com",
+              hostOnly: true,
+              path: "/",
+              secure: true,
+              httpOnly: true,
+              sameSite: "Lax" as const,
+              expires: 0,
+            }],
+            warnings: [],
+          }),
+          createLightpandaDependencies: (executable) => {
+            provisionedExecutables.push(executable);
+            return {
+              run: (globalArguments, command) => {
+                driverGlobals.push([...globalArguments]);
+                driverCommands.push([...command]);
+                return Promise.resolve({ ok: true });
+              },
+              runBatch: (globalArguments, commands) => {
+                driverGlobals.push([...globalArguments]);
+                for (const command of commands) driverCommands.push([...command]);
+                return Promise.resolve();
+              },
+              close: () => {
+                serveClosed += 1;
+                return Promise.resolve();
+              },
+            };
+          },
+        },
+      });
+      expect(provisionedExecutables).toEqual([realpathSync(stub)]);
+      await session.close();
+      await session.cleanup();
+      expect(chromeCommands).toBe(0);
+      const verbs = driverCommands.map((command) => command[0]);
+      expect(verbs).toEqual(["open", "cookies", "open", "close"]);
+      expect(driverCommands[0]).toEqual(["open", "about:blank"]);
+      expect(driverCommands[2]).toEqual(["open", "https://example.com/robots.txt"]);
+      const globals = driverGlobals[0] ?? [];
+      expect(globals).toContain("--proxy");
+      expect(globals[globals.indexOf("--proxy") + 1]).toBe("http://127.0.0.1:43124");
+      expect(globals).not.toContain("--allowed-domains");
+      expect(globals).not.toContain("--executable-path");
+      expect(globals).not.toContain("--args");
+      expect(serveClosed).toBeGreaterThanOrEqual(1);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("keeps non-cookie realms and unprovisioned auto sessions on Chromium", async () => {
+    const chromeBatches: string[][] = [];
+    let lightpandaFactories = 0;
+    const baseDependencies = {
+      runCommand: (command: readonly string[], options: { readonly stdin?: string }) => {
+        if (command.includes("batch")) {
+          chromeBatches.push([...command]);
+          const batch = JSON.parse(options.stdin ?? "[]") as readonly unknown[];
+          return Promise.resolve({
+            stdout: `${JSON.stringify(batch.map(() => ({ success: true, data: null })))}\n`,
+            stderr: "",
+            exitCode: 0,
+          });
+        }
+        return Promise.resolve({ stdout: "{\"success\":true}\n", stderr: "", exitCode: 0 });
+      },
+      startNetworkProxy: () => Promise.resolve({
+        url: "http://127.0.0.1:43124",
+        port: 43_124,
+        close: () => Promise.resolve(),
+      }),
+      acquireCookieRecords: () => Promise.resolve({ cookies: [], warnings: [] }),
+      createLightpandaDependencies: () => {
+        lightpandaFactories += 1;
+        throw new Error("Lightpanda must not be provisioned for this session");
+      },
+    };
+    const profileDirectory = mkdtempSync(join(tmpdir(), "io-profile-"));
+    const storageStateAuth: GhostgetAuth = {
+      schemaVersion: 1,
+      id: "state",
+      kind: "browser-profile",
+      profile: realpathSync(profileDirectory),
+      trustUnfilteredEgress: true,
+      cookieSource: "chrome",
+      storageState: "/tmp/ghostget-missing-state.json",
+    };
+    const root = mkdtempSync(join(tmpdir(), "io-lightpanda-stub-"));
+    try {
+      const stub = join(root, "lightpanda");
+      writeFileSync(stub, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+      // A browser-profile realm that pairs its cookie source with storage
+      // state cannot transfer the storage into Lightpanda; auto stays on
+      // Chromium even when a Lightpanda binary is provisioned.
+      const stateSession = await createBrowserSession(manifest, storageStateAuth, {
+        headed: false,
+        timeoutMs: 5_000,
+        maxOutputBytes: 64 * 1024,
+        engine: "auto",
+        environment: {
+          GHOSTGET_LIGHTPANDA_PATH: stub,
+          PATH: process.env.PATH ?? "/usr/bin:/bin",
+        },
+        dependencies: baseDependencies,
+      });
+      await stateSession.close();
+      await stateSession.cleanup();
+      expect(lightpandaFactories).toBe(0);
+      expect(chromeBatches).not.toHaveLength(0);
+      const stateIndex = chromeBatches[0]?.indexOf("--state") ?? -1;
+      expect(chromeBatches[0]?.[stateIndex + 1]).toBe("/tmp/ghostget-missing-state.json");
+
+      // Without provisioning the same cookie-yielding realm stays on Chromium.
+      const unprovisioned = await createBrowserSession(manifest, auth, {
+        headed: false,
+        timeoutMs: 5_000,
+        maxOutputBytes: 64 * 1024,
+        engine: "auto",
+        environment: { PATH: process.env.PATH ?? "/usr/bin:/bin" },
+        dependencies: baseDependencies,
+      });
+      await unprovisioned.close();
+      await unprovisioned.cleanup();
+      expect(lightpandaFactories).toBe(0);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+      rmSync(profileDirectory, { recursive: true, force: true });
+    }
+  });
+
+  test("defaults to auto and keeps headed requests on Chromium", async () => {
+    const root = mkdtempSync(join(tmpdir(), "io-lightpanda-stub-"));
+    try {
+      const stub = join(root, "lightpanda");
+      writeFileSync(stub, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+      const environment = {
+        GHOSTGET_LIGHTPANDA_PATH: stub,
+        PATH: process.env.PATH ?? "/usr/bin:/bin",
+      };
+      let chromeCommands = 0;
+      let lightpandaFactories = 0;
+      const dependencies = {
+        runCommand: (command: readonly string[], options: { readonly stdin?: string }) => {
+          chromeCommands += 1;
+          if (command.includes("batch")) {
+            const batch = JSON.parse(options.stdin ?? "[]") as readonly unknown[];
+            return Promise.resolve({
+              stdout: `${JSON.stringify(batch.map(() => ({ success: true, data: null })))}\n`,
+              stderr: "",
+              exitCode: 0,
+            });
+          }
+          return Promise.resolve({
+            stdout: "{\"success\":true}\n",
+            stderr: "",
+            exitCode: 0,
+          });
+        },
+        startNetworkProxy: () => Promise.resolve({
+          url: "http://127.0.0.1:43124",
+          port: 43_124,
+          close: () => Promise.resolve(),
+        }),
+        acquireCookieRecords: () => Promise.resolve({
+          cookies: [{
+            name: "session",
+            value: "private-cookie-value",
+            domain: "example.com",
+            hostOnly: true,
+            path: "/",
+            secure: true,
+            httpOnly: true,
+            sameSite: "Lax" as const,
+            expires: 0,
+          }],
+          warnings: [],
+        }),
+        createLightpandaDependencies: () => {
+          lightpandaFactories += 1;
+          return {
+            run: () => Promise.resolve({ ok: true }),
+            runBatch: () => Promise.resolve(),
+            close: () => Promise.resolve(),
+          };
+        },
+      };
+      // An omitted engine is "auto": a cookie-yielding headless session
+      // resolves to provisioned Lightpanda without an explicit selection.
+      const implicit = await createBrowserSession(manifest, auth, {
+        headed: false,
+        timeoutMs: 5_000,
+        maxOutputBytes: 64 * 1024,
+        environment,
+        dependencies,
+      });
+      await implicit.close();
+      await implicit.cleanup();
+      expect(lightpandaFactories).toBe(1);
+      expect(chromeCommands).toBe(0);
+
+      // A headed request can only be a Chromium session, even under auto.
+      const headedSession = await createBrowserSession(manifest, auth, {
+        headed: true,
+        timeoutMs: 5_000,
+        maxOutputBytes: 64 * 1024,
+        environment,
+        dependencies,
+      });
+      await headedSession.close();
+      await headedSession.cleanup();
+      expect(lightpandaFactories).toBe(1);
+      expect(chromeCommands).toBeGreaterThan(0);
+
+      // Explicit Lightpanda still fails closed instead of silently dropping
+      // the headed requirement.
+      await expect(createBrowserSession(manifest, auth, {
+        headed: true,
+        timeoutMs: 5_000,
+        maxOutputBytes: 64 * 1024,
+        engine: "lightpanda",
+        environment,
+        dependencies,
+      })).rejects.toThrow("cannot run headed");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("rejects explicit Lightpanda without provisioning or cookie-yielding auth", async () => {
+    const storageStateAuth: GhostgetAuth = {
+      schemaVersion: 1,
+      id: "state",
+      kind: "browser-profile",
+      profile: "/tmp/ghostget-missing-profile",
+      trustUnfilteredEgress: true,
+    };
+    const root = mkdtempSync(join(tmpdir(), "io-lightpanda-stub-"));
+    try {
+      const stub = join(root, "lightpanda");
+      writeFileSync(stub, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+      const missing = await rejectionMessage(createBrowserSession(manifest, auth, {
+        headed: false,
+        timeoutMs: 5_000,
+        maxOutputBytes: 64 * 1024,
+        engine: "lightpanda",
+        environment: { PATH: process.env.PATH ?? "/usr/bin:/bin" },
+      }));
+      expect(missing).toContain("LIGHTPANDA_PATH");
+      const ineligible = await rejectionMessage(createBrowserSession(manifest, storageStateAuth, {
+        headed: false,
+        timeoutMs: 5_000,
+        maxOutputBytes: 64 * 1024,
+        engine: "lightpanda",
+        environment: {
+          GHOSTGET_LIGHTPANDA_PATH: stub,
+          PATH: process.env.PATH ?? "/usr/bin:/bin",
+        },
+      }));
+      expect(ineligible).toContain("yields explicit cookies");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("falls back to Chromium only for a pre-navigation Lightpanda incompatibility", async () => {
+    const root = mkdtempSync(join(tmpdir(), "io-lightpanda-stub-"));
+    try {
+      const stub = join(root, "lightpanda");
+      writeFileSync(stub, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+      for (const beforeNavigation of [true, false]) {
+        let chromeCommands = 0;
+        let serveClosed = 0;
+        const attempt = createBrowserSession(manifest, auth, {
+          headed: false,
+          timeoutMs: 5_000,
+          maxOutputBytes: 64 * 1024,
+          engine: "auto",
+          environment: {
+            GHOSTGET_LIGHTPANDA_PATH: stub,
+            PATH: process.env.PATH ?? "/usr/bin:/bin",
+          },
+          dependencies: {
+            runCommand: (_command, options) => {
+              chromeCommands += 1;
+              if (_command.includes("batch")) {
+                const batch = JSON.parse(options.stdin ?? "[]") as readonly unknown[];
+                return Promise.resolve({
+                  stdout: `${JSON.stringify(batch.map(() => ({ success: true, data: null })))}\n`,
+                  stderr: "",
+                  exitCode: 0,
+                });
+              }
+              return Promise.resolve({ stdout: "{\"success\":true}\n", stderr: "", exitCode: 0 });
+            },
+            startNetworkProxy: () => Promise.resolve({
+              url: "http://127.0.0.1:43124",
+              port: 43_124,
+              close: () => Promise.resolve(),
+            }),
+            acquireCookieRecords: () => Promise.resolve({ cookies: [], warnings: [] }),
+            createLightpandaDependencies: () => ({
+              run: (_globals, command) => {
+                if (command[0] === "close") return Promise.resolve({ closed: true });
+                return Promise.reject(new LightpandaCompatibilityError(beforeNavigation));
+              },
+              close: () => {
+                serveClosed += 1;
+                return Promise.resolve();
+              },
+            }),
+          },
+        });
+        if (beforeNavigation) {
+          const session = await attempt;
+          expect(chromeCommands).toBeGreaterThan(0);
+          expect(serveClosed).toBeGreaterThanOrEqual(1);
+          await session.close();
+          await session.cleanup();
+        } else {
+          const failure = await rejectionValue(attempt);
+          expect(failure).toBeInstanceOf(LightpandaCompatibilityError);
+          expect(chromeCommands).toBe(0);
+          expect(serveClosed).toBeGreaterThanOrEqual(1);
+        }
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("publishes a Lightpanda session as launch-intent and cleans it through the unbound quiescence proof", async () => {
+    const root = mkdtempSync(join(tmpdir(), "io-lightpanda-stub-"));
+    type PublishedCleanupResource = Parameters<
+      NonNullable<
+        Parameters<typeof createBrowserSession>[2]["publishCleanupResource"]
+      >
+    >[0];
+    const published: PublishedCleanupResource[] = [];
+    const cleanupEvents: string[] = [];
+    const inspectedSessions: string[] = [];
+    const driverCommands: string[][] = [];
+    let serveClosed = 0;
+    try {
+      const stub = join(root, "lightpanda");
+      writeFileSync(stub, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+      const session = await createBrowserSession(manifest, auth, {
+        headed: false,
+        timeoutMs: 5_000,
+        maxOutputBytes: 64 * 1024,
+        engine: "lightpanda",
+        environment: {
+          GHOSTGET_LIGHTPANDA_PATH: stub,
+          PATH: process.env.PATH ?? "/usr/bin:/bin",
+        },
+        publishCleanupResource: Object.assign(
+          (resource: PublishedCleanupResource) => {
+            if (published.length > 0) {
+              expect(browserCleanupResourceExtends(
+                published[published.length - 1]!,
+                resource,
+              )).toBeTrue();
+              expect(resource.session).toBe(published[0]!.session);
+            }
+            published.push(resource);
+          },
+          {
+            markBrowserCleanupQuiescent: (): void => {
+              cleanupEvents.push("journal-quiescent");
+            },
+            markBrowserCleanupRootRemoved: (
+              _resource: PublishedCleanupResource,
+              rootName: "artifacts" | "socket",
+            ): void => {
+              cleanupEvents.push(`journal-${rootName}`);
+            },
+          },
+        ),
+        dependencies: {
+          runCommand: (command) => {
+            // Lightpanda sessions never publish a control witness, so no
+            // cdp-url inspection may run; session info only answers after the
+            // owned serve child was reaped, reporting the session inactive.
+            expect(command.includes("cdp-url")).toBeFalse();
+            if (command.includes("info")) {
+              const sessionIndex = command.indexOf("--session");
+              inspectedSessions.push(command[sessionIndex + 1] ?? "");
+              const resource = published[0];
+              if (resource === undefined) {
+                throw new Error("session inspection ran before publication");
+              }
+              return Promise.resolve({
+                stdout: `${JSON.stringify({
+                  success: true,
+                  data: {
+                    active: false,
+                    namespace: null,
+                    pid: null,
+                    runtime: null,
+                    runtimeError: null,
+                    session: resource.session,
+                    socketDir: resource.socketDirectory,
+                    version: null,
+                  },
+                })}\n`,
+                stderr: "",
+                exitCode: 0,
+              });
+            }
+            return Promise.resolve({
+              stdout: "{\"success\":true}\n",
+              stderr: "",
+              exitCode: 0,
+            });
+          },
+          startNetworkProxy: () => Promise.resolve({
+            url: "http://127.0.0.1:43124",
+            port: 43_124,
+            close: () => Promise.resolve(),
+          }),
+          acquireCookieRecords: () => Promise.resolve({
+            cookies: [{
+              name: "session",
+              value: "private-cookie-value",
+              domain: "example.com",
+              hostOnly: true,
+              path: "/",
+              secure: true,
+              httpOnly: true,
+              sameSite: "Lax" as const,
+              expires: 0,
+            }],
+            warnings: [],
+          }),
+          createLightpandaDependencies: () => ({
+            run: (_globals, command) => {
+              driverCommands.push([...command]);
+              return Promise.resolve({ ok: true });
+            },
+            runBatch: (_globals, commands) => {
+              for (const command of commands) driverCommands.push([...command]);
+              return Promise.resolve();
+            },
+            close: () => {
+              serveClosed += 1;
+              return Promise.resolve();
+            },
+          }),
+        },
+      });
+      await session.close();
+      await session.cleanup();
+      expect(published.map((resource) => resource.kind === "agent-browser-session-v2"
+        ? resource.phase
+        : "legacy")).toEqual([
+        "prepared",
+        "launch-intent",
+      ]);
+      expect(cleanupEvents).toEqual([
+        "journal-quiescent",
+        "journal-artifacts",
+        "journal-socket",
+      ]);
+      expect(inspectedSessions.length).toBeGreaterThanOrEqual(2);
+      expect(serveClosed).toBeGreaterThanOrEqual(1);
+      const recovered = parseBrowserRecoveryHandle(session.recoveryHandle!);
+      expect(existsSync(recovered.socketDirectory)).toBeFalse();
+      expect(existsSync(recovered.artifactsDirectory)).toBeFalse();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("converges a Lightpanda cleanup while the daemon supervisor is still restarting", async () => {
+    const root = mkdtempSync(join(tmpdir(), "io-lightpanda-stub-"));
+    type PublishedCleanupResource = Parameters<
+      NonNullable<
+        Parameters<typeof createBrowserSession>[2]["publishCleanupResource"]
+      >
+    >[0];
+    const published: PublishedCleanupResource[] = [];
+    let sessionInfoCalls = 0;
+    try {
+      const stub = join(root, "lightpanda");
+      writeFileSync(stub, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+      const session = await createBrowserSession(manifest, auth, {
+        headed: false,
+        timeoutMs: 5_000,
+        maxOutputBytes: 64 * 1024,
+        engine: "lightpanda",
+        environment: {
+          GHOSTGET_LIGHTPANDA_PATH: stub,
+          PATH: process.env.PATH ?? "/usr/bin:/bin",
+        },
+        publishCleanupResource: Object.assign(
+          (resource: PublishedCleanupResource) => {
+            published.push(resource);
+          },
+          {
+            markBrowserCleanupQuiescent: (): void => {},
+            markBrowserCleanupRootRemoved: (): void => {},
+          },
+        ),
+        dependencies: {
+          runCommand: (command) => {
+            if (command.includes("info")) {
+              sessionInfoCalls += 1;
+              const resource = published[0];
+              if (resource === undefined) {
+                throw new Error("session inspection ran before publication");
+              }
+              // The daemon keeps reporting the just-closed CDP session active
+              // while its supervisor restarts; only after the owned serve
+              // child is reaped does it settle inactive.
+              const active = sessionInfoCalls <= 2;
+              return Promise.resolve({
+                stdout: `${JSON.stringify({
+                  success: true,
+                  data: active
+                    ? {
+                        active: true,
+                        namespace: null,
+                        pid: 43125,
+                        runtime: {
+                          browserLaunched: false,
+                          effectiveLaunch: {
+                            browserLaunched: false,
+                            engine: "lightpanda",
+                            launchHash: null,
+                          },
+                          engine: "lightpanda",
+                        },
+                        runtimeError: null,
+                        session: resource.session,
+                        socketDir: resource.socketDirectory,
+                        version: "0.32.3",
+                      }
+                    : {
+                        active: false,
+                        namespace: null,
+                        pid: null,
+                        runtime: null,
+                        runtimeError: null,
+                        session: resource.session,
+                        socketDir: resource.socketDirectory,
+                        version: null,
+                      },
+                })}\n`,
+                stderr: "",
+                exitCode: 0,
+              });
+            }
+            return Promise.resolve({
+              stdout: "{\"success\":true}\n",
+              stderr: "",
+              exitCode: 0,
+            });
+          },
+          startNetworkProxy: () => Promise.resolve({
+            url: "http://127.0.0.1:43124",
+            port: 43_124,
+            close: () => Promise.resolve(),
+          }),
+          acquireCookieRecords: () => Promise.resolve({
+            cookies: [],
+            warnings: [],
+          }),
+          createLightpandaDependencies: () => ({
+            run: () => Promise.resolve({ ok: true }),
+            runBatch: () => Promise.resolve(),
+            close: () => Promise.resolve(),
+          }),
+          cleanupLifecycle: {
+            sleep: () => Promise.resolve(),
+          },
+        },
+      });
+      await session.close();
+      await session.cleanup();
+      expect(sessionInfoCalls).toBeGreaterThanOrEqual(4);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("auto resolves to Chromium through an unpublished preflight when the Lightpanda driver is incompatible", async () => {
+    const root = mkdtempSync(join(tmpdir(), "io-lightpanda-stub-"));
+    type PublishedCleanupResource = Parameters<
+      NonNullable<
+        Parameters<typeof createBrowserSession>[2]["publishCleanupResource"]
+      >
+    >[0];
+    const published: PublishedCleanupResource[] = [];
+    const cleanupEvents: string[] = [];
+    let browserClosed = false;
+    let daemonLive = true;
+    let lightpandaFactories = 0;
+    let chromeLaunched = false;
+    const launchHash = "18446744073709551615";
+    const exactLaunchHashJson = (value: unknown): string =>
+      JSON.stringify(value).replaceAll(
+        `"launchHash":"${launchHash}"`,
+        `"launchHash":${launchHash}`,
+      );
+    const lifecycle = {
+      effectiveLaunch: {
+        browserLaunched: true,
+        engine: "chrome",
+        launchHash,
+      },
+      launched: false,
+      relaunchedBrowser: false,
+      restartedBackground: false,
+      restoreStatus: "not_configured",
+      reused: true,
+      saveStatus: "not_attempted",
+    } as const;
+    const sessionInfoFor = (
+      session: string,
+      socketDir: string,
+    ): Record<string, unknown> => ({
+      success: true,
+      data: browserClosed && !daemonLive
+        ? {
+            active: false,
+            namespace: null,
+            pid: null,
+            runtime: null,
+            runtimeError: null,
+            session,
+            socketDir,
+            version: null,
+          }
+        : {
+            active: true,
+            namespace: null,
+            pid: process.pid,
+            runtime: {
+              backgroundPid: process.pid,
+              browserLaunched: !browserClosed,
+              compatibilityStatus: "current",
+              effectiveLaunch: browserClosed
+                ? {
+                    browserLaunched: false,
+                    engine: "chrome",
+                    launchHash: null,
+                  }
+                : lifecycle.effectiveLaunch,
+              engine: "chrome",
+              launchHash: browserClosed ? null : launchHash,
+              lifecycle: browserClosed
+                ? {
+                    ...lifecycle,
+                    effectiveLaunch: {
+                      browserLaunched: false,
+                      engine: "chrome",
+                      launchHash: null,
+                    },
+                  }
+                : lifecycle,
+              namespace: null,
+              pageCount: browserClosed ? 0 : 1,
+              restoreCheckFn: null,
+              restoreCheckText: null,
+              restoreCheckUrl: null,
+              restoreKey: null,
+              restoreLoadedPath: null,
+              restoreSave: "auto",
+              restoreSavedPath: null,
+              restoreStatus: "not_configured",
+              restoreStatusDetail: null,
+              restoreValidationPending: false,
+              saveStatus: "not_attempted",
+              session,
+              socketDir,
+            },
+            runtimeError: null,
+            session,
+            socketDir,
+            version: "0.32.3",
+          },
+    });
+    try {
+      const stub = join(root, "lightpanda");
+      writeFileSync(stub, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+      const session = await createBrowserSession(manifest, auth, {
+        headed: false,
+        timeoutMs: 5_000,
+        maxOutputBytes: 64 * 1024,
+        engine: "auto",
+        environment: {
+          GHOSTGET_LIGHTPANDA_PATH: stub,
+          PATH: process.env.PATH ?? "/usr/bin:/bin",
+        },
+        publishCleanupResource: Object.assign(
+          (resource: PublishedCleanupResource) => {
+            published.push(resource);
+          },
+          {
+            markBrowserCleanupQuiescent: (): void => {
+              cleanupEvents.push("journal-quiescent");
+            },
+            markBrowserCleanupRootRemoved: (
+              _resource: PublishedCleanupResource,
+              rootName: "artifacts" | "socket",
+            ): void => {
+              cleanupEvents.push(`journal-${rootName}`);
+            },
+          },
+        ),
+        dependencies: {
+          runCommand: (command, options) => {
+            if (command.includes("batch")) {
+              chromeLaunched = true;
+              const batch = JSON.parse(
+                options.stdin ?? "[]",
+              ) as readonly unknown[];
+              return Promise.resolve({
+                stdout: `${JSON.stringify(batch.map(() => ({
+                  success: true,
+                  data: null,
+                })))}\n`,
+                stderr: "",
+                exitCode: 0,
+              });
+            }
+            const sessionIndex = command.indexOf("--session");
+            const socketDir =
+              options.environment.AGENT_BROWSER_SOCKET_DIR ?? "";
+            if (command.includes("info")) {
+              const requested = command[sessionIndex + 1] ?? "";
+              if (requested !== published[0]?.session) {
+                // The unpublished preflight identity is always reported
+                // inactive once its owned serve child is reaped.
+                return Promise.resolve({
+                  stdout: `${JSON.stringify({
+                    success: true,
+                    data: {
+                      active: false,
+                      namespace: null,
+                      pid: null,
+                      runtime: null,
+                      runtimeError: null,
+                      session: requested,
+                      socketDir,
+                      version: null,
+                    },
+                  })}\n`,
+                  stderr: "",
+                  exitCode: 0,
+                });
+              }
+              return Promise.resolve({
+                stdout: `${exactLaunchHashJson(sessionInfoFor(
+                  requested,
+                  socketDir,
+                ))}\n`,
+                stderr: "",
+                exitCode: 0,
+              });
+            }
+            if (command.includes("cdp-url")) {
+              return Promise.resolve({
+                stdout: `${exactLaunchHashJson({
+                  success: true,
+                  data: {
+                    cdpUrl: "ws://127.0.0.1:43125/devtools/browser/exact-test",
+                    lifecycle,
+                  },
+                })}\n`,
+                stderr: "",
+                exitCode: 0,
+              });
+            }
+            if (command.includes("close")) browserClosed = true;
+            return Promise.resolve({
+              stdout: "{\"success\":true}\n",
+              stderr: "",
+              exitCode: 0,
+            });
+          },
+          startNetworkProxy: () => Promise.resolve({
+            url: "http://127.0.0.1:43124",
+            port: 43_124,
+            close: () => Promise.resolve(),
+          }),
+          acquireCookieRecords: () => Promise.resolve({
+            cookies: [],
+            warnings: [],
+          }),
+          createLightpandaDependencies: () => {
+            lightpandaFactories += 1;
+            return {
+              run: () => Promise.resolve({ ok: true }),
+              runBatch: (_globals, commands) => {
+                if (
+                  commands.some((command) => command[0] === "open")
+                ) {
+                  return Promise.reject(new LightpandaCompatibilityError(true));
+                }
+                return Promise.resolve();
+              },
+              close: () => Promise.resolve(),
+            };
+          },
+          cleanupLifecycle: {
+            ownerStatus: () => daemonLive
+              ? "exact-live-owner"
+              : "different-or-dead",
+            terminateOwner: () => {
+              daemonLive = false;
+            },
+            cdpEndpointStatus: () => Promise.resolve("unavailable"),
+            sleep: () => Promise.resolve(),
+          },
+        },
+      });
+      await session.close();
+      await session.cleanup();
+      expect(chromeLaunched).toBeTrue();
+      expect(lightpandaFactories).toBe(1);
+      expect(
+        published.every((resource) =>
+          resource.session === published[0]?.session
+        ),
+      ).toBeTrue();
+      expect(published.map((resource) => resource.kind === "agent-browser-session-v2"
+        ? resource.phase
+        : "legacy")).toEqual([
+        "prepared",
+        "launch-intent",
+        "controlled",
+      ]);
+      expect(cleanupEvents).toEqual([
+        "journal-quiescent",
+        "journal-artifacts",
+        "journal-socket",
+      ]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("auto resolves to Chromium when the daemon keeps the failed preflight session active", async () => {
+    const root = mkdtempSync(join(tmpdir(), "io-lightpanda-stub-"));
+    type PublishedCleanupResource = Parameters<
+      NonNullable<
+        Parameters<typeof createBrowserSession>[2]["publishCleanupResource"]
+      >
+    >[0];
+    const published: PublishedCleanupResource[] = [];
+    let chromeLaunched = false;
+    let lightpandaFactories = 0;
+    let preflightArtifactsDirectory: string | null = null;
+    let preflightSocketDirectory: string | null = null;
+    const launchHash = "18446744073709551615";
+    const exactLaunchHashJson = (value: unknown): string =>
+      JSON.stringify(value).replaceAll(
+        `"launchHash":"${launchHash}"`,
+        `"launchHash":${launchHash}`,
+      );
+    const lifecycle = {
+      effectiveLaunch: {
+        browserLaunched: true,
+        engine: "chrome",
+        launchHash,
+      },
+      launched: false,
+      relaunchedBrowser: false,
+      restartedBackground: false,
+      restoreStatus: "not_configured",
+      reused: true,
+      saveStatus: "not_attempted",
+    } as const;
+    let browserClosed = false;
+    let daemonLive = true;
+    try {
+      const stub = join(root, "lightpanda");
+      writeFileSync(stub, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+      const session = await createBrowserSession(manifest, auth, {
+        headed: false,
+        timeoutMs: 5_000,
+        maxOutputBytes: 64 * 1024,
+        engine: "auto",
+        environment: {
+          GHOSTGET_LIGHTPANDA_PATH: stub,
+          PATH: process.env.PATH ?? "/usr/bin:/bin",
+        },
+        publishCleanupResource: Object.assign(
+          (resource: PublishedCleanupResource) => {
+            published.push(resource);
+          },
+          {
+            markBrowserCleanupQuiescent: (): void => {},
+            markBrowserCleanupRootRemoved: (): void => {},
+          },
+        ),
+        dependencies: {
+          runCommand: (command, options) => {
+            if (command.includes("batch")) {
+              chromeLaunched = true;
+              const batch = JSON.parse(
+                options.stdin ?? "[]",
+              ) as readonly unknown[];
+              return Promise.resolve({
+                stdout: `${JSON.stringify(batch.map(() => ({
+                  success: true,
+                  data: null,
+                })))}\n`,
+                stderr: "",
+                exitCode: 0,
+              });
+            }
+            if (command.includes("info")) {
+              const sessionIndex = command.indexOf("--session");
+              const requested = command[sessionIndex + 1] ?? "";
+              const socketDir =
+                options.environment.AGENT_BROWSER_SOCKET_DIR ?? "";
+              if (requested !== published[0]?.session) {
+                // The daemon keeps the failed preflight session active; the
+                // fallback must not depend on that view converging.
+                return Promise.resolve({
+                  stdout: `${JSON.stringify({
+                    success: true,
+                    data: {
+                      active: true,
+                      namespace: null,
+                      pid: 43126,
+                      runtime: {
+                        browserLaunched: false,
+                        effectiveLaunch: {
+                          browserLaunched: false,
+                          engine: "lightpanda",
+                          launchHash: null,
+                        },
+                        engine: "lightpanda",
+                      },
+                      runtimeError: null,
+                      session: requested,
+                      socketDir,
+                      version: "0.32.3",
+                    },
+                  })}\n`,
+                  stderr: "",
+                  exitCode: 0,
+                });
+              }
+              return Promise.resolve({
+                stdout: `${exactLaunchHashJson({
+                  success: true,
+                  data: browserClosed && !daemonLive
+                    ? {
+                        active: false,
+                        namespace: null,
+                        pid: null,
+                        runtime: null,
+                        runtimeError: null,
+                        session: requested,
+                        socketDir,
+                        version: null,
+                      }
+                    : {
+                        active: true,
+                        namespace: null,
+                        pid: process.pid,
+                        runtime: {
+                          backgroundPid: process.pid,
+                          browserLaunched: !browserClosed,
+                          compatibilityStatus: "current",
+                          effectiveLaunch: browserClosed
+                            ? {
+                                browserLaunched: false,
+                                engine: "chrome",
+                                launchHash: null,
+                              }
+                            : lifecycle.effectiveLaunch,
+                          engine: "chrome",
+                          launchHash: browserClosed ? null : launchHash,
+                          lifecycle: browserClosed
+                            ? {
+                                ...lifecycle,
+                                effectiveLaunch: {
+                                  browserLaunched: false,
+                                  engine: "chrome",
+                                  launchHash: null,
+                                },
+                              }
+                            : lifecycle,
+                          namespace: null,
+                          pageCount: browserClosed ? 0 : 1,
+                          restoreCheckFn: null,
+                          restoreCheckText: null,
+                          restoreCheckUrl: null,
+                          restoreKey: null,
+                          restoreLoadedPath: null,
+                          restoreSave: "auto",
+                          restoreSavedPath: null,
+                          restoreStatus: "not_configured",
+                          restoreStatusDetail: null,
+                          restoreValidationPending: false,
+                          saveStatus: "not_attempted",
+                          session: requested,
+                          socketDir,
+                        },
+                        runtimeError: null,
+                        session: requested,
+                        socketDir,
+                        version: "0.32.3",
+                      },
+                })}\n`,
+                stderr: "",
+                exitCode: 0,
+              });
+            }
+            if (command.includes("cdp-url")) {
+              return Promise.resolve({
+                stdout: `${exactLaunchHashJson({
+                  success: true,
+                  data: {
+                    cdpUrl: "ws://127.0.0.1:43125/devtools/browser/exact-test",
+                    lifecycle,
+                  },
+                })}\n`,
+                stderr: "",
+                exitCode: 0,
+              });
+            }
+            if (command.includes("close")) browserClosed = true;
+            return Promise.resolve({
+              stdout: "{\"success\":true}\n",
+              stderr: "",
+              exitCode: 0,
+            });
+          },
+          startNetworkProxy: () => Promise.resolve({
+            url: "http://127.0.0.1:43124",
+            port: 43_124,
+            close: () => Promise.resolve(),
+          }),
+          acquireCookieRecords: () => Promise.resolve({
+            cookies: [],
+            warnings: [],
+          }),
+          createLightpandaDependencies: () => {
+            lightpandaFactories += 1;
+            return {
+              run: (_globals, command) => {
+                if (command[0] === "close") {
+                  return Promise.resolve({ closed: true });
+                }
+                return Promise.resolve({ ok: true });
+              },
+              runBatch: (_globals, commands, options) => {
+                preflightArtifactsDirectory = options.cwd;
+                preflightSocketDirectory =
+                  options.environment.AGENT_BROWSER_SOCKET_DIR ?? null;
+                if (commands.some((command) => command[0] === "open")) {
+                  return Promise.reject(
+                    new LightpandaCompatibilityError(true),
+                  );
+                }
+                return Promise.resolve();
+              },
+              close: () => Promise.resolve(),
+            };
+          },
+          cleanupLifecycle: {
+            ownerStatus: () => daemonLive
+              ? "exact-live-owner"
+              : "different-or-dead",
+            terminateOwner: () => {
+              daemonLive = false;
+            },
+            cdpEndpointStatus: () => Promise.resolve("unavailable"),
+            sleep: () => Promise.resolve(),
+          },
+        },
+      });
+      await session.close();
+      await session.cleanup();
+      expect(chromeLaunched).toBeTrue();
+      expect(lightpandaFactories).toBe(1);
+      expect(published.map((resource) => resource.kind === "agent-browser-session-v2"
+        ? resource.phase
+        : "legacy")).toEqual([
+        "prepared",
+        "launch-intent",
+        "controlled",
+      ]);
+      expect(preflightArtifactsDirectory).not.toBeNull();
+      expect(preflightSocketDirectory).not.toBeNull();
+      // The failed probe's teardown was complete, so its throwaway roots are
+      // removed even though the daemon's view never converged.
+      expect(existsSync(preflightArtifactsDirectory!)).toBeFalse();
+      expect(existsSync(preflightSocketDirectory!)).toBeFalse();
+    } finally {
+      if (preflightArtifactsDirectory !== null) {
+        rmSync(preflightArtifactsDirectory, { recursive: true, force: true });
+      }
+      if (preflightSocketDirectory !== null) {
+        rmSync(preflightSocketDirectory, { recursive: true, force: true });
+      }
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("auto resolves to Chromium but preserves preflight roots when inactivity never converges", async () => {
+    const root = mkdtempSync(join(tmpdir(), "io-lightpanda-stub-"));
+    type PublishedCleanupResource = Parameters<
+      NonNullable<
+        Parameters<typeof createBrowserSession>[2]["publishCleanupResource"]
+      >
+    >[0];
+    const published: PublishedCleanupResource[] = [];
+    let chromeLaunched = false;
+    let lightpandaFactories = 0;
+    let preflightArtifactsDirectory: string | null = null;
+    let preflightSocketDirectory: string | null = null;
+    const launchHash = "18446744073709551615";
+    const exactLaunchHashJson = (value: unknown): string =>
+      JSON.stringify(value).replaceAll(
+        `"launchHash":"${launchHash}"`,
+        `"launchHash":${launchHash}`,
+      );
+    const lifecycle = {
+      effectiveLaunch: {
+        browserLaunched: true,
+        engine: "chrome",
+        launchHash,
+      },
+      launched: false,
+      relaunchedBrowser: false,
+      restartedBackground: false,
+      restoreStatus: "not_configured",
+      reused: true,
+      saveStatus: "not_attempted",
+    } as const;
+    let browserClosed = false;
+    let daemonLive = true;
+    let convergenceNow = 0;
+    try {
+      const stub = join(root, "lightpanda");
+      writeFileSync(stub, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+      const session = await createBrowserSession(manifest, auth, {
+        headed: false,
+        timeoutMs: 5_000,
+        maxOutputBytes: 64 * 1024,
+        engine: "auto",
+        environment: {
+          GHOSTGET_LIGHTPANDA_PATH: stub,
+          PATH: process.env.PATH ?? "/usr/bin:/bin",
+        },
+        publishCleanupResource: Object.assign(
+          (resource: PublishedCleanupResource) => {
+            published.push(resource);
+          },
+          {
+            markBrowserCleanupQuiescent: (): void => {},
+            markBrowserCleanupRootRemoved: (): void => {},
+          },
+        ),
+        dependencies: {
+          runCommand: (command, options) => {
+            if (command.includes("batch")) {
+              chromeLaunched = true;
+              const batch = JSON.parse(
+                options.stdin ?? "[]",
+              ) as readonly unknown[];
+              return Promise.resolve({
+                stdout: `${JSON.stringify(batch.map(() => ({
+                  success: true,
+                  data: null,
+                })))}\n`,
+                stderr: "",
+                exitCode: 0,
+              });
+            }
+            if (command.includes("info")) {
+              const sessionIndex = command.indexOf("--session");
+              const requested = command[sessionIndex + 1] ?? "";
+              const socketDir =
+                options.environment.AGENT_BROWSER_SOCKET_DIR ?? "";
+              if (requested !== published[0]?.session) {
+                // The daemon never observes the closed preflight session as
+                // inactive inside the bounded convergence window.
+                return Promise.resolve({
+                  stdout: `${JSON.stringify({
+                    success: true,
+                    data: {
+                      active: true,
+                      namespace: null,
+                      pid: 43126,
+                      runtime: {
+                        browserLaunched: false,
+                        effectiveLaunch: {
+                          browserLaunched: false,
+                          engine: "lightpanda",
+                          launchHash: null,
+                        },
+                        engine: "lightpanda",
+                      },
+                      runtimeError: null,
+                      session: requested,
+                      socketDir,
+                      version: "0.32.3",
+                    },
+                  })}\n`,
+                  stderr: "",
+                  exitCode: 0,
+                });
+              }
+              return Promise.resolve({
+                stdout: `${exactLaunchHashJson({
+                  success: true,
+                  data: browserClosed && !daemonLive
+                    ? {
+                        active: false,
+                        namespace: null,
+                        pid: null,
+                        runtime: null,
+                        runtimeError: null,
+                        session: requested,
+                        socketDir,
+                        version: null,
+                      }
+                    : {
+                        active: true,
+                        namespace: null,
+                        pid: process.pid,
+                        runtime: {
+                          backgroundPid: process.pid,
+                          browserLaunched: !browserClosed,
+                          compatibilityStatus: "current",
+                          effectiveLaunch: browserClosed
+                            ? {
+                                browserLaunched: false,
+                                engine: "chrome",
+                                launchHash: null,
+                              }
+                            : lifecycle.effectiveLaunch,
+                          engine: "chrome",
+                          launchHash: browserClosed ? null : launchHash,
+                          lifecycle: browserClosed
+                            ? {
+                                ...lifecycle,
+                                effectiveLaunch: {
+                                  browserLaunched: false,
+                                  engine: "chrome",
+                                  launchHash: null,
+                                },
+                              }
+                            : lifecycle,
+                          namespace: null,
+                          pageCount: browserClosed ? 0 : 1,
+                          restoreCheckFn: null,
+                          restoreCheckText: null,
+                          restoreCheckUrl: null,
+                          restoreKey: null,
+                          restoreLoadedPath: null,
+                          restoreSave: "auto",
+                          restoreSavedPath: null,
+                          restoreStatus: "not_configured",
+                          restoreStatusDetail: null,
+                          restoreValidationPending: false,
+                          saveStatus: "not_attempted",
+                          session: requested,
+                          socketDir,
+                        },
+                        runtimeError: null,
+                        session: requested,
+                        socketDir,
+                        version: "0.32.3",
+                      },
+                })}\n`,
+                stderr: "",
+                exitCode: 0,
+              });
+            }
+            if (command.includes("cdp-url")) {
+              return Promise.resolve({
+                stdout: `${exactLaunchHashJson({
+                  success: true,
+                  data: {
+                    cdpUrl: "ws://127.0.0.1:43125/devtools/browser/exact-test",
+                    lifecycle,
+                  },
+                })}\n`,
+                stderr: "",
+                exitCode: 0,
+              });
+            }
+            if (command.includes("close")) browserClosed = true;
+            return Promise.resolve({
+              stdout: "{\"success\":true}\n",
+              stderr: "",
+              exitCode: 0,
+            });
+          },
+          startNetworkProxy: () => Promise.resolve({
+            url: "http://127.0.0.1:43124",
+            port: 43_124,
+            close: () => Promise.resolve(),
+          }),
+          acquireCookieRecords: () => Promise.resolve({
+            cookies: [],
+            warnings: [],
+          }),
+          createLightpandaDependencies: () => {
+            lightpandaFactories += 1;
+            return {
+              run: (_globals, command) => {
+                if (command[0] === "close") {
+                  return Promise.resolve({ closed: true });
+                }
+                return Promise.resolve({ ok: true });
+              },
+              runBatch: (_globals, _commands, options) => {
+                preflightArtifactsDirectory = options.cwd;
+                preflightSocketDirectory =
+                  options.environment.AGENT_BROWSER_SOCKET_DIR ?? null;
+                return Promise.resolve();
+              },
+              close: () => Promise.resolve(),
+            };
+          },
+          cleanupLifecycle: {
+            ownerStatus: () => daemonLive
+              ? "exact-live-owner"
+              : "different-or-dead",
+            terminateOwner: () => {
+              daemonLive = false;
+            },
+            cdpEndpointStatus: () => Promise.resolve("unavailable"),
+            sleep: () => Promise.resolve(),
+            // Advance half a second per read: the preflight convergence window
+            // exhausts its retries in a few attempts while the Chromium
+            // cleanup's three-refusal endpoint loop still fits its bound.
+            now: () => (convergenceNow += 500),
+          },
+        },
+      });
+      await session.close();
+      await session.cleanup();
+      expect(chromeLaunched).toBeTrue();
+      expect(lightpandaFactories).toBe(1);
+      expect(published.map((resource) => resource.kind === "agent-browser-session-v2"
+        ? resource.phase
+        : "legacy")).toEqual([
+        "prepared",
+        "launch-intent",
+        "controlled",
+      ]);
+      expect(preflightArtifactsDirectory).not.toBeNull();
+      expect(preflightSocketDirectory).not.toBeNull();
+      // Quiescence was never proved, so the throwaway roots are preserved
+      // rather than deleted under an uncertain daemon view.
+      expect(existsSync(preflightArtifactsDirectory!)).toBeTrue();
+      expect(existsSync(preflightSocketDirectory!)).toBeTrue();
+    } finally {
+      if (preflightArtifactsDirectory !== null) {
+        rmSync(preflightArtifactsDirectory, { recursive: true, force: true });
+      }
+      if (preflightSocketDirectory !== null) {
+        rmSync(preflightSocketDirectory, { recursive: true, force: true });
+      }
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("rejects a foreign session's inactive report during launch-intent quiescence", async () => {
+    const artifactsDirectory = mkdtempSync(join(tmpdir(), "io-browser-"));
+    const socketDirectory = mkdtempSync(join("/tmp", "io-ab-"));
+    try {
+      const configPath = join(artifactsDirectory, "agent-browser.json");
+      writeFileSync(configPath, "{}\n", { mode: 0o600 });
+      const session = `io-${process.pid}-${"a".repeat(12)}`;
+      const directoryIdentity = (path: string) => {
+        const stats = lstatSync(path, { bigint: true });
+        return {
+          device: stats.dev.toString(),
+          inode: stats.ino.toString(),
+          birthtimeNs: stats.birthtimeNs.toString(),
+          mode: "448" as const,
+          uid: stats.uid.toString(),
+        };
+      };
+      const resource = parseBrowserCleanupResourceIdentity({
+        kind: "agent-browser-session-v2",
+        recoveryHandle: browserRecoveryHandle({
+          session,
+          configPath,
+          socketDirectory,
+          artifactsDirectory,
+        }),
+        session,
+        socketDirectory,
+        socketDirectoryIdentity: directoryIdentity(socketDirectory),
+        artifactsDirectory,
+        artifactsDirectoryIdentity: directoryIdentity(artifactsDirectory),
+        phase: "launch-intent",
+        control: null,
+      }) as BrowserCleanupResourceIdentityV2;
+      const failure = await rejectionValue(
+        proveLaunchIntentAgentBrowserCleanupResourceQuiescent(resource, {
+          runCommand: () => Promise.resolve({
+            stdout: `${JSON.stringify({
+              success: true,
+              data: {
+                active: false,
+                namespace: null,
+                pid: null,
+                runtime: null,
+                runtimeError: null,
+                session: `io-${process.pid}-${"b".repeat(12)}`,
+                socketDir: socketDirectory,
+                version: null,
+              },
+            })}\n`,
+            stderr: "",
+            exitCode: 0,
+          }),
+        }),
+      );
+      expect(failure).toBeInstanceOf(Error);
+      const socketMismatch = await rejectionValue(
+        proveLaunchIntentAgentBrowserCleanupResourceQuiescent(resource, {
+          runCommand: () => Promise.resolve({
+            stdout: `${JSON.stringify({
+              success: true,
+              data: {
+                active: false,
+                namespace: null,
+                pid: null,
+                runtime: null,
+                runtimeError: null,
+                session,
+                socketDir: `${socketDirectory}-other`,
+                version: null,
+              },
+            })}\n`,
+            stderr: "",
+            exitCode: 0,
+          }),
+        }),
+      );
+      expect(socketMismatch).toBeInstanceOf(Error);
+    } finally {
+      rmSync(artifactsDirectory, { recursive: true, force: true });
+      rmSync(socketDirectory, { recursive: true, force: true });
+    }
+  });
+
+  test("fails closed when a post-publish incompatibility cannot register the Chromium retry", async () => {
+    const root = mkdtempSync(join(tmpdir(), "io-lightpanda-stub-"));
+    type PublishedCleanupResource = Parameters<
+      NonNullable<
+        Parameters<typeof createBrowserSession>[2]["publishCleanupResource"]
+      >
+    >[0];
+    const published: PublishedCleanupResource[] = [];
+    let lightpandaFactories = 0;
+    try {
+      const stub = join(root, "lightpanda");
+      writeFileSync(stub, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+      const failure = await rejectionValue(createBrowserSession(manifest, auth, {
+        headed: false,
+        timeoutMs: 5_000,
+        maxOutputBytes: 64 * 1024,
+        engine: "auto",
+        environment: {
+          GHOSTGET_LIGHTPANDA_PATH: stub,
+          PATH: process.env.PATH ?? "/usr/bin:/bin",
+        },
+        publishCleanupResource: Object.assign(
+          (resource: PublishedCleanupResource) => {
+            // Model the durable registrar: only an identical session may
+            // republish; a second attempt's fresh identity is rejected.
+            if (
+              published.length > 0
+              && resource.session !== published[0]?.session
+            ) {
+              throw new Error("browser cleanup resource identity drifted");
+            }
+            published.push(resource);
+          },
+          {
+            markBrowserCleanupQuiescent: (): void => {},
+            markBrowserCleanupRootRemoved: (): void => {},
+          },
+        ),
+        dependencies: {
+          runCommand: (command, options) => {
+            if (command.includes("batch")) {
+              const batch = JSON.parse(
+                options.stdin ?? "[]",
+              ) as readonly unknown[];
+              return Promise.resolve({
+                stdout: `${JSON.stringify(batch.map(() => ({
+                  success: true,
+                  data: null,
+                })))}\n`,
+                stderr: "",
+                exitCode: 0,
+              });
+            }
+            if (command.includes("info")) {
+              const sessionIndex = command.indexOf("--session");
+              const requested = command[sessionIndex + 1] ?? "";
+              const resource = published[0];
+              return Promise.resolve({
+                stdout: `${JSON.stringify({
+                  success: true,
+                  data: {
+                    active: false,
+                    namespace: null,
+                    pid: null,
+                    runtime: null,
+                    runtimeError: null,
+                    session: requested,
+                    socketDir: resource === undefined
+                      ? options.environment.AGENT_BROWSER_SOCKET_DIR ?? ""
+                      : resource.socketDirectory,
+                    version: null,
+                  },
+                })}\n`,
+                stderr: "",
+                exitCode: 0,
+              });
+            }
+            return Promise.resolve({
+              stdout: "{\"success\":true}\n",
+              stderr: "",
+              exitCode: 0,
+            });
+          },
+          startNetworkProxy: () => Promise.resolve({
+            url: "http://127.0.0.1:43124",
+            port: 43_124,
+            close: () => Promise.resolve(),
+          }),
+          acquireCookieRecords: () => Promise.resolve({
+            cookies: [],
+            warnings: [],
+          }),
+          createLightpandaDependencies: () => {
+            lightpandaFactories += 1;
+            const preflight = lightpandaFactories === 1;
+            return {
+              run: () => Promise.resolve({ ok: true }),
+              runBatch: () => preflight
+                ? Promise.resolve()
+                : Promise.reject(new LightpandaCompatibilityError(true)),
+              close: () => Promise.resolve(),
+            };
+          },
+          cleanupLifecycle: {
+            sleep: () => Promise.resolve(),
+          },
+        },
+      }));
+      // The compat failure arrived after the launch-intent identity was
+      // durable, so the Chromium retry cannot register a second identity; the
+      // session fails closed with its roots preserved or already journaled.
+      expect(failure).toBeInstanceOf(PreservedBrowserArtifactsError);
+      expect(lightpandaFactories).toBe(2);
+      const first = published[0];
+      const latest = published[published.length - 1];
+      if (first === undefined || latest === undefined) {
+        throw new Error("the Lightpanda attempt never published");
+      }
+      expect(latest.kind).toBe("agent-browser-session-v2");
+      if (latest.kind !== "agent-browser-session-v2") {
+        throw new Error("the Lightpanda attempt published a legacy resource");
+      }
+      expect(latest.phase).toBe("launch-intent");
+      expect(existsSync(first.socketDirectory)).toBeFalse();
+      expect(existsSync(first.artifactsDirectory)).toBeFalse();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("a stale LIGHTPANDA_PATH never affects an explicit Chromium session", async () => {
+    let lightpandaFactories = 0;
+    let chromeBatches = 0;
+    const session = await createBrowserSession(manifest, auth, {
+      headed: false,
+      timeoutMs: 5_000,
+      maxOutputBytes: 64 * 1024,
+      engine: "chrome",
+      environment: {
+        GHOSTGET_LIGHTPANDA_PATH: "/nonexistent/lightpanda",
+        LIGHTPANDA_PATH: "/also/nonexistent/lightpanda",
+        PATH: process.env.PATH ?? "/usr/bin:/bin",
+      },
+      dependencies: {
+        runCommand: (command, options) => {
+          if (command.includes("batch")) {
+            chromeBatches += 1;
+            const batch = JSON.parse(
+              options.stdin ?? "[]",
+            ) as readonly unknown[];
+            return Promise.resolve({
+              stdout: `${JSON.stringify(batch.map(() => ({
+                success: true,
+                data: null,
+              })))}\n`,
+              stderr: "",
+              exitCode: 0,
+            });
+          }
+          return Promise.resolve({
+            stdout: "{\"success\":true}\n",
+            stderr: "",
+            exitCode: 0,
+          });
+        },
+        startNetworkProxy: () => Promise.resolve({
+          url: "http://127.0.0.1:43124",
+          port: 43_124,
+          close: () => Promise.resolve(),
+        }),
+        acquireCookieRecords: () => Promise.resolve({
+          cookies: [],
+          warnings: [],
+        }),
+        createLightpandaDependencies: () => {
+          lightpandaFactories += 1;
+          throw new Error("a Chromium session must not resolve Lightpanda");
+        },
+      },
+    });
+    await session.close();
+    await session.cleanup();
+    expect(lightpandaFactories).toBe(0);
+    expect(chromeBatches).toBeGreaterThan(0);
+  });
+
+  test("keeps imported cookie values inside the Lightpanda stdin batch channel", async () => {
+    const root = mkdtempSync(join(tmpdir(), "io-lightpanda-stub-"));
+    const secret = "private-cookie-value-0123456789";
+    const runArgv: string[][] = [];
+    const batchCommands: string[][] = [];
+    try {
+      const stub = join(root, "lightpanda");
+      writeFileSync(stub, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+      const session = await createBrowserSession(manifest, auth, {
+        headed: false,
+        timeoutMs: 5_000,
+        maxOutputBytes: 64 * 1024,
+        engine: "lightpanda",
+        environment: {
+          GHOSTGET_LIGHTPANDA_PATH: stub,
+          PATH: process.env.PATH ?? "/usr/bin:/bin",
+        },
+        dependencies: {
+          runCommand: (command) => {
+            runArgv.push([...command]);
+            return Promise.resolve({
+              stdout: "{\"success\":true}\n",
+              stderr: "",
+              exitCode: 0,
+            });
+          },
+          startNetworkProxy: () => Promise.resolve({
+            url: "http://127.0.0.1:43124",
+            port: 43_124,
+            close: () => Promise.resolve(),
+          }),
+          acquireCookieRecords: () => Promise.resolve({
+            cookies: [{
+              name: "session",
+              value: secret,
+              domain: "example.com",
+              hostOnly: true,
+              path: "/",
+              secure: true,
+              httpOnly: true,
+              sameSite: "Lax" as const,
+              expires: 0,
+            }],
+            warnings: [],
+          }),
+          createLightpandaDependencies: () => ({
+            run: (globalArguments, command) => {
+              runArgv.push([...globalArguments, ...command]);
+              return Promise.resolve({ ok: true });
+            },
+            runBatch: (_globals, commands) => {
+              for (const command of commands) {
+                batchCommands.push([...command]);
+              }
+              return Promise.resolve();
+            },
+            close: () => Promise.resolve(),
+          }),
+        },
+      });
+      await session.close();
+      await session.cleanup();
+      const cookieCommand = batchCommands.find(
+        (command) => command[0] === "cookies",
+      );
+      expect(cookieCommand?.slice(0, 4)).toEqual([
+        "cookies",
+        "set",
+        "session",
+        secret,
+      ]);
+      for (const argv of runArgv) {
+        expect(argv).not.toContain(secret);
+      }
+      expect(batchCommands.every((command) => command[0] !== "batch"))
+        .toBeTrue();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("rejects an active Lightpanda session during Chromium control binding", async () => {
+    const artifactsDirectory = mkdtempSync(join(tmpdir(), "io-browser-"));
+    const socketDirectory = mkdtempSync(join("/tmp", "io-ab-"));
+    chmodSync(artifactsDirectory, 0o700);
+    chmodSync(socketDirectory, 0o700);
+    const session = "io-125-abcdef123456";
+    const configPath = join(artifactsDirectory, "agent-browser.json");
+    writeFileSync(configPath, "{}\n", { mode: 0o600 });
+    const statsIdentity = (path: string) => {
+      const stats = lstatSync(path, { bigint: true });
+      return {
+        device: stats.dev.toString(),
+        inode: stats.ino.toString(),
+        birthtimeNs: stats.birthtimeNs.toString(),
+        mode: "448" as const,
+        uid: stats.uid.toString(),
+      };
+    };
+    try {
+      const launchIntent = parseBrowserCleanupResourceIdentity({
+        kind: "agent-browser-session-v2",
+        recoveryHandle: browserRecoveryHandle({
+          session,
+          configPath,
+          socketDirectory,
+          artifactsDirectory,
+        }),
+        session,
+        socketDirectory,
+        socketDirectoryIdentity: statsIdentity(socketDirectory),
+        artifactsDirectory,
+        artifactsDirectoryIdentity: statsIdentity(artifactsDirectory),
+        phase: "launch-intent",
+        control: null,
+      }) as BrowserCleanupResourceIdentityV2;
+      const rejection = await rejectionMessage(
+        bindLiveAgentBrowserCleanupResource(launchIntent, {
+          captureOwner: () => ({
+            pid: 43125,
+            bootId: "a".repeat(64),
+            processStartId: "b".repeat(64),
+          }),
+          ownerStatus: () => "exact-live-owner",
+          runCommand: (command) => {
+            if (command.includes("info")) {
+              return Promise.resolve({
+                stdout: `${JSON.stringify({
+                  success: true,
+                  data: {
+                    active: true,
+                    namespace: null,
+                    pid: 43125,
+                    runtime: {
+                      browserLaunched: false,
+                      effectiveLaunch: {
+                        browserLaunched: false,
+                        engine: "lightpanda",
+                        launchHash: null,
+                      },
+                      engine: "lightpanda",
+                    },
+                    runtimeError: null,
+                    session,
+                    socketDir: socketDirectory,
+                    version: "0.32.3",
+                  },
+                })}\n`,
+                stderr: "",
+                exitCode: 0,
+              });
+            }
+            return Promise.resolve({
+              stdout: "{\"success\":true}\n",
+              stderr: "",
+              exitCode: 0,
+            });
+          },
+        }),
+      );
+      expect(rejection).toContain("runtime is malformed");
+    } finally {
+      rmSync(socketDirectory, { recursive: true, force: true });
+      rmSync(artifactsDirectory, { recursive: true, force: true });
+    }
+  });
+});

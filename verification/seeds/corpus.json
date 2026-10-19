@@ -1,0 +1,97 @@
+{
+  "schema": "ghostget-property-seeds-v1",
+  "properties": {
+    "browser-admission/stateful-model": {
+      "file": "src/browser-admission.model.test.ts",
+      "entries": [
+        {
+          "kind": "counterexample",
+          "seed": -1818327600,
+          "origin": "Required run 36502730766 (job 109197101186, CI path 7:1:1:4:...:15 before the boundary example was added) shrank an acquisition whose capture deadline expired on the final availability check's clock reading; main push 36415572995 and nightly 36444112581 failed on the same boundary.",
+          "regression": "refuses an admission when the capture deadline expires on the final clock reading (CI seed -1818327600)"
+        }
+      ]
+    },
+    "clasificados/single-entity-layer": {
+      "file": "src/providers/clasificados-web.test.ts",
+      "entries": [
+        {
+          "kind": "counterexample",
+          "seed": 229324587,
+          "path": "0:0",
+          "origin": "Local launch-readiness regression shrank an amp-escaped numeric entity to one bedroom.",
+          "regression": "does not turn an escaped numeric entity into one bedroom"
+        }
+      ]
+    },
+    "contracts-invoke-read/output-round-trip": {
+      "file": "src/contracts-invoke-read.test.ts",
+      "entries": [
+        {
+          "kind": "counterexample",
+          "seed": 455347073,
+          "path": "3:1:86:86",
+          "origin": "Required run 35687468171 shrank a succeeded envelope whose output is {\"__proto__\":0}.",
+          "regression": "round-trips an output with an own __proto__ member (CI seed 455347073, path 3:1:86:86)"
+        }
+      ]
+    },
+    "linkedin-profile/raw-text-count-exclusion": {
+      "file": "src/providers/linkedin-web.test.ts",
+      "entries": [
+        {
+          "kind": "counterexample",
+          "seed": 1137143445,
+          "path": "0:0:0",
+          "origin": "Local launch-readiness regression shrank an unfinished script exposing hidden count and controls.",
+          "regression": "excludes raw-text counts and controls with whitespace-bearing end tags"
+        }
+      ]
+    },
+    "messaging-automation/groups-lifecycle": {
+      "file": "src/messaging-automation-groups.test.ts",
+      "entries": [
+        {
+          "kind": "workload",
+          "seed": -1090781564,
+          "origin": "The initial group lifecycle check exceeded the generic 10-second property budget after eight schedules over durable SQLite hosts; no counterexample or shrink was reported. Replay retains this workload with the explicit 90-second I/O property budget and repository 180-second Bun runner policy."
+        }
+      ]
+    },
+    "state-crash-harness/session-secrets-boundary": {
+      "file": "src/state-crash-harness.test.ts",
+      "entries": [
+        {
+          "kind": "counterexample",
+          "seed": -84709046,
+          "origin": "Local full-gate unit shard shrank two crashed session removals whose orphaned state-helper mutation-claim lock counted as encrypted state, wedging the keyless store.",
+          "regression": "an orphaned state-helper claim does not wedge a keyless session store"
+        }
+      ]
+    },
+    "verification-claims/guideline-additions": {
+      "file": "scripts/verification-claims.test.ts",
+      "entries": [
+        {
+          "kind": "counterexample",
+          "seed": 80249490,
+          "path": "0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0",
+          "origin": "Required run 36792160811 (verification job 110147643479) shrank a Keep Keep guideline addition while the committed release-source CodeQL claim still quoted the old two-language documentation. The committed-register example rejects that stale quote independently.",
+          "regression": "parses strictly and agrees with every scanned guide, source, and evidence path"
+        }
+      ]
+    },
+    "verification-oracles/url-candidates": {
+      "file": "scripts/verification-oracles.test.ts",
+      "entries": [
+        {
+          "kind": "counterexample",
+          "seed": 42458414,
+          "path": "148:42:40:40:40:40:40:40:40:40:40:40:40",
+          "origin": "Required verification on PR #381 shrank a drive-letter input reached through a backslash, https:user:pass@a-.co\\m:/../a?q=\u00e4, that comparedParse missed.",
+          "regression": "the known drive-letter difference through a backslash leaves both sides refusing the input"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en" data-hraness-theme="paper" data-palette="gruvbox">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#fbf1c7" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">
+    <title>Review the administrator access a tool needs</title>
+    <meta name="description" content="Administrator access changes what a program can affect. Separate installation needs from everyday work and keep recurring permissions specific.">
+    <meta name="robots" content="noindex, follow">
+    <link rel="canonical" href="https://ghostget.com/omarchy-root-escalation/">
+    <link rel="icon" href="/icon.png" type="image/png" sizes="32x32">
+    <link rel="icon" href="/icon-96.png" type="image/png" sizes="96x96">
+    <link rel="apple-touch-icon" href="/apple-icon.png" sizes="180x180">
+    <link rel="stylesheet" href="{{CSS_ASSET}}">
+    <link rel="sitemap" type="application/xml" href="/sitemap.xml">
+    {{MARKDOWN_ALTERNATE}}
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="GhostGet">
+    <meta property="og:title" content="Review the administrator access a tool needs">
+    <meta property="og:description" content="Administrator access changes what a program can affect. Separate installation needs from everyday work and keep recurring permissions specific.">
+    <meta property="og:url" content="https://ghostget.com/omarchy-root-escalation/">
+    <meta property="og:image" content="https://ghostget.com/og.png">
+    <meta property="og:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Review the administrator access a tool needs">
+    <meta name="twitter:description" content="Administrator access changes what a program can affect. Separate installation needs from everyday work and keep recurring permissions specific.">
+    <meta name="twitter:image" content="https://ghostget.com/og.png">
+    <meta name="twitter:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
+    <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
+    <meta name="ghostget-posthog-key" content="{{POSTHOG_KEY}}">
+    <script type="application/ld+json">{{JSON_LD}}</script>
+    <script type="module" src="{{ANALYTICS_ASSET}}"></script>
+    <script type="module" src="{{FOIL_ASSET}}"></script>
+  </head>
+  <body data-hraness-landscape="page">
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="topbar guide-topbar">
+      <a aria-label="{{PORTFOLIO_NAME}} home" class="wordmark hraness-foil-text" data-foil="" href="/"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span> {{PORTFOLIO_NAME}}</a>
+      <nav aria-label="Primary">
+        <a href="/docs/tutorials/getting-started/">Install</a>
+        <a href="/docs/reference/provider-capabilities/">Providers</a>
+        <a href="/docs/">Docs</a>
+        <a href="https://github.com/hraness/ghostget">GitHub <span aria-hidden="true">↗</span></a>
+        <a href="https://account.hraness.com/">Account</a>
+      </nav>
+    </header>
+    <main class="guide-main" id="main" tabindex="-1">
+      <nav aria-label="More articles" class="breadcrumbs"><a href="/blog/">Blog</a></nav>
+      <article class="guide-article">
+<header class="guide-hero">
+<h1>Review the administrator access a tool needs</h1>
+<p class="answer-lede">Administrator access lets a program change parts of the machine that an ordinary user process cannot. Before granting it, identify the operation that needs it and whether the permission lasts beyond that operation.</p>
+{{ESSAY_PROVENANCE}}
+</header>
+<section aria-labelledby="separate-installation"><h2 id="separate-installation">Separate installation from everyday use</h2>
+<p>An installer may need to place a system component or register a service. Reading a public web page or writing a note in your own directory is a different task. The fact that setup needed an administrator does not establish that routine work needs the same access.</p>
+<p>Prefer a tool’s documented user-level installation when it supports one. When a system component is required, inspect what it installs and how to remove it later.</p></section>
+<section aria-labelledby="inspect-the-grant"><h2 id="inspect-the-grant">Inspect the scope of the grant</h2>
+<p>A prompt for one named operation is different from a persistent rule that lets a program run arbitrary commands as administrator. Check the executable, allowed arguments, and duration of the permission. Broad password-free rules can remain useful to other code that runs in the same user account.</p>
+<p>The <a href="https://www.sudo.ws/docs/man/sudoers.man/">sudoers reference</a> describes how command and user rules are configured. Use the operating system’s supported administration tools to inspect them; a marketing claim that a tool is local says nothing about its privileges.</p></section>
+<section aria-labelledby="keep-the-task-specific"><h2 id="keep-the-task-specific">Keep an agent’s tools specific to the task</h2>
+<p>An agent that needs one account read should not require a general administrator shell for that read. Give the tool the files, account connection, and action permissions the work calls for. Review a request to expand them as a separate decision.</p>
+<p>Permission removal also matters. After an experiment or an uninstalled tool, review persistent services and access rules through the operating system’s settings. Removing the application’s folder may not remove permissions or background components it installed elsewhere.</p></section>
+      </article>
+    </main>
+    {{HRANESS_SITE_FOOTER}}
+  </body>
+</html>

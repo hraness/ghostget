@@ -1,0 +1,19 @@
+{
+  "name": "launch-film",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun build.ts",
+    "still": "bun build.ts && slopcamera html still --input out/scene.json --at 3,8,11,15.5,20,24,28 --output out/stills",
+    "draft": "bun build.ts --scale 0.5 --fps 15",
+    "render": "slopcamera html render --input out/scene.json --json > out/export.json",
+    "deliver": "slopcamera html deliver out/export.json --basename ghostget-launch --poster-at 11 --social-at 24 --cuts 1:1 --per-beat-clips --beats out/beats.json --output out/deliver",
+    "build:portrait": "bun build.ts --aspect 9:16"
+  },
+  "dependencies": {
+    "@hraness/slopcamera": "3.8.1"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}

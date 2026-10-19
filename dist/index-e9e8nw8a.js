@@ -1,0 +1,1984 @@
+// @bun
+import {
+  hasExactKeys
+} from "./index-5m1wfgkw.js";
+import {
+  canonicalJson
+} from "./index-pqsan2cn.js";
+
+// src/storage.ts
+import {
+  chmodSync,
+  closeSync,
+  constants,
+  existsSync,
+  fchmodSync,
+  fstatSync,
+  fsyncSync,
+  lstatSync,
+  mkdtempSync,
+  openSync,
+  opendirSync,
+  readlinkSync,
+  realpathSync,
+  rmSync,
+  writeFileSync
+} from "fs";
+import { spawnSync } from "child_process";
+
+// src/persistent-helper-bridge.ts
+import { MessageChannel, Worker, receiveMessageOnPort } from "worker_threads";
+var MAX_RESPONSE_BYTES = 180 * 1024 * 1024;
+var IDLE_MS = 30000;
+var WORKER_SOURCE = `
+const { workerData } = require("node:worker_threads");
+const { spawn } = require("node:child_process");
+const flag = new Int32Array(workerData.control);
+const port = workerData.port;
+const MAX = ${MAX_RESPONSE_BYTES}, IDLE = ${IDLE_MS};
+const helpers = new Map();
+const answer = (message) => { port.postMessage(message); Atomics.store(flag, 0, 1); Atomics.notify(flag, 0); };
+const retire = (key, helper) => {
+  if (helpers.get(key) === helper) helpers.delete(key);
+  clearTimeout(helper.idle);
+  try { helper.child.stdin.end(); } catch {}
+  try { process.kill(helper.child.pid, "SIGKILL"); } catch {}
+};
+const start = (key, spec) => {
+  const child = spawn(spec.executable, spec.arguments, { cwd: spec.cwd, env: spec.environment, stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
+  const helper = { child, chunks: [], bytes: 0, stderr: "", waiting: null, idle: undefined };
+  child.stdout.on("data", (chunk) => {
+    helper.chunks.push(chunk); helper.bytes += chunk.length;
+    if (helper.bytes > MAX) { const waiting = helper.waiting; helper.waiting = null; retire(key, helper); if (waiting) answer({ id: waiting, kind: "failed", detail: "helper response exceeded its byte bound" }); return; }
+    const text = Buffer.concat(helper.chunks);
+    const newline = text.indexOf(10);
+    if (newline < 0) return;
+    const line = text.subarray(0, newline).toString("utf8");
+    const rest = text.subarray(newline + 1);
+    helper.chunks = rest.length ? [rest] : []; helper.bytes = rest.length;
+    const waiting = helper.waiting; helper.waiting = null;
+    // A helper that answered with a failure exits by design; retire it now so
+    // the next request never races its shutdown.
+    if (!waiting || line.startsWith('{"ok":false')) retire(key, helper);
+    if (waiting) answer({ id: waiting, kind: "response", line });
+  });
+  child.stderr.on("data", (chunk) => { if (helper.stderr.length < 4096) helper.stderr += chunk.toString("utf8"); });
+  const lost = () => {
+    if (helpers.get(key) === helper) helpers.delete(key);
+    clearTimeout(helper.idle);
+    const waiting = helper.waiting; helper.waiting = null;
+    if (waiting) answer({ id: waiting, kind: "failed", detail: helper.stderr.trim().slice(0, 512) });
+  };
+  // "close" fires only after stdout drained, so a final answer line is never lost to "exit".
+  child.on("error", lost); child.on("close", lost);
+  child.stdin.on("error", () => {});
+  helpers.set(key, helper);
+  return helper;
+};
+port.on("message", (message) => {
+  if (message.type === "retire") { const helper = helpers.get(message.key); if (helper) retire(message.key, helper); return; }
+  let helper = helpers.get(message.key);
+  if (!helper || helper.child.exitCode !== null || helper.child.signalCode !== null) helper = start(message.key, message.spec);
+  clearTimeout(helper.idle);
+  helper.idle = setTimeout(() => retire(message.key, helper), IDLE); helper.idle.unref?.();
+  helper.waiting = message.id;
+  helper.child.stdin.write(message.line + "\\n");
+});
+`;
+var bridge;
+function current() {
+  if (bridge !== undefined)
+    return bridge;
+  const control = new SharedArrayBuffer(4);
+  const { port1, port2 } = new MessageChannel;
+  const worker = new Worker(WORKER_SOURCE, { eval: true, workerData: { control, port: port2 }, transferList: [port2] });
+  worker.unref();
+  bridge = { worker, port: port1, flag: new Int32Array(control), sequence: 0 };
+  worker.on("exit", () => {
+    if (bridge?.worker === worker)
+      bridge = undefined;
+  });
+  return bridge;
+}
+function persistentHelperRequest(key, spec, line, timeoutMs) {
+  if (line.includes(`
+`))
+    throw new Error("persistent helper requests must be one line");
+  const active = current();
+  const id = ++active.sequence;
+  Atomics.store(active.flag, 0, 0);
+  active.port.postMessage({ type: "request", id, key, spec, line });
+  const deadline = performance.now() + timeoutMs;
+  for (;; ) {
+    for (let message = receiveMessageOnPort(active.port);message !== undefined; message = receiveMessageOnPort(active.port)) {
+      const value = message.message;
+      if (value.id !== id)
+        continue;
+      return value.kind === "response" ? { kind: "response", line: value.line ?? "" } : { kind: "failed", detail: value.detail ?? "" };
+    }
+    const remaining = deadline - performance.now();
+    if (remaining <= 0) {
+      active.port.postMessage({ type: "retire", key });
+      return { kind: "failed", detail: "helper did not answer within its deadline" };
+    }
+    Atomics.wait(active.flag, 0, 0, Math.min(remaining, 1000));
+    Atomics.store(active.flag, 0, 0);
+  }
+}
+
+// src/storage.ts
+import { readOwnedFileStableSync } from "@hraness/local-custody/private-paths";
+import { homedir, tmpdir } from "os";
+import { basename, dirname, isAbsolute, join, parse, relative, resolve, sep } from "path";
+import { fileURLToPath } from "url";
+
+// src/process-identity.ts
+import { execFileSync } from "child_process";
+import { createHash } from "crypto";
+import { readFileSync } from "fs";
+import { dlopen, ptr } from "bun:ffi";
+var cachedBootId = null;
+var cachedCurrentProcessStartIdentity = null;
+var cachedDarwinProcPidInfo;
+var DARWIN_PROCESS_STATE_PATTERN = /^[DIRSTUZ][+<>AELNSsVWX]*$/u;
+var DARWIN_PROC_PID_T_BSDINFO_WITH_UNIQID = 18;
+var DARWIN_PROC_BSDINFO_SIZE = 136;
+var DARWIN_PROC_UNIQIDENTIFIERINFO_SIZE = 56;
+var DARWIN_PROC_BSDINFO_WITH_UNIQID_SIZE = DARWIN_PROC_BSDINFO_SIZE + DARWIN_PROC_UNIQIDENTIFIERINFO_SIZE;
+var DARWIN_PROC_BSDINFO_FLAGS_OFFSET = 0;
+var DARWIN_PROC_BSDINFO_STATUS_OFFSET = 4;
+var DARWIN_PROC_BSDINFO_PID_OFFSET = 12;
+var DARWIN_PROC_BSDINFO_START_SECONDS_OFFSET = 120;
+var DARWIN_PROC_BSDINFO_START_MICROSECONDS_OFFSET = 128;
+var DARWIN_PROC_UNIQUE_ID_OFFSET = 16;
+var DARWIN_PROC_ID_VERSION_OFFSET = 32;
+var DARWIN_PROC_FLAG_INEXIT = 4;
+var DARWIN_PROCESS_STATUS_IDLE = 1;
+var DARWIN_PROCESS_STATUS_RUNNING = 2;
+var DARWIN_PROCESS_STATUS_SLEEPING = 3;
+var DARWIN_PROCESS_STATUS_STOPPED = 4;
+var DARWIN_PROCESS_STATUS_ZOMBIE = 5;
+var DARWIN_PROCESS_INSPECTION_ATTEMPTS = 3;
+var UUID_PATTERN = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/iu;
+function identityDigest(kind, value) {
+  return createHash("sha256").update(kind, "utf8").update("\x00", "utf8").update(value, "utf8").digest("hex");
+}
+function commandText(command, arguments_) {
+  const environment = process.platform === "win32" ? {
+    NODE_ENV: "production",
+    SystemRoot: "C:\\Windows",
+    WINDIR: "C:\\Windows",
+    PATH: "C:\\Windows\\System32"
+  } : { LANG: "C", LC_ALL: "C", NODE_ENV: "production", TZ: "UTC" };
+  return execFileSync(command, arguments_, {
+    encoding: "utf8",
+    env: environment,
+    timeout: 2000,
+    windowsHide: true
+  }).trim();
+}
+function windowsPowerShellPath() {
+  return "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
+}
+function normalizeDarwinBootSessionUuid(raw) {
+  const value = raw.trim();
+  if (!UUID_PATTERN.test(value)) {
+    throw new Error("system boot identity is malformed");
+  }
+  return value.toLowerCase();
+}
+function darwinBootId(raw) {
+  return identityDigest("io-boot", normalizeDarwinBootSessionUuid(raw));
+}
+function currentBootId() {
+  if (cachedBootId !== null)
+    return cachedBootId;
+  let raw;
+  if (process.platform === "linux") {
+    raw = readFileSync("/proc/sys/kernel/random/boot_id", "utf8").trim();
+    if (!/^[a-f0-9-]{36}$/iu.test(raw)) {
+      throw new Error("system boot identity is malformed");
+    }
+  } else if (process.platform === "darwin") {
+    cachedBootId = darwinBootId(commandText("/usr/sbin/sysctl", ["-n", "kern.bootsessionuuid"]));
+    return cachedBootId;
+  } else if (process.platform === "win32") {
+    raw = commandText(windowsPowerShellPath(), [
+      "-NoProfile",
+      "-NonInteractive",
+      "-Command",
+      "(Get-CimInstance Win32_OperatingSystem).LastBootUpTime.ToUniversalTime().Ticks"
+    ]);
+    if (!/^\d{10,30}$/u.test(raw)) {
+      throw new Error("system boot identity is malformed");
+    }
+  } else {
+    throw new Error(`system boot identity is unsupported on ${process.platform}`);
+  }
+  cachedBootId = identityDigest("io-boot", raw);
+  return cachedBootId;
+}
+function processIsDefinitelyMissing(pid) {
+  try {
+    process.kill(pid, 0);
+    return false;
+  } catch (error) {
+    return typeof error === "object" && error !== null && "code" in error && error.code === "ESRCH";
+  }
+}
+function inspectLinuxProcessRecord(raw) {
+  const close = raw.lastIndexOf(")");
+  if (close < 1)
+    return { status: "unknown" };
+  const fields = raw.slice(close + 1).trim().split(/\s+/u);
+  const state = fields[0];
+  if (state === "Z" || state === "X" || state === "x") {
+    return { status: "dead" };
+  }
+  if (state !== "R" && state !== "S" && state !== "D" && state !== "T" && state !== "t" && state !== "W" && state !== "K" && state !== "P" && state !== "I") {
+    return { status: "unknown" };
+  }
+  const startTicks = fields[19];
+  if (startTicks === undefined || !/^\d+$/u.test(startTicks)) {
+    return { status: "unknown" };
+  }
+  return { status: "alive", rawStartId: startTicks };
+}
+function inspectDarwinProcessInfo(raw, expectedPid) {
+  if (raw.byteLength < DARWIN_PROC_BSDINFO_SIZE) {
+    return { status: "unknown" };
+  }
+  const view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
+  const flags = view.getUint32(DARWIN_PROC_BSDINFO_FLAGS_OFFSET, true);
+  const status = view.getUint32(DARWIN_PROC_BSDINFO_STATUS_OFFSET, true);
+  const pid = view.getUint32(DARWIN_PROC_BSDINFO_PID_OFFSET, true);
+  if (pid !== expectedPid)
+    return { status: "unknown" };
+  if (status === DARWIN_PROCESS_STATUS_ZOMBIE || (flags & DARWIN_PROC_FLAG_INEXIT) !== 0) {
+    return { status: "dead" };
+  }
+  if (status !== DARWIN_PROCESS_STATUS_IDLE && status !== DARWIN_PROCESS_STATUS_RUNNING && status !== DARWIN_PROCESS_STATUS_SLEEPING && status !== DARWIN_PROCESS_STATUS_STOPPED) {
+    return { status: "unknown" };
+  }
+  const seconds = view.getBigUint64(DARWIN_PROC_BSDINFO_START_SECONDS_OFFSET, true);
+  const microseconds = view.getBigUint64(DARWIN_PROC_BSDINFO_START_MICROSECONDS_OFFSET, true);
+  if (seconds === 0n || microseconds >= 1000000n) {
+    return { status: "unknown" };
+  }
+  return {
+    status: "alive",
+    rawStartId: `${seconds}:${microseconds}`
+  };
+}
+function darwinUniqueProcessIdentity(raw) {
+  if (raw.byteLength < DARWIN_PROC_UNIQIDENTIFIERINFO_SIZE)
+    return null;
+  const view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
+  const uniqueId = view.getBigUint64(DARWIN_PROC_UNIQUE_ID_OFFSET, true);
+  const idVersion = view.getUint32(DARWIN_PROC_ID_VERSION_OFFSET, true);
+  if (uniqueId === 0n || idVersion === 0)
+    return null;
+  return `${uniqueId}:${idVersion}`;
+}
+function inspectDarwinProcessIdentity(raw, expectedPid) {
+  if (raw.byteLength < DARWIN_PROC_BSDINFO_WITH_UNIQID_SIZE) {
+    return { status: "unknown" };
+  }
+  const bsdInfo = raw.subarray(0, DARWIN_PROC_BSDINFO_SIZE);
+  const uniqueInfo = raw.subarray(DARWIN_PROC_BSDINFO_SIZE, DARWIN_PROC_BSDINFO_WITH_UNIQID_SIZE);
+  const record = inspectDarwinProcessInfo(bsdInfo, expectedPid);
+  if (record.status !== "alive")
+    return record;
+  const uniqueIdentity = darwinUniqueProcessIdentity(uniqueInfo);
+  if (uniqueIdentity === null)
+    return { status: "unknown" };
+  return {
+    status: "alive",
+    rawStartId: `${uniqueIdentity}:${record.rawStartId}`
+  };
+}
+function darwinProcPidInfo() {
+  if (cachedDarwinProcPidInfo !== undefined)
+    return cachedDarwinProcPidInfo;
+  try {
+    const library = dlopen("/usr/lib/libproc.dylib", {
+      proc_pidinfo: {
+        args: ["int", "int", "u64", "ptr", "int"],
+        returns: "int"
+      }
+    });
+    cachedDarwinProcPidInfo = (pid, flavor, buffer) => library.symbols.proc_pidinfo(pid, flavor, 0, ptr(buffer), buffer.byteLength);
+  } catch {
+    return null;
+  }
+  return cachedDarwinProcPidInfo;
+}
+function darwinProcessIsDefinitelyDead(pid) {
+  if (processIsDefinitelyMissing(pid))
+    return true;
+  try {
+    const state = commandText("/bin/ps", [
+      "-o",
+      "state=",
+      "-p",
+      String(pid)
+    ]);
+    if (DARWIN_PROCESS_STATE_PATTERN.test(state) && state.startsWith("Z")) {
+      return true;
+    }
+  } catch {}
+  return processIsDefinitelyMissing(pid);
+}
+function inspectDarwinProcessWithReader(pid, readRecord, isDefinitelyDead) {
+  for (let attempt = 0;attempt < DARWIN_PROCESS_INSPECTION_ATTEMPTS; attempt += 1) {
+    let record = { status: "unknown" };
+    try {
+      const raw = readRecord(pid);
+      if (raw !== null)
+        record = inspectDarwinProcessIdentity(raw, pid);
+    } catch {}
+    if (record.status === "alive" || record.status === "dead") {
+      return record;
+    }
+    if (isDefinitelyDead(pid))
+      return { status: "dead" };
+  }
+  return { status: "unknown" };
+}
+function inspectDarwinProcess(pid) {
+  return inspectDarwinProcessWithReader(pid, (targetPid) => {
+    const inspect = darwinProcPidInfo();
+    if (inspect === null)
+      return null;
+    const processInfo = Buffer.alloc(DARWIN_PROC_BSDINFO_WITH_UNIQID_SIZE);
+    const bytesRead = inspect(targetPid, DARWIN_PROC_PID_T_BSDINFO_WITH_UNIQID, processInfo);
+    if (!Number.isSafeInteger(bytesRead) || bytesRead < 0 || bytesRead > DARWIN_PROC_BSDINFO_WITH_UNIQID_SIZE) {
+      return null;
+    }
+    return processInfo.subarray(0, bytesRead);
+  }, darwinProcessIsDefinitelyDead);
+}
+function inspectProcessStartId(pid, bootId) {
+  if (pid === process.pid && cachedCurrentProcessStartIdentity?.pid === pid && cachedCurrentProcessStartIdentity.bootId === bootId) {
+    return {
+      status: "alive",
+      processStartId: cachedCurrentProcessStartIdentity.processStartId
+    };
+  }
+  try {
+    let raw;
+    if (process.platform === "linux") {
+      const record = inspectLinuxProcessRecord(readFileSync(`/proc/${pid}/stat`, "utf8").trim());
+      if (record.status !== "alive")
+        return record;
+      raw = record.rawStartId;
+    } else if (process.platform === "win32") {
+      raw = commandText(windowsPowerShellPath(), [
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        "$p=[int]$args[0]; (Get-Process -Id $p -ErrorAction Stop).StartTime.ToUniversalTime().Ticks",
+        String(pid)
+      ]);
+      if (!/^\d{10,30}$/u.test(raw))
+        return { status: "unknown" };
+    } else if (process.platform === "darwin") {
+      const record = inspectDarwinProcess(pid);
+      if (record.status !== "alive")
+        return record;
+      raw = record.rawStartId;
+    } else {
+      return { status: "unknown" };
+    }
+    const processStartId = identityDigest("io-process-start", `${bootId}\x00${raw}`);
+    if (pid === process.pid) {
+      cachedCurrentProcessStartIdentity = { pid, bootId, processStartId };
+    }
+    return { status: "alive", processStartId };
+  } catch (error) {
+    if (processIsDefinitelyMissing(pid) || process.platform === "linux" && typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT") {
+      return { status: "missing" };
+    }
+    return { status: "unknown" };
+  }
+}
+function currentProcessStartIdentity() {
+  const owner = captureProcessOwnerIdentity(process.pid);
+  return Object.freeze({
+    bootId: owner.bootId,
+    processStartId: owner.processStartId
+  });
+}
+function captureProcessOwnerIdentity(pid) {
+  if (!Number.isSafeInteger(pid) || pid < 1) {
+    throw new Error("process identity PID is malformed");
+  }
+  const bootId = currentBootId();
+  const inspection = inspectProcessStartId(pid, bootId);
+  if (inspection.status !== "alive") {
+    throw new Error("exact live process identity is unavailable");
+  }
+  return Object.freeze({
+    pid,
+    bootId,
+    processStartId: inspection.processStartId
+  });
+}
+function processOwnerStatus(owner) {
+  const bootId = currentBootId();
+  if (bootId !== owner.bootId)
+    return "different-or-dead";
+  const inspection = inspectProcessStartId(owner.pid, bootId);
+  if (inspection.status !== "alive") {
+    return inspection.status === "unknown" ? "unknown" : "different-or-dead";
+  }
+  return inspection.processStartId === owner.processStartId ? "exact-live-owner" : "different-or-dead";
+}
+
+// src/storage.ts
+var MAX_WRENCH_JSON_BYTES = 1024 * 1024;
+var MAX_PRIVATE_STATE_BATCH_FILES = 1000;
+var MAX_PRIVATE_STATE_BATCH_FILE_BYTES = 2 * 1024 * 1024;
+var MAX_PRIVATE_STATE_BATCH_TOTAL_BYTES = 64 * 1024 * 1024;
+var DEFAULT_PRIVATE_STATE_EXPECTED_CONTENT_BYTES = 2 * 1024 * 1024;
+var MAX_PRIVATE_STATE_EXPECTED_CONTENT_BYTES = 4 * 1024 * 1024;
+var MAX_PRIVATE_STATE_BATCH_NAME_BYTES = 256 * 1024;
+var MAX_PRIVATE_STATE_BATCH_STDOUT_BYTES = 96 * 1024 * 1024;
+var TEST_STATE_HELPER_TIMEOUT_MS = 120000;
+var knownStateRoots = new Map;
+var stateDirectoryNames = [
+  "adapter-generations",
+  "adapters",
+  "auth",
+  "browser-snapshots",
+  "captures",
+  "control",
+  "derivations",
+  "idempotency",
+  "linked-device-stores",
+  "menubar",
+  "messaging",
+  "omni-read-projections",
+  "operation-permissions",
+  "plan-assets",
+  "plans",
+  "provider-plugin-state",
+  "provider-plugins",
+  "read-projection-control",
+  "read-projections",
+  "recovery",
+  "repair-signals",
+  "run-journals",
+  "runs",
+  "session-secrets",
+  "tools"
+];
+var stateMarkerName = ".io-state.json";
+var stateMarkerText = `{"kind":"io-state","schemaVersion":1}
+`;
+function sourceHelperPath(name, moduleUrl = import.meta.url) {
+  const moduleDirectory = dirname(fileURLToPath(moduleUrl));
+  const sourceDirectory = basename(moduleDirectory) === "dist" ? join(dirname(moduleDirectory), "src") : moduleDirectory;
+  return join(sourceDirectory, name);
+}
+var stateHelperPath = sourceHelperPath("state-helper.ts");
+var stateHelperConfigPath = sourceHelperPath("state-helper.bunfig.toml");
+var pathHelperPath = sourceHelperPath("path-helper.ts");
+var stateCrashPlanForTest = undefined;
+var helperEnvironment = stateCrashPlanForTest === undefined ? { NODE_ENV: "production" } : { NODE_ENV: "test", GHOSTGET_TEST_STATE_CRASH_PLAN: stateCrashPlanForTest };
+var helperPreloadForTest = stateCrashPlanForTest === undefined ? [] : ["--preload", join(dirname(fileURLToPath(import.meta.url)), "state-crash-preload.test-support.ts")];
+var persistentStateHelpers = false;
+var ghostgetSourcePackageRoot = realpathSync(resolve(dirname(fileURLToPath(import.meta.url)), ".."));
+function isWithinPath(root, candidate) {
+  const pathFromRoot = relative(root, candidate);
+  return pathFromRoot === "" || pathFromRoot !== ".." && !pathFromRoot.startsWith(`..${sep}`) && !isAbsolute(pathFromRoot);
+}
+function hasCode(error, code) {
+  return typeof error === "object" && error !== null && "code" in error && error.code === code;
+}
+function pathInside(root, target) {
+  const child = relative(root, target);
+  return child === "" || !isAbsolute(child) && child !== ".." && !child.startsWith(`..${sep}`);
+}
+function stateRootFor(path) {
+  const lexicalTarget = resolve(path);
+  let selected = null;
+  for (const root of knownStateRoots.keys()) {
+    if (pathInside(root, lexicalTarget) && (selected === null || root.length > selected.length))
+      selected = root;
+  }
+  if (selected !== null)
+    return selected;
+  const target = canonicalNonStatePath(path);
+  for (const root of knownStateRoots.keys()) {
+    if (pathInside(root, target) && (selected === null || root.length > selected.length))
+      selected = root;
+  }
+  return selected;
+}
+function sameIdentity(left, right) {
+  return left === null || right === null ? left === right : left.device === right.device && left.inode === right.inode;
+}
+function exactObjectKeys(value, required, optional = []) {
+  const allowed = new Set([...required, ...optional]);
+  return required.every((key) => Object.hasOwn(value, key)) && Object.keys(value).every((key) => allowed.has(key));
+}
+function isRecord(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function isSafeBatchFileName(value) {
+  if (typeof value !== "string" || value === "" || value === "." || value === ".." || value.includes("/") || value.includes("\\") || value.includes("\uFFFD") || Buffer.byteLength(value, "utf8") > 255)
+    return false;
+  for (const character of value) {
+    const codePoint = character.codePointAt(0);
+    if (codePoint !== undefined && (codePoint <= 31 || codePoint === 127)) {
+      return false;
+    }
+  }
+  return true;
+}
+function decodeCanonicalBase64(value, maximumBytes) {
+  if (typeof value !== "string" || value.length > Math.ceil(maximumBytes / 3) * 4 + 4 || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u.test(value))
+    return null;
+  const decoded = Buffer.from(value, "base64");
+  return decoded.byteLength <= maximumBytes && decoded.toString("base64") === value ? decoded : null;
+}
+function parseStateHelperBatchFiles(value) {
+  if (!Array.isArray(value) || value.length > MAX_PRIVATE_STATE_BATCH_FILES) {
+    throw new Error("state helper returned a malformed response");
+  }
+  const names = new Set;
+  const files = [];
+  let contentBytes = 0;
+  const invalidReasons = new Set([
+    "unsafe-file",
+    "unreadable",
+    "file-byte-bound",
+    "aggregate-byte-bound",
+    "changed-during-read"
+  ]);
+  for (const candidate of value) {
+    if (!isRecord(candidate) || !isSafeBatchFileName(candidate.name)) {
+      throw new Error("state helper returned a malformed response");
+    }
+    const name = candidate.name;
+    if (names.has(name)) {
+      throw new Error("state helper returned a malformed response");
+    }
+    names.add(name);
+    if (candidate.status === "present" && exactObjectKeys(candidate, ["name", "status", "contentBase64"])) {
+      const content = decodeCanonicalBase64(candidate.contentBase64, MAX_PRIVATE_STATE_BATCH_FILE_BYTES);
+      if (content === null) {
+        throw new Error("state helper returned a malformed response");
+      }
+      contentBytes += content.byteLength;
+      if (contentBytes > MAX_PRIVATE_STATE_BATCH_TOTAL_BYTES) {
+        throw new Error("state helper returned a malformed response");
+      }
+      files.push({
+        name,
+        status: "present",
+        contentBase64: candidate.contentBase64
+      });
+      continue;
+    }
+    if (candidate.status === "absent" && exactObjectKeys(candidate, ["name", "status"])) {
+      files.push({ name, status: "absent" });
+      continue;
+    }
+    if (candidate.status === "invalid" && exactObjectKeys(candidate, ["name", "status", "reason"]) && invalidReasons.has(candidate.reason)) {
+      files.push({
+        name,
+        status: "invalid",
+        reason: candidate.reason
+      });
+      continue;
+    }
+    throw new Error("state helper returned a malformed response");
+  }
+  return files;
+}
+function parseStateHelperBatchChildFiles(value) {
+  if (!Array.isArray(value) || value.length > MAX_PRIVATE_STATE_BATCH_FILES) {
+    throw new Error("state helper returned a malformed response");
+  }
+  const keys = new Set;
+  const files = [];
+  let contentBytes = 0;
+  const invalidReasons = new Set([
+    "unsafe-file",
+    "unreadable",
+    "file-byte-bound",
+    "aggregate-byte-bound",
+    "changed-during-read"
+  ]);
+  for (const candidate of value) {
+    if (!isRecord(candidate) || !isSafeBatchFileName(candidate.directoryName) || !isSafeBatchFileName(candidate.fileName)) {
+      throw new Error("state helper returned a malformed response");
+    }
+    const directoryName = candidate.directoryName;
+    const fileName = candidate.fileName;
+    const key = `${directoryName}\x00${fileName}`;
+    if (keys.has(key)) {
+      throw new Error("state helper returned a malformed response");
+    }
+    keys.add(key);
+    if (candidate.status === "present" && exactObjectKeys(candidate, [
+      "directoryName",
+      "fileName",
+      "status",
+      "contentBase64"
+    ])) {
+      const content = decodeCanonicalBase64(candidate.contentBase64, MAX_PRIVATE_STATE_BATCH_FILE_BYTES);
+      if (content === null) {
+        throw new Error("state helper returned a malformed response");
+      }
+      contentBytes += content.byteLength;
+      if (contentBytes > MAX_PRIVATE_STATE_BATCH_TOTAL_BYTES) {
+        throw new Error("state helper returned a malformed response");
+      }
+      files.push({
+        directoryName,
+        fileName,
+        status: "present",
+        contentBase64: candidate.contentBase64
+      });
+      continue;
+    }
+    if (candidate.status === "absent" && exactObjectKeys(candidate, [
+      "directoryName",
+      "fileName",
+      "status"
+    ])) {
+      files.push({ directoryName, fileName, status: "absent" });
+      continue;
+    }
+    if (candidate.status === "invalid" && exactObjectKeys(candidate, [
+      "directoryName",
+      "fileName",
+      "status",
+      "reason"
+    ]) && invalidReasons.has(candidate.reason)) {
+      files.push({
+        directoryName,
+        fileName,
+        status: "invalid",
+        reason: candidate.reason
+      });
+      continue;
+    }
+    throw new Error("state helper returned a malformed response");
+  }
+  return files;
+}
+function parseResponseIdentity(value) {
+  if (!isRecord(value) || !exactObjectKeys(value, ["device", "inode"]) || typeof value.device !== "string" || !/^\d{1,40}$/u.test(value.device) || typeof value.inode !== "string" || !/^\d{1,40}$/u.test(value.inode))
+    return null;
+  return { device: value.device, inode: value.inode };
+}
+function parseStateHelperResponse(value) {
+  if (!isRecord(value) || !exactObjectKeys(value, ["ok", "identity"], ["created", "removed", "present", "contentBase64", "entries", "files", "childFiles", "targetIdentity"])) {
+    throw new Error("state helper returned a malformed response");
+  }
+  const identityValue = value.identity;
+  const parsedIdentity = parseResponseIdentity(identityValue);
+  if (value.ok !== true || parsedIdentity === null)
+    throw new Error("state helper returned a malformed response");
+  const created = value.created;
+  const removed = value.removed;
+  const present = value.present;
+  const contentBase64 = value.contentBase64;
+  const entries = value.entries;
+  const files = value.files;
+  const childFiles = value.childFiles;
+  const targetIdentityValue = value.targetIdentity;
+  const targetIdentity = targetIdentityValue === undefined ? undefined : parseResponseIdentity(targetIdentityValue);
+  if (created !== undefined && typeof created !== "boolean")
+    throw new Error("state helper returned a malformed response");
+  if (removed !== undefined && typeof removed !== "boolean")
+    throw new Error("state helper returned a malformed response");
+  if (present !== undefined && typeof present !== "boolean")
+    throw new Error("state helper returned a malformed response");
+  if (contentBase64 !== undefined && typeof contentBase64 !== "string")
+    throw new Error("state helper returned a malformed response");
+  if (targetIdentityValue !== undefined && targetIdentity === null) {
+    throw new Error("state helper returned a malformed response");
+  }
+  const responseShape = Object.keys(value).filter((key) => key !== "ok" && key !== "identity").sort().join(",");
+  if (!new Set([
+    "",
+    "contentBase64",
+    "contentBase64,present",
+    "created",
+    "created,targetIdentity",
+    "entries",
+    "entries,targetIdentity",
+    "childFiles,targetIdentity",
+    "files,targetIdentity",
+    "present",
+    "removed",
+    "targetIdentity"
+  ]).has(responseShape))
+    throw new Error("state helper returned a malformed response");
+  if (present === true !== (responseShape === "contentBase64,present")) {
+    if (present !== undefined)
+      throw new Error("state helper returned a malformed response");
+  }
+  if (entries !== undefined && (!Array.isArray(entries) || entries.length > 1e4 || entries.some((entry) => !isRecord(entry) || !exactObjectKeys(entry, ["name", "kind"], ["identity"]) || typeof entry.name !== "string" || entry.name === "" || entry.name === "." || entry.name === ".." || entry.name.includes("/") || entry.name.includes("\\") || entry.name.includes("\x00") || Buffer.byteLength(entry.name, "utf8") > 255 || entry.kind !== "file" && entry.kind !== "directory" && entry.kind !== "symbolic-link" && entry.kind !== "other" || entry.kind === "directory" !== (parseResponseIdentity(entry.identity) !== null))))
+    throw new Error("state helper returned a malformed response");
+  const parsedFiles = files === undefined ? undefined : parseStateHelperBatchFiles(files);
+  const parsedChildFiles = childFiles === undefined ? undefined : parseStateHelperBatchChildFiles(childFiles);
+  return {
+    ok: true,
+    identity: parsedIdentity,
+    ...created === undefined ? {} : { created },
+    ...removed === undefined ? {} : { removed },
+    ...present === undefined ? {} : { present },
+    ...contentBase64 === undefined ? {} : { contentBase64 },
+    ...entries === undefined ? {} : { entries },
+    ...parsedFiles === undefined ? {} : { files: parsedFiles },
+    ...parsedChildFiles === undefined ? {} : { childFiles: parsedChildFiles },
+    ...targetIdentity === undefined || targetIdentity === null ? {} : { targetIdentity }
+  };
+}
+function runStateHelper(directory, expected, operation, expectCreatedIdentity = false, faultForTest) {
+  const requestId = crypto.randomUUID();
+  if (faultForTest === undefined && !expectCreatedIdentity && persistentStateHelpers) {
+    return persistentStateHelperResponse(directory, expected, requestId, operation);
+  }
+  const child = spawnSync(process.execPath, [
+    "--no-env-file",
+    "--no-install",
+    "--no-macros",
+    "--no-addons",
+    `--config=${stateHelperConfigPath}`,
+    ...helperPreloadForTest,
+    stateHelperPath
+  ], {
+    cwd: directory,
+    encoding: "utf8",
+    env: faultForTest === undefined ? helperEnvironment : {
+      ...helperEnvironment,
+      NODE_ENV: "test",
+      ...faultForTest === "insert-after-quarantine" || faultForTest === "replace-target-after-validation" ? { GHOSTGET_TEST_EMPTY_DIRECTORY_REMOVAL_RACE: faultForTest } : faultForTest === "pause-after-cas-claim" || faultForTest === "pause-after-mutation-claim-read" || faultForTest === "fail-after-cas-commit" ? { GHOSTGET_TEST_CAS_FAULT: faultForTest } : { GHOSTGET_TEST_BATCH_READ_FAULT: faultForTest }
+    },
+    input: JSON.stringify({ schemaVersion: 1, requestId, expected, operation }),
+    maxBuffer: operation.kind === "batch-read-files" || operation.kind === "batch-read-child-files" ? MAX_PRIVATE_STATE_BATCH_STDOUT_BYTES : 180 * 1024 * 1024,
+    shell: false,
+    timeout: faultForTest === "pause-after-cas-claim" || faultForTest === "pause-after-mutation-claim-read" ? TEST_STATE_HELPER_TIMEOUT_MS : 30000,
+    windowsHide: true
+  });
+  const current2 = inspectRealDirectoryIdentity(directory);
+  if (!sameIdentity(current2, expected))
+    throw new Error(`GHOSTGET_STATE_HOME changed identity after validation: ${directory}`);
+  if (child.error !== undefined)
+    throw new Error("bound state helper failed to start", { cause: child.error });
+  if (child.status !== 0) {
+    const detail = child.stderr.trim().slice(0, 512);
+    throw new Error(detail === "" ? "bound state helper rejected the operation" : detail);
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(child.stdout);
+  } catch (error) {
+    throw new Error("state helper returned invalid JSON", { cause: error });
+  }
+  const response = parseStateHelperResponse(parsed);
+  if (!expectCreatedIdentity && !sameIdentity(response.identity, expected)) {
+    throw new Error("state helper response came from the wrong directory identity");
+  }
+  return response;
+}
+function persistentStateHelperResponse(directory, expected, requestId, operation) {
+  const result = persistentHelperRequest(`state\x00${directory}\x00${expected.device}:${expected.inode}`, {
+    executable: process.execPath,
+    arguments: ["--no-env-file", "--no-install", "--no-macros", "--no-addons", `--config=${stateHelperConfigPath}`, stateHelperPath, "--serve"],
+    cwd: directory,
+    environment: { NODE_ENV: helperEnvironment.NODE_ENV }
+  }, JSON.stringify({ schemaVersion: 1, requestId, expected, operation }), 30000);
+  const current2 = inspectRealDirectoryIdentity(directory);
+  if (!sameIdentity(current2, expected))
+    throw new Error(`GHOSTGET_STATE_HOME changed identity after validation: ${directory}`);
+  if (result.kind === "failed")
+    throw new Error(result.detail === "" ? "bound state helper rejected the operation" : result.detail);
+  const limit = operation.kind === "batch-read-files" || operation.kind === "batch-read-child-files" ? MAX_PRIVATE_STATE_BATCH_STDOUT_BYTES : 180 * 1024 * 1024;
+  if (Buffer.byteLength(result.line, "utf8") > limit)
+    throw new Error("state helper response exceeded its byte bound");
+  let parsed;
+  try {
+    parsed = JSON.parse(result.line);
+  } catch (error) {
+    throw new Error("state helper returned invalid JSON", { cause: error });
+  }
+  if (isRecord(parsed) && parsed.ok === false && typeof parsed.error === "string" && exactObjectKeys(parsed, ["ok", "error"], [])) {
+    throw new Error(parsed.error.trim().slice(0, 512) || "bound state helper rejected the operation");
+  }
+  const response = parseStateHelperResponse(parsed);
+  if (!sameIdentity(response.identity, expected)) {
+    throw new Error("state helper response came from the wrong directory identity");
+  }
+  return response;
+}
+function runPathHelper(directory, expected, operation) {
+  const requestId = crypto.randomUUID();
+  const child = spawnSync(process.execPath, [
+    "--no-env-file",
+    "--no-install",
+    "--no-macros",
+    "--no-addons",
+    `--config=${stateHelperConfigPath}`,
+    ...helperPreloadForTest,
+    pathHelperPath
+  ], {
+    cwd: directory,
+    encoding: "utf8",
+    env: helperEnvironment,
+    input: JSON.stringify({ schemaVersion: 1, requestId, expected, operation }),
+    maxBuffer: 180 * 1024 * 1024,
+    shell: false,
+    timeout: 30000,
+    windowsHide: true
+  });
+  const current2 = inspectRealDirectoryIdentity(directory);
+  if (!sameIdentity(current2, expected))
+    throw new Error(`bound path root changed identity after validation: ${directory}`);
+  if (child.error !== undefined)
+    throw new Error("bound path helper failed to start", { cause: child.error });
+  if (child.status !== 0) {
+    const detail = child.stderr.trim().slice(0, 512);
+    throw new Error(detail === "" ? "bound path helper rejected the operation" : detail);
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(child.stdout);
+  } catch (error) {
+    throw new Error("path helper returned invalid JSON", { cause: error });
+  }
+  const response = parseStateHelperResponse(parsed);
+  if (!sameIdentity(response.identity, expected))
+    throw new Error("path helper response came from the wrong directory identity");
+  return response;
+}
+function stateSegments(root, path) {
+  const child = relative(root, canonicalNonStatePath(path));
+  if (child === "")
+    return [];
+  if (isAbsolute(child) || child === ".." || child.startsWith(`..${sep}`))
+    throw new Error(`state path escapes its root: ${path}`);
+  return child.split(sep);
+}
+function captureStateDirectoryExpectations(root, segments) {
+  const expectations = [];
+  let current2 = root;
+  let missing = false;
+  for (const segment of segments) {
+    current2 = join(current2, segment);
+    if (missing) {
+      expectations.push(null);
+      continue;
+    }
+    let stats;
+    try {
+      stats = lstatSync(current2, { bigint: true });
+    } catch (error) {
+      if (!hasCode(error, "ENOENT"))
+        throw error;
+      missing = true;
+      expectations.push(null);
+      continue;
+    }
+    if (!stats.isDirectory() || stats.isSymbolicLink() || !ownedByCurrentUser(stats) || (stats.mode & 0o777n) !== 0o700n) {
+      throw new Error(`ghostget state directory must be an owned real directory with mode 0700: ${current2}`);
+    }
+    expectations.push({ device: stats.dev.toString(), inode: stats.ino.toString() });
+  }
+  return expectations;
+}
+function inspectStateRootIdentity(root) {
+  let stats;
+  try {
+    stats = lstatSync(root, { bigint: true });
+  } catch (error) {
+    if (hasCode(error, "ENOENT"))
+      return null;
+    throw error;
+  }
+  if (!stats.isDirectory() || stats.isSymbolicLink() || !ownedByCurrentUser(stats)) {
+    throw new Error(`GHOSTGET_STATE_HOME must be an owned real directory: ${root}`);
+  }
+  return { device: stats.dev.toString(), inode: stats.ino.toString() };
+}
+function inspectRealDirectoryIdentity(path) {
+  let stats;
+  try {
+    stats = lstatSync(path, { bigint: true });
+  } catch (error) {
+    if (hasCode(error, "ENOENT"))
+      return null;
+    throw error;
+  }
+  if (!stats.isDirectory() || stats.isSymbolicLink())
+    throw new Error(`path must be a real directory: ${path}`);
+  return { device: stats.dev.toString(), inode: stats.ino.toString() };
+}
+function findCreationAnchor(root) {
+  const segments = [];
+  let current2 = root;
+  for (;; ) {
+    let stats;
+    try {
+      stats = lstatSync(current2, { bigint: true });
+    } catch (error) {
+      if (!hasCode(error, "ENOENT"))
+        throw error;
+      const parent = dirname(current2);
+      if (parent === current2)
+        throw new Error(`GHOSTGET_STATE_HOME has no real existing creation anchor: ${root}`);
+      segments.unshift(basename(current2));
+      current2 = parent;
+      continue;
+    }
+    if (!stats.isDirectory() || stats.isSymbolicLink() || !ownedByCurrentUser(stats) || (stats.mode & 0o022n) !== 0n) {
+      throw new Error(`GHOSTGET_STATE_HOME creation path contains a non-owned real directory: ${current2}`);
+    }
+    return {
+      identity: { device: stats.dev.toString(), inode: stats.ino.toString() },
+      path: current2,
+      segments
+    };
+  }
+}
+function assertStateRootIdentity(root) {
+  const expected = knownStateRoots.get(root);
+  if (expected === undefined)
+    throw new Error(`ghostget state root has not been validated: ${root}`);
+  const actual = inspectStateRootIdentity(root);
+  if (!sameIdentity(actual, expected.identity)) {
+    throw new Error(`GHOSTGET_STATE_HOME changed identity after validation: ${root}`);
+  }
+  if (expected.identity === null) {
+    const anchor = findCreationAnchor(root);
+    if (expected.creationAnchor === null || anchor.path !== expected.creationAnchor.path || !sameIdentity(anchor.identity, expected.creationAnchor.identity) || anchor.segments.join("\x00") !== expected.creationAnchor.segments.join("\x00"))
+      throw new Error(`GHOSTGET_STATE_HOME creation path changed after validation: ${root}`);
+  }
+  if (expected.claimed) {
+    if (actual === null)
+      throw new Error(`GHOSTGET_STATE_HOME disappeared after validation: ${root}`);
+    const stats = lstatSync(root);
+    if ((stats.mode & 511) !== 448)
+      throw new Error(`GHOSTGET_STATE_HOME must remain private (mode 0700): ${root}`);
+    readStateMarker(join(root, stateMarkerName));
+  }
+  return expected;
+}
+function assertNoSymbolicLinks(root, target, includeTarget, requirePrivateDirectories = false) {
+  const canonicalRoot = resolve(root);
+  const absoluteTarget = resolve(target);
+  if (!pathInside(canonicalRoot, absoluteTarget))
+    throw new Error(`state path escapes its root: ${absoluteTarget}`);
+  const checkedTarget = includeTarget ? absoluteTarget : dirname(absoluteTarget);
+  const child = relative(canonicalRoot, checkedTarget);
+  const components = child === "" ? [] : child.split(sep);
+  let current2 = canonicalRoot;
+  const paths = [current2, ...components.map((component) => {
+    current2 = join(current2, component);
+    return current2;
+  })];
+  for (const [index, path] of paths.entries()) {
+    let stats;
+    try {
+      stats = lstatSync(path);
+    } catch (error) {
+      if (hasCode(error, "ENOENT"))
+        return;
+      throw error;
+    }
+    if (stats.isSymbolicLink())
+      throw new Error(`ghostget state path contains a symbolic link: ${path}`);
+    if (stats.isDirectory() && requirePrivateDirectories && (!ownedByCurrentUser(stats) || (stats.mode & 511) !== 448)) {
+      throw new Error(`ghostget state directory must be owned and private (mode 0700): ${path}`);
+    }
+    if (index < paths.length - 1 && !stats.isDirectory()) {
+      throw new Error(`ghostget state ancestor is not a directory: ${path}`);
+    }
+  }
+}
+function assertKnownStatePath(path, includeTarget) {
+  const root = stateRootFor(path);
+  if (root !== null) {
+    assertStateRootIdentity(root);
+    assertNoSymbolicLinks(root, path, includeTarget, true);
+    assertStateRootIdentity(root);
+  }
+}
+function assertSafeStatePath(path, environment = process.env, includeTarget = true) {
+  const root = ghostgetStateHome(environment);
+  assertStateRootIdentity(root);
+  assertNoSymbolicLinks(root, path, includeTarget, true);
+  assertStateRootIdentity(root);
+}
+function canonicalPotentialPath(value) {
+  const suffix = [];
+  let ancestor = resolve(value);
+  let stats;
+  for (;; ) {
+    try {
+      stats = lstatSync(ancestor);
+      break;
+    } catch (error) {
+      if (!hasCode(error, "ENOENT"))
+        throw error;
+      const parent = dirname(ancestor);
+      if (parent === ancestor)
+        throw new Error(`path has no existing ancestor: ${value}`);
+      suffix.unshift(ancestor.slice(parent.length + (parent.endsWith("/") ? 0 : 1)));
+      ancestor = parent;
+    }
+  }
+  const target = stats.isSymbolicLink() ? lstatSync(canonicalComparisonPath(ancestor)) : stats;
+  if (!target.isDirectory()) {
+    throw new Error("GHOSTGET_STATE_HOME path contains a non-directory ancestor");
+  }
+  return resolve(realpathSync(ancestor), ...suffix);
+}
+function canonicalComparisonPath(value) {
+  const absolute = resolve(value);
+  const components = (path) => path.split(process.platform === "win32" ? /[/\\]/u : /\//u).filter(Boolean);
+  let current2 = parse(absolute).root;
+  let remaining = components(absolute.slice(current2.length));
+  let links = 0, steps = 0;
+  while (remaining.length > 0) {
+    if (++steps > 1024 || Buffer.byteLength(current2, "utf8") > 4096) {
+      throw new Error("state comparison path exceeds its metadata resolution bound");
+    }
+    const part = remaining.shift();
+    if (part === ".")
+      continue;
+    if (part === "..") {
+      current2 = dirname(current2);
+      continue;
+    }
+    const candidate = join(current2, part);
+    let before;
+    try {
+      before = lstatSync(candidate, { bigint: true });
+    } catch (error) {
+      if (!hasCode(error, "ENOENT"))
+        throw error;
+      if (remaining.includes(".."))
+        throw new Error("state comparison path has an unresolved parent");
+      return resolve(candidate, ...remaining);
+    }
+    if (before.isSymbolicLink()) {
+      if (++links > 40)
+        throw new Error("state comparison path has too many symbolic links");
+      const target = readlinkSync(candidate);
+      if (Buffer.byteLength(target, "utf8") > 4096)
+        throw new Error("state comparison link exceeds its metadata resolution bound");
+      const after = lstatSync(candidate, { bigint: true });
+      if (before.dev !== after.dev || before.ino !== after.ino || before.mode !== after.mode || before.size !== after.size || before.mtimeNs !== after.mtimeNs || before.ctimeNs !== after.ctimeNs) {
+        throw new Error("state comparison symbolic link changed during inspection");
+      }
+      const targetRoot = isAbsolute(target) ? parse(target).root : "";
+      if (targetRoot !== "")
+        current2 = targetRoot;
+      remaining = [...components(target.slice(targetRoot.length)), ...remaining];
+      if (remaining.length > 1024)
+        throw new Error("state comparison path exceeds its metadata resolution bound");
+      continue;
+    }
+    if (remaining.length > 0 && !before.isDirectory()) {
+      throw new Error("state comparison path contains a non-directory parent");
+    }
+    current2 = candidate;
+  }
+  return current2;
+}
+function comparisonIdentity(path) {
+  try {
+    return lstatSync(path, { bigint: true });
+  } catch (error) {
+    if (hasCode(error, "ENOENT"))
+      return null;
+    throw error;
+  }
+}
+function ownedByCurrentUser(stats) {
+  const currentUid = typeof process.getuid === "function" ? process.getuid() : undefined;
+  return currentUid === undefined || stats.uid === (typeof stats.uid === "bigint" ? BigInt(currentUid) : currentUid);
+}
+function readStateMarker(path) {
+  let bytes;
+  try {
+    bytes = readOwnedFileStableSync(path, 256).bytes;
+  } catch (error) {
+    throw new Error("ghostget state marker must be a private, owned regular file", { cause: error });
+  }
+  {
+    const content = new TextDecoder("utf-8", {
+      fatal: true,
+      ignoreBOM: true
+    }).decode(bytes);
+    if (content !== stateMarkerText)
+      throw new Error("ghostget state marker is malformed");
+    const value = JSON.parse(content);
+    if (typeof value !== "object" || value === null || Array.isArray(value) || !hasExactKeys(value, ["kind", "schemaVersion"]) || !("schemaVersion" in value) || value.schemaVersion !== 1 || !("kind" in value) || value.kind !== "io-state")
+      throw new Error("ghostget state marker is malformed");
+  }
+}
+function hasGhostgetPathIdentity(path) {
+  return resolve(path).split(sep).filter((segment) => segment !== "").slice(-3).some((segment) => /(?:^|[^a-z0-9])(?:ghostget|wrench|oh|io)(?:[^a-z0-9]|$)/iu.test(segment));
+}
+function validateUnmarkedStateRoot(root) {
+  if (!hasGhostgetPathIdentity(root)) {
+    throw new Error(`GHOSTGET_STATE_HOME is not marked as wrench-owned and its path does not identify dedicated ghostget state: ${root}`);
+  }
+  const allowed = new Set([
+    ...stateDirectoryNames,
+    ".cursor-encryption-key",
+    ".plan-encryption-key",
+    ".projection-encryption-key",
+    ".recovery-encryption-key",
+    ".session-encryption-key"
+  ]);
+  const entries = [];
+  const directory = opendirSync(root);
+  try {
+    for (;; ) {
+      const entry = directory.readSync();
+      if (entry === null)
+        break;
+      if (entries.length >= 1e4)
+        throw new Error("GHOSTGET_STATE_HOME contains more than 10000 entries");
+      if (entry.name.includes("\uFFFD") || Buffer.byteLength(entry.name, "utf8") > 255) {
+        throw new Error("GHOSTGET_STATE_HOME contains an unsafe entry name");
+      }
+      entries.push(entry);
+    }
+  } finally {
+    directory.closeSync();
+  }
+  for (const entry of entries) {
+    if (entry.isSymbolicLink())
+      throw new Error(`GHOSTGET_STATE_HOME contains a symbolic link: ${join(root, entry.name)}`);
+    if (/^\.io-state\.stage-\d+-[0-9a-f-]{36}\.json$/u.test(entry.name)) {
+      const stats2 = lstatSync(join(root, entry.name));
+      if (!stats2.isFile() || !ownedByCurrentUser(stats2) || (stats2.mode & 63) !== 0 || stats2.size > 256) {
+        throw new Error(`GHOSTGET_STATE_HOME contains an invalid interrupted state-marker stage: ${entry.name}`);
+      }
+      continue;
+    }
+    if (!allowed.has(entry.name)) {
+      throw new Error(`GHOSTGET_STATE_HOME is not an empty or recognizable dedicated ghostget state directory: ${root}`);
+    }
+    if (stateDirectoryNames.includes(entry.name) && !entry.isDirectory()) {
+      throw new Error(`GHOSTGET_STATE_HOME contains an invalid state entry: ${entry.name}`);
+    }
+    if ((entry.name === ".plan-encryption-key" || entry.name === ".cursor-encryption-key" || entry.name === ".projection-encryption-key" || entry.name === ".recovery-encryption-key" || entry.name === ".session-encryption-key") && !entry.isFile()) {
+      throw new Error("GHOSTGET_STATE_HOME contains an invalid encryption key entry");
+    }
+    const stats = lstatSync(join(root, entry.name));
+    const hasPrivateMode = entry.isDirectory() ? (stats.mode & 511) === 448 : (stats.mode & 63) === 0;
+    if (!ownedByCurrentUser(stats) || !hasPrivateMode) {
+      throw new Error(`GHOSTGET_STATE_HOME contains a state entry that is not owned and private: ${entry.name}`);
+    }
+  }
+  return entries.length > 0;
+}
+function validateStateRoot(root) {
+  if (!existsSync(root))
+    return { claimed: false, creationAnchor: findCreationAnchor(root), identity: null };
+  const stats = lstatSync(root, { bigint: true });
+  if (!stats.isDirectory() || stats.isSymbolicLink() || !ownedByCurrentUser(stats)) {
+    throw new Error(`GHOSTGET_STATE_HOME must be an owned real directory: ${root}`);
+  }
+  const marker = join(root, stateMarkerName);
+  const claimed = existsSync(marker);
+  const hasUnmarkedState = claimed ? false : validateUnmarkedStateRoot(root);
+  if (claimed)
+    readStateMarker(marker);
+  if (!claimed && !hasUnmarkedState && (stats.mode & 0o022n) !== 0n) {
+    throw new Error(`an unclaimed GHOSTGET_STATE_HOME must not be group/world-writable: ${root}`);
+  }
+  if ((claimed || hasUnmarkedState) && (stats.mode & 0o777n) !== 0o700n) {
+    throw new Error(`GHOSTGET_STATE_HOME must be private (mode 0700) before trusted state is read: ${root}`);
+  }
+  return { claimed, creationAnchor: null, identity: { device: stats.dev.toString(), inode: stats.ino.toString() } };
+}
+function selectStateHome(environment) {
+  const configuredRoots = [
+    ["GHOSTGET_STATE_HOME", environment.GHOSTGET_STATE_HOME],
+    ["WRENCH_STATE_HOME", environment.WRENCH_STATE_HOME],
+    ["OH_STATE_HOME", environment.OH_STATE_HOME],
+    ["IO_HOME", environment.IO_HOME]
+  ];
+  const requestedRoots = configuredRoots.flatMap(([name, value]) => {
+    const trimmed = value?.trim() ?? "";
+    return trimmed === "" ? [] : [{ name, root: canonicalPotentialPath(trimmed) }];
+  });
+  const distinctRequestedRoots = new Set(requestedRoots.map(({ root: root2 }) => root2));
+  if (distinctRequestedRoots.size > 1) {
+    throw new Error(`${requestedRoots.map(({ name }) => name).join(", ")} select different state roots`);
+  }
+  const dataRoot = environment.XDG_DATA_HOME !== undefined && environment.XDG_DATA_HOME.trim() !== "" ? resolve(environment.XDG_DATA_HOME) : join(homedir(), ".local", "share");
+  const currentDefault = canonicalPotentialPath(join(dataRoot, "ghostget"));
+  const legacyDefaults = [
+    canonicalPotentialPath(join(dataRoot, "wrench")),
+    canonicalPotentialPath(join(dataRoot, "oh")),
+    canonicalPotentialPath(join(dataRoot, "io"))
+  ];
+  let root = requestedRoots[0]?.root ?? null;
+  if (root === null) {
+    const existingDefaults = [currentDefault, ...legacyDefaults].filter((candidate) => existsSync(candidate));
+    if (existingDefaults.length > 1) {
+      throw new Error(`multiple Ghostget and legacy state roots exist; set GHOSTGET_STATE_HOME explicitly after reconciling ${existingDefaults.join(", ")}`);
+    }
+    root = existingDefaults[0] ?? currentDefault;
+  }
+  const home = canonicalPotentialPath(homedir());
+  const forbiddenRoots = new Set([
+    parse(root).root,
+    home,
+    dirname(home),
+    canonicalPotentialPath(tmpdir()),
+    canonicalPotentialPath(process.cwd()),
+    ...["Desktop", "Documents", "Downloads", "Library", ".cache", ".config", ".local"].map((name) => canonicalComparisonPath(join(home, name))),
+    ...environment.XDG_DATA_HOME === undefined || environment.XDG_DATA_HOME.trim() === "" ? [] : [canonicalPotentialPath(environment.XDG_DATA_HOME)]
+  ]);
+  const selectedIdentity = comparisonIdentity(root);
+  const aliasesForbiddenRoot = selectedIdentity !== null && [...forbiddenRoots].some((path) => {
+    const identity = comparisonIdentity(path);
+    return identity !== null && identity.dev === selectedIdentity.dev && identity.ino === selectedIdentity.ino;
+  });
+  if (forbiddenRoots.has(root) || aliasesForbiddenRoot || isWithinPath(ghostgetSourcePackageRoot, root)) {
+    throw new Error(`GHOSTGET_STATE_HOME must be a dedicated child directory, not a filesystem, home, temporary, repository, or shared data root: ${root}`);
+  }
+  return root;
+}
+function ghostgetStateHome(environment = process.env) {
+  const root = selectStateHome(environment);
+  const inspected = validateStateRoot(root);
+  const remembered = knownStateRoots.get(root);
+  if (remembered !== undefined) {
+    if (!sameIdentity(remembered.identity, inspected.identity)) {
+      throw new Error(`GHOSTGET_STATE_HOME changed identity after validation: ${root}`);
+    }
+    if (remembered.identity === null && (remembered.creationAnchor === null || inspected.creationAnchor === null || remembered.creationAnchor.path !== inspected.creationAnchor.path || !sameIdentity(remembered.creationAnchor.identity, inspected.creationAnchor.identity) || remembered.creationAnchor.segments.join("\x00") !== inspected.creationAnchor.segments.join("\x00")))
+      throw new Error(`GHOSTGET_STATE_HOME creation path changed after validation: ${root}`);
+    if (remembered.claimed && !inspected.claimed) {
+      throw new Error(`GHOSTGET_STATE_HOME lost its ownership marker after validation: ${root}`);
+    }
+    knownStateRoots.set(root, { ...inspected, claimed: remembered.claimed || inspected.claimed });
+  } else {
+    knownStateRoots.set(root, inspected);
+  }
+  for (const name of stateDirectoryNames)
+    assertNoSymbolicLinks(root, join(root, name), true);
+  return root;
+}
+function ensureClaimedStateRoot(root) {
+  let remembered = assertStateRootIdentity(root);
+  if (remembered.identity === null) {
+    const anchor = remembered.creationAnchor;
+    if (anchor === null)
+      throw new Error(`GHOSTGET_STATE_HOME has no validated creation anchor: ${root}`);
+    const response = runStateHelper(anchor.path, anchor.identity, { kind: "create-root", segments: anchor.segments }, true);
+    const current2 = inspectStateRootIdentity(root);
+    if (!sameIdentity(current2, response.identity))
+      throw new Error(`GHOSTGET_STATE_HOME changed identity while being created: ${root}`);
+    remembered = { claimed: true, creationAnchor: null, identity: response.identity };
+    knownStateRoots.set(root, remembered);
+  } else if (!remembered.claimed) {
+    validateUnmarkedStateRoot(root);
+    const descriptor = openSync(root, constants.O_RDONLY | ("O_NOFOLLOW" in constants ? constants.O_NOFOLLOW : 0) | ("O_DIRECTORY" in constants ? constants.O_DIRECTORY : 0));
+    try {
+      const stats = fstatSync(descriptor, { bigint: true });
+      const actual = { device: stats.dev.toString(), inode: stats.ino.toString() };
+      if (!sameIdentity(actual, remembered.identity) || !ownedByCurrentUser(stats)) {
+        throw new Error(`GHOSTGET_STATE_HOME changed identity while being claimed: ${root}`);
+      }
+      fchmodSync(descriptor, 448);
+      fsyncSync(descriptor);
+    } finally {
+      closeSync(descriptor);
+    }
+    if (!sameIdentity(inspectStateRootIdentity(root), remembered.identity)) {
+      throw new Error(`GHOSTGET_STATE_HOME changed identity while being claimed: ${root}`);
+    }
+    runStateHelper(root, remembered.identity, { kind: "claim" });
+    if (!sameIdentity(inspectStateRootIdentity(root), remembered.identity)) {
+      throw new Error(`GHOSTGET_STATE_HOME changed identity while being claimed: ${root}`);
+    }
+    remembered = { claimed: true, creationAnchor: null, identity: remembered.identity };
+    knownStateRoots.set(root, remembered);
+  }
+  if (remembered.identity === null)
+    throw new Error(`GHOSTGET_STATE_HOME is unavailable after being claimed: ${root}`);
+  assertStateRootIdentity(root);
+  return remembered.identity;
+}
+function canonicalNonStatePath(value) {
+  const absolute = resolve(value);
+  const filesystemRoot = parse(absolute).root;
+  const child = relative(filesystemRoot, absolute);
+  const segments = child === "" ? [] : child.split(sep);
+  let current2 = filesystemRoot;
+  for (const [index, segment] of segments.entries()) {
+    const candidate = join(current2, segment);
+    let stats;
+    try {
+      stats = lstatSync(candidate);
+    } catch (error) {
+      if (!hasCode(error, "ENOENT"))
+        throw error;
+      return join(current2, ...segments.slice(index));
+    }
+    if (stats.isSymbolicLink()) {
+      if (process.platform === "win32" || Number(stats.uid) !== 0) {
+        throw new Error(`private path is not a real directory (symbolic link): ${candidate}`);
+      }
+      current2 = realpathSync(candidate);
+      continue;
+    }
+    current2 = candidate;
+  }
+  return current2;
+}
+function genericPathParts(path) {
+  const canonical = canonicalNonStatePath(path);
+  const root = parse(canonical).root;
+  const rootIdentity = inspectRealDirectoryIdentity(root);
+  if (rootIdentity === null)
+    throw new Error(`path filesystem root is unavailable: ${root}`);
+  const child = relative(root, canonical);
+  return {
+    canonical,
+    root,
+    rootIdentity,
+    segments: child === "" ? [] : child.split(sep)
+  };
+}
+function captureGenericDirectoryExpectations(root, segments) {
+  const expectations = [];
+  let current2 = root;
+  let missing = false;
+  for (const segment of segments) {
+    current2 = join(current2, segment);
+    if (missing) {
+      expectations.push(null);
+      continue;
+    }
+    let stats;
+    try {
+      stats = lstatSync(current2, { bigint: true });
+    } catch (error) {
+      if (!hasCode(error, "ENOENT"))
+        throw error;
+      missing = true;
+      expectations.push(null);
+      continue;
+    }
+    if (!stats.isDirectory() || stats.isSymbolicLink()) {
+      throw new Error(`private path ancestor is not a real directory: ${current2}`);
+    }
+    expectations.push({ device: stats.dev.toString(), inode: stats.ino.toString() });
+  }
+  return expectations;
+}
+function ensureBoundNonStateDirectory(path, requireFinalPrivate) {
+  const parts = genericPathParts(path);
+  runPathHelper(parts.root, parts.rootIdentity, {
+    kind: "ensure-directories",
+    segments: parts.segments,
+    directoryExpectations: captureGenericDirectoryExpectations(parts.root, parts.segments),
+    requireFinalPrivate
+  });
+  return genericPathParts(parts.canonical);
+}
+function ensurePrivateDirectory(path) {
+  const target = resolve(path);
+  const root = stateRootFor(target);
+  if (root !== null) {
+    const identity = ensureClaimedStateRoot(root);
+    const segments = stateSegments(root, target);
+    if (segments.length > 0) {
+      runStateHelper(root, identity, {
+        kind: "ensure-directories",
+        segments,
+        directoryExpectations: captureStateDirectoryExpectations(root, segments)
+      });
+    }
+    assertKnownStatePath(target, true);
+    return;
+  }
+  ensureBoundNonStateDirectory(target, true);
+}
+function ensurePrivateStateDirectory(path, environment = process.env) {
+  assertSafeStatePath(path, environment);
+  const root = ghostgetStateHome(environment);
+  const identity = ensureClaimedStateRoot(root);
+  const segments = stateSegments(root, path);
+  if (segments.length === 0)
+    return identity;
+  const response = runStateHelper(root, identity, {
+    kind: "ensure-directories",
+    segments,
+    directoryExpectations: captureStateDirectoryExpectations(root, segments)
+  });
+  if (response.targetIdentity === undefined) {
+    throw new Error("state helper omitted the ensured directory identity");
+  }
+  return response.targetIdentity;
+}
+function readPrivateStateFileBytesIfPresent(path, maximumBytes, label, environment = process.env, expectedStateDirectories) {
+  assertSafeStatePath(path, environment);
+  const root = ghostgetStateHome(environment);
+  const identity = ensureClaimedStateRoot(root);
+  const segments = stateSegments(root, path);
+  if (segments.length < 2)
+    throw new Error(`${label} must be nested inside an ghostget state directory`);
+  const directoryExpectations = [...captureStateDirectoryExpectations(root, segments.slice(0, -1))];
+  if (expectedStateDirectories !== undefined) {
+    if (expectedStateDirectories.length !== directoryExpectations.length) {
+      throw new Error(`optional ${label} directory identity count does not match its state path`);
+    }
+    directoryExpectations.splice(0, directoryExpectations.length, ...expectedStateDirectories);
+  }
+  let response;
+  try {
+    response = runStateHelper(root, identity, {
+      kind: "read-file-if-present",
+      segments,
+      directoryExpectations,
+      maximumBytes
+    });
+  } catch (error) {
+    const detail = error instanceof Error ? ` (${error.message})` : "";
+    throw new Error(`could not safely open optional ${label}: ${path}${detail}`, { cause: error });
+  }
+  if (response.present === false) {
+    if (response.contentBase64 !== undefined)
+      throw new Error(`optional ${label} returned content while absent`);
+    return null;
+  }
+  if (response.present !== true)
+    throw new Error(`optional ${label} omitted its presence state`);
+  const encoded = response.contentBase64;
+  if (encoded === undefined || encoded.length > Math.ceil(maximumBytes / 3) * 4 + 4 || !/^[A-Za-z0-9+/]*={0,2}$/u.test(encoded))
+    throw new Error(`optional ${label} returned malformed bounded content`);
+  const content = Buffer.from(encoded, "base64");
+  if (content.byteLength > maximumBytes)
+    throw new Error(`optional ${label} grew beyond ${maximumBytes} bytes while being read`);
+  return content;
+}
+function readPrivateStateFileIfPresent(path, maximumBytes, label, environment = process.env, expectedStateDirectories) {
+  const content = readPrivateStateFileBytesIfPresent(path, maximumBytes, label, environment, expectedStateDirectories);
+  if (content === null)
+    return null;
+  try {
+    return new TextDecoder("utf-8", {
+      fatal: true,
+      ignoreBOM: true
+    }).decode(content);
+  } catch (error) {
+    throw new Error(`optional ${label} is not valid UTF-8`, { cause: error });
+  }
+}
+function readRegularFile(path, maximumBytes, label = "file", expectedStateParent) {
+  let stateRoot;
+  try {
+    stateRoot = stateRootFor(path);
+  } catch (error) {
+    const reason = error instanceof Error && error.message.includes("symbolic link") ? " (state path contains a symbolic link)" : "";
+    throw new Error(`could not safely open ${label}: ${path}${reason}`, { cause: error });
+  }
+  if (stateRoot !== null) {
+    ensurePrivateDirectory(stateRoot);
+    const record = assertStateRootIdentity(stateRoot);
+    if (record.identity === null || !record.claimed)
+      throw new Error("ghostget state root is not claimed");
+    const segments = stateSegments(stateRoot, path);
+    if (segments.length === 0) {
+      throw new Error(`${label} must be a regular file no larger than ${maximumBytes} bytes`);
+    }
+    let response2;
+    try {
+      const directoryExpectations = [...captureStateDirectoryExpectations(stateRoot, segments.slice(0, -1))];
+      if (expectedStateParent !== undefined && directoryExpectations.length > 0 && directoryExpectations.at(-1) !== null) {
+        directoryExpectations[directoryExpectations.length - 1] = expectedStateParent;
+      }
+      response2 = runStateHelper(stateRoot, record.identity, {
+        kind: "read-file",
+        segments,
+        directoryExpectations,
+        maximumBytes
+      });
+    } catch (error) {
+      const reason = error instanceof Error && error.message.includes("symbolic link") ? " (state path contains a symbolic link)" : "";
+      throw new Error(`could not safely open ${label}: ${path}${reason}`, { cause: error });
+    }
+    const encoded2 = response2.contentBase64;
+    if (encoded2 === undefined || encoded2.length > Math.ceil(maximumBytes / 3) * 4 + 4 || !/^[A-Za-z0-9+/]*={0,2}$/u.test(encoded2))
+      throw new Error(`${label} returned malformed bounded content`);
+    const content2 = Buffer.from(encoded2, "base64");
+    if (content2.byteLength > maximumBytes)
+      throw new Error(`${label} grew beyond ${maximumBytes} bytes while being read`);
+    try {
+      return new TextDecoder("utf-8", {
+        fatal: true,
+        ignoreBOM: true
+      }).decode(content2);
+    } catch (error) {
+      throw new Error(`${label} is not valid UTF-8`, { cause: error });
+    }
+  }
+  const parts = genericPathParts(path);
+  if (parts.segments.length === 0)
+    throw new Error(`${label} must be a regular file`);
+  let response;
+  try {
+    response = runPathHelper(parts.root, parts.rootIdentity, {
+      kind: "read-file",
+      segments: parts.segments,
+      directoryExpectations: captureGenericDirectoryExpectations(parts.root, parts.segments.slice(0, -1)),
+      maximumBytes
+    });
+  } catch (error) {
+    if (error instanceof Error && (error.message.includes("bounded regular file") || error.message.includes("byte bound") || error.message.includes("no longer matches its validated file identity"))) {
+      throw new Error(`${label} must be a regular file no larger than ${maximumBytes} bytes`, { cause: error });
+    }
+    throw new Error(`could not safely open ${label}: ${path}`, { cause: error });
+  }
+  const encoded = response.contentBase64;
+  if (encoded === undefined || encoded.length > Math.ceil(maximumBytes / 3) * 4 + 4 || !/^[A-Za-z0-9+/]*={0,2}$/u.test(encoded))
+    throw new Error(`${label} returned malformed bounded content`);
+  const content = Buffer.from(encoded, "base64");
+  if (content.byteLength > maximumBytes)
+    throw new Error(`${label} grew beyond ${maximumBytes} bytes while being read`);
+  try {
+    return new TextDecoder("utf-8", {
+      fatal: true,
+      ignoreBOM: true
+    }).decode(content);
+  } catch (error) {
+    throw new Error(`${label} is not valid UTF-8`, { cause: error });
+  }
+}
+function writePrivateJson(path, value, options = {}) {
+  const parent = dirname(path);
+  const stateRoot = stateRootFor(path);
+  if (stateRoot !== null) {
+    const identity = ensureClaimedStateRoot(stateRoot);
+    const segments = stateSegments(stateRoot, path);
+    runStateHelper(stateRoot, identity, {
+      kind: "write-file",
+      segments,
+      directoryExpectations: captureStateDirectoryExpectations(stateRoot, segments.slice(0, -1)),
+      content: `${canonicalJson(value)}
+`,
+      createOnly: false,
+      expectedContentSha256: null,
+      maximumExpectedContentBytes: DEFAULT_PRIVATE_STATE_EXPECTED_CONTENT_BYTES
+    });
+    return;
+  }
+  const parentParts = ensureBoundNonStateDirectory(parent, options.privateParent === true);
+  const destination = genericPathParts(join(parentParts.canonical, basename(path)));
+  runPathHelper(destination.root, destination.rootIdentity, {
+    kind: "write-file",
+    segments: destination.segments,
+    directoryExpectations: captureGenericDirectoryExpectations(destination.root, destination.segments.slice(0, -1)),
+    content: `${canonicalJson(value)}
+`,
+    createOnly: false
+  });
+}
+function writePrivateJsonIfUnchanged(path, value, options) {
+  if (!/^[0-9a-f]{64}$/u.test(options.expectedCurrentContentSha256)) {
+    throw new Error("expected private state content hash is invalid");
+  }
+  const maximumExpectedCurrentBytes = options.maximumExpectedCurrentBytes ?? DEFAULT_PRIVATE_STATE_EXPECTED_CONTENT_BYTES;
+  if (!Number.isSafeInteger(maximumExpectedCurrentBytes) || maximumExpectedCurrentBytes < 0 || maximumExpectedCurrentBytes > MAX_PRIVATE_STATE_EXPECTED_CONTENT_BYTES) {
+    throw new Error("expected private state content byte bound is invalid");
+  }
+  if ((options.pauseAfterClaimForTest === true || options.pauseAfterMutationClaimReadForTest === true || options.failAfterCommitForTest === true) && true) {
+    throw new Error("state CAS fault injection is available only in tests");
+  }
+  const stateRoot = stateRootFor(path);
+  if (stateRoot === null) {
+    if (options.pauseAfterClaimForTest === true || options.pauseAfterMutationClaimReadForTest === true || options.failAfterCommitForTest === true) {
+      throw new Error("compare-and-swap fault injection requires a GHOSTGET_STATE_HOME path");
+    }
+    const parentParts = ensureBoundNonStateDirectory(dirname(path), options.privateParent === true);
+    const destination = genericPathParts(join(parentParts.canonical, basename(path)));
+    try {
+      runPathHelper(destination.root, destination.rootIdentity, {
+        kind: "write-file",
+        segments: destination.segments,
+        directoryExpectations: captureGenericDirectoryExpectations(destination.root, destination.segments.slice(0, -1)),
+        content: `${canonicalJson(value)}
+`,
+        createOnly: false,
+        expectedContentSha256: options.expectedCurrentContentSha256,
+        maximumExpectedContentBytes: maximumExpectedCurrentBytes
+      });
+      return true;
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("file content no longer matches the expected hash"))
+        return false;
+      throw error;
+    }
+  }
+  const identity = ensureClaimedStateRoot(stateRoot);
+  const segments = stateSegments(stateRoot, path);
+  const replacementContent = `${canonicalJson(value)}
+`;
+  try {
+    runStateHelper(stateRoot, identity, {
+      kind: "write-file",
+      segments,
+      directoryExpectations: captureStateDirectoryExpectations(stateRoot, segments.slice(0, -1)),
+      content: replacementContent,
+      createOnly: false,
+      expectedContentSha256: options.expectedCurrentContentSha256,
+      maximumExpectedContentBytes: maximumExpectedCurrentBytes
+    }, false, options.pauseAfterClaimForTest === true ? "pause-after-cas-claim" : options.pauseAfterMutationClaimReadForTest === true ? "pause-after-mutation-claim-read" : options.failAfterCommitForTest === true ? "fail-after-cas-commit" : undefined);
+    return true;
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("state file content no longer matches the expected hash")) {
+      return false;
+    }
+    throw error;
+  }
+}
+function createPrivateJsonIfAbsent(path, value, options = {}) {
+  const parent = dirname(path);
+  if (options.environment !== undefined)
+    ghostgetStateHome(options.environment);
+  const stateRoot = stateRootFor(path);
+  if (stateRoot !== null) {
+    const identity = ensureClaimedStateRoot(stateRoot);
+    if (options.beforePublish !== undefined) {
+      const previewDirectory = mkdtempSync(join(tmpdir(), "wrench-create-preview-"));
+      const previewPath = join(previewDirectory, "value.json");
+      try {
+        const directoryDescriptor = openSync(previewDirectory, constants.O_RDONLY | ("O_NOFOLLOW" in constants ? constants.O_NOFOLLOW : 0) | ("O_DIRECTORY" in constants ? constants.O_DIRECTORY : 0));
+        try {
+          fchmodSync(directoryDescriptor, 448);
+        } finally {
+          closeSync(directoryDescriptor);
+        }
+        writeFileSync(previewPath, `${canonicalJson(value)}
+`, { encoding: "utf8", flag: "wx", mode: 384 });
+        options.beforePublish(previewPath);
+      } finally {
+        rmSync(previewDirectory, { recursive: true, force: true });
+      }
+    }
+    const segments = stateSegments(stateRoot, path);
+    const directoryExpectations = [...captureStateDirectoryExpectations(stateRoot, segments.slice(0, -1))];
+    if (options.expectedStateParent !== undefined && options.expectedStateDirectories !== undefined) {
+      throw new Error("expected state parent cannot be combined with expected state directories");
+    }
+    if (options.expectedStateDirectories !== undefined) {
+      if (options.expectedStateDirectories.length !== directoryExpectations.length) {
+        throw new Error("expected state-directory identity count does not match the JSON path");
+      }
+      directoryExpectations.splice(0, directoryExpectations.length, ...options.expectedStateDirectories);
+    }
+    if (options.expectedStateParent !== undefined) {
+      if (directoryExpectations.length === 0)
+        throw new Error("expected state parent requires a nested JSON path");
+      directoryExpectations[directoryExpectations.length - 1] = options.expectedStateParent;
+    }
+    const response2 = runStateHelper(stateRoot, identity, {
+      kind: "write-file",
+      segments,
+      directoryExpectations,
+      content: `${canonicalJson(value)}
+`,
+      createOnly: true,
+      expectedContentSha256: null,
+      maximumExpectedContentBytes: DEFAULT_PRIVATE_STATE_EXPECTED_CONTENT_BYTES
+    });
+    return { created: response2.created === true };
+  }
+  if (options.expectedStateParent !== undefined || options.expectedStateDirectories !== undefined) {
+    throw new Error("state-directory identity expectations require an ghostget state path");
+  }
+  if (options.environment !== undefined)
+    assertSafeStatePath(path, options.environment);
+  if (options.beforePublish !== undefined) {
+    const previewDirectory = mkdtempSync(join(tmpdir(), "wrench-create-preview-"));
+    const previewPath = join(previewDirectory, "value.json");
+    try {
+      chmodSync(previewDirectory, 448);
+      writeFileSync(previewPath, `${canonicalJson(value)}
+`, { encoding: "utf8", flag: "wx", mode: 384 });
+      options.beforePublish(previewPath);
+    } finally {
+      rmSync(previewDirectory, { recursive: true, force: true });
+    }
+  }
+  const parentParts = ensureBoundNonStateDirectory(parent, options.privateParent === true);
+  const destination = genericPathParts(join(parentParts.canonical, basename(path)));
+  const response = runPathHelper(destination.root, destination.rootIdentity, {
+    kind: "write-file",
+    segments: destination.segments,
+    directoryExpectations: captureGenericDirectoryExpectations(destination.root, destination.segments.slice(0, -1)),
+    content: `${canonicalJson(value)}
+`,
+    createOnly: true
+  });
+  return { created: response.created === true };
+}
+function removePrivateStateFile(path, environment = process.env, expectedStateParent) {
+  assertSafeStatePath(path, environment);
+  const root = ghostgetStateHome(environment);
+  ensurePrivateDirectory(root);
+  const record = assertStateRootIdentity(root);
+  if (record.identity === null || !record.claimed)
+    throw new Error("ghostget state root is not claimed");
+  const segments = stateSegments(root, path);
+  const directoryExpectations = [...captureStateDirectoryExpectations(root, segments.slice(0, -1))];
+  if (expectedStateParent !== undefined && directoryExpectations.length > 0 && directoryExpectations.at(-1) !== null) {
+    directoryExpectations[directoryExpectations.length - 1] = expectedStateParent;
+  }
+  const response = runStateHelper(root, record.identity, {
+    kind: "remove-file",
+    segments,
+    directoryExpectations
+  });
+  return response.removed === true;
+}
+function removePrivateStateFileIfUnchanged(path, options, environment = process.env) {
+  if (!/^[0-9a-f]{64}$/u.test(options.expectedCurrentContentSha256)) {
+    throw new Error("expected private state content hash is invalid");
+  }
+  assertSafeStatePath(path, environment);
+  const root = ghostgetStateHome(environment);
+  const identity = ensureClaimedStateRoot(root);
+  const segments = stateSegments(root, path);
+  if (segments.length < 2) {
+    throw new Error("conditional state-file removal requires a nested state path");
+  }
+  const response = runStateHelper(root, identity, {
+    kind: "remove-file-if-unchanged",
+    segments,
+    directoryExpectations: captureStateDirectoryExpectations(root, segments.slice(0, -1)),
+    expectedContentSha256: options.expectedCurrentContentSha256
+  });
+  return response.removed === true;
+}
+var stateHelperArtifactNamePatterns = Object.freeze([
+  /^\.io-write-[1-9][0-9]{0,9}-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.tmp$/u,
+  /^\.io-mutation-[a-f0-9]{64}-(?:waiting|candidate|held)-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.lock$/u,
+  /^\.io-mutation-stage-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}-[1-9][0-9]{0,9}\.tmp$/u,
+  /^\.io-remove-file-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.quarantine$/u,
+  /^\.io-remove(?:-tree)?-[1-9][0-9]{0,9}-[1-9][0-9]{0,15}-[0-9a-f]{12}4[0-9a-f]{3}[89ab][0-9a-f]{15}\.quarantine$/u
+]);
+function listPrivateStateDirectory(path, environment = process.env, expectedTarget, options = {}) {
+  return snapshotPrivateStateDirectory(path, environment, expectedTarget, options).entries;
+}
+function snapshotPrivateStateDirectory(path, environment = process.env, expectedTarget, options = {}) {
+  const root = ghostgetStateHome(environment);
+  const identity = ensureClaimedStateRoot(root);
+  const segments = stateSegments(root, path);
+  if (segments.length === 0)
+    throw new Error("the ghostget state root cannot be listed as a state collection");
+  const directoryExpectations = [...captureStateDirectoryExpectations(root, segments)];
+  if (expectedTarget !== undefined && directoryExpectations.at(-1) !== null) {
+    directoryExpectations[directoryExpectations.length - 1] = expectedTarget;
+  }
+  const response = runStateHelper(root, identity, {
+    kind: "list-directory",
+    segments,
+    directoryExpectations,
+    recoverOrphanedMutationClaims: options.recoverOrphanedMutationClaims === true
+  });
+  if (response.entries === undefined)
+    throw new Error("state helper omitted its directory entries");
+  return Object.freeze({
+    identity: response.targetIdentity ?? null,
+    entries: response.entries
+  });
+}
+function readPrivateStateFilesBatch(path, names, options) {
+  if (!Number.isSafeInteger(options.maximumBytesPerFile) || options.maximumBytesPerFile < 0 || options.maximumBytesPerFile > MAX_PRIVATE_STATE_BATCH_FILE_BYTES) {
+    throw new Error("private state batch per-file byte bound is invalid");
+  }
+  if (!Number.isSafeInteger(options.maximumTotalBytes) || options.maximumTotalBytes < 0 || options.maximumTotalBytes > MAX_PRIVATE_STATE_BATCH_TOTAL_BYTES) {
+    throw new Error("private state batch aggregate byte bound is invalid");
+  }
+  if (!Array.isArray(names) || names.length > MAX_PRIVATE_STATE_BATCH_FILES) {
+    throw new Error("private state batch file count is invalid");
+  }
+  let nameBytes = 0;
+  const validatedNames = [];
+  for (const name of names) {
+    if (!isSafeBatchFileName(name)) {
+      throw new Error("private state batch contains an invalid file name");
+    }
+    nameBytes += Buffer.byteLength(name, "utf8");
+    if (nameBytes > MAX_PRIVATE_STATE_BATCH_NAME_BYTES) {
+      throw new Error("private state batch file names exceed their byte bound");
+    }
+    validatedNames.push(name);
+  }
+  if (new Set(validatedNames).size !== validatedNames.length) {
+    throw new Error("private state batch file names must be unique");
+  }
+  if (options.faultForTest !== undefined && true) {
+    throw new Error("private state batch fault injection is available only under the test runtime");
+  }
+  const environment = options.environment ?? process.env;
+  let root;
+  let identity;
+  let segments;
+  let directoryExpectations;
+  try {
+    assertSafeStatePath(path, environment);
+    root = ghostgetStateHome(environment);
+    identity = ensureClaimedStateRoot(root);
+    segments = stateSegments(root, path);
+    if (segments.length === 0) {
+      throw new Error("root is not a state collection");
+    }
+    directoryExpectations = [
+      ...captureStateDirectoryExpectations(root, segments)
+    ];
+  } catch {
+    throw new Error("private state batch directory is unsafe");
+  }
+  const capturedTarget = directoryExpectations.at(-1);
+  if (capturedTarget === undefined || capturedTarget === null) {
+    throw new Error("private state batch directory is absent");
+  }
+  const expectedTarget = options.expectedDirectoryIdentity ?? capturedTarget;
+  if (!sameIdentity(capturedTarget, expectedTarget)) {
+    throw new Error("private state batch directory changed identity");
+  }
+  directoryExpectations[directoryExpectations.length - 1] = expectedTarget;
+  let response;
+  try {
+    response = runStateHelper(root, identity, {
+      kind: "batch-read-files",
+      segments,
+      directoryExpectations,
+      names: validatedNames,
+      maximumBytesPerFile: options.maximumBytesPerFile,
+      maximumTotalBytes: options.maximumTotalBytes
+    }, false, options.faultForTest);
+  } catch (error) {
+    if (error instanceof Error && (error.message.includes("malformed response") || error.message.includes("invalid JSON"))) {
+      throw new Error("state helper returned a malformed batch response");
+    }
+    throw new Error("private state batch helper rejected the snapshot");
+  }
+  if (response.targetIdentity === undefined || !sameIdentity(response.targetIdentity, expectedTarget)) {
+    throw new Error("private state batch directory changed identity");
+  }
+  let currentTarget;
+  try {
+    currentTarget = inspectRealDirectoryIdentity(path);
+  } catch {
+    throw new Error("private state batch directory changed identity");
+  }
+  if (!sameIdentity(currentTarget, expectedTarget)) {
+    throw new Error("private state batch directory changed identity");
+  }
+  const files = response.files;
+  if (files === undefined || files.length !== validatedNames.length || files.some((file, index) => file.name !== validatedNames[index])) {
+    throw new Error("state helper returned a malformed batch response");
+  }
+  const results = [];
+  let totalBytes = 0;
+  for (const file of files) {
+    if (file.status === "absent") {
+      results.push(Object.freeze({ name: file.name, status: "absent" }));
+      continue;
+    }
+    if (file.status === "invalid") {
+      results.push(Object.freeze({
+        name: file.name,
+        status: "invalid",
+        reason: file.reason
+      }));
+      continue;
+    }
+    const content = decodeCanonicalBase64(file.contentBase64, options.maximumBytesPerFile);
+    if (content === null) {
+      throw new Error("state helper returned a malformed batch response");
+    }
+    totalBytes += content.byteLength;
+    if (totalBytes > options.maximumTotalBytes) {
+      throw new Error("state helper returned a malformed batch response");
+    }
+    try {
+      results.push(Object.freeze({
+        name: file.name,
+        status: "present",
+        content: new TextDecoder("utf-8", {
+          fatal: true,
+          ignoreBOM: true
+        }).decode(content)
+      }));
+    } catch {
+      results.push(Object.freeze({
+        name: file.name,
+        status: "invalid",
+        reason: "invalid-utf8"
+      }));
+    }
+  }
+  return Object.freeze(results);
+}
+function readPrivateStateFilesBatched(path, names, options) {
+  if (!Array.isArray(names) || names.length > 1e4) {
+    throw new Error("private state collection file count is invalid");
+  }
+  if (names.some((name) => !isSafeBatchFileName(name))) {
+    throw new Error("private state collection contains an invalid file name");
+  }
+  if (new Set(names).size !== names.length) {
+    throw new Error("private state collection file names must be unique");
+  }
+  if (!Number.isSafeInteger(options.maximumBytesPerFile) || options.maximumBytesPerFile < 0 || options.maximumBytesPerFile > MAX_PRIVATE_STATE_BATCH_FILE_BYTES) {
+    throw new Error("private state collection per-file byte bound is invalid");
+  }
+  const filesPerBatch = options.maximumBytesPerFile === 0 ? MAX_PRIVATE_STATE_BATCH_FILES : Math.min(MAX_PRIVATE_STATE_BATCH_FILES, Math.floor(MAX_PRIVATE_STATE_BATCH_TOTAL_BYTES / options.maximumBytesPerFile));
+  const results = [];
+  for (let index = 0;index < names.length; index += filesPerBatch) {
+    const batchNames = names.slice(index, index + filesPerBatch);
+    results.push(...readPrivateStateFilesBatch(path, batchNames, {
+      maximumBytesPerFile: options.maximumBytesPerFile,
+      maximumTotalBytes: options.maximumBytesPerFile * batchNames.length,
+      ...options.environment === undefined ? {} : { environment: options.environment },
+      expectedDirectoryIdentity: options.expectedDirectoryIdentity
+    }));
+  }
+  return Object.freeze(results);
+}
+function removePrivateStateDirectoryTree(path, environment = process.env, expectedTarget, expectedParent) {
+  const root = ghostgetStateHome(environment);
+  const identity = ensureClaimedStateRoot(root);
+  const segments = stateSegments(root, path);
+  if (segments.length < 2)
+    throw new Error("only a nested ghostget state directory can be recursively removed");
+  const captured = [...captureStateDirectoryExpectations(root, segments)];
+  if (expectedTarget !== undefined && captured.at(-1) !== null)
+    captured[captured.length - 1] = expectedTarget;
+  if (expectedParent !== undefined && captured.length > 1 && captured.at(-2) !== null) {
+    captured[captured.length - 2] = expectedParent;
+  }
+  const response = runStateHelper(root, identity, {
+    kind: "remove-directory-tree",
+    segments,
+    directoryExpectations: captured
+  });
+  return response.removed === true;
+}
+var adapterGenerationMaximumIndexBytes = 1024 * 1024;
+var activeAdapterGenerationTransactions = new Map;
+
+export { currentProcessStartIdentity, captureProcessOwnerIdentity, processOwnerStatus, MAX_WRENCH_JSON_BYTES, sourceHelperPath, assertSafeStatePath, ghostgetStateHome, ensurePrivateStateDirectory, readPrivateStateFileIfPresent, readRegularFile, writePrivateJson, writePrivateJsonIfUnchanged, createPrivateJsonIfAbsent, removePrivateStateFile, removePrivateStateFileIfUnchanged, listPrivateStateDirectory, snapshotPrivateStateDirectory, readPrivateStateFilesBatched, removePrivateStateDirectoryTree };

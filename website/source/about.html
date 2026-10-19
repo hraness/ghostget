@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en" data-hraness-theme="paper" data-palette="gruvbox">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#fbf1c7" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">
+    <title>About GhostGet: open-source web actions for AI agents</title>
+    <meta name="description" content="GhostGet is an open-source CLI and TypeScript SDK that lets any agent that can run commands read pages, archive media, and use connected accounts.">
+    <meta name="robots" content="max-image-preview:large">
+    <link rel="canonical" href="https://ghostget.com/about/">
+    <link rel="icon" href="/icon.png" type="image/png" sizes="32x32">
+    <link rel="icon" href="/icon-96.png" type="image/png" sizes="96x96">
+    <link rel="apple-touch-icon" href="/apple-icon.png" sizes="180x180">
+    <link rel="stylesheet" href="{{CSS_ASSET}}">
+    <link rel="sitemap" type="application/xml" href="/sitemap.xml">
+    {{MARKDOWN_ALTERNATE}}
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="GhostGet">
+    <meta property="og:title" content="About GhostGet: open-source web actions for AI agents">
+    <meta property="og:description" content="GhostGet is an open-source CLI and TypeScript SDK that lets any agent that can run commands read pages, archive media, and use connected accounts.">
+    <meta property="og:url" content="https://ghostget.com/about/">
+    <meta property="og:image" content="https://ghostget.com/og.png">
+    <meta property="og:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="About GhostGet: open-source web actions for AI agents">
+    <meta name="twitter:description" content="GhostGet is an open-source CLI and TypeScript SDK that lets any agent that can run commands read pages, archive media, and use connected accounts.">
+    <meta name="twitter:image" content="https://ghostget.com/og.png">
+    <meta name="twitter:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
+    <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
+    <meta name="ghostget-posthog-key" content="{{POSTHOG_KEY}}">
+    <script type="application/ld+json">{{JSON_LD}}</script>
+    <script type="module" src="{{ANALYTICS_ASSET}}"></script>
+    <script type="module" src="{{FOIL_ASSET}}"></script>
+  </head>
+  <body data-hraness-landscape="page">
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="topbar guide-topbar">
+      <a aria-label="{{PORTFOLIO_NAME}} home" class="wordmark hraness-foil-text" data-foil="" href="/"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span> {{PORTFOLIO_NAME}}</a>
+      <nav aria-label="Primary">
+        <a href="/docs/tutorials/getting-started/">Install</a>
+        <a href="/docs/reference/provider-capabilities/">Providers</a>
+        <a href="/docs/">Docs</a>
+        <a href="https://github.com/hraness/ghostget">GitHub <span aria-hidden="true">↗</span></a>
+        <a href="https://account.hraness.com/">Account</a>
+      </nav>
+    </header>
+    <main class="guide-main" id="main" tabindex="-1">
+      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">GhostGet</a></li><li aria-current="page">About</li></ol></nav>
+      <article class="guide-article">
+        <header class="guide-hero">
+          <p class="eyebrow">About · GhostGet {{GHOSTGET_VERSION}}</p>
+          <h1>GhostGet is a CLI and TypeScript SDK that gives your agent web actions</h1>
+          <p class="answer-lede">GhostGet is the open-source CLI and TypeScript SDK published by the <a href="https://github.com/hraness">Hraness GitHub organization</a>. It lets any agent or application that can run commands read pages, save verified media archives, keep encrypted copies of account reads, and use named actions in connected services.</p>
+          <p class="review-note">This page describes GhostGet {{GHOSTGET_RELEASE}}.</p>
+        </header>
+
+        <section aria-labelledby="what-ghostget-is">
+          <h2 id="what-ghostget-is">What GhostGet is</h2>
+          <p>The caller asks for a named outcome such as <code>messaging.list</code>. GhostGet binds that operation to one exact provider, transport, account realm, contract version, implementation, and risk level. If those facts drift, the operation stops. It does not silently fall back to general browser control, caller-selected HTTP, or every signed-in tab.</p>
+          <p>The package is MIT licensed. Source, issues, and release tags live in the public <a href="{{GHOSTGET_REPOSITORY}}">hraness/ghostget</a> repository. The canonical website is <a href="https://ghostget.com/">ghostget.com</a>.</p>
+        </section>
+
+        <section aria-labelledby="what-ghostget-is-not">
+          <h2 id="what-ghostget-is-not">What GhostGet doesn’t include</h2>
+          <p>GhostGet supplies no AI model or planner. Its terminal controls review accounts, approvals, and permissions and list local output files. It does not publish a hosted HTTP API, OpenAPI description, OAuth developer portal, GraphQL endpoint, webhook catalog, or MCP server. A caller can place those interfaces around the local CLI or SDK.</p>
+        </section>
+
+        <section aria-labelledby="current-documents">
+          <h2 id="current-documents">Current public documents</h2>
+          <p>The <a href="/docs/tutorials/getting-started/">getting started guide</a>, <a href="/docs/how-to/capture-and-archive/">capture guide</a>, <a href="/docs/reference/provider-capabilities/">provider support directory</a>, <a href="/compare/personal-agents-browser-use/">personal-agent comparison</a>, <a href="/agentic-web-spoofing/">index-spoofing argument</a>, <a href="/vms-cannot-contain-agents/">VM-containment argument</a>, <a href="/paypal-grapheneos-attestation/">PayPal GrapheneOS device-policy argument</a>, <a href="/rumour-is-the-exploit/">rumour and named-operations sourced take</a>, <a href="/omarchy-root-escalation/">Omarchy desktop-root news take</a>, <a href="/docs/explanation/security-model/">security guide</a>, <a href="/docs/how-to/author-provider-plugin/">plugin guide</a>, and <a href="/llms.txt">llms.txt</a> describe the same {{GHOSTGET_RELEASE}} release as this page.</p>
+        </section>
+
+        <aside class="guide-callout" aria-labelledby="about-next">
+          <h2 id="about-next">Start with the current release</h2>
+          <p>Install {{GHOSTGET_RELEASE}} from the <a href="/docs/tutorials/getting-started/">getting started guide</a>, then read <a href="/docs/explanation/security-model/">the security model</a> before adding credentials.</p>
+        </aside>
+      </article>
+    </main>
+    {{HRANESS_SITE_FOOTER}}
+  </body>
+</html>

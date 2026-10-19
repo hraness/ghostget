@@ -1,0 +1,5463 @@
+import { describe, expect, spyOn, test } from "bun:test";
+import * as RunJournalStore from "./run-journal";
+import * as PrivateStorage from "./storage";
+import { currentProcessStartIdentity } from "./process-identity";
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  randomUUID,
+} from "node:crypto";
+import {
+  chmodSync,
+  existsSync,
+  lstatSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  unlinkSync,
+  utimesSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+
+import { createAuth, removeAuth, saveAuth, type GhostgetAuth } from "./auth";
+import {
+  PreservedBrowserArtifactsError,
+  type BrowserExecution,
+} from "./browser";
+import {
+  canonicalJson,
+  parseManifest,
+  sha256,
+  type FileInputValue,
+  type GhostgetManifest,
+} from "./model";
+import { OperationDeadlineError } from "./operation-deadline";
+import { AuthRepairRequiredError } from "./web-session-execution";
+import {
+  readProviderAcceptedMutationTargetEvidence,
+  readRecoveryCapsule,
+  writeRecoveryCapsule,
+  type RecoveryCapsule,
+} from "./recovery";
+import {
+  getProviderContract,
+  isCompatibleProviderContractHash,
+  providerContractHash,
+} from "./provider-contracts";
+import type { ProviderExecution } from "./provider";
+import { reviewedBuiltInContractIdentity } from "./provider-plugin-contract-identity";
+import type { ProviderPluginRegistry } from "./provider-plugin-registry";
+import { kernelFixtureRegistry as providerPluginRegistry, kernelWebManifest, kernelProviderManifest } from "./kernel-provider-fixture.test-support";
+import * as Runtime from "./runtime";
+import {
+  createRunJournal,
+  parseRunJournal,
+  readRunJournal,
+} from "./run-journal";
+import {
+  PLAN_TTL_MS,
+  MAX_CANCELLED_INVOCATION_PLANS,
+  cancelInvocationPlan,
+  cancelUnstartedInvocationPlan,
+  invocationPlanWasCancelled,
+  listInvocationPlans,
+  listRunReceipts,
+  loadInvocationPlan,
+  purgeExpiredPlans,
+  readRunReceipt,
+  releaseReconciledRunRecovery,
+  repairInterruptedRunJournals,
+  repairInterruptedConfirmationClaims,
+  saveInvocationPlan,
+  type StoredPlan,
+} from "./runtime";
+import {
+  WEB_SESSION_CLEANUP_ADMISSION_STATE_DIRECTORY,
+  acquireWebSessionCleanupAdmission,
+  listWebSessionCleanupAdmissions,
+} from "./web-session-cleanup-admission";
+import {
+  getWebSessionContract,
+  isCompatibleWebSessionContractHash,
+  webSessionContractHash,
+} from "./web-session-contracts";
+import { PLAN_ASSET_GC_GRACE_MS, planAssetBundlePath } from "./plan-assets";
+import {
+  ensurePrivateStateDirectory,
+  installManifest as installManifestWithRegistry,
+  ghostgetStateHome,
+  writePrivateJson,
+} from "./storage";
+
+const installManifest = (
+  manifest: Parameters<typeof installManifestWithRegistry>[0],
+  options: Parameters<typeof installManifestWithRegistry>[1],
+) => installManifestWithRegistry(manifest, {
+  ...options,
+  registry: options.registry ?? providerPluginRegistry,
+});
+
+
+const prepareInvocation: typeof Runtime.prepareInvocation = (adapter, operation, input, auth, environment, registry = providerPluginRegistry, mode) => Runtime.prepareInvocation(adapter, operation, input, auth, environment, registry, mode);
+const confirmInvocation: typeof Runtime.confirmInvocation = (digest, options) => Runtime.confirmInvocation(digest, { registry: providerPluginRegistry, ...options });
+const executeReadInvocation: typeof Runtime.executeReadInvocation = (invocation, options) => Runtime.executeReadInvocation(invocation, { registry: providerPluginRegistry, ...options });
+const createInvocationPlan: typeof Runtime.createInvocationPlan = (invocation, now, registry = providerPluginRegistry) => Runtime.createInvocationPlan(invocation, now, registry);
+const createAndSaveInvocationPlan: typeof Runtime.createAndSaveInvocationPlan = (invocation, environment, now, registry = providerPluginRegistry, options) => Runtime.createAndSaveInvocationPlan(invocation, environment, now, registry, options);
+
+const TEST_CHILD_SIGNAL_TIMEOUT_MS = 45_000;
+
+type TestState = {
+  readonly directory: string;
+  readonly environment: Readonly<Record<string, string | undefined>>;
+};
+
+function state(): TestState {
+  const directory = mkdtempSync(join(tmpdir(), "wrench-runtime-test-"));
+  chmodSync(directory, 0o700);
+  return { directory, environment: { GHOSTGET_STATE_HOME: directory } };
+}
+
+function createLiveTestConfirmationClaim(digest: string, testState: TestState): string {
+  const now = new Date();
+  const path = join(testState.directory, "plans", `${digest}.claim.json`);
+  writePrivateJson(path, {
+    schemaVersion: 1, digest, runId: randomUUID(),
+    owner: { pid: process.pid, token: randomUUID(), ...currentProcessStartIdentity(), leaseUntil: new Date(now.getTime() + 60_000).toISOString() },
+    createdAt: now.toISOString(),
+  });
+  return path;
+}
+
+async function holdReadProjectionAdmissionInChild(
+  testState: TestState,
+  authId: string,
+) {
+  const readyPath = join(testState.directory, `.admission-ready-${randomUUID()}`);
+  const admissionModuleUrl = pathToFileURL(
+    join(import.meta.dir, "read-projection-admission.ts"),
+  ).href;
+  const child = Bun.spawn([
+    process.execPath,
+    "--eval",
+    `
+      const { writeFileSync } = await import("node:fs");
+      const { acquireReadProjectionAuthAdmission } = await import(${JSON.stringify(admissionModuleUrl)});
+      const admission = acquireReadProjectionAuthAdmission(
+        process.env.GHOSTGET_TEST_AUTH_ID,
+        process.env,
+      );
+      writeFileSync(process.env.GHOSTGET_TEST_READY_PATH, "ready\\n", { mode: 0o600 });
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 750);
+      admission.release();
+    `,
+  ], {
+    env: {
+      ...process.env,
+      GHOSTGET_STATE_HOME: testState.directory,
+      GHOSTGET_TEST_AUTH_ID: authId,
+      GHOSTGET_TEST_READY_PATH: readyPath,
+    },
+    detached: true,
+    stdout: "ignore",
+    stderr: "pipe",
+  });
+  const stderr = new Response(child.stderr).text();
+  const killAndReap = async (): Promise<void> => {
+    try {
+      process.kill(-child.pid, "SIGKILL");
+    } catch {
+      try {
+        child.kill("SIGKILL");
+      } catch {
+        // The direct child and its owned group already exited.
+      }
+    }
+    await Promise.allSettled([child.exited, stderr]);
+  };
+  const deadline = performance.now() + TEST_CHILD_SIGNAL_TIMEOUT_MS;
+  while (
+    !existsSync(readyPath)
+    && child.exitCode === null
+    && performance.now() < deadline
+  ) {
+    await Bun.sleep(25);
+  }
+  if (!existsSync(readyPath)) {
+    const observedExitCode = child.exitCode;
+    await killAndReap();
+    const exitCode = observedExitCode ?? await child.exited;
+    const stderrText = await stderr;
+    throw new Error(
+      `cross-process admission holder did not become ready (exit ${exitCode}): ${stderrText}`,
+    );
+  }
+  return Object.freeze({ child, killAndReap, stderr });
+}
+
+function auth(source: "chrome" | "firefox" = "chrome"): GhostgetAuth {
+  return { schemaVersion: 1, id: "example", kind: "cookie-source", source };
+}
+
+function manifest(
+  risk: "R1" | "R2" | "R3" = "R2",
+  options: { readonly version?: string; readonly dedupeWindowMs?: number } = {},
+): GhostgetManifest {
+  const mutating = risk === "R2" || risk === "R3";
+  return {
+    schemaVersion: 1,
+    id: "example",
+    version: options.version ?? "1.0.0",
+    displayName: "Example",
+    origins: ["https://example.com"],
+    browserDomains: ["example.com", "*.example.com"],
+    operations: {
+      "messaging.send": {
+        description: mutating ? "Send one message" : "Read messages",
+        risk,
+        sideEffect: mutating ? "Sends one external message" : "none",
+        idempotency: mutating ? "local-at-most-once" : "none",
+        dedupeWindowMs: mutating ? options.dedupeWindowMs ?? 86_400_000 : 0,
+        input: {
+          properties: {
+            message: {
+              type: "string",
+              description: "Message body",
+              minLength: 1,
+              maxLength: 2_000,
+            },
+          },
+          required: ["message"],
+        },
+        browser: {
+          steps: mutating
+            ? [
+                { kind: "navigate", path: "/messaging/compose" },
+                {
+                  kind: "find",
+                  locator: { by: "role", value: "textbox", name: "Write a message" },
+                  action: "fill",
+                  with: "message",
+                },
+                {
+                  kind: "find",
+                  locator: { by: "role", value: "button", name: "Send" },
+                  action: "click",
+                  dispatch: true,
+                },
+                { kind: "assert-url", pattern: "https://example.com/messaging/thread/*" },
+              ]
+            : [
+                { kind: "navigate", path: "/messaging" },
+                { kind: "read" },
+              ],
+          timeoutMs: 30_000,
+          maxOutputBytes: 64 * 1024,
+        },
+      },
+    },
+  };
+}
+
+
+function linkedinProviderManifest(): GhostgetManifest {
+  return JSON.parse(readFileSync(
+    join(import.meta.dir, "assets", "adapters", "linkedin", "wrench-adapter.json"),
+    "utf8",
+  )) as GhostgetManifest;
+}
+
+function linkedinWebManifest(): GhostgetManifest {
+  return JSON.parse(readFileSync(
+    join(import.meta.dir, "assets", "adapters", "linkedin", "wrench-web-adapter.json"),
+    "utf8",
+  )) as GhostgetManifest;
+}
+
+function providerBoundTargetTestRegistry(): ProviderPluginRegistry {
+  const resolveOperationDefinition: ProviderPluginRegistry["resolveOperationDefinition"] = (
+    transport,
+    surfaceId,
+    operationName,
+    contractVersion,
+  ) => {
+    const resolution = providerPluginRegistry.resolveOperationDefinition(
+      transport,
+      surfaceId,
+      operationName,
+      contractVersion,
+    );
+    if (
+      resolution === undefined
+      || transport !== "web-session-api"
+      || surfaceId !== "kernel-fixture"
+      || operationName !== "content.save"
+      || contractVersion !== 1
+    ) return resolution;
+    return {
+      ...resolution,
+      operation: {
+        ...resolution.operation,
+        reconciliation: {
+          kind: "provider-bound-target-desired-state",
+          desiredState: false,
+        },
+      },
+    };
+  };
+  return {
+    ...providerPluginRegistry,
+    resolveOperationDefinition,
+    requireOperationDefinition: (
+      transport,
+      surfaceId,
+      operationName,
+      contractVersion,
+    ) => {
+      const resolution = resolveOperationDefinition(
+        transport,
+        surfaceId,
+        operationName,
+        contractVersion,
+      );
+      if (resolution === undefined) {
+        return providerPluginRegistry.requireOperationDefinition(
+          transport,
+          surfaceId,
+          operationName,
+          contractVersion,
+        );
+      }
+      return resolution;
+    },
+  };
+}
+
+function reviewedTemplateManifest(
+  risk: "R1" | "R3",
+  method: "GET" | "DELETE" | "POST" = risk === "R3" ? "POST" : "GET",
+): GhostgetManifest {
+  const write = risk === "R3";
+  const operationId = write ? "messaging.send" : "content.read";
+  return {
+    schemaVersion: 5,
+    id: "example-api",
+    version: "1.0.0",
+    displayName: "Example API",
+    origins: ["https://example.com"],
+    browserDomains: ["example.com"],
+    operations: {
+      [operationId]: {
+        description: write ? "Send one message" : "Read one target",
+        risk,
+        sideEffect: write ? "Sends one externally visible message" : "none",
+        idempotency: write ? "local-at-most-once" : "none",
+        dedupeWindowMs: write ? 86_400_000 : 0,
+        input: {
+          properties: {
+            target_id: {
+              type: "string",
+              description: "Exact target",
+              minLength: 1,
+              maxLength: 128,
+              format: "path-segment",
+            },
+            body: { type: "string", description: "Exact body", minLength: 1, maxLength: 2_000 },
+          },
+          required: write ? ["target_id", "body"] : ["target_id"],
+        },
+        reviewedTemplate: {
+          state: "reviewed",
+          contractVersion: 1,
+          reviewedAt: "2026-07-22T12:00:00.000Z",
+          evidenceSha256: "a".repeat(64),
+          timeoutMs: 30_000,
+          template: {
+            schemaVersion: 1,
+            origin: "https://example.com",
+            request: {
+              method,
+              path: [
+                { kind: "literal", value: "api" },
+                { kind: "input", name: "target_id", valueType: "string" },
+              ],
+              query: [],
+              headers: [{ name: "accept", value: { kind: "literal", value: "application/json" } }],
+              body: write
+                ? {
+                    kind: "json",
+                    value: {
+                      kind: "object",
+                      entries: [{ name: "body", value: { kind: "input", name: "body", valueType: "string" } }],
+                    },
+                  }
+                : { kind: "none" },
+            },
+            response: {
+              maxBytes: 65_536,
+              variants: [{
+                status: 200,
+                contentType: "application/json",
+                body: {
+                  kind: "json",
+                  projections: [{
+                    name: "id",
+                    path: [{ kind: "key", key: "data" }, { kind: "key", key: "id" }],
+                    valueType: "string",
+                    required: true,
+                  }],
+                  bindings: write
+                    ? [{
+                        path: [{ kind: "key", key: "data" }, { kind: "key", key: "target" }],
+                        expected: { kind: "input", name: "target_id", valueType: "string" },
+                      }]
+                    : [],
+                },
+              }],
+            },
+          },
+        },
+      },
+    },
+  };
+}
+
+function installLinkedInProviderFixture(testState: TestState): void {
+  installManifest(linkedinProviderManifest(), { force: false, environment: testState.environment });
+  saveAuth(createAuth("linkedin-official", {
+    oauthProvider: "linkedin",
+    tokenFile: join(testState.directory, "x-token.json"),
+    scopes: ["r_member_social", "w_member_social"],
+    subject: "urn:li:person:12345",
+  }), testState.environment);
+}
+
+function installKernelProviderFixture(testState: TestState): void {
+  installManifest(kernelProviderManifest(), { force: false, environment: testState.environment });
+  saveAuth(createAuth("kernel-official", { oauthProvider: "kernel-provider", tokenFile: join(testState.directory, "fixture-token.json"), scopes: ["fixture.write"], subject: "12345" }), testState.environment);
+}
+
+function installFixture(testState: TestState, risk: "R1" | "R2" | "R3" = "R2"): void {
+  void risk;
+  installLinkedInProviderFixture(testState);
+}
+
+function prepared(testState: TestState, message = "private-message-value") {
+  return prepareInvocation("linkedin", "posts.publish", { author: "urn:li:person:12345", body: message }, "linkedin-official", testState.environment);
+}
+
+function preparedRead(testState: TestState) {
+  return prepareInvocation(
+    "linkedin",
+    "posts.read",
+    { mode: "one", post_urn: "urn:li:share:2078889282404569267" },
+    "linkedin-official",
+    testState.environment,
+  );
+}
+
+function preparedUpload(testState: TestState, source: string) {
+  installFixture(testState);
+  return prepareInvocation(
+    "linkedin",
+    "posts.publish",
+    { author: "urn:li:person:12345", body: "reviewed media fixture", media: [source] },
+    "linkedin-official",
+    testState.environment,
+  );
+}
+
+function firstBoundFile(value: unknown): FileInputValue {
+  const values: readonly unknown[] = Array.isArray(value) ? value : [];
+  const candidate = values[0];
+  if (
+    typeof candidate !== "object"
+    || candidate === null
+    || Array.isArray(candidate)
+    || !("kind" in candidate)
+    || candidate.kind !== "file"
+    || !("reference" in candidate)
+    || typeof candidate.reference !== "string"
+  ) throw new Error("expected a bound upload");
+  return { kind: "file", reference: candidate.reference };
+}
+
+function forgedProtectedBrowserInvocation(
+  schemaVersion: 2 | 3,
+  risk: "R1" | "R3",
+  origin: "https://api.x.com" | "https://api.linkedin.com",
+) {
+  const protectedManifest: GhostgetManifest = {
+    ...manifest(risk),
+    schemaVersion,
+    id: `forged-${schemaVersion}`,
+    origins: [origin],
+    browserDomains: [new URL(origin).hostname],
+  };
+  return {
+    manifest: protectedManifest,
+    operationId: "messaging.send",
+    input: { message: "must-not-run" },
+    auth: auth(),
+  };
+}
+
+function execution(
+  status: BrowserExecution["status"] = "succeeded",
+  dispatchStarted = status === "succeeded" || status === "indeterminate",
+  error?: string,
+  planned = 1,
+): BrowserExecution {
+  return {
+    status,
+    output: status === "failed" ? null : { observed: true },
+    finalUrl: "https://example.com/messaging/thread/123",
+    dispatchStarted,
+    dispatch: {
+      planned,
+      started: dispatchStarted ? 1 : 0,
+      verified: status === "succeeded" && dispatchStarted ? 1 : 0,
+    },
+    ...(error === undefined ? {} : { error }),
+  };
+}
+
+function foreignProviderExecution(value: unknown): ProviderExecution {
+  return value as ProviderExecution;
+}
+
+function providerReadExecution(output: unknown): ProviderExecution {
+  return {
+    status: "succeeded",
+    output,
+    finalUrl: null,
+    dispatchStarted: false,
+    dispatch: { planned: 0, started: 0, verified: 0 },
+  };
+}
+
+type TestProviderExecutor = NonNullable<
+  Parameters<typeof confirmInvocation>[1]["executeProvider"]
+>;
+type TestProviderExecutionOptions = Parameters<TestProviderExecutor>[4];
+
+async function reportProviderExecutionProgress(
+  result: ProviderExecution,
+  options: TestProviderExecutionOptions,
+  dispatchIds: readonly string[] = ["posts-publish"],
+): Promise<void> {
+  if (dispatchIds.length !== result.dispatch.planned) {
+    throw new Error("test executor dispatch IDs do not match the result schedule");
+  }
+  for (let index = 1; index <= result.dispatch.started; index += 1) {
+    const id = dispatchIds[index - 1];
+    if (id === undefined) throw new Error("test executor dispatch ID disappeared");
+    await options?.beforeDispatch?.({
+      id,
+      index,
+      progress: { planned: result.dispatch.planned, started: index - 1, verified: index - 1 },
+    });
+    if (index <= result.dispatch.verified) {
+      await options?.afterDispatchVerified?.({
+        id,
+        index,
+        progress: { planned: result.dispatch.planned, started: index, verified: index },
+      });
+    }
+  }
+}
+
+function providerExecutor(
+  result: ProviderExecution = execution(),
+  onCall?: () => void,
+): TestProviderExecutor {
+  return async (_manifest, _recipe, _input, _auth, options) => {
+    onCall?.();
+    await reportProviderExecutionProgress(result, options);
+    return result;
+  };
+}
+
+function registryWithContractImplementationHash(
+  implementationSha256: string,
+): ProviderPluginRegistry {
+  return Object.freeze({
+    ...providerPluginRegistry,
+    contractImplementationHash: () => Buffer.from(
+      implementationSha256,
+      "hex",
+    ),
+  });
+}
+
+function allFileText(root: string): string {
+  const values: string[] = [];
+  const visit = (directory: string): void => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) visit(path);
+      else if (entry.isFile()) values.push(readFileSync(path, "utf8"));
+    }
+  };
+  visit(root);
+  return values.join("\n");
+}
+
+async function rejectionMessage(promise: Promise<unknown>): Promise<string> {
+  try {
+    await promise;
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+  throw new Error("expected promise to reject");
+}
+
+function thrownMessage(callback: () => unknown): string {
+  try {
+    callback();
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+  throw new Error("expected callback to throw");
+}
+
+function testPlanKeyId(key: Uint8Array): string {
+  return createHash("sha256")
+    .update("io-plan-key-id-v1\0", "utf8")
+    .update(key)
+    .digest("hex");
+}
+
+function legacyEncryptedPlan(stored: StoredPlan, key: Uint8Array) {
+  const iv = Buffer.from("legacy-plan!", "utf8");
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  const ciphertext = Buffer.concat([
+    cipher.update(Buffer.from(canonicalJson(stored), "utf8")),
+    cipher.final(),
+  ]);
+  return {
+    schemaVersion: 1,
+    encryption: "aes-256-gcm",
+    iv: iv.toString("base64"),
+    ciphertext: ciphertext.toString("base64"),
+    tag: cipher.getAuthTag().toString("base64"),
+  } as const;
+}
+
+describe("read projection preparation", () => {
+  test("prepares a read after another process settles its auth coordinate", async () => {
+    const testState = state();
+    let child: Awaited<
+      ReturnType<typeof holdReadProjectionAdmissionInChild>
+    > | null = null;
+    try {
+      installFixture(testState);
+      child = await holdReadProjectionAdmissionInChild(
+        testState,
+        "linkedin-official",
+      );
+      const invocation = preparedRead(testState);
+      expect(invocation).toMatchObject({
+        operationId: "posts.read",
+        auth: { id: "linkedin-official", subject: "urn:li:person:12345" },
+      });
+      expect(await child.child.exited).toBe(0);
+      expect(await child.stderr).toBe("");
+      child = null;
+    } finally {
+      if (child !== null) await child.killAndReap();
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("protected browser action boundaries", () => {
+  test("rejects forged schema-v2/v3 invocations before planning, staging, or execution", () => {
+    for (const [schemaVersion, origin] of [
+      [2, "https://api.x.com"],
+      [3, "https://api.linkedin.com"],
+    ] as const) {
+      const write = forgedProtectedBrowserInvocation(schemaVersion, "R3", origin);
+      expect(() => createInvocationPlan(write)).toThrow("browser actions are prohibited");
+
+      const testState = state();
+      let executorCalls = 0;
+      try {
+        expect(() => createAndSaveInvocationPlan(write, testState.environment)).toThrow(
+          "browser actions are prohibited",
+        );
+        expect(readdirSync(testState.directory)).toHaveLength(0);
+
+        const read = forgedProtectedBrowserInvocation(schemaVersion, "R1", origin);
+        expect(executeReadInvocation(read, {
+          headed: false,
+          environment: testState.environment,
+          executeProvider: () => {
+            executorCalls += 1;
+            return Promise.resolve(execution("succeeded", false, undefined, 0));
+          },
+        })).rejects.toThrow("browser actions are prohibited");
+        expect(executorCalls).toBe(0);
+        expect(readdirSync(testState.directory)).toHaveLength(0);
+      } finally {
+        rmSync(testState.directory, { recursive: true, force: true });
+      }
+    }
+  });
+
+  test("rejects a protected extra browser domain even when every declared origin is benign", () => {
+    const protectedManifest: GhostgetManifest = {
+      ...manifest("R1"),
+      schemaVersion: 2,
+      browserDomains: ["example.com", "*.x.com"],
+    };
+    const invocation = {
+      manifest: protectedManifest,
+      operationId: "messaging.send",
+      input: { message: "must-not-run" },
+      auth: auth(),
+    };
+    expect(() => createInvocationPlan(invocation)).toThrow("protected signed-in site domain");
+
+    const testState = state();
+    let executorCalls = 0;
+    try {
+      expect(executeReadInvocation(invocation, {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: () => {
+          executorCalls += 1;
+          return Promise.resolve(execution("succeeded", false, undefined, 0));
+        },
+      })).rejects.toThrow("protected signed-in site domain");
+      expect(executorCalls).toBe(0);
+      expect(readdirSync(testState.directory)).toHaveLength(0);
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("rejects a syntactically valid generic schema-v2 DOM read before every direct boundary", () => {
+    const operation = manifest("R1").operations["messaging.send"];
+    if (operation === undefined) throw new Error("missing retired fixture operation");
+    const retired: GhostgetManifest = {
+      ...manifest("R1"),
+      schemaVersion: 2,
+      operations: { "content.read": operation },
+    };
+    const invocation = {
+      manifest: retired,
+      operationId: "content.read",
+      input: { message: "must-not-run" },
+      auth: auth(),
+    };
+    const testState = state();
+    let executorCalls = 0;
+    try {
+      expect(() => installManifest(retired, { force: false, environment: testState.environment }))
+        .toThrow("runtime DOM action recipes are disabled");
+      expect(() => createInvocationPlan(invocation)).toThrow("runtime DOM action recipes are disabled");
+      expect(() => createAndSaveInvocationPlan(invocation, testState.environment))
+        .toThrow("runtime DOM action recipes are disabled");
+      expect(executeReadInvocation(invocation, {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: () => {
+          executorCalls += 1;
+          return Promise.resolve(execution("succeeded", false, undefined, 0));
+        },
+      })).rejects.toThrow("runtime DOM action recipes are disabled");
+      expect(executorCalls).toBe(0);
+      expect(readdirSync(testState.directory)).toHaveLength(0);
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("keeps the exact archived schema-v1 LinkedIn manifest parseable but runtime-inert", () => {
+    const parsed = parseManifest(JSON.parse(readFileSync(
+      join(import.meta.dir, "assets", "adapters", "linkedin", "wrench-adapter.v0.4.0.json"),
+      "utf8",
+    )) as unknown, providerPluginRegistry);
+    expect(parsed.ok).toBeTrue();
+    if (!parsed.ok) return;
+    const invocation = {
+      manifest: parsed.value,
+      operationId: "profile.read",
+      input: { profile_slug: "archived-member" },
+      auth: auth(),
+    };
+    expect(() => createInvocationPlan(invocation)).toThrow("runtime DOM action recipes are disabled");
+
+    const testState = state();
+    let executorCalls = 0;
+    try {
+      expect(executeReadInvocation(invocation, {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: () => {
+          executorCalls += 1;
+          return Promise.resolve(execution("succeeded", false, undefined, 0));
+        },
+      })).rejects.toThrow("runtime DOM action recipes are disabled");
+      expect(executorCalls).toBe(0);
+      expect(readdirSync(testState.directory)).toHaveLength(0);
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("rejects every generic profile recipe before an injected executor or browser session can start", () => {
+    const testState = state();
+    const invocation = (selectedAuth: GhostgetAuth) => ({
+      manifest: manifest("R1"),
+      operationId: "messaging.send",
+      input: { message: "read-only-input" },
+      auth: selectedAuth,
+    });
+    try {
+      for (const selectedAuth of [
+        {
+          schemaVersion: 1,
+          id: "arc-main",
+          kind: "browser-profile",
+          profile: "Profile 1",
+          trustUnfilteredEgress: true,
+          subject: "viewer-123",
+        },
+        {
+          schemaVersion: 1,
+          id: "arc-main",
+          kind: "browser-profile",
+          profile: "Profile 1",
+          trustUnfilteredEgress: true,
+          cookieSource: "arc",
+          cookieProfile: "Profile 2",
+          subject: "viewer-123",
+        },
+      ] satisfies readonly GhostgetAuth[]) {
+        let executorCalls = 0;
+        expect(executeReadInvocation(invocation(selectedAuth), {
+          headed: false,
+          environment: testState.environment,
+          executeProvider: () => {
+            executorCalls += 1;
+            return Promise.resolve(execution("succeeded", false, undefined, 0));
+          },
+        })).rejects.toThrow("runtime DOM action recipes are disabled");
+        expect(executorCalls).toBe(0);
+      }
+      expect(readdirSync(testState.directory)).toHaveLength(0);
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("encrypted confirmation plans", () => {
+  test("rejects capture-required web capabilities through every exported invocation boundary", () => {
+    const testState = state();
+    try {
+      const selectedManifest = linkedinWebManifest();
+      const selectedAuth: GhostgetAuth = {
+        schemaVersion: 1,
+        id: "linkedin-web-test",
+        kind: "cookie-source",
+        source: "arc",
+        profile: "Default",
+        subject: "urn:li:fsd_profile:123",
+      };
+      installManifest(selectedManifest, { force: false, environment: testState.environment });
+      saveAuth(selectedAuth, testState.environment);
+      for (const [operationId, input] of [
+        ["articles.read", { author_urn: "urn:li:fsd_profile:123", limit: 20 }],
+        ["messaging.list", { folder: "focused", limit: 20 }],
+      ] as const) {
+        expect(() => prepareInvocation(
+          "linkedin-web",
+          operationId,
+          input,
+          "linkedin-web-test",
+          testState.environment,
+        )).toThrow("is capture-required");
+        const direct = {
+          manifest: selectedManifest,
+          operationId,
+          input,
+          auth: selectedAuth,
+        };
+        expect(() => createInvocationPlan(direct)).toThrow("is capture-required");
+        expect(() => createAndSaveInvocationPlan(direct, testState.environment)).toThrow("is capture-required");
+        let executorCalls = 0;
+        expect(executeReadInvocation(direct, {
+          headed: false,
+          environment: testState.environment,
+          executeWebSession: () => {
+            executorCalls += 1;
+            return Promise.reject(new Error("must not execute"));
+          },
+        })).rejects.toThrow("is capture-required");
+        expect(executorCalls).toBe(0);
+      }
+      expect(listInvocationPlans(testState.environment)).toEqual([]);
+      expect(existsSync(join(testState.directory, "plans"))).toBeFalse();
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("never persists a capture-required synthetic write reached through a direct prepared invocation", () => {
+    const testState = state();
+    try {
+      const direct = {
+        manifest: kernelWebManifest(),
+        operationId: "articles.publish",
+        input: { title: "Inert", body: "This capture-required write must remain inert", draft_id: "1234567890123456789" },
+        auth: createAuth("kernel-web-test", {
+          source: "arc",
+          profile: "Profile 1",
+          subject: "12345",
+        }),
+      };
+      expect(() => createInvocationPlan(direct)).toThrow("is capture-required");
+      expect(() => createAndSaveInvocationPlan(direct, testState.environment)).toThrow("is capture-required");
+      expect(existsSync(join(testState.directory, "plans"))).toBeFalse();
+      expect(readdirSync(testState.directory)).toHaveLength(0);
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("rejects an unbound or malformed synthetic web-session write before creating durable preview state", () => {
+    for (const subject of [undefined, "viewer-not-a-fixture-id"] as const) {
+      const testState = state();
+      try {
+        installManifest(kernelWebManifest(), { force: false, environment: testState.environment });
+        const selectedAuth = createAuth("kernel-web-test", {
+          source: "arc",
+          profile: "Profile 1",
+          ...(subject === undefined ? {} : { subject }),
+        });
+        saveAuth(selectedAuth, testState.environment);
+        expect(() => prepareInvocation(
+          "kernel-web",
+          "likes.set",
+          { post_id: "2078889282404569267", liked: true },
+          "kernel-web-test",
+          testState.environment,
+        )).toThrow(subject === undefined ? "account-bound auth subject" : "exact current-account subject");
+        expect(() => createAndSaveInvocationPlan({
+          manifest: kernelWebManifest(),
+          operationId: "likes.set",
+          input: { post_id: "2078889282404569267", liked: true },
+          auth: selectedAuth,
+        }, testState.environment)).toThrow(
+          subject === undefined ? "account-bound auth subject" : "exact current-account subject",
+        );
+        expect(existsSync(join(testState.directory, "plans"))).toBeFalse();
+      } finally {
+        rmSync(testState.directory, { recursive: true, force: true });
+      }
+    }
+  });
+
+  test("rejects an unbound provider write and an unverified LinkedIn actor before preview", () => {
+    const xAuth = createAuth("linkedin-official", {
+      oauthProvider: "linkedin",
+      tokenFile: "/private/x-token.json",
+      scopes: ["r_member_social", "w_member_social"],
+    });
+    expect(() => createInvocationPlan({
+      manifest: linkedinProviderManifest(),
+      operationId: "posts.publish",
+      input: { author: "urn:li:person:12345", body: "one bounded item" },
+      auth: xAuth,
+    })).toThrow("account-bound auth subject");
+
+    const linkedinManifest = JSON.parse(readFileSync(
+      join(import.meta.dir, "assets", "adapters", "linkedin", "wrench-adapter.json"),
+      "utf8",
+    )) as GhostgetManifest;
+    const linkedinAuth = createAuth("linkedin-official", {
+      oauthProvider: "linkedin",
+      tokenFile: "/private/linkedin-token.json",
+      scopes: ["w_organization_social"],
+      subject: "urn:li:person:member-1",
+    });
+    expect(() => createInvocationPlan({
+      manifest: linkedinManifest,
+      operationId: "posts.publish",
+      input: {
+        author: "urn:li:organization:123",
+        body: "A bounded organization post",
+      },
+      auth: linkedinAuth,
+    })).toThrow("administered-organization delegation has no reviewed preflight");
+  });
+
+  test("revalidates exact LinkedIn provider input before binding its requested actor", () => {
+    const testState = state();
+    try {
+      const linkedinManifest = JSON.parse(readFileSync(
+        join(import.meta.dir, "assets", "adapters", "linkedin", "wrench-adapter.json"),
+        "utf8",
+      )) as GhostgetManifest;
+      const linkedinAuth = createAuth("linkedin-official", {
+        oauthProvider: "linkedin",
+        tokenFile: "/private/linkedin-token.json",
+        scopes: ["w_member_social"],
+        subject: "urn:li:person:member-1",
+      });
+      const forgedInput = {
+        author: "urn:li:organization:123",
+        actor: "urn:li:person:member-1",
+        body: "A bounded organization post",
+      };
+      const direct = {
+        manifest: linkedinManifest,
+        operationId: "posts.publish",
+        input: forgedInput,
+        auth: linkedinAuth,
+      };
+      expect(() => createInvocationPlan(direct)).toThrow("input.actor is not supported");
+      expect(() => createAndSaveInvocationPlan(direct, testState.environment))
+        .toThrow("input.actor is not supported");
+      expect(existsSync(join(testState.directory, "plans"))).toBeFalse();
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("rejects forged provider risk semantics and wrong auth before planning or execution", () => {
+    const testState = state();
+    try {
+      const selectedManifest = linkedinProviderManifest();
+      const selectedOperation = selectedManifest.operations["posts.publish"];
+      if (selectedOperation === undefined) throw new Error("LinkedIn provider fixture is missing posts.publish");
+      const forgedManifest: GhostgetManifest = {
+        ...selectedManifest,
+        operations: {
+          ...selectedManifest.operations,
+          "posts.publish": {
+            ...selectedOperation,
+            risk: "R1",
+            sideEffect: "none",
+            idempotency: "none",
+            dedupeWindowMs: 0,
+          },
+        },
+      };
+      const selectedAuth = createAuth("linkedin-official", {
+        oauthProvider: "linkedin",
+        tokenFile: "/private/x-token.json",
+        scopes: ["r_member_social", "w_member_social"],
+        subject: "12345",
+      });
+      const forged = {
+        manifest: forgedManifest,
+        operationId: "posts.publish",
+        input: { body: "This must never be dispatched" },
+        auth: selectedAuth,
+      };
+      expect(() => createInvocationPlan(forged)).toThrow("risk must match provider contract risk R3");
+      let providerCalls = 0;
+      expect(executeReadInvocation(forged, {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: () => {
+          providerCalls += 1;
+          return Promise.reject(new Error("must not execute"));
+        },
+      })).rejects.toThrow("risk must match provider contract risk R3");
+      expect(providerCalls).toBe(0);
+
+      const wrongTransport = {
+        manifest: selectedManifest,
+        operationId: "posts.read",
+        input: { mode: "one", post_urn: "urn:li:share:2078889282404569267" },
+        auth: auth(),
+      };
+      expect(() => createInvocationPlan(wrongTransport)).toThrow("require an oauth-token-file");
+      expect(executeReadInvocation(wrongTransport, {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: () => {
+          providerCalls += 1;
+          return Promise.reject(new Error("must not execute"));
+        },
+      })).rejects.toThrow("require an oauth-token-file");
+      expect(providerCalls).toBe(0);
+      expect(readdirSync(testState.directory)).toHaveLength(0);
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("prepares the observed synthetic desired-state contract as one confirmed desired-state dispatch", () => {
+    const testState = state();
+    try {
+      installManifest(kernelWebManifest(), { force: false, environment: testState.environment });
+      saveAuth({
+        schemaVersion: 1,
+        id: "kernel-web-test",
+        kind: "cookie-source",
+        source: "arc",
+        profile: "Profile 1",
+        subject: "123",
+      }, testState.environment);
+      const invocation = prepareInvocation(
+        "kernel-web",
+        "content.save",
+        { post_id: "2078889282404569267", saved: true },
+        "kernel-web-test",
+        testState.environment,
+      );
+      const plan = createInvocationPlan(invocation, new Date("2026-07-22T20:00:00.000Z"));
+      expect(plan.plan.dispatches).toEqual([expect.objectContaining({ id: "content.save" })]);
+      expect(plan.plan.risk).toBe("R2");
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("round-trips semantic dotted web-session dispatch IDs through encrypted plans", () => {
+    const testState = state();
+    try {
+      const webAuth = {
+        schemaVersion: 1,
+        id: "kernel-web-test",
+        kind: "cookie-source",
+        source: "arc",
+        profile: "Profile 1",
+        subject: "123",
+      } as const satisfies GhostgetAuth;
+      const invocation = {
+        manifest: kernelWebManifest(),
+        operationId: "content.save",
+        input: { post_id: "2078889282404569267", saved: true },
+        auth: webAuth,
+      };
+      const plan = createInvocationPlan(invocation, new Date("2026-07-22T20:00:00.000Z"));
+      expect(plan.plan.dispatches).toEqual([expect.objectContaining({ id: "content.save" })]);
+      saveInvocationPlan(plan, testState.environment);
+      expect(loadInvocationPlan(plan.digest, testState.environment)).toEqual(plan);
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("keeps an R2 confirmation plan reusable when cleanup admission blocks execution", async () => {
+    const testState = state();
+    try {
+      const selectedManifest = kernelWebManifest();
+      const selectedAuth = createAuth("kernel-web-test", {
+        source: "arc",
+        profile: "Profile 1",
+        subject: "123",
+      });
+      installManifest(selectedManifest, {
+        force: false,
+        environment: testState.environment,
+      });
+      saveAuth(selectedAuth, testState.environment);
+      const invocation = prepareInvocation(
+        "kernel-web",
+        "content.save",
+        { post_id: "2078889282404569267", saved: true },
+        selectedAuth.id,
+        testState.environment,
+      );
+      const stored = createAndSaveInvocationPlan(
+        invocation,
+        testState.environment,
+      );
+      const admission = acquireWebSessionCleanupAdmission(
+        {
+          runId: "00000000-0000-4000-8000-000000000002",
+          pluginId: "kernel-web",
+          pluginVersion: "1.0.0",
+          pluginImplementationHash: "a".repeat(64),
+          adapterId: selectedManifest.id,
+          adapterHash: sha256(canonicalJson(selectedManifest)),
+          surfaceId: "kernel-fixture",
+          authId: selectedAuth.id,
+          authHash: sha256(canonicalJson(selectedAuth)),
+        },
+        testState.environment,
+      );
+      admission.registerCleanupBarrier(
+        Promise.reject(new Error("synthetic cleanup uncertainty")),
+      );
+      admission.closeRegistration();
+      admission.cleanupUnsafe();
+      let executorCalls = 0;
+
+      expect(await rejectionMessage(confirmInvocation(stored.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeWebSession: () => {
+          executorCalls += 1;
+          throw new Error("cleanup-unsafe writes must not start");
+        },
+      }))).toContain("active or cleanup-unsafe state");
+
+      expect(executorCalls).toBe(0);
+      expect(loadInvocationPlan(stored.digest, testState.environment))
+        .toEqual(stored);
+      expect(existsSync(join(testState.directory, "runs"))).toBeFalse();
+      expect(listWebSessionCleanupAdmissions(testState.environment))
+        .toHaveLength(1);
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("preserves an R2 authenticated-web cleanup failure and recovery handle", async () => {
+    const testState = state();
+    try {
+      const selectedManifest = kernelWebManifest();
+      const selectedAuth = createAuth("kernel-web-test", {
+        source: "arc",
+        profile: "Profile 1",
+        subject: "123",
+      });
+      installManifest(selectedManifest, {
+        force: false,
+        environment: testState.environment,
+      });
+      saveAuth(selectedAuth, testState.environment);
+      const invocation = prepareInvocation(
+        "kernel-web",
+        "content.save",
+        { post_id: "2078889282404569267", saved: true },
+        selectedAuth.id,
+        testState.environment,
+      );
+      const stored = createAndSaveInvocationPlan(
+        invocation,
+        testState.environment,
+      );
+      const recoveryHandle =
+        "v1;session=aW8teC1yMg;config=Y29uZmln;socket=c29ja2V0;artifacts=YXJ0aWZhY3Rz";
+
+      const result = await confirmInvocation(stored.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeWebSession: (_manifest, _recipe, _input, _auth, options) => {
+          options.registerCleanupBarrier?.(Promise.reject(
+            new PreservedBrowserArtifactsError(
+              "browser teardown could not be verified",
+              recoveryHandle,
+              new Error("synthetic cleanup failure"),
+            ),
+          ));
+          return Promise.resolve({
+            status: "failed",
+            output: null,
+            finalUrl: null,
+            dispatchStarted: false,
+            dispatch: { planned: 1, started: 0, verified: 0 },
+            error: "the bounded operation timed out",
+          });
+        },
+      });
+
+      expect(result).toMatchObject({
+        privateArtifactsPreserved: true,
+        recoveryHandle,
+        receipt: {
+          status: "failed",
+          dispatchStarted: false,
+          dispatch: { planned: 1, started: 0, verified: 0 },
+        },
+      });
+      expect("readFailure" in result).toBeFalse();
+      expect(result.receipt.error).toContain(
+        "private browser artifacts were preserved; ghostget doctor must prove and complete exact browser-session recovery before retry",
+      );
+      expect(result.receipt.error).toContain(`recovery handle: ${recoveryHandle}`);
+      expect(result.receipt.error).not.toContain("invalid dispatch progress");
+      expect(readRunReceipt(result.receipt.runId, testState.environment))
+        .toEqual(result.receipt);
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("records an independently verified desired-state no-op without fabricating a dispatch", async () => {
+    const testState = state();
+    try {
+      installManifest(kernelWebManifest(), { force: false, environment: testState.environment });
+      saveAuth({
+        schemaVersion: 1,
+        id: "kernel-web-test",
+        kind: "cookie-source",
+        source: "arc",
+        profile: "Profile 1",
+        subject: "123",
+      }, testState.environment);
+      const invocation = prepareInvocation(
+        "kernel-web",
+        "content.save",
+        { post_id: "2078889282404569267", saved: true },
+        "kernel-web-test",
+        testState.environment,
+      );
+      const firstPlan = createAndSaveInvocationPlan(invocation, testState.environment);
+      let executorCalls = 0;
+      const first = await confirmInvocation(firstPlan.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeWebSession: () => {
+          executorCalls += 1;
+          return Promise.resolve({
+            status: "succeeded",
+            output: {
+              effect: "already-satisfied",
+              kind: "bookmark",
+              enabled: true,
+              postId: "2078889282404569267",
+            },
+            finalUrl: "https://kernel.example/i/status/2078889282404569267",
+            noOp: true,
+            dispatchStarted: false,
+            dispatch: { planned: 1, started: 0, verified: 0 },
+          });
+        },
+      });
+
+      expect(first.receipt.status).toBe("succeeded");
+      expect(first.receipt.dispatchStarted).toBeFalse();
+      expect(first.receipt.dispatch).toEqual({ planned: 1, started: 0, verified: 0 });
+      expect(first.output).toEqual(expect.objectContaining({ effect: "already-satisfied" }));
+
+      const replayPlan = createAndSaveInvocationPlan(invocation, testState.environment);
+      const replay = await confirmInvocation(replayPlan.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeWebSession: () => {
+          executorCalls += 1;
+          throw new Error("a successful desired-state no-op must deduplicate");
+        },
+      });
+      expect(replay.replayed).toBeTrue();
+      expect(replay.receipt.runId).toBe(first.receipt.runId);
+      expect(executorCalls).toBe(1);
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("encrypts exact inputs at rest and uses private state modes", () => {
+    const testState = state();
+    try {
+      installFixture(testState);
+      const stored = createInvocationPlan(prepared(testState), new Date("2026-07-21T12:00:00.000Z"));
+      const path = saveInvocationPlan(stored, testState.environment);
+      const raw = readFileSync(path, "utf8");
+
+      expect(raw).toContain('"encryption":"aes-256-gcm"');
+      expect(raw).not.toContain("private-message-value");
+      expect(loadInvocationPlan(stored.digest, testState.environment)).toEqual(stored);
+      expect(lstatSync(testState.directory).mode & 0o777).toBe(0o700);
+      expect(lstatSync(path).mode & 0o777).toBe(0o600);
+      expect(lstatSync(join(testState.directory, ".plan-encryption-key")).mode & 0o777).toBe(0o600);
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("writes a key-identified v2 envelope authenticated with plan AAD", () => {
+    const testState = state();
+    try {
+      installFixture(testState);
+      const secret = "private-v2-plan-aad-value";
+      const stored = createInvocationPlan(prepared(testState, secret));
+      const path = saveInvocationPlan(stored, testState.environment);
+      const envelopeText = readFileSync(path, "utf8");
+      const envelope = JSON.parse(envelopeText) as {
+        readonly schemaVersion: number;
+        readonly encryption: string;
+        readonly keyId: string;
+        readonly iv: string;
+        readonly ciphertext: string;
+        readonly tag: string;
+      };
+      const keyText = readFileSync(join(testState.directory, ".plan-encryption-key"), "utf8");
+      const keyDocument = JSON.parse(keyText) as {
+        readonly schemaVersion: number;
+        readonly keyId: string;
+        readonly key: string;
+      };
+      const key = Buffer.from(keyDocument.key, "hex");
+
+      expect(Object.keys(envelope).sort()).toEqual([
+        "ciphertext",
+        "encryption",
+        "iv",
+        "keyId",
+        "schemaVersion",
+        "tag",
+      ]);
+      expect(envelope.schemaVersion).toBe(2);
+      expect(envelope.encryption).toBe("aes-256-gcm");
+      expect(keyDocument.schemaVersion).toBe(2);
+      expect(keyDocument.keyId).toBe(testPlanKeyId(key));
+      expect(envelope.keyId).toBe(keyDocument.keyId);
+      expect(envelopeText).not.toContain(keyDocument.key);
+      expect(envelopeText).not.toContain(secret);
+
+      const decipher = createDecipheriv(
+        "aes-256-gcm",
+        key,
+        Buffer.from(envelope.iv, "base64"),
+      );
+      decipher.setAAD(Buffer.from(`io-plan-v2\0${envelope.keyId}`, "utf8"));
+      decipher.setAuthTag(Buffer.from(envelope.tag, "base64"));
+      const plaintext = Buffer.concat([
+        decipher.update(Buffer.from(envelope.ciphertext, "base64")),
+        decipher.final(),
+      ]);
+      expect(JSON.parse(plaintext.toString("utf8"))).toEqual(stored);
+
+      expect(() => {
+        const unauthenticated = createDecipheriv(
+          "aes-256-gcm",
+          key,
+          Buffer.from(envelope.iv, "base64"),
+        );
+        unauthenticated.setAuthTag(Buffer.from(envelope.tag, "base64"));
+        unauthenticated.update(Buffer.from(envelope.ciphertext, "base64"));
+        unauthenticated.final();
+      }).toThrow();
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("reads a legacy v1 key and unauthenticated-metadata envelope without rewriting either", () => {
+    const testState = state();
+    try {
+      installFixture(testState);
+      const stored = createInvocationPlan(prepared(testState, "legacy-private-plan-value"));
+      const path = saveInvocationPlan(stored, testState.environment);
+      const keyPath = join(testState.directory, ".plan-encryption-key");
+      const legacyKey = Buffer.from("17".repeat(32), "hex");
+      const legacyKeyText = `${JSON.stringify({
+        schemaVersion: 1,
+        key: legacyKey.toString("hex"),
+      })}\n`;
+      const legacyEnvelopeText = `${JSON.stringify(legacyEncryptedPlan(stored, legacyKey))}\n`;
+      writeFileSync(keyPath, legacyKeyText, { mode: 0o600 });
+      writeFileSync(path, legacyEnvelopeText, { mode: 0o600 });
+
+      expect(loadInvocationPlan(stored.digest, testState.environment)).toEqual(stored);
+      expect(readFileSync(keyPath, "utf8")).toBe(legacyKeyText);
+      expect(readFileSync(path, "utf8")).toBe(legacyEnvelopeText);
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("refuses to replace a missing key while ciphertext exists", () => {
+    const testState = state();
+    try {
+      installFixture(testState);
+      const secret = "private-missing-key-plan-value";
+      const stored = createInvocationPlan(prepared(testState, secret));
+      const path = saveInvocationPlan(stored, testState.environment);
+      const keyPath = join(testState.directory, ".plan-encryption-key");
+      const envelopeText = readFileSync(path, "utf8");
+      const ciphertext = (JSON.parse(envelopeText) as { readonly ciphertext: string }).ciphertext;
+      unlinkSync(keyPath);
+
+      const message = thrownMessage(() => saveInvocationPlan(stored, testState.environment));
+      expect(message).toContain("key is missing while encrypted plans still exist");
+      expect(message).toContain("refusing to replace it");
+      expect(message).not.toContain(secret);
+      expect(message).not.toContain(ciphertext);
+      expect(existsSync(keyPath)).toBeFalse();
+      expect(readFileSync(path, "utf8")).toBe(envelopeText);
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("fails closed on a malformed key without replacing the key or plan", () => {
+    const testState = state();
+    try {
+      installFixture(testState);
+      const secret = "private-malformed-key-plan-value";
+      const stored = createInvocationPlan(prepared(testState, secret));
+      const path = saveInvocationPlan(stored, testState.environment);
+      const keyPath = join(testState.directory, ".plan-encryption-key");
+      const envelopeText = readFileSync(path, "utf8");
+      const ciphertext = (JSON.parse(envelopeText) as { readonly ciphertext: string }).ciphertext;
+      const malformedKeySecret = "private-malformed-key-material";
+      const malformedKeyText = `${JSON.stringify({
+        schemaVersion: 2,
+        key: malformedKeySecret,
+      })}\n`;
+      writeFileSync(keyPath, malformedKeyText, { mode: 0o600 });
+
+      const message = thrownMessage(() => saveInvocationPlan(stored, testState.environment));
+      expect(message).toContain("plan encryption key is malformed");
+      expect(message).not.toContain(secret);
+      expect(message).not.toContain(malformedKeySecret);
+      expect(message).not.toContain(ciphertext);
+      expect(readFileSync(keyPath, "utf8")).toBe(malformedKeyText);
+      expect(readFileSync(path, "utf8")).toBe(envelopeText);
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("fails closed on a replaced valid key without overwriting unreadable ciphertext", () => {
+    const testState = state();
+    try {
+      installFixture(testState);
+      const secret = "private-replaced-key-plan-value";
+      const stored = createInvocationPlan(prepared(testState, secret));
+      const path = saveInvocationPlan(stored, testState.environment);
+      const keyPath = join(testState.directory, ".plan-encryption-key");
+      const envelopeText = readFileSync(path, "utf8");
+      const ciphertext = (JSON.parse(envelopeText) as { readonly ciphertext: string }).ciphertext;
+      const replacementKey = Buffer.from("e3".repeat(32), "hex");
+      const replacementKeyText = `${JSON.stringify({
+        schemaVersion: 2,
+        keyId: testPlanKeyId(replacementKey),
+        key: replacementKey.toString("hex"),
+      })}\n`;
+      writeFileSync(keyPath, replacementKeyText, { mode: 0o600 });
+
+      const message = thrownMessage(() => saveInvocationPlan(stored, testState.environment));
+      expect(message).toMatch(/encrypted plan|key identity|overwrite/iu);
+      expect(message).not.toContain(secret);
+      expect(message).not.toContain(replacementKey.toString("hex"));
+      expect(message).not.toContain(ciphertext);
+      expect(readFileSync(keyPath, "utf8")).toBe(replacementKeyText);
+      expect(readFileSync(path, "utf8")).toBe(envelopeText);
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("rejects authenticated-ciphertext tampering", () => {
+    const testState = state();
+    try {
+      installFixture(testState);
+      const stored = createInvocationPlan(prepared(testState));
+      const path = saveInvocationPlan(stored, testState.environment);
+      const encrypted = JSON.parse(readFileSync(path, "utf8")) as { ciphertext: string };
+      encrypted.ciphertext = `${encrypted.ciphertext.startsWith("A") ? "B" : "A"}${encrypted.ciphertext.slice(1)}`;
+      writeFileSync(path, `${JSON.stringify(encrypted)}\n`, { mode: 0o600 });
+      expect(() => loadInvocationPlan(stored.digest, testState.environment)).toThrow();
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("purges expired plans but leaves malformed evidence for inspection", () => {
+    const testState = state();
+    try {
+      installFixture(testState);
+      const createdAt = new Date("2026-07-21T12:00:00.000Z");
+      const stored = createInvocationPlan(prepared(testState), createdAt);
+      const planPath = saveInvocationPlan(stored, testState.environment);
+      const malformedPath = join(testState.directory, "plans", `${"f".repeat(64)}.json`);
+      writeFileSync(malformedPath, "not-json\n", { mode: 0o600 });
+
+      expect(purgeExpiredPlans(testState.environment, new Date(createdAt.getTime() + PLAN_TTL_MS + 1))).toBe(1);
+      expect(existsSync(planPath)).toBeFalse();
+      expect(existsSync(malformedPath)).toBeTrue();
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("lists only plan metadata and explicitly cancels one encrypted preview", () => {
+    const testState = state();
+    try {
+      installFixture(testState);
+      const stored = createInvocationPlan(prepared(testState, "private-message-value"));
+      saveInvocationPlan(stored, testState.environment);
+      const listed = listInvocationPlans(testState.environment);
+      expect(listed).toEqual([{
+        digest: stored.digest,
+        createdAt: stored.plan.createdAt,
+        expiresAt: stored.plan.expiresAt,
+        adapter: { id: "linkedin", version: "1.1.0" },
+        operation: "posts.publish",
+        risk: "R3",
+        auth: { id: "linkedin-official", kind: "oauth-token-file" },
+      }]);
+      expect(JSON.stringify(listed)).not.toContain("private-message-value");
+      expect(cancelInvocationPlan(stored.digest, testState.environment)).toBeTrue();
+      expect(cancelInvocationPlan(stored.digest, testState.environment)).toBeFalse();
+      expect(listInvocationPlans(testState.environment)).toEqual([]);
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("unstarted cancellation atomically leaves terminal proof that cannot become a plan again", () => {
+    const testState = state();
+    try {
+      installFixture(testState);
+      const stored = createInvocationPlan(prepared(testState));
+      const path = saveInvocationPlan(stored, testState.environment);
+      expect(invocationPlanWasCancelled(stored.digest, testState.environment)).toBeFalse();
+      expect(cancelUnstartedInvocationPlan(stored.digest, testState.environment)).toBeTrue();
+      expect(JSON.parse(readFileSync(path, "utf8"))).toEqual({ schemaVersion: 1, kind: "cancelled-before-execution", digest: stored.digest });
+      expect(invocationPlanWasCancelled(stored.digest, testState.environment)).toBeTrue();
+      expect(() => loadInvocationPlan(stored.digest, testState.environment)).toThrow("cancelled before execution");
+      expect(() => saveInvocationPlan(stored, testState.environment)).toThrow("cancelled before execution");
+      expect(cancelInvocationPlan(stored.digest, testState.environment)).toBeFalse();
+      expect(cancelUnstartedInvocationPlan(stored.digest, testState.environment)).toBeTrue();
+      expect(listInvocationPlans(testState.environment)).toEqual([]);
+      purgeExpiredPlans(testState.environment, new Date(Date.now() + PLAN_TTL_MS * 2));
+      expect(invocationPlanWasCancelled(stored.digest, testState.environment)).toBeTrue();
+    } finally { rmSync(testState.directory, { recursive: true, force: true }); }
+  });
+
+  test("unstarted cancellation refuses execution history and corrupt evidence without removing the plan", () => {
+    for (const history of ["journal", "receipt"] as const) {
+      const testState = state();
+      try {
+        installFixture(testState);
+        const stored = createInvocationPlan(prepared(testState));
+        const path = saveInvocationPlan(stored, testState.environment);
+        const directory = join(testState.directory, history === "journal" ? "run-journals" : "runs");
+        mkdirSync(directory, { recursive: true, mode: 0o700 });
+        writeFileSync(join(directory, `${randomUUID()}.json`), "not-json\n", { mode: 0o600 });
+        expect(cancelUnstartedInvocationPlan(stored.digest, testState.environment)).toBeFalse();
+        expect(existsSync(path)).toBeTrue();
+        expect(invocationPlanWasCancelled(stored.digest, testState.environment)).toBeFalse();
+      } finally { rmSync(testState.directory, { recursive: true, force: true }); }
+    }
+  });
+
+  test("unstarted cancellation refuses a live competing confirmation claim before execution begins", async () => {
+    const testState = state();
+    try {
+      installFixture(testState);
+      const stored = createAndSaveInvocationPlan(prepared(testState, "competing confirmation claim"), testState.environment);
+      const planPath = join(testState.directory, "plans", `${stored.digest}.json`);
+      const encrypted = readFileSync(planPath, "utf8");
+      const claimPath = createLiveTestConfirmationClaim(stored.digest, testState);
+      expect(repairInterruptedConfirmationClaims(testState.environment)).toMatchObject({ invalid: 0, active: 1 });
+      expect(() => cancelUnstartedInvocationPlan(stored.digest, testState.environment)).toThrow("already being confirmed");
+      expect(readFileSync(planPath, "utf8")).toBe(encrypted);
+      expect(invocationPlanWasCancelled(stored.digest, testState.environment)).toBeFalse();
+      expect(existsSync(claimPath)).toBeTrue();
+      unlinkSync(claimPath); // Release only this test's exact synthetic owner.
+      let dispatches = 0;
+      const result = await confirmInvocation(stored.digest, {
+        headed: false, environment: testState.environment,
+        executeProvider: providerExecutor(execution(), () => { dispatches++; }),
+      });
+      expect(dispatches).toBe(1);
+      expect(result.receipt.status).toBe("submitted");
+    } finally { rmSync(testState.directory, { recursive: true, force: true }); }
+  });
+
+  test("unstarted cancellation winning after the initial plan read prevents confirmation dispatch", async () => {
+    const testState = state();
+    try {
+      installFixture(testState);
+      const stored = createAndSaveInvocationPlan(prepared(testState, "cancellation wins before confirmation claim"), testState.environment);
+      const claimPath = join(testState.directory, "plans", `${stored.digest}.claim.json`);
+      const now = new Date();
+      const timestamp = now.toISOString.bind(now);
+      let cancelled = false, dispatches = 0;
+      // The existing clock seam is serialized when acquireConfirmationClaim
+      // constructs createdAt, after the initial load and before claim creation.
+      now.toISOString = () => {
+        if (!cancelled) {
+          cancelled = true;
+          expect(existsSync(claimPath)).toBeFalse();
+          expect(cancelUnstartedInvocationPlan(stored.digest, testState.environment)).toBeTrue();
+        }
+        return timestamp();
+      };
+      await expect(confirmInvocation(stored.digest, {
+        headed: false, environment: testState.environment, now,
+        executeProvider: providerExecutor(execution(), () => { dispatches++; }),
+      })).rejects.toThrow("cancelled before execution");
+      expect(cancelled).toBeTrue();
+      expect(dispatches).toBe(0);
+      expect(invocationPlanWasCancelled(stored.digest, testState.environment)).toBeTrue();
+      expect(listRunReceipts(testState.environment)).toEqual([]);
+      expect(RunJournalStore.listRunJournalSnapshots(testState.environment)).toEqual([]);
+      expect(existsSync(claimPath)).toBeFalse();
+    } finally { rmSync(testState.directory, { recursive: true, force: true }); }
+  });
+
+  test("unstarted cancellation refuses valid matching journal or receipt history without changing the plan", async () => {
+    for (const retained of ["journal", "receipt"] as const) {
+      const testState = state();
+      try {
+        installFixture(testState);
+        const stored = createAndSaveInvocationPlan(prepared(testState, `retain matching ${retained}`), testState.environment);
+        const result = await confirmInvocation(stored.digest, {
+          headed: false, environment: testState.environment, executeProvider: providerExecutor(),
+        });
+        expect(result.receipt.planDigest).toBe(stored.digest);
+        const planPath = saveInvocationPlan(stored, testState.environment);
+        unlinkSync(join(testState.directory, retained === "journal" ? "runs" : "run-journals", `${result.receipt.runId}.json`));
+        const encrypted = readFileSync(planPath, "utf8");
+        expect(cancelUnstartedInvocationPlan(stored.digest, testState.environment)).toBeFalse();
+        expect(readFileSync(planPath, "utf8")).toBe(encrypted);
+        expect(loadInvocationPlan(stored.digest, testState.environment)).toEqual(stored);
+        expect(invocationPlanWasCancelled(stored.digest, testState.environment)).toBeFalse();
+      } finally { rmSync(testState.directory, { recursive: true, force: true }); }
+    }
+  });
+
+  test("unstarted cancellation serializes different plan owners through the shared capacity claim", () => {
+    const testState = state();
+    try {
+      installFixture(testState);
+      const first = createAndSaveInvocationPlan(prepared(testState, "first cancellation owner"), testState.environment);
+      const second = createAndSaveInvocationPlan(prepared(testState, "second cancellation owner"), testState.environment);
+      const historyDigest = sha256("ghostget/cancelled-invocation-plan-history/1");
+      const claimPath = createLiveTestConfirmationClaim(historyDigest, testState);
+      expect(repairInterruptedConfirmationClaims(testState.environment)).toMatchObject({ invalid: 0, active: 1 });
+      for (const stored of [first, second]) {
+        expect(() => cancelUnstartedInvocationPlan(stored.digest, testState.environment)).toThrow("already being confirmed");
+        expect(loadInvocationPlan(stored.digest, testState.environment)).toEqual(stored);
+        expect(invocationPlanWasCancelled(stored.digest, testState.environment)).toBeFalse();
+      }
+      unlinkSync(claimPath); // The synthetic competing capacity owner released.
+      expect(cancelUnstartedInvocationPlan(first.digest, testState.environment)).toBeTrue();
+      expect(cancelUnstartedInvocationPlan(second.digest, testState.environment)).toBeTrue();
+      expect(invocationPlanWasCancelled(first.digest, testState.environment)).toBeTrue();
+      expect(invocationPlanWasCancelled(second.digest, testState.environment)).toBeTrue();
+      expect(PrivateStorage.listPrivateStateDirectory(join(testState.directory, "plans"), testState.environment).some(entry => entry.name.endsWith(".claim.json"))).toBeFalse();
+    } finally { rmSync(testState.directory, { recursive: true, force: true }); }
+  });
+
+  test("unstarted cancellation at its history cap preserves plans and keeps existing proof readable", () => {
+    const testState = state();
+    try {
+      installFixture(testState);
+      const stored = createAndSaveInvocationPlan(prepared(testState, "full cancellation history"), testState.environment);
+      const directory = join(testState.directory, "plans");
+      const planPath = join(directory, `${stored.digest}.json`);
+      const encrypted = readFileSync(planPath, "utf8");
+      const digests = Array.from({ length: MAX_CANCELLED_INVOCATION_PLANS }, (_, index) => (index + 1).toString(16).padStart(64, "0"));
+      for (const digest of digests) {
+        writeFileSync(join(directory, `${digest}.json`), canonicalJson({ schemaVersion: 1, kind: "cancelled-before-execution", digest }) + "\n", { mode: 0o600, flag: "wx" });
+      }
+      expect(() => cancelUnstartedInvocationPlan(stored.digest, testState.environment)).toThrow("cancellation history is full");
+      expect(readFileSync(planPath, "utf8")).toBe(encrypted);
+      expect(loadInvocationPlan(stored.digest, testState.environment)).toEqual(stored);
+      expect(invocationPlanWasCancelled(stored.digest, testState.environment)).toBeFalse();
+      expect(cancelUnstartedInvocationPlan(digests[0]!, testState.environment)).toBeTrue();
+      expect(invocationPlanWasCancelled(digests[0]!, testState.environment)).toBeTrue();
+    } finally { rmSync(testState.directory, { recursive: true, force: true }); }
+  });
+
+  test("round-trips a bounded long-form payload near the kernel contract maximum", () => {
+    const testState = state();
+    try {
+      installManifest(kernelWebManifest(), { force: false, environment: testState.environment });
+      saveAuth(createAuth("kernel-large", { source: "arc", subject: "12345" }), testState.environment);
+      const body = "a".repeat(20_000);
+      expect(Buffer.byteLength(body, "utf8")).toBe(20_000);
+      const invocation = prepareInvocation("kernel-web", "posts.publish", { body }, "kernel-large", testState.environment);
+      const stored = createAndSaveInvocationPlan(invocation, testState.environment);
+      expect(loadInvocationPlan(stored.digest, testState.environment)).toEqual(stored);
+      expect(cancelInvocationPlan(stored.digest, testState.environment)).toBeTrue();
+    } finally { rmSync(testState.directory, { recursive: true, force: true }); }
+  });
+});
+
+describe("confirmation binding and consumption", () => {
+  test("consumes a successful plan exactly once and retains no input secret", async () => {
+    const testState = state();
+    try {
+      installFixture(testState);
+      const secret = "private-message-value-☃";
+      const stored = createInvocationPlan(prepared(testState, secret));
+      const path = saveInvocationPlan(stored, testState.environment);
+      let calls = 0;
+      const result = await confirmInvocation(stored.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: providerExecutor(execution(), () => { calls += 1; }),
+      });
+
+      expect(result.receipt.status).toBe("submitted");
+      expect(result.receipt.dispatchStarted).toBeTrue();
+      expect(calls).toBe(1);
+      expect(existsSync(path)).toBeFalse();
+      expect(readdirSync(join(testState.directory, "recovery", "capsules"))).toEqual([]);
+      expect(existsSync(join(testState.directory, ".recovery-encryption-key"))).toBeTrue();
+      expect(await rejectionMessage(confirmInvocation(stored.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: () => Promise.resolve(execution("succeeded", false, undefined, 0)),
+      }))).toContain("could not safely open encrypted plan");
+      expect(allFileText(testState.directory)).not.toContain(secret);
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("consumes an expired plan without dispatching", async () => {
+    const testState = state();
+    try {
+      installFixture(testState);
+      const createdAt = new Date("2026-07-21T12:00:00.000Z");
+      const stored = createInvocationPlan(prepared(testState), createdAt);
+      const path = saveInvocationPlan(stored, testState.environment);
+      let calls = 0;
+      expect(await rejectionMessage(confirmInvocation(stored.digest, {
+        headed: false,
+        environment: testState.environment,
+        now: new Date(createdAt.getTime() + PLAN_TTL_MS + 1),
+        executeProvider: () => {
+          calls += 1;
+          return Promise.resolve(execution());
+        },
+      }))).toContain("expired");
+      expect(calls).toBe(0);
+      expect(existsSync(path)).toBeFalse();
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("rejects and consumes plans after adapter drift", async () => {
+    const testState = state();
+    try {
+      installFixture(testState);
+      const stored = createInvocationPlan(prepared(testState));
+      const path = saveInvocationPlan(stored, testState.environment);
+      installManifest({ ...linkedinProviderManifest(), displayName: "Drifted X" }, {
+        force: true,
+        environment: testState.environment,
+      });
+
+      expect(await rejectionMessage(confirmInvocation(stored.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: () => Promise.resolve(execution("succeeded", false, undefined, 0)),
+      }))).toContain("adapter changed after preview");
+      expect(existsSync(path)).toBeFalse();
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("rejects reader-compatible provider hashes in confirmation plans", async () => {
+    const testState = state();
+    try {
+      installFixture(testState);
+      const current = createInvocationPlan(prepared(testState));
+      if (current.plan.transport !== "provider-api") {
+        throw new Error("expected a provider confirmation plan");
+      }
+      const contract = getProviderContract({
+        provider: "linkedin",
+        action: "posts.publish",
+        contractVersion: 1,
+        timeoutMs: 600_000,
+        maxOutputBytes: 2 * 1024 * 1024,
+      }, providerPluginRegistry);
+      const binding = providerPluginRegistry.requireRoute("provider-api", "linkedin");
+      const currentImplementationHash = providerPluginRegistry
+        .contractImplementationHash(binding);
+      const legacyImplementationHash = providerPluginRegistry
+        .legacyContractImplementationHashes(binding, "posts.publish", 1)
+        .find((candidate) => !candidate.equals(currentImplementationHash));
+      if (legacyImplementationHash === undefined) {
+        throw new Error("expected a reader-compatible provider implementation hash");
+      }
+      const legacyHash = providerContractHash(
+        contract,
+        registryWithContractImplementationHash(
+          legacyImplementationHash.toString("hex"),
+        ),
+      );
+      expect(isCompatibleProviderContractHash(
+        contract,
+        legacyHash,
+        providerPluginRegistry,
+      )).toBeTrue();
+      expect(legacyHash).not.toBe(current.plan.providerContract.hash);
+
+      const legacyPlan = {
+        ...current.plan,
+        providerContract: {
+          ...current.plan.providerContract,
+          hash: legacyHash,
+        },
+      };
+      const legacyStored: StoredPlan = {
+        digest: sha256(canonicalJson(legacyPlan)),
+        plan: legacyPlan,
+      };
+      const legacyPath = saveInvocationPlan(
+        legacyStored,
+        testState.environment,
+      );
+      let executorCalls = 0;
+      expect(await rejectionMessage(confirmInvocation(legacyStored.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: providerExecutor(execution(), () => {
+          executorCalls += 1;
+        }),
+      }))).toContain("official provider contract changed after preview");
+      expect(executorCalls).toBe(0);
+      expect(existsSync(legacyPath)).toBeFalse();
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("accepts the exact current provider writer hash in confirmation plans", async () => {
+    const testState = state();
+    try {
+      installFixture(testState);
+      const current = createAndSaveInvocationPlan(
+        prepared(testState),
+        testState.environment,
+      );
+      let executorCalls = 0;
+      const result = await confirmInvocation(current.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: providerExecutor(
+          execution("failed", false, "synthetic pre-dispatch failure"),
+          () => {
+            executorCalls += 1;
+          },
+        ),
+      });
+      expect(result.receipt.status).toBe("failed");
+      expect(executorCalls).toBe(1);
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("rejects a legacy-current web-session hash in confirmation plans", async () => {
+    const testState = state();
+    try {
+      const selectedManifest = linkedinWebManifest();
+      const selectedAuth = createAuth("linkedin-web-test", {
+        source: "arc",
+        profile: "Default",
+        subject: "urn:li:fsd_profile:123",
+      });
+      installManifest(selectedManifest, {
+        force: false,
+        environment: testState.environment,
+      });
+      saveAuth(selectedAuth, testState.environment);
+      const invocation = prepareInvocation(
+        "linkedin-web",
+        "posts.publish",
+        { body: "Exact contract identity fixture", visibility: "connections" },
+        selectedAuth.id,
+        testState.environment,
+      );
+      const current = createInvocationPlan(invocation);
+      if (current.plan.transport !== "web-session-api") {
+        throw new Error("expected a web-session confirmation plan");
+      }
+      const contract = getWebSessionContract({
+        site: "linkedin",
+        action: "posts.publish",
+        contractVersion: 3,
+        timeoutMs: 600_000,
+        maxOutputBytes: 2 * 1024 * 1024,
+      }, providerPluginRegistry);
+      const plugin = providerPluginRegistry.get("linkedin-web");
+      if (plugin === undefined) throw new Error("LinkedIn web plugin is missing");
+      const legacyCurrentImplementationHash = reviewedBuiltInContractIdentity(
+        plugin.id,
+        plugin.version,
+      ).legacyCurrentReadImplementationSha256[0];
+      if (legacyCurrentImplementationHash === undefined) {
+        throw new Error("expected a legacy-current LinkedIn web identity");
+      }
+      const legacyHash = webSessionContractHash(
+        contract,
+        registryWithContractImplementationHash(
+          legacyCurrentImplementationHash,
+        ),
+      );
+      expect(isCompatibleWebSessionContractHash(
+        contract,
+        legacyHash,
+        providerPluginRegistry,
+      )).toBeTrue();
+      expect(legacyHash).not.toBe(current.plan.webSessionContract.hash);
+
+      const legacyPlan = {
+        ...current.plan,
+        webSessionContract: {
+          ...current.plan.webSessionContract,
+          hash: legacyHash,
+        },
+      };
+      const legacyStored: StoredPlan = {
+        digest: sha256(canonicalJson(legacyPlan)),
+        plan: legacyPlan,
+      };
+      const legacyPath = saveInvocationPlan(
+        legacyStored,
+        testState.environment,
+      );
+      let executorCalls = 0;
+      expect(await rejectionMessage(confirmInvocation(legacyStored.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeWebSession: () => {
+          executorCalls += 1;
+          return Promise.resolve(execution());
+        },
+      }))).toContain("authenticated web contract changed after preview");
+      expect(executorCalls).toBe(0);
+      expect(existsSync(legacyPath)).toBeFalse();
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("accepts the exact current web-session writer hash in confirmation plans", async () => {
+    const testState = state();
+    try {
+      const selectedManifest = linkedinWebManifest();
+      const selectedAuth = createAuth("linkedin-web-test", {
+        source: "arc",
+        profile: "Default",
+        subject: "urn:li:fsd_profile:123",
+      });
+      installManifest(selectedManifest, {
+        force: false,
+        environment: testState.environment,
+      });
+      saveAuth(selectedAuth, testState.environment);
+      const current = createAndSaveInvocationPlan(
+        prepareInvocation(
+          "linkedin-web",
+          "posts.publish",
+          { body: "Exact contract identity fixture", visibility: "connections" },
+          selectedAuth.id,
+          testState.environment,
+        ),
+        testState.environment,
+      );
+      let executorCalls = 0;
+      const result = await confirmInvocation(current.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeWebSession: () => {
+          executorCalls += 1;
+          return Promise.resolve(execution(
+            "failed",
+            false,
+            "synthetic pre-dispatch failure",
+          ));
+        },
+      });
+      expect(result.receipt.status).toBe("failed");
+      expect(executorCalls).toBe(1);
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("rejects and consumes plans after auth drift", async () => {
+    const testState = state();
+    try {
+      installFixture(testState);
+      const stored = createInvocationPlan(prepared(testState));
+      const path = saveInvocationPlan(stored, testState.environment);
+      saveAuth(createAuth("linkedin-official", {
+        oauthProvider: "linkedin",
+        tokenFile: join(testState.directory, "different-x-token.json"),
+        scopes: ["r_member_social", "w_member_social"],
+        subject: "12345",
+      }), testState.environment, { force: true });
+
+      expect(await rejectionMessage(confirmInvocation(stored.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: () => Promise.resolve(execution()),
+      }))).toContain("authentication selection changed after preview");
+      expect(existsSync(path)).toBeFalse();
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("local at-most-once dispatch ledger", () => {
+  test("terminal repair preserves a successor that reused the old ledger coordinate", () => {
+    const testState = state();
+    try {
+      const runId = "60000000-0000-4000-8000-000000000006";
+      const successorRunId = "70000000-0000-4000-8000-000000000007";
+      const inputHash = "d".repeat(64);
+      const ledgerRelativePath = `idempotency/aa/${inputHash}.json`;
+      const journal = parseRunJournal({
+        schemaVersion: 1,
+        revision: 4,
+        runId,
+        planDigest: "e".repeat(64),
+        adapter: { id: "x", version: "1.0.0", hash: "a".repeat(64) },
+        operation: "posts.publish",
+        risk: "R3",
+        inputHash,
+        auth: {
+          id: "linkedin-official",
+          hash: "b".repeat(64),
+          kind: "oauth-token-file",
+        },
+        contract: { transport: "provider-api", hash: "c".repeat(64) },
+        planHasAssets: false,
+        planState: "consumed",
+        phase: "terminal",
+        status: "failed",
+        dispatch: { planned: 1, started: 0, verified: 0 },
+        ledgerRelativePath,
+        ledgerState: "released",
+        recoveryState: "released",
+        assetState: "none",
+        owner: {
+          pid: 2_147_483_647,
+          token: "60000000-0000-4000-8000-000000000006",
+          bootId: "f".repeat(64),
+          processStartId: "0".repeat(64),
+          leaseUntil: "2026-07-25T12:01:00.000Z",
+        },
+        startedAt: "2026-07-25T12:00:00.000Z",
+        updatedAt: "2026-07-25T12:00:01.000Z",
+        dedupeExpiresAt: "2026-07-26T12:00:00.000Z",
+        finalOrigin: null,
+        error: "execution failed before dispatch",
+      });
+      createRunJournal(journal, testState.environment);
+      if (journal.contract.transport !== "provider-api") {
+        throw new Error("test journal changed provider transport");
+      }
+      writePrivateJson(
+        join(ghostgetStateHome(testState.environment), "runs", `${runId}.json`),
+        {
+          schemaVersion: 3,
+          transport: "provider-api",
+          runId,
+          planDigest: journal.planDigest,
+          adapter: journal.adapter,
+          operation: journal.operation,
+          risk: journal.risk,
+          inputHash: journal.inputHash,
+          auth: journal.auth,
+          status: journal.status,
+          dispatchStarted: false,
+          dispatch: journal.dispatch,
+          startedAt: journal.startedAt,
+          finishedAt: journal.updatedAt,
+          finalOrigin: journal.finalOrigin,
+          error: journal.error,
+          providerContractHash: journal.contract.hash,
+        },
+        { privateParent: true },
+      );
+      const ledgerPath = join(
+        testState.directory,
+        ...ledgerRelativePath.split("/"),
+      );
+      writePrivateJson(ledgerPath, {
+        schemaVersion: 2,
+        keyHash: inputHash,
+        adapterHash: journal.adapter.hash,
+        authHash: journal.auth.hash,
+        inputHash,
+        planDigest: "1".repeat(64),
+        status: "pending",
+        dispatch: { planned: 1, started: 0, verified: 0 },
+        runId: successorRunId,
+        updatedAt: "2026-07-25T12:02:00.000Z",
+        expiresAt: "2026-07-26T12:02:00.000Z",
+      }, { privateParent: true });
+      ensurePrivateStateDirectory(
+        join(ghostgetStateHome(testState.environment), "recovery", "capsules"),
+        testState.environment,
+      );
+      const successorBefore = readFileSync(ledgerPath, "utf8");
+
+      expect(repairInterruptedRunJournals(
+        testState.environment,
+        new Date("2026-07-25T12:03:00.000Z"),
+      )).toEqual({
+        inspected: 1,
+        repaired: 0,
+        projected: 1,
+        invalid: 0,
+        issues: [],
+      });
+
+      expect(readFileSync(ledgerPath, "utf8")).toBe(successorBefore);
+      expect(readRunReceipt(runId, testState.environment)).toMatchObject({
+        status: "failed",
+        dispatch: { planned: 1, started: 0, verified: 0 },
+      });
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("admits only one concurrent confirmation for the same action scope", async () => {
+    const testState = state();
+    const control: { release?: () => void } = {};
+    try {
+      installFixture(testState);
+      const firstPlan = createInvocationPlan(prepared(testState));
+      const secondPlan = createInvocationPlan(prepared(testState));
+      saveInvocationPlan(firstPlan, testState.environment);
+      saveInvocationPlan(secondPlan, testState.environment);
+      let calls = 0;
+      const gate = new Promise<void>((resolve) => {
+        control.release = resolve;
+      });
+      const first = confirmInvocation(firstPlan.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: async (_manifest, _recipe, _input, _auth, options) => {
+          calls += 1;
+          await gate;
+          const result = execution();
+          await reportProviderExecutionProgress(result, options);
+          return result;
+        },
+      });
+      while (calls === 0) await new Promise((resolve) => setTimeout(resolve, 1));
+      const secondMessage = await rejectionMessage(confirmInvocation(secondPlan.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: () => {
+          calls += 1;
+          return Promise.resolve(execution());
+        },
+      }));
+      expect(secondMessage).toContain("may have reached the provider");
+      expect(calls).toBe(1);
+      control.release?.();
+      expect((await first).receipt.status).toBe("submitted");
+    } finally {
+      control.release?.();
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("elects only one successor after an expired successful generation", async () => {
+    const testState = state();
+    const control: { release?: () => void } = {};
+    try {
+      installFixture(testState);
+      const started = new Date();
+      const firstPlan = createInvocationPlan(prepared(testState), started);
+      saveInvocationPlan(firstPlan, testState.environment);
+      let calls = 0;
+      await confirmInvocation(firstPlan.digest, {
+        headed: false,
+        environment: testState.environment,
+        now: started,
+        executeProvider: providerExecutor(execution(), () => { calls += 1; }),
+      });
+
+      const nextWindow = new Date(started.getTime() + 86_400_001);
+      const secondPlan = createInvocationPlan(prepared(testState), nextWindow);
+      const thirdPlan = createInvocationPlan(prepared(testState), nextWindow);
+      saveInvocationPlan(secondPlan, testState.environment);
+      saveInvocationPlan(thirdPlan, testState.environment);
+      const gate = new Promise<void>((resolve) => {
+        control.release = resolve;
+      });
+      const second = confirmInvocation(secondPlan.digest, {
+        headed: false,
+        environment: testState.environment,
+        now: nextWindow,
+        executeProvider: async (_manifest, _recipe, _input, _auth, options) => {
+          calls += 1;
+          await gate;
+          const result = execution();
+          await reportProviderExecutionProgress(result, options);
+          return result;
+        },
+      });
+      while (calls < 2) await new Promise((resolve) => setTimeout(resolve, 1));
+      const thirdMessage = await rejectionMessage(confirmInvocation(thirdPlan.digest, {
+        headed: false,
+        environment: testState.environment,
+        now: nextWindow,
+        executeProvider: () => {
+          calls += 1;
+          return Promise.resolve(execution());
+        },
+      }));
+      expect(thirdMessage).toContain("may have reached the provider");
+      expect(calls).toBe(2);
+      control.release?.();
+      expect((await second).receipt.status).toBe("submitted");
+    } finally {
+      control.release?.();
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("stores a provisional run receipt before crossing into browser execution", async () => {
+    const testState = state();
+    try {
+      installFixture(testState);
+      const stored = createInvocationPlan(prepared(testState));
+      saveInvocationPlan(stored, testState.environment);
+      const observed: { status: string | null } = { status: null };
+      const result = await confirmInvocation(stored.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: providerExecutor(execution(), () => {
+          const runFiles = readdirSync(join(testState.directory, "runs"));
+          expect(runFiles).toHaveLength(1);
+          observed.status = (JSON.parse(readFileSync(join(testState.directory, "runs", runFiles[0] as string), "utf8")) as { status: string }).status;
+        }),
+      });
+      expect(observed.status).toBe("pending");
+      expect(result.receipt.status).toBe("submitted");
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("refuses dispatch and preserves immutable failed evidence when the recovery capsule cannot be stored", async () => {
+    const testState = state();
+    try {
+      installFixture(testState);
+      const invocation = prepared(testState);
+      const first = createAndSaveInvocationPlan(invocation, testState.environment);
+      const keyPath = join(testState.directory, ".recovery-encryption-key");
+      writePrivateJson(keyPath, { schemaVersion: 1, key: "malformed" }, {
+        privateParent: true,
+      });
+      let calls = 0;
+      expect(await rejectionMessage(confirmInvocation(first.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: () => {
+          calls += 1;
+          return Promise.resolve(execution());
+        },
+      }))).toContain("recovery capsule could not be stored");
+      expect(calls).toBe(0);
+      const [failed] = listRunReceipts(testState.environment);
+      expect(failed).toMatchObject({
+        status: "failed",
+        dispatchStarted: false,
+        dispatch: { planned: 1, started: 0, verified: 0 },
+      });
+      if (failed === undefined || "invalid" in failed) {
+        throw new Error("expected immutable failed receipt evidence");
+      }
+      expect(failed.error).toContain(
+        "encrypted recovery state could not be made durable before dispatch",
+      );
+      expect(readRunJournal(failed.runId, testState.environment)?.journal)
+        .toMatchObject({
+          phase: "terminal",
+          status: "failed",
+          planState: "consumed",
+          ledgerState: "released",
+          recoveryState: "released",
+          dispatch: { planned: 1, started: 0, verified: 0 },
+        });
+      expect(readdirSync(join(testState.directory, "recovery", "capsules"))).toEqual([]);
+      const ledgerEntries = readdirSync(join(testState.directory, "idempotency"), {
+        recursive: true,
+      }).filter((entry) => String(entry).endsWith(".json"));
+      expect(ledgerEntries).toEqual([]);
+
+      rmSync(keyPath);
+      const retry = createAndSaveInvocationPlan(invocation, testState.environment);
+      const retried = await confirmInvocation(retry.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: providerExecutor(execution(), () => { calls += 1; }),
+      });
+      expect(retried.receipt.status).toBe("submitted");
+      expect(calls).toBe(1);
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("refuses dispatch rather than replacing a lost recovery key for an older capsule", async () => {
+    const testState = state();
+    try {
+      installFixture(testState);
+      const priorInput = { post_id: "2078889282404569267", saved: true };
+      const priorRunId = "90000000-0000-4000-8000-000000000009";
+      const priorCapsule: RecoveryCapsule = {
+        schemaVersion: 1,
+        runId: priorRunId,
+        createdAt: "2026-07-23T12:00:00.000Z",
+        planDigest: "a".repeat(64),
+        adapter: { id: "kernel-web", version: "1.0.0", hash: "b".repeat(64) },
+        operation: "content.save",
+        risk: "R2",
+        input: priorInput,
+        inputHash: sha256(canonicalJson(priorInput)),
+        auth: { id: "x-main", hash: "c".repeat(64), kind: "cookie-source" },
+        contract: {
+          transport: "web-session-api",
+          site: "kernel-fixture",
+          action: "content.save",
+          version: 1,
+          hash: "d".repeat(64),
+        },
+      };
+      writeRecoveryCapsule(priorCapsule, testState.environment);
+      const keyPath = join(testState.directory, ".recovery-encryption-key");
+      rmSync(keyPath);
+      const invocation = prepared(testState, "new write must not dispatch");
+      const stored = createAndSaveInvocationPlan(invocation, testState.environment);
+      let calls = 0;
+
+      expect(await rejectionMessage(confirmInvocation(stored.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: () => {
+          calls += 1;
+          return Promise.resolve(execution());
+        },
+      }))).toContain("recovery capsule could not be stored");
+
+      expect(calls).toBe(0);
+      expect(existsSync(keyPath)).toBeFalse();
+      expect(existsSync(join(
+        testState.directory,
+        "recovery",
+        "capsules",
+        `${priorRunId}.json`,
+      ))).toBeTrue();
+      expect(readdirSync(join(testState.directory, "recovery", "capsules")))
+        .toEqual([`${priorRunId}.json`]);
+      const [failed] = listRunReceipts(testState.environment);
+      expect(failed).toMatchObject({
+        status: "failed",
+        dispatchStarted: false,
+        dispatch: { planned: 1, started: 0, verified: 0 },
+      });
+      if (failed === undefined || "invalid" in failed) {
+        throw new Error("expected immutable failed receipt evidence");
+      }
+      expect(readRunJournal(failed.runId, testState.environment)?.journal)
+        .toMatchObject({
+          phase: "terminal",
+          status: "failed",
+          planState: "consumed",
+          ledgerState: "released",
+          recoveryState: "released",
+          dispatch: { planned: 1, started: 0, verified: 0 },
+        });
+      const ledgerEntries = readdirSync(join(testState.directory, "idempotency"), {
+        recursive: true,
+      }).filter((entry) => String(entry).endsWith(".json"));
+      expect(ledgerEntries).toEqual([]);
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("does not expose exact-target callbacks to boolean reconciliation", async () => {
+    const testState = state();
+    try {
+      installManifest(kernelWebManifest(), { force: false, environment: testState.environment });
+      const selectedAuth = createAuth("kernel-web-test", {
+        source: "arc",
+        profile: "Profile 1",
+        subject: "123",
+      });
+      saveAuth(selectedAuth, testState.environment);
+      const input = { post_id: "2078889282404569267", saved: true };
+      const invocation = prepareInvocation(
+        "kernel-web",
+        "content.save",
+        input,
+        selectedAuth.id,
+        testState.environment,
+      );
+      const stored = createAndSaveInvocationPlan(invocation, testState.environment);
+      let observedRunId: string | null = null;
+      let calls = 0;
+      const result = await confirmInvocation(stored.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeWebSession: async (_manifest, _recipe, _input, _auth, options) => {
+          calls += 1;
+          const runFiles = readdirSync(join(testState.directory, "runs"));
+          expect(runFiles).toHaveLength(1);
+          observedRunId = (runFiles[0] as string).slice(0, -5);
+          const recovered = readRecoveryCapsule(
+            observedRunId,
+            selectedAuth.id,
+            sha256(canonicalJson(selectedAuth)),
+            testState.environment,
+          );
+          expect(recovered).toMatchObject({
+            runId: observedRunId,
+            planDigest: stored.digest,
+            operation: "content.save",
+            risk: "R2",
+            input,
+            inputHash: sha256(canonicalJson(input)),
+            contract: {
+              transport: "web-session-api",
+              site: "kernel-fixture",
+              action: "content.save",
+              version: 1,
+            },
+          });
+          const raw = readFileSync(
+            join(testState.directory, "recovery", "capsules", `${observedRunId}.json`),
+            "utf8",
+          );
+          expect(raw).not.toContain(input.post_id);
+          expect(options.afterProviderAcceptedMutationTarget).toBeUndefined();
+          expect(options.afterProviderBoundMutationTarget).toBeUndefined();
+          await options?.beforeDispatch?.({
+            id: "content.save",
+            index: 1,
+            progress: { planned: 1, started: 0, verified: 0 },
+          });
+          expect(readProviderAcceptedMutationTargetEvidence(
+            recovered as RecoveryCapsule,
+            { id: "content.save", index: 1, planned: 1 },
+            testState.environment,
+          )).toBeNull();
+          return {
+            status: "indeterminate",
+            output: null,
+            finalUrl: "https://kernel.example/i/status/2078889282404569267",
+            dispatchStarted: true,
+            dispatch: { planned: 1, started: 1, verified: 0 },
+            error: "synthetic post-dispatch response loss",
+          };
+        },
+      });
+
+      expect(result.receipt).toMatchObject({
+        status: "indeterminate",
+        dispatchStarted: true,
+        dispatch: { planned: 1, started: 1, verified: 0 },
+      });
+      expect(result.receipt.error).toContain("indeterminate after the dispatch boundary");
+      expect(JSON.stringify(result.receipt)).not.toContain(input.post_id);
+      expect<string | null>(observedRunId).toBe(result.receipt.runId);
+      expect(readRecoveryCapsule(
+        result.receipt.runId,
+        selectedAuth.id,
+        sha256(canonicalJson(selectedAuth)),
+        testState.environment,
+      )?.input).toEqual(input);
+      const duplicate = createAndSaveInvocationPlan(invocation, testState.environment);
+      expect(await rejectionMessage(confirmInvocation(duplicate.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeWebSession: () => {
+          calls += 1;
+          throw new Error("indeterminate writes must never retry");
+        },
+      }))).toContain("reconcile it before retrying");
+      expect(calls).toBe(1);
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("binds one exact deletion target only after durable dispatch start", async () => {
+    const testState = state();
+    try {
+      const registry = providerBoundTargetTestRegistry();
+      installManifest(kernelWebManifest(), {
+        force: false,
+        environment: testState.environment,
+        registry,
+      });
+      const selectedAuth = createAuth("kernel-web-test", {
+        source: "arc",
+        profile: "Profile 1",
+        subject: "123",
+      });
+      saveAuth(selectedAuth, testState.environment);
+      const input = { post_id: "2078889282404569267", saved: false };
+      const invocation = prepareInvocation(
+        "kernel-web",
+        "content.save",
+        input,
+        selectedAuth.id,
+        testState.environment,
+        registry,
+      );
+      const stored = createAndSaveInvocationPlan(
+        invocation,
+        testState.environment,
+        new Date(),
+        registry,
+      );
+      const targetIdentifier = "x:post:strict-pre-read-123";
+      let providerRequests = 0;
+      const result = await confirmInvocation(stored.digest, {
+        headed: false,
+        environment: testState.environment,
+        registry,
+        executeWebSession: async (_manifest, _recipe, _input, _auth, options) => {
+          const [runFile] = readdirSync(join(testState.directory, "runs"));
+          if (typeof runFile !== "string") {
+            throw new Error("expected a provisional run receipt");
+          }
+          const runId = runFile.slice(0, -5);
+          const capsule = readRecoveryCapsule(
+            runId,
+            selectedAuth.id,
+            sha256(canonicalJson(selectedAuth)),
+            testState.environment,
+          );
+          if (capsule === null) throw new Error("expected encrypted recovery input");
+          const targetEvent = {
+            id: "content.save",
+            index: 1,
+            target: {
+              schemaVersion: 1 as const,
+              identifier: targetIdentifier,
+            },
+          };
+          expect(options.afterProviderAcceptedMutationTarget).toBeUndefined();
+          expect(await rejectionMessage(
+            options.afterProviderBoundMutationTarget?.(targetEvent)
+              ?? Promise.reject(new Error("provider-bound target callback missing")),
+          )).toContain("diverged from the active dispatch");
+          expect(readProviderAcceptedMutationTargetEvidence(
+            capsule,
+            { id: "content.save", index: 1, planned: 1 },
+            testState.environment,
+          )).toBeNull();
+
+          await options.beforeDispatch?.({
+            id: "content.save",
+            index: 1,
+            progress: { planned: 1, started: 0, verified: 0 },
+          });
+          expect(readRunJournal(runId, testState.environment)?.journal.dispatch)
+            .toEqual({ planned: 1, started: 1, verified: 0 });
+          await options.afterProviderBoundMutationTarget?.(targetEvent);
+          expect(readProviderAcceptedMutationTargetEvidence(
+            capsule,
+            { id: "content.save", index: 1, planned: 1 },
+            testState.environment,
+          )?.target.identifier).toBe(targetIdentifier);
+
+          providerRequests += 1;
+          return {
+            status: "indeterminate",
+            output: null,
+            finalUrl: "https://kernel.example/i/status/2078889282404569267",
+            dispatchStarted: true,
+            dispatch: { planned: 1, started: 1, verified: 0 },
+            error: "synthetic response loss after one request",
+          };
+        },
+      });
+
+      expect(providerRequests).toBe(1);
+      expect(result.receipt).toMatchObject({
+        status: "indeterminate",
+        dispatchStarted: true,
+        dispatch: { planned: 1, started: 1, verified: 0 },
+      });
+      const capsule = readRecoveryCapsule(
+        result.receipt.runId,
+        selectedAuth.id,
+        sha256(canonicalJson(selectedAuth)),
+        testState.environment,
+      );
+      expect(readProviderAcceptedMutationTargetEvidence(
+        capsule as RecoveryCapsule,
+        { id: "content.save", index: 1, planned: 1 },
+        testState.environment,
+      )?.target.identifier).toBe(targetIdentifier);
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("removes provider-accepted target evidence after verified web completion", async () => {
+    const testState = state();
+    try {
+      installManifest(kernelWebManifest(), {
+        force: false,
+        environment: testState.environment,
+      });
+      const selectedAuth = createAuth("kernel-web-test", {
+        source: "arc",
+        profile: "Profile 1",
+        subject: "123",
+      });
+      saveAuth(selectedAuth, testState.environment);
+      const invocation = prepareInvocation(
+        "kernel-web",
+        "posts.publish",
+        { body: "provider accepted target cleanup fixture" },
+        selectedAuth.id,
+        testState.environment,
+      );
+      const stored = createAndSaveInvocationPlan(
+        invocation,
+        testState.environment,
+      );
+      let observedRunId: string | null = null;
+      const result = await confirmInvocation(stored.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeWebSession: async (
+          _manifest,
+          _recipe,
+          _input,
+          _auth,
+          options,
+        ) => {
+          const [runFile] = readdirSync(join(testState.directory, "runs"));
+          if (typeof runFile !== "string") {
+            throw new Error("expected a provisional run receipt");
+          }
+          observedRunId = runFile.slice(0, -5);
+          const recovered = readRecoveryCapsule(
+            observedRunId,
+            selectedAuth.id,
+            sha256(canonicalJson(selectedAuth)),
+            testState.environment,
+          );
+          if (recovered === null) {
+            throw new Error("expected encrypted recovery input");
+          }
+          const targetEvent = {
+            id: "posts.publish",
+            index: 1,
+            target: {
+              schemaVersion: 1 as const,
+              identifier: "x:post:verified-target-456",
+            },
+          };
+          expect(await rejectionMessage(
+            options.afterProviderBoundMutationTarget?.(targetEvent)
+              ?? Promise.reject(new Error("provider-bound target callback missing")),
+          )).toContain("provider-bound target callback missing");
+          expect(await rejectionMessage(
+            options.afterProviderAcceptedMutationTarget?.(targetEvent)
+              ?? Promise.reject(new Error("accepted-target callback missing")),
+          )).toContain("diverged from the active dispatch");
+          await options.beforeDispatch?.({
+            id: "posts.publish",
+            index: 1,
+            progress: { planned: 1, started: 0, verified: 0 },
+          });
+          await options.afterProviderAcceptedMutationTarget?.(targetEvent);
+          expect(readProviderAcceptedMutationTargetEvidence(
+            recovered,
+            { id: "posts.publish", index: 1, planned: 1 },
+            testState.environment,
+          )).not.toBeNull();
+          await options.afterDispatchVerified?.({
+            id: "posts.publish",
+            index: 1,
+            progress: { planned: 1, started: 1, verified: 1 },
+          });
+          expect(await rejectionMessage(
+            options.afterProviderBoundMutationTarget?.(targetEvent)
+              ?? Promise.reject(new Error("provider-bound target callback missing")),
+          )).toContain("provider-bound target callback missing");
+          expect(await rejectionMessage(
+            options.afterProviderAcceptedMutationTarget?.(targetEvent)
+              ?? Promise.reject(new Error("accepted-target callback missing")),
+          )).toContain("diverged from the active dispatch");
+          return {
+            status: "succeeded",
+            output: { saved: true },
+            finalUrl: "https://kernel.example/i/status/2078889282404569267",
+            dispatchStarted: true,
+            dispatch: { planned: 1, started: 1, verified: 1 },
+          };
+        },
+      });
+
+      expect(result.receipt).toMatchObject({
+        status: "submitted",
+        dispatch: { planned: 1, started: 1, verified: 1 },
+      });
+      expect<string | null>(observedRunId).toBe(result.receipt.runId);
+      expect(existsSync(join(
+        testState.directory,
+        "recovery",
+        "provider-accepted-targets",
+        result.receipt.runId,
+      ))).toBeFalse();
+      expect(readRecoveryCapsule(
+        result.receipt.runId,
+        selectedAuth.id,
+        sha256(canonicalJson(selectedAuth)),
+        testState.environment,
+      )).toBeNull();
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("keeps a cancelled post-dispatch web hook indeterminate and blocks late verification", async () => {
+    const testState = state();
+    try {
+      installManifest(kernelWebManifest(), {
+        force: false,
+        environment: testState.environment,
+      });
+      const selectedAuth = createAuth("kernel-web-test", {
+        source: "arc",
+        profile: "Profile 1",
+        subject: "123",
+      });
+      saveAuth(selectedAuth, testState.environment);
+      const invocation = prepareInvocation(
+        "kernel-web",
+        "content.save",
+        { post_id: "2078889282404569267", saved: true },
+        selectedAuth.id,
+        testState.environment,
+      );
+      const stored = createAndSaveInvocationPlan(
+        invocation,
+        testState.environment,
+      );
+      const caller = new AbortController();
+      let lateVerification:
+        | ((event: {
+            readonly id: string;
+            readonly index: number;
+            readonly progress: {
+              readonly planned: number;
+              readonly started: number;
+              readonly verified: number;
+            };
+          }) => Promise<void>)
+        | undefined;
+      const result = await confirmInvocation(stored.digest, {
+        headed: false,
+        environment: testState.environment,
+        signal: caller.signal,
+        executeWebSession: async (
+          _manifest,
+          _recipe,
+          _input,
+          _auth,
+          options,
+        ) => {
+          if (options.signal === caller.signal) {
+            throw new Error("web executor received the caller signal directly");
+          }
+          lateVerification = options.afterDispatchVerified;
+          await options.beforeDispatch?.({
+            id: "content.save",
+            index: 1,
+            progress: { planned: 1, started: 0, verified: 0 },
+          });
+          caller.abort("private cancellation reason");
+          return new Promise<never>(() => undefined);
+        },
+      });
+
+      expect(result.receipt).toMatchObject({
+        status: "indeterminate",
+        dispatchStarted: true,
+        dispatch: { planned: 1, started: 1, verified: 0 },
+      });
+      const verify = lateVerification;
+      if (verify === undefined) {
+        throw new Error("web executor did not receive a verification callback");
+      }
+      const lateMessage = await rejectionMessage(verify({
+        id: "content.save",
+        index: 1,
+        progress: { planned: 1, started: 1, verified: 1 },
+      }));
+      expect(lateMessage).toContain("was cancelled");
+      expect(lateMessage).not.toContain("private cancellation reason");
+      expect(readRunJournal(
+        result.receipt.runId,
+        testState.environment,
+      )?.journal).toMatchObject({
+        phase: "terminal",
+        status: "indeterminate",
+        dispatch: { planned: 1, started: 1, verified: 0 },
+      });
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("uses the terminal run journal as source of truth beyond the legacy receipt persistence seam", async () => {
+    const testState = state();
+    try {
+      installFixture(testState);
+      const invocation = prepared(testState);
+      const stored = createInvocationPlan(invocation);
+      saveInvocationPlan(stored, testState.environment);
+      let receiptWrites = 0;
+      const result = await confirmInvocation(stored.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: providerExecutor(),
+        persistReceipt: (receipt, environment) => {
+          receiptWrites += 1;
+          if (receipt.status !== "pending") {
+            throw new Error("legacy terminal receipt projection must not run");
+          }
+          writePrivateJson(join(environment.GHOSTGET_STATE_HOME as string, "runs", `${receipt.runId}.json`), receipt, { privateParent: true });
+        },
+      });
+      expect(receiptWrites).toBe(1);
+      expect(result.receipt).toMatchObject({
+        status: "submitted",
+        dispatchStarted: true,
+        dispatch: { planned: 1, started: 1, verified: 1 },
+      });
+      expect(readRunReceipt(result.receipt.runId, testState.environment))
+        .toEqual(result.receipt);
+      expect(readRunJournal(result.receipt.runId, testState.environment)?.journal)
+        .toMatchObject({
+          phase: "terminal",
+          status: "submitted",
+          ledgerState: "succeeded",
+          recoveryState: "released",
+          dispatch: { planned: 1, started: 1, verified: 1 },
+        });
+      expect(readRecoveryCapsule(
+        result.receipt.runId,
+        invocation.auth.id,
+        sha256(canonicalJson(invocation.auth)),
+        testState.environment,
+      )).toBeNull();
+
+      const retry = createInvocationPlan(invocation);
+      saveInvocationPlan(retry, testState.environment);
+      let retryCalls = 0;
+      const replay = await confirmInvocation(retry.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: () => {
+          retryCalls += 1;
+          return Promise.resolve(execution());
+        },
+      });
+      expect(replay.replayed).toBeTrue();
+      expect(replay.receipt).toEqual(result.receipt);
+      expect(retryCalls).toBe(0);
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("replays a completed identical action without a second dispatch and reads a legacy ledger", async () => {
+    const testState = state();
+    try {
+      installFixture(testState);
+      let calls = 0;
+      const executor = providerExecutor(execution(), () => { calls += 1; });
+      const firstPlan = createInvocationPlan(prepared(testState));
+      saveInvocationPlan(firstPlan, testState.environment);
+      const first = await confirmInvocation(firstPlan.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: executor,
+      });
+      const ledgerRelativePath = readRunJournal(first.receipt.runId, testState.environment)
+        ?.journal.ledgerRelativePath;
+      if (ledgerRelativePath === undefined || ledgerRelativePath === null) {
+        throw new Error("expected the first run to own an idempotency ledger");
+      }
+      const ledgerPath = join(testState.directory, ...ledgerRelativePath.split("/"));
+      const legacyLedger = JSON.parse(readFileSync(ledgerPath, "utf8")) as Record<string, unknown>;
+      legacyLedger.schemaVersion = 1;
+      delete legacyLedger.dispatch;
+      writeFileSync(ledgerPath, `${JSON.stringify(legacyLedger)}\n`, { mode: 0o600 });
+      // A schema 1 ledger predates run journals and the intent fence, so only
+      // the legacy ledger read can recognize the completed action.
+      rmSync(join(testState.directory, "run-journals", `${first.receipt.runId}.json`));
+      rmSync(join(testState.directory, "idempotency", "intents"), { recursive: true, force: true });
+      const secondPlan = createInvocationPlan(prepared(testState));
+      saveInvocationPlan(secondPlan, testState.environment);
+      const second = await confirmInvocation(secondPlan.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: executor,
+      });
+
+      expect(first.replayed).toBeFalse();
+      expect(second.replayed).toBeTrue();
+      expect(second.receipt.runId).toBe(first.receipt.runId);
+      expect(calls).toBe(1);
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("allows retry after a known pre-dispatch failure", async () => {
+    const testState = state();
+    try {
+      installFixture(testState);
+      let calls = 0;
+      const firstPlan = createInvocationPlan(prepared(testState));
+      saveInvocationPlan(firstPlan, testState.environment);
+      const first = await confirmInvocation(firstPlan.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: () => {
+          calls += 1;
+          return Promise.resolve(execution("failed", false, "synthetic provider failure"));
+        },
+      });
+      expect(first.receipt).toMatchObject({ status: "failed", dispatchStarted: false });
+      expect(first.receipt.error).toBe(
+        "official API operation failed before the dispatch boundary; reason: synthetic provider failure",
+      );
+      expect(readdirSync(join(testState.directory, "recovery", "capsules"))).toEqual([]);
+
+      const secondPlan = createInvocationPlan(prepared(testState));
+      saveInvocationPlan(secondPlan, testState.environment);
+      const second = await confirmInvocation(secondPlan.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: providerExecutor(execution(), () => { calls += 1; }),
+      });
+      expect(second.receipt.status).toBe("submitted");
+      expect(calls).toBe(2);
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("blocks retry after an indeterminate post-dispatch failure", async () => {
+    const testState = state();
+    try {
+      installFixture(testState);
+      let calls = 0;
+      const firstPlan = createInvocationPlan(prepared(testState));
+      saveInvocationPlan(firstPlan, testState.environment);
+      const first = await confirmInvocation(firstPlan.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: providerExecutor(
+          execution("indeterminate", true, "synthetic provider failure"),
+          () => { calls += 1; },
+        ),
+      });
+      expect(first.receipt).toMatchObject({ status: "indeterminate", dispatchStarted: true });
+      expect(first.receipt.error).toBe(
+        "official API result is indeterminate after the dispatch boundary; reason: synthetic provider failure",
+      );
+
+      const secondPlan = createInvocationPlan(prepared(testState));
+      saveInvocationPlan(secondPlan, testState.environment);
+      expect(await rejectionMessage(confirmInvocation(secondPlan.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: () => {
+          calls += 1;
+          return Promise.resolve(execution());
+        },
+      }))).toContain("reconcile it before retrying");
+      expect(calls).toBe(1);
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("elects a duplicate-risk successor across a reconnect only for the recorded provider subject", async () => {
+    const testState = state();
+    try {
+      installManifest(kernelWebManifest(), {
+        force: false,
+        environment: testState.environment,
+      });
+      const selectedAuth = createAuth("kernel-web-test", {
+        source: "arc",
+        profile: "Profile 1",
+        subject: "123",
+      });
+      saveAuth(selectedAuth, testState.environment);
+      const input = { body: "one duplicate-risk reconnect fixture" };
+      const sourcePlan = createAndSaveInvocationPlan(
+        prepareInvocation("kernel-web", "posts.publish", input, selectedAuth.id, testState.environment),
+        testState.environment,
+      );
+      const sourceDispatch = sourcePlan.plan.dispatches[0];
+      if (sourceDispatch === undefined) throw new Error("source dispatch missing");
+      const source = await confirmInvocation(sourcePlan.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeWebSession: async (_manifest, _recipe, _input, _auth, options) => {
+          await options?.beforeDispatch?.({
+            id: sourceDispatch.id,
+            index: 1,
+            progress: { planned: 1, started: 0, verified: 0 },
+          });
+          return {
+            status: "indeterminate",
+            output: null,
+            finalUrl: "https://kernel.example/i/status/123",
+            dispatchStarted: true,
+            dispatch: { planned: 1, started: 1, verified: 0 },
+            error: "synthetic response loss",
+          };
+        },
+      });
+      expect(source.receipt.status).toBe("indeterminate");
+
+      const reconnect = (subject: string) => {
+        saveAuth(createAuth("kernel-web-test", {
+          source: "arc",
+          profile: "Profile 2",
+          subject,
+        }), testState.environment, { force: true });
+        return createAndSaveInvocationPlan(
+          prepareInvocation("kernel-web", "posts.publish", input, selectedAuth.id, testState.environment),
+          testState.environment,
+          new Date(),
+          providerPluginRegistry,
+          { duplicateRiskOf: [source.receipt.runId] },
+        );
+      };
+
+      // A reconnect that names a different provider subject is another account.
+      expect(() => reconnect("456"))
+        .toThrow("does not match the exact adapter, auth, operation, risk, and input scope");
+
+      // The same subject under new locator bytes may elect the successor.
+      const successorPlan = reconnect("123");
+      expect(successorPlan.plan.auth.hash).not.toBe(source.receipt.auth.hash);
+      const successorDispatch = successorPlan.plan.dispatches[0];
+      if (successorDispatch === undefined) throw new Error("successor dispatch missing");
+      let successorCalls = 0;
+      const successor = await confirmInvocation(successorPlan.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeWebSession: async (_manifest, _recipe, _input, _auth, options) => {
+          successorCalls += 1;
+          await options?.beforeDispatch?.({
+            id: successorDispatch.id,
+            index: 1,
+            progress: { planned: 1, started: 0, verified: 0 },
+          });
+          await options?.afterDispatchVerified?.({
+            id: successorDispatch.id,
+            index: 1,
+            progress: { planned: 1, started: 1, verified: 1 },
+          });
+          return {
+            status: "succeeded",
+            output: { postId: "successor-123" },
+            finalUrl: "https://kernel.example/i/status/successor-123",
+            dispatchStarted: true,
+            dispatch: { planned: 1, started: 1, verified: 1 },
+          };
+        },
+      });
+      expect(successor.receipt.status).toBe("submitted");
+      expect(successorCalls).toBe(1);
+      expect(readRunJournal(
+        source.receipt.runId,
+        testState.environment,
+      )?.journal.duplicateSuccessor).toMatchObject({
+        runId: successor.receipt.runId,
+      });
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("binds one exact indeterminate web post to one permanent successor intent", async () => {
+    const testState = state();
+    try {
+      installManifest(kernelWebManifest(), {
+        force: false,
+        environment: testState.environment,
+      });
+      const selectedAuth = createAuth("kernel-web-test", {
+        source: "arc",
+        profile: "Profile 1",
+        subject: "123",
+      });
+      saveAuth(selectedAuth, testState.environment);
+      const mediaPath = join(testState.directory, "duplicate-risk.png");
+      writeFileSync(mediaPath, Buffer.from([
+        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+        0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+      ]), { mode: 0o600 });
+      let invocation = prepareInvocation(
+        "kernel-web",
+        "posts.publish",
+        {
+          body: "one explicit duplicate-risk fixture",
+          media: [mediaPath],
+          media_types: ["image/png"],
+        },
+        selectedAuth.id,
+        testState.environment,
+      );
+      const sourcePlan = createAndSaveInvocationPlan(
+        invocation,
+        testState.environment,
+      );
+      const sourceDispatch = sourcePlan.plan.dispatches[0];
+      if (sourceDispatch === undefined) throw new Error("source dispatch missing");
+      const source = await confirmInvocation(sourcePlan.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeWebSession: async (_manifest, _recipe, _input, _auth, options) => {
+          await options?.beforeDispatch?.({
+            id: sourceDispatch.id,
+            index: 1,
+            progress: { planned: 1, started: 0, verified: 0 },
+          });
+          return {
+            status: "indeterminate",
+            output: null,
+            finalUrl: "https://kernel.example/i/status/123",
+            dispatchStarted: true,
+            dispatch: { planned: 1, started: 1, verified: 0 },
+            error: "synthetic response loss",
+          };
+        },
+      });
+      expect(source.receipt.status).toBe("indeterminate");
+      const sourceJournalBefore = readRunJournal(
+        source.receipt.runId,
+        testState.environment,
+      );
+      if (sourceJournalBefore === null || sourceJournalBefore.journal.ledgerRelativePath === null) {
+        throw new Error("source recovery journal missing");
+      }
+      const sourceReceiptPath = join(
+        testState.directory,
+        "runs",
+        `${source.receipt.runId}.json`,
+      );
+      const sourceLedgerPath = join(
+        testState.directory,
+        ...sourceJournalBefore.journal.ledgerRelativePath.split("/"),
+      );
+      const sourceCapsulePath = join(
+        testState.directory,
+        "recovery",
+        "capsules",
+        `${source.receipt.runId}.json`,
+      );
+      const sourceReceiptBytes = readFileSync(sourceReceiptPath, "utf8");
+      const sourceLedgerBytes = readFileSync(sourceLedgerPath, "utf8");
+      const sourceCapsuleBytes = readFileSync(sourceCapsulePath, "utf8");
+
+      const otherAuth = createAuth("kernel-web-other-account", {
+        source: "arc", profile: "Profile 1", subject: "456",
+      });
+      saveAuth(otherAuth, testState.environment);
+      const otherInvocation = prepareInvocation("kernel-web", "posts.publish", {
+        body: "one explicit duplicate-risk fixture", media: [mediaPath], media_types: ["image/png"],
+      }, otherAuth.id, testState.environment);
+      expect(() => createAndSaveInvocationPlan(otherInvocation, testState.environment,
+        new Date(), providerPluginRegistry, { duplicateRiskOf: [source.receipt.runId] }))
+        .toThrow("does not match the exact adapter, auth, operation, risk, and input scope");
+
+      const staleSuccessor = createAndSaveInvocationPlan(invocation, testState.environment,
+        new Date(), providerPluginRegistry, { duplicateRiskOf: [source.receipt.runId] });
+      const priorIncarnation = invocation.readProjectionAuthIdentityHash;
+      removeAuth(selectedAuth.id, testState.environment);
+      saveAuth(selectedAuth, testState.environment);
+      let staleDispatches = 0;
+      await expect(confirmInvocation(staleSuccessor.digest, {
+        headed: false, environment: testState.environment,
+        executeWebSession: () => { staleDispatches += 1; return Promise.resolve(execution()); },
+      })).rejects.toThrow("authentication lifetime changed");
+      expect(staleDispatches).toBe(0);
+      expect(readRunJournal(source.receipt.runId, testState.environment)?.journal.duplicateSuccessor).toBeUndefined();
+      invocation = prepareInvocation("kernel-web", "posts.publish", {
+        body: "one explicit duplicate-risk fixture", media: [mediaPath], media_types: ["image/png"],
+      }, selectedAuth.id, testState.environment);
+      expect(invocation.readProjectionAuthIdentityHash).not.toBe(priorIncarnation);
+
+      const preflight = createAndSaveInvocationPlan(
+        invocation,
+        testState.environment,
+        new Date(),
+        providerPluginRegistry,
+        { duplicateRiskOf: [source.receipt.runId] },
+      );
+      expect(preflight.plan.duplicateRisk?.intentHash).not.toBe(staleSuccessor.plan.duplicateRisk?.intentHash);
+      const preflightResult = await confirmInvocation(preflight.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeWebSession: () => Promise.resolve({
+          status: "failed",
+          output: null,
+          finalUrl: "https://kernel.example/home",
+          dispatchStarted: false,
+          dispatch: { planned: 1, started: 0, verified: 0 },
+          error: "synthetic pre-dispatch preflight failure",
+        }),
+      });
+      expect(preflightResult.receipt).toMatchObject({
+        status: "failed",
+        dispatchStarted: false,
+      });
+      expect(readRunJournal(
+        source.receipt.runId,
+        testState.environment,
+      )?.journal.duplicateSuccessor).toBeUndefined();
+      expect(readFileSync(sourceReceiptPath, "utf8")).toBe(sourceReceiptBytes);
+      expect(readFileSync(sourceLedgerPath, "utf8")).toBe(sourceLedgerBytes);
+      expect(readFileSync(sourceCapsulePath, "utf8")).toBe(sourceCapsuleBytes);
+
+      const first = createAndSaveInvocationPlan(
+        invocation,
+        testState.environment,
+        new Date(),
+        providerPluginRegistry,
+        { duplicateRiskOf: [source.receipt.runId] },
+      );
+      const contender = createAndSaveInvocationPlan(
+        invocation,
+        testState.environment,
+        new Date(),
+        providerPluginRegistry,
+        { duplicateRiskOf: [source.receipt.runId] },
+      );
+      const intentHash = first.plan.duplicateRisk?.intentHash;
+      if (intentHash === undefined) throw new Error("duplicate intent hash missing");
+      expect(contender.plan.duplicateRisk?.intentHash).toBe(intentHash);
+      expect(preflight.plan.duplicateRisk?.intentHash).toBe(intentHash);
+      expect(first.plan.duplicateRisk).toMatchObject({
+        kind: "duplicate-risk",
+        sourceRunId: source.receipt.runId,
+        successorRunId: null,
+      });
+
+      let successorCalls = 0;
+      const successorDispatch = first.plan.dispatches[0];
+      if (successorDispatch === undefined) throw new Error("successor dispatch missing");
+      const successor = await confirmInvocation(first.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeWebSession: async (_manifest, _recipe, _input, _auth, options) => {
+          successorCalls += 1;
+          await options?.beforeDispatch?.({
+            id: successorDispatch.id,
+            index: 1,
+            progress: { planned: 1, started: 0, verified: 0 },
+          });
+          await options?.afterDispatchVerified?.({
+            id: successorDispatch.id,
+            index: 1,
+            progress: { planned: 1, started: 1, verified: 1 },
+          });
+          return {
+            status: "succeeded",
+            output: { postId: "successor-123" },
+            finalUrl: "https://kernel.example/i/status/successor-123",
+            dispatchStarted: true,
+            dispatch: { planned: 1, started: 1, verified: 1 },
+          };
+        },
+      });
+      expect(successor.receipt.status).toBe("submitted");
+      expect(successorCalls).toBe(1);
+
+      const sourceJournalAfter = readRunJournal(
+        source.receipt.runId,
+        testState.environment,
+      );
+      expect(sourceJournalAfter?.journal.duplicateSuccessor).toMatchObject({
+        intentHash,
+        runId: successor.receipt.runId,
+      });
+      expect(readFileSync(sourceReceiptPath, "utf8")).toBe(sourceReceiptBytes);
+      expect(readFileSync(sourceLedgerPath, "utf8")).toBe(sourceLedgerBytes);
+      expect(readFileSync(sourceCapsulePath, "utf8")).toBe(sourceCapsuleBytes);
+
+      const successorJournal = readRunJournal(
+        successor.receipt.runId,
+        testState.environment,
+      );
+      if (successorJournal?.journal.ledgerRelativePath === null) {
+        throw new Error("successor ledger missing");
+      }
+      expect(successorJournal?.journal.duplicateIntent).toEqual({
+        schemaVersion: 1,
+        intentHash,
+        sourceRunId: source.receipt.runId,
+      });
+      const successorLedger = JSON.parse(readFileSync(join(
+        testState.directory,
+        ...(successorJournal?.journal.ledgerRelativePath ?? "").split("/"),
+      ), "utf8")) as Record<string, unknown>;
+      expect(successorLedger).toMatchObject({
+        schemaVersion: 3,
+        keyHash: intentHash,
+        duplicateIntentHash: intentHash,
+        status: "succeeded",
+      });
+
+      expect(await rejectionMessage(confirmInvocation(contender.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeWebSession: () => {
+          successorCalls += 1;
+          return Promise.resolve(execution());
+        },
+      }))).toContain("unclaimed retained terminal indeterminate");
+      expect(successorCalls).toBe(1);
+      // The journal sweep superseded the source once its successor settled:
+      // the recovery capsule is released while the indeterminate ledger and
+      // its intent claim still fence the intent.
+      expect(readRunJournal(
+        source.receipt.runId,
+        testState.environment,
+      )?.journal.supersededBy).toMatchObject({
+        intentHash,
+        successorRunId: successor.receipt.runId,
+      });
+      expect(existsSync(sourceCapsulePath)).toBeFalse();
+      expect(releaseReconciledRunRecovery(
+        source.receipt.runId,
+        sha256(canonicalJson(source.receipt)),
+        testState.environment,
+      )).toBe("journal-retained-for-duplicate-successor");
+      expect(readFileSync(sourceLedgerPath, "utf8")).toBe(sourceLedgerBytes);
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("turns an unexpected pre-dispatch executor throw into a durable failed run", async () => {
+    const testState = state();
+    try {
+      installFixture(testState);
+      const stored = createInvocationPlan(prepared(testState));
+      saveInvocationPlan(stored, testState.environment);
+      const result = await confirmInvocation(stored.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: () => Promise.reject(new Error("synthetic provider contract drift; reviewed evidence is stale")),
+      });
+      expect(result.receipt).toMatchObject({
+        status: "failed",
+        dispatchStarted: false,
+        dispatch: { planned: 1, started: 0, verified: 0 },
+      });
+      expect(result.receipt.error).toBe(
+        "official API operation failed before the dispatch boundary; reason: synthetic provider contract drift; reviewed evidence is stale",
+      );
+      expect(result.receipt.error).not.toContain("terminated without returning a bounded result");
+      expect(JSON.stringify(readRunReceipt(result.receipt.runId, testState.environment)))
+        .toContain("synthetic provider contract drift; reviewed evidence is stale");
+      expect(readdirSync(join(testState.directory, "recovery", "capsules"))).toEqual([]);
+
+      const secretStored = createInvocationPlan(prepared(testState, "secret-bearer-throw"));
+      saveInvocationPlan(secretStored, testState.environment);
+      const secretResult = await confirmInvocation(secretStored.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: () => Promise.reject(
+          new Error("request failed with Authorization: Bearer private-message-value"),
+        ),
+      });
+      expect(secretResult.receipt.error).toContain("official API operation failed before the dispatch boundary");
+      expect(secretResult.receipt.error).not.toContain("terminated without returning a bounded result");
+      expect(JSON.stringify(readRunReceipt(secretResult.receipt.runId, testState.environment)))
+        .not.toContain("private-message-value");
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("surfaces a thrown synthetic bookmarks pre-dispatch reason on the receipt", async () => {
+    const testState = state();
+    try {
+      const selectedManifest = kernelWebManifest();
+      const selectedAuth = createAuth("kernel-web-test", {
+        source: "arc",
+        profile: "Profile 1",
+        subject: "123",
+      });
+      installManifest(selectedManifest, {
+        force: false,
+        environment: testState.environment,
+      });
+      saveAuth(selectedAuth, testState.environment);
+      const invocation = prepareInvocation(
+        "kernel-web",
+        "feeds.read",
+        { feed: "bookmarks", limit: 25 },
+        selectedAuth.id,
+        testState.environment,
+      );
+      const result = await executeReadInvocation(invocation, {
+        headed: false,
+        environment: testState.environment,
+        executeWebSession: () => Promise.reject(
+          new Error("synthetic provider metadata drift; reviewed evidence is stale"),
+        ),
+      });
+      expect(result.receipt).toMatchObject({
+        status: "failed",
+        dispatchStarted: false,
+        dispatch: { planned: 0, started: 0, verified: 0 },
+      });
+      expect(result.receipt.error).toBe(
+        "authenticated web API operation failed before the dispatch boundary; reason: synthetic provider metadata drift; reviewed evidence is stale",
+      );
+      expect(result.receipt.error).not.toContain("terminated without returning a bounded result");
+      expect(result.output).toBeNull();
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("preserves a returned synthetic bookmarks first-party asset transport failure", async () => {
+    const testState = state();
+    try {
+      const selectedManifest = kernelWebManifest();
+      const selectedAuth = createAuth("kernel-web-test", {
+        source: "arc",
+        profile: "Profile 1",
+        subject: "123",
+      });
+      installManifest(selectedManifest, {
+        force: false,
+        environment: testState.environment,
+      });
+      saveAuth(selectedAuth, testState.environment);
+      const invocation = prepareInvocation(
+        "kernel-web",
+        "feeds.read",
+        { feed: "bookmarks", limit: 25 },
+        selectedAuth.id,
+        testState.environment,
+      );
+      const result = await executeReadInvocation(invocation, {
+        headed: false,
+        environment: testState.environment,
+        executeWebSession: () => Promise.resolve({
+          status: "failed",
+          output: null,
+          finalUrl: "https://kernel.example/i/bookmarks",
+          dispatchStarted: false,
+          dispatch: { planned: 0, started: 0, verified: 0 },
+          error: "public first-party web asset request failed",
+          readFailure: {
+            category: "provider-temporary",
+            retryDisposition: "retry-once-after-60s",
+          },
+        }),
+      });
+      expect(result).toMatchObject({
+        receipt: {
+          status: "failed",
+          dispatchStarted: false,
+        },
+        output: null,
+        readFailure: {
+          category: "provider-temporary",
+          retryDisposition: "retry-once-after-60s",
+        },
+      });
+      expect(result.receipt.error).toBe(
+        "authenticated web API operation failed before the dispatch boundary; reason: public first-party web asset request failed",
+      );
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("rejects executor-reported success that has no durable dispatch callbacks", async () => {
+    const testState = state();
+    try {
+      installFixture(testState);
+      const invocation = prepared(testState, "unreported provider dispatch");
+      const stored = createInvocationPlan(invocation);
+      saveInvocationPlan(stored, testState.environment);
+      const result = await confirmInvocation(stored.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: () => Promise.resolve(execution()),
+      });
+      expect(result.receipt).toMatchObject({
+        status: "failed",
+        dispatchStarted: false,
+        dispatch: { planned: 1, started: 0, verified: 0 },
+      });
+      expect(result.receipt.error).toContain("invalid dispatch progress");
+      expect(result.output).toBeNull();
+      expect(readdirSync(join(testState.directory, "recovery", "capsules"))).toEqual([]);
+
+      const retry = createAndSaveInvocationPlan(invocation, testState.environment);
+      const retried = await confirmInvocation(retry.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: providerExecutor(),
+      });
+      expect(retried.receipt.status).toBe("submitted");
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("uses durable progress when a post-dispatch executor result is null or contradictory", async () => {
+    const testState = state();
+    try {
+      installFixture(testState);
+      const candidates: readonly unknown[] = [
+        null,
+        {
+          status: "failed",
+          output: { private: "executor-private-contradictory-output" },
+          finalUrl: null,
+          dispatchStarted: false,
+          dispatch: { planned: 1, started: 0, verified: 0 },
+          error: "executor-private-contradictory-error",
+        },
+      ];
+      for (const [index, candidate] of candidates.entries()) {
+        const stored = createInvocationPlan(prepared(testState, `durable progress ${index}`));
+        saveInvocationPlan(stored, testState.environment);
+        const result = await confirmInvocation(stored.digest, {
+          headed: false,
+          environment: testState.environment,
+          executeProvider: async (_manifest, _recipe, _input, _auth, executionOptions) => {
+            if (executionOptions === undefined) {
+              throw new Error("provider execution options are required");
+            }
+            await executionOptions.beforeDispatch?.({
+              id: "posts-publish",
+              index: 1,
+              progress: { planned: 1, started: 0, verified: 0 },
+            });
+            return foreignProviderExecution(candidate);
+          },
+        });
+        expect(result.receipt).toMatchObject({
+          status: "indeterminate",
+          dispatchStarted: true,
+          dispatch: { planned: 1, started: 1, verified: 0 },
+        });
+        expect(result.output).toBeNull();
+      }
+      expect(allFileText(testState.directory)).not.toContain("executor-private");
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("rejects a stale progress callback without regressing a terminal receipt or journal", async () => {
+    const testState = state();
+    try {
+      installFixture(testState);
+      const stored = createAndSaveInvocationPlan(
+        prepared(testState, "stale progress regression"),
+        testState.environment,
+      );
+      let staleProgress: (() => Promise<void>) | undefined;
+      const result = await confirmInvocation(stored.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: async (_manifest, _recipe, _input, _auth, options) => {
+          if (options === undefined) {
+            throw new Error("provider execution options are required");
+          }
+          const starting = {
+            id: "posts-publish",
+            index: 1,
+            progress: { planned: 1, started: 0, verified: 0 },
+          } as const;
+          await options.beforeDispatch?.(starting);
+          await options.afterDispatchVerified?.({
+            id: "posts-publish",
+            index: 1,
+            progress: { planned: 1, started: 1, verified: 1 },
+          });
+          staleProgress = () => {
+            const callback = options.beforeDispatch;
+            return callback === undefined
+              ? Promise.reject(new Error("missing progress callback"))
+              : callback(starting);
+          };
+          return {
+            status: "succeeded",
+            output: null,
+            finalUrl: "https://api.x.com/2/tweets",
+            dispatchStarted: true,
+            dispatch: { planned: 1, started: 1, verified: 1 },
+          };
+        },
+      });
+      const receiptBefore = readFileSync(
+        join(testState.directory, "runs", `${result.receipt.runId}.json`),
+        "utf8",
+      );
+      if (staleProgress === undefined) {
+        throw new Error("expected the executor to retain a stale callback");
+      }
+
+      expect(await rejectionMessage(staleProgress()))
+        .toContain("dispatch progress diverged from the confirmed schedule");
+      expect(readFileSync(
+        join(testState.directory, "runs", `${result.receipt.runId}.json`),
+        "utf8",
+      )).toBe(receiptBefore);
+      expect(readRunReceipt(result.receipt.runId, testState.environment))
+        .toEqual(result.receipt);
+      expect(readRunJournal(result.receipt.runId, testState.environment)?.journal)
+        .toMatchObject({
+          phase: "terminal",
+          status: "submitted",
+          dispatch: { planned: 1, started: 1, verified: 1 },
+        });
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("provider dispatch schedules and attachments", () => {
+  test("preserves an old attachment bundle while its preview plan is active", () => {
+    const testState = state();
+    const sourceDirectory = mkdtempSync(join(tmpdir(), "wrench-upload-active-plan-source-"));
+    const source = join(sourceDirectory, "reviewed.png");
+    writeFileSync(source, Buffer.from([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+      0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+    ]), { mode: 0o600 });
+    try {
+      const invocation = preparedUpload(testState, source);
+      const stored = createAndSaveInvocationPlan(invocation, testState.environment);
+      const bundle = planAssetBundlePath(stored.digest, testState.environment);
+      const old = new Date(Date.now() - PLAN_ASSET_GC_GRACE_MS - 1_000);
+      utimesSync(bundle, old, old);
+
+      purgeExpiredPlans(testState.environment);
+
+      expect(existsSync(bundle)).toBeTrue();
+      expect(cancelInvocationPlan(stored.digest, testState.environment)).toBeTrue();
+      expect(existsSync(bundle)).toBeFalse();
+    } finally {
+      rmSync(sourceDirectory, { recursive: true, force: true });
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("only one same-digest confirmer owns and cleans the attachment bundle", async () => {
+    const testState = state();
+    const sourceDirectory = mkdtempSync(join(tmpdir(), "wrench-upload-race-source-"));
+    const source = join(sourceDirectory, "reviewed.png");
+    const png = Buffer.from([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+      0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+    ]);
+    writeFileSync(source, png, { mode: 0o600 });
+    const control: { release?: () => void } = {};
+    try {
+      const invocation = preparedUpload(testState, source);
+      const stored = createAndSaveInvocationPlan(invocation, testState.environment);
+      const bundle = planAssetBundlePath(stored.digest, testState.environment);
+      let entered = false;
+      const gate = new Promise<void>((resolve) => { control.release = resolve; });
+      const winner = confirmInvocation(stored.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: async (_manifest, _recipe, input, _auth, options) => {
+          entered = true;
+          await gate;
+          const media = firstBoundFile(input.media);
+          const paths = await options?.fileResolver?.([media]);
+          expect(paths === undefined ? null : readFileSync(paths[0] as string)).toEqual(png);
+          const result = execution("succeeded", true);
+          await reportProviderExecutionProgress(result, options);
+          return result;
+        },
+      });
+      while (!entered) await new Promise((resolve) => setTimeout(resolve, 1));
+
+      expect(await rejectionMessage(confirmInvocation(stored.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: () => Promise.resolve(execution()),
+      }))).toContain("encrypted plan");
+      expect(cancelInvocationPlan(stored.digest, testState.environment)).toBeFalse();
+      const old = new Date(Date.now() - PLAN_ASSET_GC_GRACE_MS - 1_000);
+      utimesSync(bundle, old, old);
+      purgeExpiredPlans(testState.environment);
+      expect(existsSync(bundle)).toBeTrue();
+
+      control.release?.();
+      expect((await winner).receipt.status).toBe("submitted");
+      expect(existsSync(bundle)).toBeFalse();
+    } finally {
+      control.release?.();
+      rmSync(sourceDirectory, { recursive: true, force: true });
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("binds an upload to a private plan bundle and removes it after verified dispatch", async () => {
+    const testState = state();
+    const sourceDirectory = mkdtempSync(join(tmpdir(), "wrench-upload-source-"));
+    const source = join(sourceDirectory, "personal-file-name.png");
+    const png = Buffer.from([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+      0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+    ]);
+    writeFileSync(source, png, { mode: 0o600 });
+    try {
+      const invocation = preparedUpload(testState, source);
+      const stored = createAndSaveInvocationPlan(invocation, testState.environment);
+      expect(stored.plan.dispatches).toEqual([{ id: "posts-publish", description: "Execute linkedin posts.publish" }]);
+      expect(JSON.stringify(stored.plan.input)).not.toContain(source);
+      expect(existsSync(planAssetBundlePath(stored.digest, testState.environment))).toBeTrue();
+
+      const progress: Array<{ readonly planned: number; readonly started: number; readonly verified: number }> = [];
+      const result = await confirmInvocation(stored.digest, {
+        headed: false,
+        environment: testState.environment,
+        persistReceipt: (receipt, environment) => {
+          progress.push(receipt.dispatch);
+          writePrivateJson(join(environment.GHOSTGET_STATE_HOME as string, "runs", `${receipt.runId}.json`), receipt, { privateParent: true });
+        },
+        executeProvider: async (_manifest, _recipe, input, _auth, options) => {
+          const media = firstBoundFile(input.media);
+          await options?.beforeDispatch?.({
+            id: "posts-publish",
+            index: 1,
+            progress: { planned: 1, started: 0, verified: 0 },
+          });
+          const paths = await options?.fileResolver?.([media]);
+          expect(paths).toHaveLength(1);
+          expect(paths?.[0]).toEndWith("asset-01.png");
+          expect(paths === undefined ? null : readFileSync(paths[0] as string)).toEqual(png);
+          await options?.afterDispatchVerified?.({
+            id: "posts-publish",
+            index: 1,
+            progress: { planned: 1, started: 1, verified: 1 },
+          });
+          return {
+            status: "succeeded",
+            output: null,
+            finalUrl: "https://api.x.com/2/tweets",
+            dispatchStarted: true,
+            dispatch: { planned: 1, started: 1, verified: 1 },
+          };
+        },
+      });
+
+      expect(result.receipt).toMatchObject({
+        status: "submitted",
+        dispatchStarted: true,
+        dispatch: { planned: 1, started: 1, verified: 1 },
+      });
+      expect(progress).toEqual([
+        { planned: 1, started: 0, verified: 0 },
+      ]);
+      expect(readRunReceipt(result.receipt.runId, testState.environment))
+        .toEqual(result.receipt);
+      expect(readRunJournal(result.receipt.runId, testState.environment)?.journal)
+        .toMatchObject({
+          phase: "terminal",
+          status: "submitted",
+          dispatch: { planned: 1, started: 1, verified: 1 },
+        });
+      expect(existsSync(planAssetBundlePath(stored.digest, testState.environment))).toBeFalse();
+      expect(allFileText(testState.directory)).not.toContain(source);
+      expect(allFileText(testState.directory)).not.toContain("personal-file-name");
+    } finally {
+      rmSync(sourceDirectory, { recursive: true, force: true });
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test.each([
+    {
+      status: "pending" as const,
+      dispatch: { planned: 1, started: 1, verified: 0 },
+    },
+    {
+      status: "partial" as const,
+      dispatch: { planned: 2, started: 1, verified: 1 },
+    },
+    {
+      status: "indeterminate" as const,
+      dispatch: { planned: 1, started: 1, verified: 0 },
+    },
+  ])("retains a confirmed attachment bundle while its run is $status", async ({ status, dispatch }) => {
+    const testState = state();
+    const sourceDirectory = mkdtempSync(join(tmpdir(), "wrench-unsettled-upload-source-"));
+    const source = join(sourceDirectory, "reviewed.png");
+    writeFileSync(source, Buffer.from([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+      0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+    ]), { mode: 0o600 });
+    try {
+      const invocation = preparedUpload(testState, source);
+      const stored = createAndSaveInvocationPlan(invocation, testState.environment);
+      const bundle = planAssetBundlePath(stored.digest, testState.environment);
+      const result = await confirmInvocation(stored.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: async (_manifest, _recipe, _input, _auth, options) => {
+          await options?.beforeDispatch?.({
+            id: "posts-publish",
+            index: 1,
+            progress: { planned: 1, started: 0, verified: 0 },
+          });
+          return {
+            status: "indeterminate",
+            output: null,
+            finalUrl: "https://api.x.com/2/tweets",
+            dispatchStarted: true,
+            dispatch: { planned: 1, started: 1, verified: 0 },
+            error: "synthetic response loss",
+          };
+        },
+      });
+
+      expect(result.receipt.status).toBe("indeterminate");
+      expect(existsSync(bundle)).toBeTrue();
+      const retainedReceipt = {
+        ...result.receipt,
+        status,
+        dispatchStarted: dispatch.started > 0,
+        dispatch,
+      };
+      writePrivateJson(
+        join(testState.directory, "runs", `${result.receipt.runId}.json`),
+        retainedReceipt,
+        { privateParent: true },
+      );
+      const old = new Date(Date.now() - PLAN_ASSET_GC_GRACE_MS - 1_000);
+      utimesSync(bundle, old, old);
+
+      purgeExpiredPlans(testState.environment);
+
+      expect(existsSync(bundle)).toBeTrue();
+      expect(readRecoveryCapsule(
+        result.receipt.runId,
+        invocation.auth.id,
+        sha256(canonicalJson(invocation.auth)),
+        testState.environment,
+      )?.planDigest).toBe(stored.digest);
+    } finally {
+      rmSync(sourceDirectory, { recursive: true, force: true });
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("removes a bound attachment bundle when preflight hash verification fails", async () => {
+    const testState = state();
+    const sourceDirectory = mkdtempSync(join(tmpdir(), "wrench-corrupt-upload-source-"));
+    const source = join(sourceDirectory, "reviewed.png");
+    writeFileSync(source, Buffer.from([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+      0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+    ]), { mode: 0o600 });
+    try {
+      const invocation = preparedUpload(testState, source);
+      const stored = createAndSaveInvocationPlan(invocation, testState.environment);
+      const bundle = planAssetBundlePath(stored.digest, testState.environment);
+      const fileName = readdirSync(bundle).find((name) => name.startsWith("asset-"));
+      if (fileName === undefined) throw new Error("expected a staged attachment");
+      writeFileSync(join(bundle, fileName), Buffer.alloc(16, 0xff), { mode: 0o600 });
+      let browserCalls = 0;
+
+      const message = await rejectionMessage(confirmInvocation(stored.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: () => {
+          browserCalls += 1;
+          return Promise.resolve(execution());
+        },
+      }));
+
+      expect(message).toContain("plan-bound attachment");
+      expect(browserCalls).toBe(0);
+      expect(existsSync(bundle)).toBeFalse();
+      expect(listInvocationPlans(testState.environment)).toEqual([]);
+    } finally {
+      rmSync(sourceDirectory, { recursive: true, force: true });
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("records partial multi-dispatch progress and permanently blocks automatic retry", async () => {
+    const testState = state();
+    try {
+      installKernelProviderFixture(testState);
+      const invocation = prepareInvocation(
+        "kernel-provider",
+        "threads.publish",
+        { items: ["first", "second"] },
+        "kernel-official",
+        testState.environment,
+      );
+      const first = createAndSaveInvocationPlan(invocation, testState.environment);
+      expect(first.plan.dispatches.map(({ id }) => id)).toEqual(["publish-item[1]", "publish-item[2]"]);
+      const result = await confirmInvocation(first.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: async (_manifest, _recipe, _input, _auth, options) => {
+          await options?.beforeDispatch?.({
+            id: "publish-item[1]",
+            index: 1,
+            progress: { planned: 2, started: 0, verified: 0 },
+          });
+          await options?.afterDispatchVerified?.({
+            id: "publish-item[1]",
+            index: 1,
+            progress: { planned: 2, started: 1, verified: 1 },
+          });
+          return {
+            status: "partial",
+            output: null,
+            finalUrl: "https://provider.kernel.example/items",
+            dispatchStarted: true,
+            dispatch: { planned: 2, started: 1, verified: 1 },
+            error: "provider stopped after the first verified dispatch",
+          };
+        },
+      });
+      expect(result.receipt).toMatchObject({
+        status: "partial",
+        dispatch: { planned: 2, started: 1, verified: 1 },
+      });
+      expect(result.receipt.error).toContain("reconcile before retrying");
+      expect(result.receipt.error).toContain("provider stopped after the first verified dispatch");
+
+      const retry = createAndSaveInvocationPlan(invocation, testState.environment);
+      let calls = 0;
+      const message = await rejectionMessage(confirmInvocation(retry.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: () => {
+          calls += 1;
+          return Promise.resolve(execution());
+        },
+      }));
+      expect(message).toContain(result.receipt.runId);
+      expect(message).toContain("reconcile");
+      expect(calls).toBe(0);
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("reviewed authenticated-template plans and receipts", () => {
+  test("rejects DELETE disguised as R1 during validation, planning, and execution", () => {
+    const testState = state();
+    try {
+      const unsafe = reviewedTemplateManifest("R1", "DELETE");
+      const forgedInvocation = {
+        manifest: unsafe,
+        operationId: "content.read",
+        input: { target_id: "target-1" },
+        auth: auth(),
+      };
+      expect(() => createInvocationPlan(forgedInvocation))
+        .toThrow("contractVersion 2 with a current-account identity preflight");
+      let executorCalls = 0;
+      expect(executeReadInvocation(forgedInvocation, {
+        headed: false,
+        environment: testState.environment,
+        executeReviewedTemplate: () => {
+          executorCalls += 1;
+          return Promise.reject(new Error("must not execute"));
+        },
+      })).rejects.toThrow("contractVersion 2 with a current-account identity preflight");
+      expect(executorCalls).toBe(0);
+
+      expect(() => installManifest(unsafe, { force: false, environment: testState.environment }))
+        .toThrow("reviewed-template contractVersion 2 with a current-account identity preflight");
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("refuses a reviewed R3 template during installed-manifest validation", () => {
+    const testState = state();
+    try {
+      expect(() => installManifest(
+        reviewedTemplateManifest("R3"),
+        { force: false, environment: testState.environment },
+      )).toThrow("reviewed-template contractVersion 2 with a current-account identity preflight");
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("refuses capture-required templates before planning", () => {
+    const testState = state();
+    try {
+      const reviewed = reviewedTemplateManifest("R1");
+      const captureOperation = reviewed.operations["content.read"];
+      if (captureOperation === undefined || !("reviewedTemplate" in captureOperation)) throw new Error("missing fixture operation");
+      const capture: GhostgetManifest = {
+        ...reviewed,
+        operations: {
+          "content.read": {
+            description: captureOperation.description,
+            risk: captureOperation.risk,
+            sideEffect: captureOperation.sideEffect,
+            idempotency: captureOperation.idempotency,
+            dedupeWindowMs: captureOperation.dedupeWindowMs,
+            input: captureOperation.input,
+            reviewedTemplate: {
+              state: "capture-required",
+              contractVersion: 1,
+              instructions: "Review exact request and response semantics first.",
+            },
+          },
+        },
+      };
+      installManifest(capture, { force: false, environment: testState.environment });
+      saveAuth(auth(), testState.environment);
+      expect(() => prepareInvocation(
+        "example-api",
+        "content.read",
+        { target_id: "target-1" },
+        "example",
+        testState.environment,
+      )).toThrow("capture-required");
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("official-provider plans and receipts", () => {
+  test("rejects an R1 plugin dispatch schedule before calling its executor", () => {
+    const testState = state();
+    try {
+      installLinkedInProviderFixture(testState);
+      const invocation = preparedRead(testState);
+      const withReadDispatch = (
+        resolution: ReturnType<ProviderPluginRegistry["resolveOperationDefinition"]>,
+      ) => resolution === undefined
+        ? undefined
+        : {
+            ...resolution,
+            operation: {
+              ...resolution.operation,
+              planDispatches: () => [{
+                id: "forged-read-dispatch",
+                description: "A read must never schedule this dispatch",
+              }],
+            },
+          };
+      const resolveOperationDefinition: ProviderPluginRegistry["resolveOperationDefinition"] = (
+        transport,
+        surfaceId,
+        operation,
+        contractVersion,
+      ) => {
+        const resolution = providerPluginRegistry.resolveOperationDefinition(
+          transport,
+          surfaceId,
+          operation,
+          contractVersion,
+        );
+        return transport === "provider-api" && surfaceId === "linkedin" && operation === "posts.read"
+          ? withReadDispatch(resolution)
+          : resolution;
+      };
+      const registry: ProviderPluginRegistry = {
+        ...providerPluginRegistry,
+        resolveOperationDefinition,
+        requireOperationDefinition: (transport, surfaceId, operation, contractVersion) => {
+          const resolution = resolveOperationDefinition(transport, surfaceId, operation, contractVersion);
+          if (resolution === undefined) {
+            return providerPluginRegistry.requireOperationDefinition(
+              transport,
+              surfaceId,
+              operation,
+              contractVersion,
+            );
+          }
+          return resolution;
+        },
+      };
+      let executorCalls = 0;
+      expect(executeReadInvocation(invocation, {
+        headed: false,
+        environment: testState.environment,
+        registry,
+        executeProvider: () => {
+          executorCalls += 1;
+          return Promise.resolve(providerReadExecution({ secret: "must-not-run" }));
+        },
+      })).rejects.toThrow("R1 operations must not schedule remote dispatches");
+      expect(executorCalls).toBe(0);
+      expect(existsSync(join(testState.directory, "runs"))).toBeFalse();
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("fails closed on null, invalid-status, and malformed executor records without retaining them", async () => {
+    const testState = state();
+    try {
+      installLinkedInProviderFixture(testState);
+      const invocation = preparedRead(testState);
+      const valid = providerReadExecution({ private: "executor-private-output" });
+      const malformed: readonly unknown[] = [
+        null,
+        { ...valid, status: "pending", error: "executor-private-status" },
+        { ...valid, finalUrl: "not-an-absolute-url" },
+        { ...valid, dispatchStarted: "yes" },
+        { ...valid, dispatch: { planned: 0, started: 1, verified: 0 } },
+        { ...valid, noOp: true },
+        { ...valid, privateArtifactsPreserved: true },
+        { ...valid, recoveryHandle: "session=executor-private-recovery" },
+        { ...valid, error: 42 },
+      ];
+      for (const candidate of malformed) {
+        const result = await executeReadInvocation(invocation, {
+          headed: false,
+          environment: testState.environment,
+          executeProvider: () => Promise.resolve(foreignProviderExecution(candidate)),
+        });
+        expect(result.receipt).toMatchObject({
+          status: "failed",
+          dispatchStarted: false,
+          dispatch: { planned: 0, started: 0, verified: 0 },
+        });
+        expect(result.receipt.error).toContain("terminated without returning a bounded result");
+        expect(result.output).toBeNull();
+      }
+      expect(allFileText(testState.directory)).not.toContain("executor-private");
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("accepts only a consistent pre-dispatch R1 failure projection", async () => {
+    const testState = state();
+    try {
+      installLinkedInProviderFixture(testState);
+      const invocation = preparedRead(testState);
+      const failed = {
+        status: "failed",
+        output: null,
+        finalUrl: null,
+        dispatchStarted: false,
+        dispatch: { planned: 0, started: 0, verified: 0 },
+        error: "bounded provider failure",
+      } as const;
+      const accepted = await executeReadInvocation(invocation, {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: () => Promise.resolve(foreignProviderExecution({
+          ...failed,
+          readFailure: {
+            category: "provider-throttled",
+            retryDisposition: "retry-once-after-60s",
+          },
+        })),
+      });
+      expect(accepted).toMatchObject({
+        receipt: {
+          status: "failed",
+          dispatchStarted: false,
+          dispatch: { planned: 0, started: 0, verified: 0 },
+        },
+        readFailure: {
+          category: "provider-throttled",
+          retryDisposition: "retry-once-after-60s",
+        },
+      });
+
+      let accessorReads = 0;
+      const accessorFailure: Record<string, unknown> = {
+        retryDisposition: "do-not-retry",
+      };
+      Object.defineProperty(accessorFailure, "category", {
+        enumerable: true,
+        get: () => {
+          accessorReads += 1;
+          return "contract-drift";
+        },
+      });
+      for (const candidate of [
+        {
+          ...failed,
+          readFailure: {
+            category: "provider-throttled",
+            retryDisposition: "do-not-retry",
+          },
+        },
+        {
+          ...failed,
+          readFailure: {
+            category: "contract-drift",
+            retryDisposition: "do-not-retry",
+            detail: "private provider detail",
+          },
+        },
+        {
+          ...failed,
+          output: { private: "private failed output with projection" },
+          readFailure: {
+            category: "contract-drift",
+            retryDisposition: "do-not-retry",
+          },
+        },
+        {
+          ...failed,
+          output: { private: "private failed output without projection" },
+        },
+        {
+          ...providerReadExecution({}),
+          readFailure: {
+            category: "contract-drift",
+            retryDisposition: "do-not-retry",
+          },
+        },
+        { ...failed, readFailure: accessorFailure },
+      ]) {
+        const result = await executeReadInvocation(invocation, {
+          headed: false,
+          environment: testState.environment,
+          executeProvider: () => Promise.resolve(
+            foreignProviderExecution(candidate),
+          ),
+        });
+        expect(result).toMatchObject({
+          receipt: { status: "failed" },
+          output: null,
+          readFailure: {
+            category: "contract-drift",
+            retryDisposition: "do-not-retry",
+          },
+        });
+        expect(JSON.stringify(result)).not.toContain("private provider detail");
+        expect(JSON.stringify(result)).not.toContain("private failed output");
+      }
+      expect(accessorReads).toBe(0);
+      expect(allFileText(testState.directory)).not.toContain("private failed output");
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("rejects non-JSON, circular, and oversized executor output", async () => {
+    const testState = state();
+    try {
+      installLinkedInProviderFixture(testState);
+      const invocation = preparedRead(testState);
+      const operation = invocation.manifest.operations[invocation.operationId];
+      if (operation === undefined || !("provider" in operation) || operation.provider === undefined) {
+        throw new Error("expected provider read operation");
+      }
+      const circular: Record<string, unknown> = { private: "executor-private-circular" };
+      circular.self = circular;
+      for (const output of [
+        { private: "executor-private-undefined", invalid: undefined },
+        circular,
+        "x".repeat(operation.provider.maxOutputBytes),
+      ]) {
+        const result = await executeReadInvocation(invocation, {
+          headed: false,
+          environment: testState.environment,
+          executeProvider: () => Promise.resolve(providerReadExecution(output)),
+        });
+        expect(result.receipt).toMatchObject({
+          status: "failed",
+          dispatchStarted: false,
+          dispatch: { planned: 0, started: 0, verified: 0 },
+        });
+        expect(result.output).toBeNull();
+      }
+      expect(allFileText(testState.directory)).not.toContain("executor-private");
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("sanitizes and returns valid bounded JSON executor output", async () => {
+    const testState = state();
+    try {
+      installLinkedInProviderFixture(testState);
+      const output = {
+        posts: [{ id: "123", text: "bounded result", metrics: { likes: 3 } }],
+        cursor: null,
+      };
+      const result = await executeReadInvocation(preparedRead(testState), {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: () => Promise.resolve({
+          ...providerReadExecution(output),
+          finalUrl: "https://www.linkedin.com/feed/update/urn:li:activity:123",
+        }),
+      });
+      expect(result.receipt).toMatchObject({
+        status: "succeeded",
+        finalOrigin: "https://www.linkedin.com",
+        dispatch: { planned: 0, started: 0, verified: 0 },
+      });
+      expect(result.output).toEqual(output);
+      expect(result.output).not.toBe(output);
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("turns a thrown R1 executor into a pre-dispatch failure without retaining the exception", async () => {
+    const testState = state();
+    try {
+      installLinkedInProviderFixture(testState);
+      const result = await executeReadInvocation(preparedRead(testState), {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: () => Promise.reject(new Error("executor-private-thrown-value")),
+      });
+      expect(result.receipt).toMatchObject({
+        status: "failed",
+        dispatchStarted: false,
+        dispatch: { planned: 0, started: 0, verified: 0 },
+      });
+      expect(result.output).toBeNull();
+      expect(result.readFailure).toEqual({
+        category: "contract-drift",
+        retryDisposition: "do-not-retry",
+      });
+      expect(result.receipt.error).toBe(
+        "official API operation failed before the dispatch boundary; reason: executor-private-thrown-value",
+      );
+      expect(result.receipt.error).not.toContain("terminated without returning a bounded result");
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("executes an R1 provider read with a schema-v3 contract-bound receipt", async () => {
+    const testState = state();
+    try {
+      installLinkedInProviderFixture(testState);
+      const invocation = prepareInvocation(
+        "linkedin",
+        "posts.read",
+        { mode: "one", post_urn: "urn:li:share:123" },
+        "linkedin-official",
+        testState.environment,
+      );
+      const result = await executeReadInvocation(invocation, {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: () => Promise.resolve({
+          status: "succeeded",
+          output: { posts: [{ id: "123", text: "bounded result" }] },
+          finalUrl: null,
+          dispatchStarted: false,
+          dispatch: { planned: 0, started: 0, verified: 0 },
+        } satisfies ProviderExecution),
+      });
+
+      expect(result.receipt).toMatchObject({
+        schemaVersion: 3,
+        transport: "provider-api",
+        operation: "posts.read",
+        status: "succeeded",
+        auth: { id: "linkedin-official", kind: "oauth-token-file" },
+        dispatch: { planned: 0, started: 0, verified: 0 },
+      });
+      if (result.receipt.schemaVersion !== 3) throw new Error("expected provider receipt");
+      expect(result.receipt.providerContractHash).toMatch(/^[a-f0-9]{64}$/u);
+      expect(result.output).toEqual({ posts: [{ id: "123", text: "bounded result" }] });
+      expect(readRunReceipt(result.receipt.runId, testState.environment)).toEqual(result.receipt);
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("binds every confirmed thread dispatch and stores durable provider progress", async () => {
+    const testState = state();
+    const privateItems = ["first private thread item", "second private thread item"] as const;
+    try {
+      installKernelProviderFixture(testState);
+      const invocation = prepareInvocation(
+        "kernel-provider",
+        "threads.publish",
+        { items: privateItems },
+        "kernel-official",
+        testState.environment,
+      );
+      const stored = createAndSaveInvocationPlan(invocation, testState.environment);
+      expect(stored.plan).toMatchObject({
+        schemaVersion: 3,
+        transport: "provider-api",
+        providerContract: { provider: "kernel-provider", action: "threads.publish", version: 1 },
+        dispatches: [{ id: "publish-item[1]" }, { id: "publish-item[2]" }],
+      });
+      expect(loadInvocationPlan(stored.digest, testState.environment)).toEqual(stored);
+
+      const result = await confirmInvocation(stored.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: async (_manifest, _recipe, _input, _auth, options) => {
+          await options?.beforeDispatch?.({
+            id: "publish-item[1]",
+            index: 1,
+            progress: { planned: 2, started: 0, verified: 0 },
+          });
+          await options?.afterDispatchVerified?.({
+            id: "publish-item[1]",
+            index: 1,
+            progress: { planned: 2, started: 1, verified: 1 },
+          });
+          await options?.beforeDispatch?.({
+            id: "publish-item[2]",
+            index: 2,
+            progress: { planned: 2, started: 1, verified: 1 },
+          });
+          await options?.afterDispatchVerified?.({
+            id: "publish-item[2]",
+            index: 2,
+            progress: { planned: 2, started: 2, verified: 2 },
+          });
+          return {
+            status: "succeeded",
+            output: { posts: [{ id: "111" }, { id: "222" }] },
+            finalUrl: "https://provider.kernel.example/items/222",
+            dispatchStarted: true,
+            dispatch: { planned: 2, started: 2, verified: 2 },
+          } satisfies ProviderExecution;
+        },
+      });
+
+      expect(result.receipt).toMatchObject({
+        schemaVersion: 3,
+        transport: "provider-api",
+        status: "submitted",
+        dispatchStarted: true,
+        dispatch: { planned: 2, started: 2, verified: 2 },
+        finalOrigin: "https://provider.kernel.example",
+      });
+      expect(allFileText(testState.directory)).not.toContain(privateItems[0]);
+      expect(allFileText(testState.directory)).not.toContain(privateItems[1]);
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("receipts", () => {
+  test("normalizes a legacy receipt without weakening its outcome", async () => {
+    const testState = state();
+    try {
+      installFixture(testState);
+      const stored = createInvocationPlan(prepared(testState));
+      saveInvocationPlan(stored, testState.environment);
+      const result = await confirmInvocation(stored.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: providerExecutor(),
+      });
+      const path = join(testState.directory, "runs", `${result.receipt.runId}.json`);
+      const legacy = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
+      legacy.schemaVersion = 1;
+      delete legacy.dispatch;
+      legacy.transport = "browser";
+      delete legacy.providerContractHash;
+      writeFileSync(path, `${JSON.stringify(legacy)}\n`, { mode: 0o600 });
+
+      expect(readRunReceipt(result.receipt.runId, testState.environment)).toMatchObject({
+        schemaVersion: 2,
+        status: "submitted",
+        dispatch: { planned: 1, started: 1, verified: 1 },
+      });
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("lists durable runs newest-first and marks malformed records without echoing them", async () => {
+    const testState = state();
+    try {
+      installFixture(testState, "R1");
+      const result = await executeReadInvocation(preparedRead(testState), {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: () => Promise.resolve(execution("succeeded", false, undefined, 0)),
+      });
+      const invalidId = crypto.randomUUID();
+      writeFileSync(join(testState.directory, "runs", `${invalidId}.json`), "private malformed value\n", { mode: 0o600 });
+      const listed = listRunReceipts(testState.environment);
+      expect(listed.some((receipt) => receipt.runId === result.receipt.runId && "status" in receipt && receipt.status === "succeeded")).toBeTrue();
+      expect(listed.some((receipt) => receipt.runId === invalidId && "invalid" in receipt && receipt.invalid)).toBeTrue();
+      expect(JSON.stringify(listed)).not.toContain("private malformed value");
+      expect(existsSync(join(testState.directory, "recovery"))).toBeFalse();
+      expect(existsSync(join(testState.directory, ".recovery-encryption-key"))).toBeFalse();
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("lists 127 durable receipts in under one second", () => {
+    const testState = state();
+    try {
+      const directory = join(ghostgetStateHome(testState.environment), "runs");
+      ensurePrivateStateDirectory(directory, testState.environment);
+      for (let index = 0; index < 127; index += 1) {
+        const runId = `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`;
+        const startedAt = new Date(
+          Date.UTC(2026, 6, 25, 12, 0, 0, index),
+        ).toISOString();
+        writeFileSync(join(directory, `${runId}.json`), `${JSON.stringify({
+          schemaVersion: 2,
+          runId,
+          planDigest: null,
+          adapter: {
+            id: "example",
+            version: "1.0.0",
+            hash: "a".repeat(64),
+          },
+          operation: "messaging.send",
+          risk: "R1",
+          inputHash: "b".repeat(64),
+          auth: {
+            id: "example",
+            hash: "c".repeat(64),
+            kind: "cookie-source",
+          },
+          transport: "browser",
+          status: "succeeded",
+          dispatchStarted: false,
+          dispatch: { planned: 0, started: 0, verified: 0 },
+          startedAt,
+          finishedAt: startedAt,
+          finalOrigin: null,
+          error: null,
+        })}\n`, { mode: 0o600 });
+      }
+
+      const started = performance.now();
+      const listed = listRunReceipts(testState.environment);
+      const elapsedMilliseconds = performance.now() - started;
+
+      expect(listed).toHaveLength(127);
+      expect(listed.every((receipt) => "status" in receipt)).toBeTrue();
+      expect(elapsedMilliseconds).toBeLessThan(1_000);
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("records read outcomes without retaining browser errors or off-origin URLs", async () => {
+    const testState = state();
+    try {
+      installFixture(testState, "R1");
+      const result = await executeReadInvocation(preparedRead(testState), {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: () => Promise.resolve({
+          status: "failed",
+          output: null,
+          finalUrl: "https://evil.example/private-message-value",
+          dispatchStarted: false,
+          dispatch: { planned: 0, started: 0, verified: 0 },
+          error: "request failed with Authorization: Bearer private-message-value",
+        }),
+      });
+      expect(result.receipt).toMatchObject({ status: "failed", finalOrigin: null, dispatchStarted: false });
+      expect(JSON.stringify(readRunReceipt(result.receipt.runId, testState.environment))).not.toContain("private-message-value");
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test.each([
+    ["timed-out", "operation-timeout", "retry-once-after-60s"],
+    ["cancelled", "contract-drift", "do-not-retry"],
+  ] as const)(
+    "projects clean outer web-session %s failures without parsing text",
+    async (failure, expectedCategory, expectedDisposition) => {
+      const testState = state();
+      try {
+        const selectedManifest = kernelWebManifest();
+        const selectedAuth = createAuth(`kernel-web-${failure}`, {
+          source: "arc",
+          profile: "Profile 1",
+          subject: "123",
+        });
+        installManifest(selectedManifest, {
+          force: false,
+          environment: testState.environment,
+        });
+        saveAuth(selectedAuth, testState.environment);
+        const result = await executeReadInvocation({
+          manifest: selectedManifest,
+          operationId: "posts.read",
+          input: { post_id: "2078889282404569267" },
+          auth: selectedAuth,
+        }, {
+          headed: false,
+          environment: testState.environment,
+          executeWebSession: () => Promise.reject(
+            new OperationDeadlineError("authenticated web operation deadline", failure),
+          ),
+        });
+        expect(result).toMatchObject({
+          readFailure: {
+            category: expectedCategory,
+            retryDisposition: expectedDisposition,
+          },
+          receipt: {
+            status: "failed",
+            dispatchStarted: false,
+            dispatch: { planned: 0, started: 0, verified: 0 },
+          },
+        });
+      } finally {
+        rmSync(testState.directory, { recursive: true, force: true });
+      }
+    },
+  );
+
+  test("projects a bound-realm repair requirement as auth-repair-required", async () => {
+    const testState = state();
+    try {
+      const selectedManifest = kernelWebManifest();
+      const selectedAuth = createAuth("kernel-web-repair", {
+        source: "arc",
+        profile: "Profile 1",
+        subject: "123",
+      });
+      installManifest(selectedManifest, {
+        force: false,
+        environment: testState.environment,
+      });
+      saveAuth(selectedAuth, testState.environment);
+      const result = await executeReadInvocation({
+        manifest: selectedManifest,
+        operationId: "posts.read",
+        input: { post_id: "2078889282404569267" },
+        auth: selectedAuth,
+      }, {
+        headed: false,
+        environment: testState.environment,
+        executeWebSession: () => Promise.reject(
+          new AuthRepairRequiredError("the bound realm drifted; repair it with ghostget auth bind"),
+        ),
+      });
+      expect(result).toMatchObject({
+        readFailure: {
+          category: "auth-repair-required",
+          retryDisposition: "repair-auth",
+        },
+        receipt: {
+          status: "failed",
+          dispatchStarted: false,
+          dispatch: { planned: 0, started: 0, verified: 0 },
+        },
+      });
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("rejects browser-only recovery fields from an official-provider executor", async () => {
+    const testState = state();
+    try {
+      installFixture(testState, "R1");
+      const result = await executeReadInvocation(preparedRead(testState), {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: () => Promise.resolve({
+          status: "failed",
+          output: null,
+          finalUrl: null,
+          dispatchStarted: false,
+          dispatch: { planned: 0, started: 0, verified: 0 },
+          error: "arbitrary private browser diagnostics",
+          privateArtifactsPreserved: true,
+          recoveryHandle: "session=wrench-safe;config=/tmp/config;socket=/tmp/socket;artifacts=/tmp/artifacts",
+        }),
+      });
+      expect(result.receipt.error).toContain("terminated without returning a bounded result");
+      expect(result.receipt.error).not.toContain("arbitrary private browser diagnostics");
+      expect(result.receipt.error).not.toContain("wrench-safe");
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("records an authenticated-web cleanup barrier failure with its bounded recovery handle", async () => {
+    const testState = state();
+    try {
+      const selectedManifest = kernelWebManifest();
+      const selectedAuth = createAuth("kernel-web-test", {
+        source: "arc",
+        profile: "Profile 1",
+        subject: "123",
+      });
+      installManifest(selectedManifest, {
+        force: false,
+        environment: testState.environment,
+      });
+      saveAuth(selectedAuth, testState.environment);
+      const encodedLongPath = "c".repeat(1_400);
+      const recoveryHandle =
+        `v1;session=aW8teC0xMjM;config=${encodedLongPath};socket=${encodedLongPath};artifacts=${encodedLongPath}`;
+      const invocation = {
+        manifest: selectedManifest,
+        operationId: "posts.read",
+        input: { post_id: "2078889282404569267" },
+        auth: selectedAuth,
+      } as const;
+      const unsafeWebExecution: NonNullable<
+        Parameters<typeof executeReadInvocation>[1]["executeWebSession"]
+      > = (_manifest, _recipe, _input, _auth, options) => {
+        executorCalls += 1;
+        options.registerCleanupBarrier?.(Promise.reject(
+          new PreservedBrowserArtifactsError(
+            "browser teardown could not be verified",
+            recoveryHandle,
+            new Error("synthetic cleanup failure"),
+          ),
+        ));
+        return Promise.resolve({
+          status: "failed" as const,
+          output: null,
+          finalUrl: null,
+          dispatchStarted: false,
+          dispatch: { planned: 0, started: 0, verified: 0 },
+          error: "the bounded operation timed out",
+        });
+      };
+      let executorCalls = 0;
+      const result = await executeReadInvocation(invocation, {
+        headed: false,
+        environment: testState.environment,
+        executeWebSession: unsafeWebExecution,
+      });
+
+      expect(result).toMatchObject({
+        privateArtifactsPreserved: true,
+        recoveryHandle,
+        readFailure: {
+          category: "cleanup-required",
+          retryDisposition: "do-not-retry",
+        },
+        receipt: {
+          status: "failed",
+          dispatchStarted: false,
+          dispatch: { planned: 0, started: 0, verified: 0 },
+        },
+      });
+      expect(result.receipt.error).toContain(
+        "private browser artifacts were preserved; ghostget doctor must prove and complete exact browser-session recovery before retry",
+      );
+      expect(result.receipt.error).toContain(`recovery handle: ${recoveryHandle}`);
+      expect(readRunReceipt(result.receipt.runId, testState.environment))
+        .toEqual(result.receipt);
+
+      const blocked = await executeReadInvocation(invocation, {
+        headed: false,
+        environment: testState.environment,
+        executeWebSession: unsafeWebExecution,
+      });
+      expect(blocked).toMatchObject({
+        output: null,
+        replayed: false,
+        privateArtifactsPreserved: false,
+        readFailure: {
+          category: "cleanup-required",
+          retryDisposition: "do-not-retry",
+        },
+        receipt: {
+          schemaVersion: 4,
+          transport: "web-session-api",
+          adapter: {
+            id: selectedManifest.id,
+            version: selectedManifest.version,
+          },
+          operation: invocation.operationId,
+          auth: {
+            id: selectedAuth.id,
+            kind: selectedAuth.kind,
+          },
+          status: "failed",
+          dispatchStarted: false,
+          dispatch: { planned: 0, started: 0, verified: 0 },
+        },
+      });
+      expect(blocked.receipt.adapter.hash)
+        .toBe(sha256(canonicalJson(selectedManifest)));
+      expect(blocked.receipt.auth.hash)
+        .toBe(sha256(canonicalJson(selectedAuth)));
+      expect(blocked.receipt.inputHash)
+        .toBe(sha256(canonicalJson(invocation.input)));
+      expect(blocked.receipt.error).toContain(
+        "durable cleanup admission blocks retry",
+      );
+      expect(blocked.receipt.error).not.toContain(recoveryHandle);
+      expect(blocked.receipt.error).not.toContain("private provider cleanup detail");
+      expect(readRunReceipt(blocked.receipt.runId, testState.environment))
+        .toEqual(blocked.receipt);
+      expect(executorCalls).toBe(1);
+      const [unsafeAdmission] =
+        listWebSessionCleanupAdmissions(testState.environment);
+      if (unsafeAdmission === undefined || "invalid" in unsafeAdmission) {
+        throw new Error("cleanup-unsafe admission fixture is unavailable");
+      }
+      expect(unsafeAdmission.claim.containment.status).toBe("cleanup-unsafe");
+      const persistenceAuth = createAuth("kernel-web-persistence-test", {
+        source: "arc",
+        profile: "Profile 1",
+        subject: "123",
+      });
+      const persistenceInvocation = {
+        ...invocation,
+        auth: persistenceAuth,
+      };
+
+      const persistenceFailure = await executeReadInvocation(
+        persistenceInvocation,
+        {
+          headed: false,
+          environment: testState.environment,
+          executeWebSession: unsafeWebExecution,
+          persistReceipt: (receipt, environment) => {
+            if (receipt.status === "pending") {
+              writePrivateJson(
+                join(
+                  environment.GHOSTGET_STATE_HOME as string,
+                  "runs",
+                  `${receipt.runId}.json`,
+                ),
+                receipt,
+                { privateParent: true },
+              );
+              return;
+            }
+            throw new Error("synthetic receipt persistence failure");
+          },
+        },
+      );
+      expect(persistenceFailure).toMatchObject({
+        privateArtifactsPreserved: true,
+        recoveryHandle,
+        readFailure: {
+          category: "cleanup-required",
+          retryDisposition: "do-not-retry",
+        },
+        receipt: { status: "failed" },
+      });
+      expect(persistenceFailure.receipt.error).toContain(
+        "final receipt could not be stored",
+      );
+      expect(persistenceFailure.receipt.error).toContain(
+        `recovery handle: ${recoveryHandle}`,
+      );
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("returns a bounded R1 failure when cleanup admission storage is unsafe", async () => {
+    const testState = state();
+    try {
+      const selectedManifest = kernelWebManifest();
+      const selectedAuth = createAuth("kernel-web-test", {
+        source: "arc",
+        profile: "Profile 1",
+        subject: "123",
+      });
+      installManifest(selectedManifest, {
+        force: false,
+        environment: testState.environment,
+      });
+      saveAuth(selectedAuth, testState.environment);
+      mkdirSync(join(testState.directory, "provider-plugin-state"), {
+        recursive: true,
+        mode: 0o700,
+      });
+      const unsafeAdmissionPath = join(
+        testState.directory,
+        WEB_SESSION_CLEANUP_ADMISSION_STATE_DIRECTORY,
+      );
+      writeFileSync(unsafeAdmissionPath, "retained unsafe state\n", {
+        encoding: "utf8",
+        mode: 0o600,
+      });
+      let executorCalls = 0;
+
+      const blocked = await executeReadInvocation({
+        manifest: selectedManifest,
+        operationId: "posts.read",
+        input: { post_id: "2078889282404569267" },
+        auth: selectedAuth,
+      }, {
+        headed: false,
+        environment: testState.environment,
+        executeWebSession: () => {
+          executorCalls += 1;
+          throw new Error("unsafe admission storage must block dispatch");
+        },
+      });
+
+      expect(blocked).toMatchObject({
+        output: null,
+        replayed: false,
+        privateArtifactsPreserved: false,
+        readFailure: {
+          category: "cleanup-required",
+          retryDisposition: "do-not-retry",
+        },
+        receipt: {
+          status: "failed",
+          dispatchStarted: false,
+          dispatch: { planned: 0, started: 0, verified: 0 },
+        },
+      });
+      expect(executorCalls).toBe(0);
+      expect(blocked.receipt.error).toContain(
+        "durable cleanup admission blocks retry",
+      );
+      expect(blocked.receipt.error).not.toContain(unsafeAdmissionPath);
+      expect(blocked.receipt.error).not.toContain("retained unsafe state");
+      expect(readFileSync(unsafeAdmissionPath, "utf8"))
+        .toBe("retained unsafe state\n");
+      expect(readRunReceipt(blocked.receipt.runId, testState.environment))
+        .toEqual(blocked.receipt);
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("normalizes raw cleanup rejection without fabricating dispatch", async () => {
+    const testState = state();
+    try {
+      const selectedManifest = kernelWebManifest();
+      const selectedAuth = createAuth("kernel-web-test", {
+        source: "arc",
+        profile: "Profile 1",
+        subject: "123",
+      });
+      installManifest(selectedManifest, {
+        force: false,
+        environment: testState.environment,
+      });
+      saveAuth(selectedAuth, testState.environment);
+      const invocation = {
+        manifest: selectedManifest,
+        operationId: "posts.read",
+        input: { post_id: "2078889282404569267" },
+        auth: selectedAuth,
+      } as const;
+
+      const result = await executeReadInvocation(invocation, {
+        headed: false,
+        environment: testState.environment,
+        executeWebSession: (_manifest, _recipe, _input, _auth, options) => {
+          options.registerCleanupBarrier?.(Promise.reject(
+            new Error("private raw cleanup rejection"),
+          ));
+          return Promise.resolve({
+            status: "failed",
+            output: null,
+            finalUrl: null,
+            dispatchStarted: false,
+            dispatch: { planned: 0, started: 0, verified: 0 },
+            error: "private provider cleanup detail",
+          });
+        },
+      });
+
+      expect(result).toMatchObject({
+        privateArtifactsPreserved: false,
+        readFailure: {
+          category: "cleanup-required",
+          retryDisposition: "do-not-retry",
+        },
+        receipt: {
+          status: "failed",
+          dispatchStarted: false,
+          dispatch: { planned: 0, started: 0, verified: 0 },
+        },
+      });
+      expect(result.receipt.error).toContain(
+        "durable cleanup admission blocks retry",
+      );
+      expect(result.receipt.error).not.toContain(
+        "private provider cleanup detail",
+      );
+      expect(result.receipt.error).not.toContain(
+        "private raw cleanup rejection",
+      );
+      expect(listWebSessionCleanupAdmissions(testState.environment))
+        .toMatchObject([{
+          claim: { containment: { status: "cleanup-unsafe" } },
+        }]);
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("rejects nested extensions and malformed nested identities or hashes", async () => {
+    const testState = state();
+    try {
+      installFixture(testState, "R1");
+      const result = await executeReadInvocation(preparedRead(testState), {
+        headed: false,
+        environment: testState.environment,
+        executeProvider: () => Promise.resolve(execution("succeeded", false, undefined, 0)),
+      });
+      const path = join(testState.directory, "runs", `${result.receipt.runId}.json`);
+      const original = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
+      const adapter = original.adapter as Record<string, unknown>;
+      const authRecord = original.auth as Record<string, unknown>;
+
+      const corruptions: readonly Record<string, unknown>[] = [
+        { ...original, adapter: { ...adapter, secret: "unexpected" } },
+        { ...original, auth: { ...authRecord, token: "unexpected" } },
+        { ...original, adapter: { ...adapter, id: "../escape" } },
+        { ...original, adapter: { ...adapter, hash: "not-a-hash" } },
+        { ...original, auth: { ...authRecord, id: "../escape" } },
+        { ...original, auth: { ...authRecord, hash: "not-a-hash" } },
+      ];
+      for (const corruption of corruptions) {
+        writeFileSync(path, `${JSON.stringify(corruption)}\n`, { mode: 0o600 });
+        expect(() => readRunReceipt(result.receipt.runId, testState.environment)).toThrow("run receipt is malformed");
+      }
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+});
+
+
+describe("native confirmed-write ownership", () => {
+  test("consumes confirmation and persists immediate callbacks before their Promises are awaited", async () => {
+    const testState = state();
+    const finish = Promise.withResolvers<void>();
+    let pending: ReturnType<typeof confirmInvocation> | undefined;
+    try {
+      installFixture(testState);
+      const stored = createAndSaveInvocationPlan(prepared(testState, "immediate journal protocol"), testState.environment);
+      let entered = false;
+      pending = confirmInvocation(stored.digest, {
+        headed: false, environment: testState.environment,
+        executeProvider: async (_manifest, _recipe, _input, _auth, options) => {
+          entered = true;
+          if (options?.beforeDispatch === undefined || options.afterDispatchVerified === undefined) throw new Error("required durable callbacks missing");
+          const current = () => {
+            const entries = RunJournalStore.listRunJournalSnapshots(testState.environment);
+            expect(entries).toHaveLength(1);
+            const entry = entries[0];
+            if (entry === undefined || "invalid" in entry) throw new Error("exact native journal missing");
+            return entry;
+          };
+          expect(current().journal.planState).toBe("consumed");
+          const starting = { id: "posts-publish", index: 1, progress: { planned: 1, started: 0, verified: 0 } } as const;
+          const first = options.beforeDispatch(starting);
+          const afterFirst = current();
+          expect(afterFirst.journal.dispatch).toEqual({ planned: 1, started: 1, verified: 0 });
+          const competing = options.beforeDispatch(starting).then(() => ({ accepted: true }), error => ({ accepted: false, error }));
+          expect(current().contentSha256).toBe(afterFirst.contentSha256);
+          const verified = options.afterDispatchVerified({ id: "posts-publish", index: 1, progress: { planned: 1, started: 1, verified: 1 } });
+          expect(current().journal.dispatch).toEqual({ planned: 1, started: 1, verified: 1 });
+          await first;
+          expect(await competing).toMatchObject({ accepted: false });
+          await verified;
+          await finish.promise;
+          return execution();
+        },
+      });
+      // This is the exact original pre-await boundary, not a timer observation.
+      expect(entered).toBeTrue();
+      expect(existsSync(join(testState.directory, "plans", `${stored.digest}.json`))).toBeFalse();
+      expect(existsSync(join(testState.directory, "plans", `${stored.digest}.claim.json`))).toBeFalse();
+      finish.resolve();
+      const result = await pending;
+      expect(result.receipt.status).toBe("submitted");
+      expect(result.output).toEqual({ observed: true });
+    } finally {
+      finish.resolve();
+      await pending?.catch(() => undefined);
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  for (const at of ["before", "after"] as const) {
+    test.each([undefined, null, false, new Error("bounded fixture rejection")])(`retains ${at}-dispatch failure presence for %j`, async failure => {
+      const testState = state();
+      try {
+        installFixture(testState);
+        const stored = createAndSaveInvocationPlan(prepared(testState), testState.environment);
+        let calls = 0;
+        const result = await confirmInvocation(stored.digest, {
+          headed: false, environment: testState.environment,
+          executeProvider: async (_manifest, _recipe, _input, _auth, options) => {
+            calls += 1;
+            if (at === "after") await options?.beforeDispatch?.({ id: "posts-publish", index: 1, progress: { planned: 1, started: 0, verified: 0 } });
+            throw failure;
+          },
+        });
+        expect(calls).toBe(1);
+        expect(result.receipt).toMatchObject({ status: at === "before" ? "failed" : "indeterminate", dispatch: { planned: 1, started: at === "before" ? 0 : 1, verified: 0 } });
+        expect(result.output).toBeNull();
+        expect(readRunJournal(result.receipt.runId, testState.environment)?.journal.phase).toBe("terminal");
+      } finally { rmSync(testState.directory, { recursive: true, force: true }); }
+    });
+  }
+
+  for (const transition of ["confirmation-consumed", "dispatch-started", "finished"] as const) {
+    test.each([undefined, null, false])(`does not repeat ${transition} after a committed native write loses its %j acknowledgement`, async failure => {
+      const testState = state();
+      const update = RunJournalStore.updateRunJournal;
+      let armed = true;
+      let attempts = 0;
+      let commits = 0;
+      const writer = spyOn(RunJournalStore, "updateRunJournal").mockImplementation((snapshot, event, environment) => {
+        if (event.type === transition) attempts += 1;
+        const next = update(snapshot, event, environment);
+        if (event.type === transition) commits += 1;
+        if (event.type === transition && armed) {
+          armed = false;
+          throw failure;
+        }
+        return next;
+      });
+      try {
+        installFixture(testState);
+        const stored = createAndSaveInvocationPlan(prepared(testState), testState.environment);
+        let executions = 0;
+        let submissions = 0;
+        const outcome = await confirmInvocation(stored.digest, {
+          headed: false, environment: testState.environment,
+          executeProvider: async (_manifest, _recipe, _input, _auth, options) => {
+            executions += 1;
+            await options?.beforeDispatch?.({ id: "posts-publish", index: 1, progress: { planned: 1, started: 0, verified: 0 } });
+            submissions += 1;
+            await options?.afterDispatchVerified?.({ id: "posts-publish", index: 1, progress: { planned: 1, started: 1, verified: 1 } });
+            return execution();
+          },
+        }).then(value => ({ ok: true as const, value }), error => ({ ok: false as const, error }));
+        expect(attempts).toBe(1);
+        expect(commits).toBe(1);
+        expect(existsSync(join(testState.directory, "plans", `${stored.digest}.json`))).toBeFalse();
+        expect(existsSync(join(testState.directory, "plans", `${stored.digest}.claim.json`))).toBeFalse();
+        const snapshots = RunJournalStore.listRunJournalSnapshots(testState.environment);
+        expect(snapshots).toHaveLength(1);
+        const snapshot = snapshots[0];
+        if (snapshot === undefined || "invalid" in snapshot) throw new Error("durable native write missing");
+        expect(snapshot.journal.planState).toBe("consumed");
+        if (transition === "confirmation-consumed") {
+          expect(executions).toBe(0);
+          expect(submissions).toBe(0);
+          expect(outcome.ok).toBeFalse();
+          if (outcome.ok) throw new Error("consumption acknowledgement loss must reject");
+          expect(outcome.error).toBeInstanceOf(Error);
+          expect(outcome.error.cause).toBe(failure);
+        } else {
+          expect(executions).toBe(1);
+          expect(submissions).toBe(transition === "finished" ? 1 : 0);
+          expect(outcome.ok).toBeTrue();
+          if (!outcome.ok) throw outcome.error;
+          expect(outcome.value.receipt.status).toBe(transition === "finished" ? "submitted" : "pending");
+          expect(outcome.value.output).toEqual(transition === "finished" ? { observed: true } : null);
+          expect(snapshot.journal.dispatch.started).toBe(1);
+        }
+      } finally {
+        writer.mockRestore();
+        rmSync(testState.directory, { recursive: true, force: true });
+      }
+    });
+  }
+});
+
+
+describe("native confirmation rejection identity", () => {
+  test.each([undefined, null, false, new Error("native validation failure")])("retains rejected native validation %j through actual plan and claim cleanup", async failure => {
+    const testState = state();
+    try {
+      installFixture(testState);
+      const stored = createAndSaveInvocationPlan(prepared(testState), testState.environment);
+      let providerCalls = 0;
+      const outcome = await confirmInvocation(stored.digest, {
+        headed: false, environment: testState.environment,
+        loadManifest: () => { throw failure; },
+        executeProvider: () => { providerCalls += 1; return Promise.resolve(execution()); },
+      }).then(value => ({ ok: true as const, value }), error => ({ ok: false as const, error }));
+      expect(outcome.ok).toBeFalse();
+      if (outcome.ok) throw new Error("native rejection disappeared");
+      expect(outcome.error).toBe(failure);
+      expect(providerCalls).toBe(0);
+      expect(existsSync(join(testState.directory, "plans", `${stored.digest}.json`))).toBeFalse();
+      expect(existsSync(join(testState.directory, "plans", `${stored.digest}.claim.json`))).toBeFalse();
+      expect(RunJournalStore.listRunJournalSnapshots(testState.environment)).toEqual([]);
+    } finally { rmSync(testState.directory, { recursive: true, force: true }); }
+  });
+
+  for (const cleanup of ["plan", "claim"] as const) {
+    test.each([undefined, null, false, new Error("native removal failure")])(`selects ${cleanup} cleanup rejection %j after a distinct validation failure`, async failure => {
+      const testState = state();
+      const removePlan = PrivateStorage.removePrivateStateFile;
+      const removeClaim = PrivateStorage.removePrivateStateFileIfUnchanged;
+      const primary = new Error("confirmed validation failed before dispatch");
+      let primaryObserved = false;
+      let cleanupAttempts = 0;
+      let providerCalls = 0;
+      let planPath = "";
+      let claimPath = "";
+      const planRemoval = spyOn(PrivateStorage, "removePrivateStateFile").mockImplementation((path, environment, parent) => {
+        if (primaryObserved && cleanup === "plan" && path === planPath) {
+          cleanupAttempts += 1;
+          throw failure;
+        }
+        return removePlan(path, environment, parent);
+      });
+      const claimRemoval = spyOn(PrivateStorage, "removePrivateStateFileIfUnchanged").mockImplementation((path, options, environment) => {
+        if (primaryObserved && cleanup === "claim" && path === claimPath) {
+          cleanupAttempts += 1;
+          throw failure;
+        }
+        return removeClaim(path, options, environment);
+      });
+      try {
+        installFixture(testState);
+        const stored = createAndSaveInvocationPlan(prepared(testState), testState.environment);
+        planPath = join(ghostgetStateHome(testState.environment), "plans", `${stored.digest}.json`);
+        claimPath = join(ghostgetStateHome(testState.environment), "plans", `${stored.digest}.claim.json`);
+        const outcome = await confirmInvocation(stored.digest, {
+          headed: false, environment: testState.environment,
+          loadManifest: () => { primaryObserved = true; throw primary; },
+          executeProvider: () => { providerCalls += 1; return Promise.resolve(execution()); },
+        }).then(value => ({ ok: true as const, value }), error => ({ ok: false as const, error }));
+        expect(outcome.ok).toBeFalse();
+        if (outcome.ok) throw new Error("native cleanup rejection disappeared");
+        expect(outcome.error).toBe(failure);
+        expect(primaryObserved).toBeTrue();
+        expect(cleanupAttempts).toBe(1);
+        expect(providerCalls).toBe(0);
+        expect(existsSync(planPath)).toBe(cleanup === "plan");
+        expect(existsSync(claimPath)).toBeTrue();
+        expect(RunJournalStore.listRunJournalSnapshots(testState.environment)).toEqual([]);
+      } finally {
+        planRemoval.mockRestore();
+        claimRemoval.mockRestore();
+        rmSync(testState.directory, { recursive: true, force: true });
+      }
+    });
+  }
+});
+
+describe("confirmed terminal authority", () => {
+  test.each([undefined, null, false])("withholds output when terminal CAS rejects before commit with %j", async failure => {
+    const testState = state();
+    const update = RunJournalStore.updateRunJournal;
+    let rejected = 0;
+    const writer = spyOn(RunJournalStore, "updateRunJournal").mockImplementation((snapshot, event, environment) => {
+      if (event.type === "finished") { rejected += 1; throw failure; }
+      return update(snapshot, event, environment);
+    });
+    try {
+      installFixture(testState);
+      const stored = createAndSaveInvocationPlan(prepared(testState), testState.environment);
+      let submissions = 0;
+      const result = await confirmInvocation(stored.digest, {
+        headed: false, environment: testState.environment,
+        executeProvider: providerExecutor(execution(), () => { submissions += 1; }),
+      });
+      expect(rejected).toBe(1);
+      expect(submissions).toBe(1);
+      expect(result.receipt.status).toBe("pending");
+      expect(result.output).toBeNull();
+      expect(readRunJournal(result.receipt.runId, testState.environment)?.journal).toMatchObject({ dispatch: { planned: 1, started: 1, verified: 1 } });
+    } finally { writer.mockRestore(); rmSync(testState.directory, { recursive: true, force: true }); }
+  });
+
+  test("keeps the existing claim witness when duplicate-risk freshness fails after invocation validation", async () => {
+    const testState = state();
+    try {
+      installManifest(kernelWebManifest(), { force: false, environment: testState.environment });
+      const auth = createAuth("kernel-web-native-duplicate", { source: "arc", profile: "Profile 1", subject: "123" });
+      saveAuth(auth, testState.environment);
+      const media = join(testState.directory, "native-duplicate.png");
+      writeFileSync(media, Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52]), { mode: 0o600 });
+      const invocation = prepareInvocation("kernel-web", "posts.publish", { body: "duplicate-risk claim witness", media: [media], media_types: ["image/png"] }, auth.id, testState.environment);
+      const initial = createAndSaveInvocationPlan(invocation, testState.environment);
+      const dispatch = initial.plan.dispatches[0];
+      if (dispatch === undefined) throw new Error("fixture dispatch missing");
+      const source = await confirmInvocation(initial.digest, {
+        headed: false, environment: testState.environment,
+        executeWebSession: async (_manifest, _recipe, _input, _auth, options) => {
+          await options?.beforeDispatch?.({ id: dispatch.id, index: 1, progress: { planned: 1, started: 0, verified: 0 } });
+          return { status: "indeterminate", output: null, finalUrl: null, dispatchStarted: true, dispatch: { planned: 1, started: 1, verified: 0 }, error: "fixture response lost" };
+        },
+      });
+      const successor = createAndSaveInvocationPlan(invocation, testState.environment, new Date(), providerPluginRegistry, { duplicateRiskOf: [source.receipt.runId] });
+      const sourcePath = join(testState.directory, "run-journals", `${source.receipt.runId}.json`);
+      // Semantically equal JSON with a changed exact native snapshot hash is a
+      // real new observation; it cannot silently retain the preview's binding.
+      writeFileSync(sourcePath, readFileSync(sourcePath, "utf8") + "\n", { mode: 0o600 });
+      let calls = 0;
+      expect(await rejectionMessage(confirmInvocation(successor.digest, {
+        headed: false, environment: testState.environment,
+        executeWebSession: () => { calls += 1; throw new Error("must not execute stale evidence"); },
+      }))).toContain("duplicate-risk source evidence changed after preview");
+      expect(calls).toBe(0);
+      expect(existsSync(join(testState.directory, "plans", `${successor.digest}.json`))).toBeTrue();
+      expect(existsSync(join(testState.directory, "plans", `${successor.digest}.claim.json`))).toBeTrue();
+      expect(RunJournalStore.listRunJournalSnapshots(testState.environment)).toHaveLength(1);
+    } finally { rmSync(testState.directory, { recursive: true, force: true }); }
+  });
+});
+
+
+describe("confirmed repairable projection", () => {
+  test.each([undefined, null, false])("publishes journal-proven output despite terminal receipt projection rejecting %j", async failure => {
+    const testState = state();
+    const write = PrivateStorage.writePrivateJsonIfUnchanged;
+    let refused = 0;
+    const projection = spyOn(PrivateStorage, "writePrivateJsonIfUnchanged").mockImplementation((path, value, options) => {
+      if (path.startsWith(join(ghostgetStateHome(testState.environment), "runs") + "/") && path.endsWith(".json")) {
+        const runId = path.slice(path.lastIndexOf("/") + 1, -5);
+        if (readRunJournal(runId, testState.environment)?.journal.phase === "terminal") { refused += 1; throw failure; }
+      }
+      return write(path, value, options);
+    });
+    try {
+      installFixture(testState);
+      const stored = createAndSaveInvocationPlan(prepared(testState), testState.environment);
+      const result = await confirmInvocation(stored.digest, { headed: false, environment: testState.environment, executeProvider: providerExecutor() });
+      expect(refused).toBe(1);
+      expect(result.receipt.status).toBe("submitted");
+      expect(result.output).toEqual({ observed: true });
+      expect(readRunJournal(result.receipt.runId, testState.environment)?.journal.phase).toBe("terminal");
+    } finally { projection.mockRestore(); rmSync(testState.directory, { recursive: true, force: true }); }
+  });
+});

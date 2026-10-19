@@ -1,0 +1,1237 @@
+import { createHash } from "node:crypto";
+import { existsSync, realpathSync } from "node:fs";
+import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { basename, dirname, join, resolve } from "node:path";
+import { isDeepStrictEqual } from "node:util";
+
+import { providerPluginRepositoryRoot } from "../src/provider-plugin";
+import { adapterManifestPath } from "../src/storage";
+import { packedPrivateSourceClientRuntimeProgram } from "./private-source-client-runtime-smoke";
+import { runWhatsAppMessageLikeMeConsumerAcceptance } from "./whatsapp-message-like-me-consumer-acceptance";
+
+type CommandResult = {
+  readonly exitCode: number;
+  readonly stdout: string;
+  readonly stderr: string;
+};
+
+type InstalledClosurePackage = {
+  readonly keyFile: string;
+  readonly name: string;
+  readonly root: string;
+  readonly sha256: string;
+  readonly version: string;
+};
+
+const expectedClosureRuntimeDependencies = Object.freeze({
+  "@hraness/accounts-cli": "github:hraness/accounts-cli#v0.1.3",
+  "@hraness/cli-update": "https://github.com/hraness/cli-update/releases/download/v0.1.1/hraness-cli-update-0.1.1.tgz",
+  "@hraness/desktop-foundation": "https://github.com/hraness/desktop-foundation/releases/download/v0.9.0/hraness-desktop-foundation-0.9.0.tgz",
+  "@hraness/wordcell": "https://github.com/hraness/wordcell/releases/download/v0.27.0/hraness-wordcell-0.27.0.tgz",
+  "@hraness/local-custody": "https://github.com/hraness/local-custody/releases/download/v0.9.1/hraness-local-custody-0.9.1.tgz",
+  "@hraness/message-like-me": "github:hraness/textbutler#83453cc7c17b49bb53fdfd89ccb69b8b44b30af1",
+  "@hraness/support-foundation": "github:hraness/support-foundation#8bb514d24b79dc3f305390700ae312cab88e7ad2",
+  // The browser cookie reader, also pinned by @hraness/wordcell. Ghostget wraps it
+  // directly to report keychain and Full Disk Access denials.
+  "@steipete/sweet-cookie": "0.4.3",
+  "buffer-from": "1.1.2",
+  "source-map": "0.6.1",
+  "source-map-support": "0.5.21",
+  typescript: "6.0.3",
+  effect: "3.22.1",
+});
+const reviewedWordcellDynamicResolverKeyFile = "dist/index-4knsp9qj.js";
+const reviewedWordcellDynamicResolverSha256 =
+  "7e717af9b45ad412086f23c8089c50b396dbed62f84c6282abe58b9e070c82a8";
+const reviewedWordcellDynamicCallSiteKeyFile = "dist/index-nwdzhj1h.js";
+const reviewedWordcellDynamicCallSiteSha256 =
+  "d6d6f8145e5a458f3de2969322eafef7c2c98615dea5c3acdcdbf15fde4780c7";
+const archivedAdapterNamePattern =
+  /^wrench(?:-web)?-adapter\.v([0-9]+\.[0-9]+\.[0-9]+)\.json$/u;
+const MAX_PACKED_ARCHIVED_UPGRADE_FAMILIES = 32;
+const PACKED_ARCHIVED_UPGRADE_COMMAND_TIMEOUT_MS = 30_000;
+const PACKED_CONTROL_COMMAND_TIMEOUT_MS = 30_000;
+const publicImportSpecifiers = Object.freeze([
+  "@hraness/ghostget",
+  "@hraness/ghostget/client",
+  "@hraness/ghostget/beeper",
+  "@hraness/ghostget/apple-photos",
+  "@hraness/ghostget/whatsapp",
+  "@hraness/ghostget/omni",
+  "@hraness/ghostget/messaging",
+  "@hraness/ghostget/messaging-automation",
+  "@hraness/ghostget/contracts",
+  "@hraness/ghostget/media-acquisition",
+  "@hraness/ghostget/pdf-acquisition",
+]);
+
+const packageRoot = resolve(import.meta.dir, "..");
+const cli = join(packageRoot, "src", "cli.ts");
+const work = await mkdtemp(join(tmpdir(), "ghostget-standalone-smoke-"));
+const home = join(work, "home");
+const state = join(work, "state");
+const temporary = join(work, "tmp");
+
+await Promise.all([
+  mkdir(home, { recursive: true }),
+  mkdir(state, { recursive: true, mode: 0o700 }),
+  mkdir(temporary, { recursive: true }),
+]);
+
+const environment: Record<string, string> = {
+  HOME: home,
+  LANG: "C",
+  LC_ALL: "C",
+  NO_COLOR: "1",
+  PATH: process.env.PATH ?? "",
+  TMPDIR: temporary,
+  TZ: "UTC",
+  GHOSTGET_MEDIA_HOME: join(state, "media"),
+  GHOSTGET_STATE_HOME: state,
+  HRANESS_SUPPORT_EMAIL: "off",
+  HRANESS_SUPPORT_AUDIENCE: "off",
+};
+
+const inheritedProcessBudget = process.env.GOMAXPROCS;
+if (
+  inheritedProcessBudget !== undefined
+  && /^[1-9][0-9]*$/u.test(inheritedProcessBudget)
+  && Number.isSafeInteger(Number(inheritedProcessBudget))
+) {
+  environment.GOMAXPROCS = inheritedProcessBudget;
+}
+
+for (const name of ["COMSPEC", "PATHEXT", "SystemRoot", "SYSTEMROOT"]) {
+  const value = process.env[name];
+  if (value !== undefined) environment[name] = value;
+}
+
+async function runCommand(
+  label: string,
+  command: readonly string[],
+  cwd: string,
+  expectedExitCodes: readonly number[] = [0],
+  timeoutMs = 180_000,
+  commandEnvironment: Readonly<Record<string, string>> = environment,
+): Promise<CommandResult> {
+  const child = Bun.spawn([...command], {
+    cwd,
+    env: commandEnvironment,
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  let timedOut = false;
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    child.kill();
+  }, timeoutMs);
+  const [exitCode, stdout, stderr] = await Promise.all([
+    child.exited,
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+  ]).finally(() => clearTimeout(timeout));
+  if (timedOut) {
+    throw new Error(`${label} exceeded its ${String(timeoutMs)} ms smoke deadline`);
+  }
+  if (!expectedExitCodes.includes(exitCode)) {
+    throw new Error(
+      `${label} failed (${String(exitCode)}): ${stderr.trim() || stdout.trim() || "no output"}`,
+    );
+  }
+  return { exitCode, stdout, stderr };
+}
+
+function runCli(
+  target: Readonly<{ cliPath: string; cwd: string; label: string }>,
+  label: string,
+  arguments_: readonly string[],
+  expectedExitCodes: readonly number[] = [0],
+  timeoutMs = 180_000,
+  commandEnvironment: Readonly<Record<string, string>> = environment,
+): Promise<CommandResult> {
+  return runCommand(
+    `${target.label} ${label}`,
+    [process.execPath, target.cliPath, ...arguments_],
+    target.cwd,
+    expectedExitCodes,
+    timeoutMs,
+    commandEnvironment,
+  );
+}
+
+async function exercisePackedControls(
+  target: Readonly<{ cliPath: string; cwd: string; label: string }>,
+  version: unknown,
+): Promise<void> {
+  if (typeof version !== "string") throw new Error("packed Ghostget omitted its version");
+  // Keep the helper's Unix socket below its platform path limit on macOS.
+  const controlsRoot = await mkdtemp(join(tmpdir(), "ggctl-"));
+  const controlsHome = join(controlsRoot, "home");
+  const controlsState = join(controlsRoot, "s");
+  const controlsTemporary = join(controlsRoot, "tmp");
+  const controlsEnvironment = {
+    ...environment,
+    HOME: controlsHome,
+    TMPDIR: controlsTemporary,
+    GHOSTGET_STATE_HOME: controlsState,
+    GHOSTGET_MEDIA_HOME: join(controlsState, "media"),
+  };
+  try {
+    await Promise.all([
+      mkdir(controlsHome, { mode: 0o700 }),
+      mkdir(controlsTemporary, { mode: 0o700 }),
+    ]);
+    const snapshot = await runCli(
+      target,
+      "TUI snapshot from an absent state home",
+      ["tui", "--snapshot"],
+      [0],
+      PACKED_CONTROL_COMMAND_TIMEOUT_MS,
+      controlsEnvironment,
+    );
+    if (snapshot.stderr !== ""
+      || !snapshot.stdout.startsWith(`Ghostget ${version} · Local controls\n`)
+      || !snapshot.stdout.includes("\nAccount: No account (public scope)\n")
+      || !snapshot.stdout.includes("\nAccounts: 0 · capabilities: 0 · approvals: 0 · interfaces: 0\n")
+      || !snapshot.stdout.includes("\nManaged permissions: off\n")
+      || !snapshot.stdout.includes("\nFirst read: ghostget read https://example.com\n")
+      || /[\u0000-\u0009\u000b-\u001f\u007f-\u009f]/u.test(snapshot.stdout)
+      || !existsSync(join(controlsState, ".io-state.json"))
+      || !existsSync(join(controlsState, "control"))) {
+      throw new Error(`${target.label} TUI did not return a clean helper-backed snapshot`);
+    }
+    if (existsSync(join(controlsState, "control", "owner.json"))
+      || existsSync(join(controlsState, "control", "agent.sock"))) {
+      throw new Error(`${target.label} TUI exited without releasing its helper ownership`);
+    }
+  } finally {
+    await rm(controlsRoot, { recursive: true, force: true });
+  }
+}
+
+function parseJsonObject(label: string, text: string): Record<string, unknown> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text) as unknown;
+  } catch {
+    throw new Error(`${label} did not return one JSON value`);
+  }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw new Error(`${label} did not return a JSON object`);
+  }
+  return parsed as Record<string, unknown>;
+}
+
+async function collectArchivedAdapterFiles(
+  root: string,
+  prefix = "",
+): Promise<readonly string[]> {
+  const files: string[] = [];
+  for (const entry of await readdir(join(root, prefix), { withFileTypes: true })) {
+    const relativePath = join(prefix, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...await collectArchivedAdapterFiles(root, relativePath));
+    } else if (entry.isFile() && archivedAdapterNamePattern.test(entry.name)) {
+      files.push(relativePath);
+    }
+  }
+  return files.sort();
+}
+
+async function packedArchivedAdapterInventory(
+  installedPackageRoot: string,
+): Promise<readonly string[]> {
+  const sourceRoot = join(packageRoot, "src", "assets", "adapters");
+  const packedRoot = join(installedPackageRoot, "src", "assets", "adapters");
+  const expected = await collectArchivedAdapterFiles(sourceRoot);
+  const actual = await collectArchivedAdapterFiles(packedRoot);
+  if (
+    expected.length !== actual.length
+    || expected.some((path, index) => path !== actual[index])
+  ) {
+    throw new Error(
+      `packed archived adapter inventory differs from source (expected ${expected.join(", ")}; got ${actual.join(", ")})`,
+    );
+  }
+  const requiredSubstackBaseline = join(
+    "substack",
+    "wrench-web-adapter.v1.1.0.json",
+  );
+  if (!actual.includes(requiredSubstackBaseline)) {
+    throw new Error("packed Ghostget omitted the Substack 1.1.0 upgrade baseline");
+  }
+  for (const relativePath of expected) {
+    const sourceBytes = Buffer.from(
+      await Bun.file(join(sourceRoot, relativePath)).arrayBuffer(),
+    );
+    const packedBytes = Buffer.from(
+      await Bun.file(join(packedRoot, relativePath)).arrayBuffer(),
+    );
+    if (!sourceBytes.equals(packedBytes)) {
+      throw new Error(`packed archived adapter bytes drifted: ${relativePath}`);
+    }
+  }
+  return expected;
+}
+
+async function exercisePackedArchivedAdapterUpgrades(
+  target: Readonly<{ cliPath: string; cwd: string; label: string }>,
+  installedPackageRoot: string,
+): Promise<void> {
+  const packedRoot = join(installedPackageRoot, "src", "assets", "adapters");
+  const archivedFiles = await packedArchivedAdapterInventory(installedPackageRoot);
+  const byCurrentManifest = new Map<string, string[]>();
+  for (const relativePath of archivedFiles) {
+    const currentRelativePath = relativePath.replace(
+      /\.v[0-9]+\.[0-9]+\.[0-9]+\.json$/u,
+      ".json",
+    );
+    const candidates = byCurrentManifest.get(currentRelativePath) ?? [];
+    candidates.push(relativePath);
+    byCurrentManifest.set(currentRelativePath, candidates);
+  }
+  const representatives: string[] = [];
+  for (const [currentRelativePath, candidates] of [...byCurrentManifest]
+    .sort(([left], [right]) => left.localeCompare(right))) {
+    const current = requireJsonObject(
+      `packed current adapter ${currentRelativePath}`,
+      await Bun.file(join(packedRoot, currentRelativePath)).json(),
+    );
+    const requiredVersion = current.id === "youtube-web" || current.id === "substack-web"
+      ? "1.1.0"
+      : null;
+    const selected = requiredVersion === null
+      ? candidates[0]
+      : candidates.find((path) =>
+          path.endsWith(`.v${requiredVersion}.json`));
+    if (selected === undefined) {
+      throw new Error(
+        `packed archived adapter family ${String(current.id)} omitted required representative ${requiredVersion ?? "baseline"}`,
+      );
+    }
+    representatives.push(selected);
+  }
+  if (
+    representatives.length < 1
+    || representatives.length > MAX_PACKED_ARCHIVED_UPGRADE_FAMILIES
+  ) {
+    throw new Error(
+      `packed archived adapter representative count ${String(representatives.length)} exceeded its smoke bound`,
+    );
+  }
+  for (const required of [
+    join("youtube", "wrench-web-adapter.v1.1.0.json"),
+    join("substack", "wrench-web-adapter.v1.1.0.json"),
+  ]) {
+    if (!representatives.includes(required)) {
+      throw new Error(`packed upgrade representatives omitted ${required}`);
+    }
+  }
+  const upgradeState = join(work, "packed-upgrade-state");
+  environment.GHOSTGET_STATE_HOME = upgradeState;
+  environment.GHOSTGET_MEDIA_HOME = join(upgradeState, "media");
+  await mkdir(upgradeState, { recursive: true, mode: 0o700 });
+  const expectedUpgrades: Array<Readonly<{
+    archivedId: string;
+    archivedVersion: string;
+    currentVersion: string;
+  }>> = [];
+  for (const relativePath of representatives) {
+    const archivedMatch = archivedAdapterNamePattern.exec(
+      relativePath.split(/[\\/]/u).at(-1) ?? "",
+    );
+    if (archivedMatch === null) {
+      throw new Error(`packed archived adapter name changed: ${relativePath}`);
+    }
+    const currentRelativePath = relativePath.replace(
+      /\.v[0-9]+\.[0-9]+\.[0-9]+\.json$/u,
+      ".json",
+    );
+    const archivedBytes = await Bun.file(join(packedRoot, relativePath)).text();
+    const archived = requireJsonObject(
+      `packed archived adapter ${relativePath}`,
+      JSON.parse(archivedBytes) as unknown,
+    );
+    const current = requireJsonObject(
+      `packed current adapter ${currentRelativePath}`,
+      await Bun.file(join(packedRoot, currentRelativePath)).json(),
+    );
+    if (
+      typeof archived.id !== "string"
+      || archived.id !== current.id
+      || archived.version !== archivedMatch[1]
+      || typeof current.version !== "string"
+    ) {
+      throw new Error(`packed archived adapter identity changed: ${relativePath}`);
+    }
+    const legacyPath = adapterManifestPath(archived.id, environment);
+    await mkdir(dirname(legacyPath), { recursive: true, mode: 0o700 });
+    await writeFile(legacyPath, archivedBytes, { mode: 0o600 });
+    expectedUpgrades.push({
+      archivedId: archived.id,
+      archivedVersion: archived.version,
+      currentVersion: current.version,
+    });
+  }
+  await runCli(
+    target,
+    "sync representative archived adapter families",
+    ["adapter", "sync-bundled", "--json"],
+    [0],
+    PACKED_ARCHIVED_UPGRADE_COMMAND_TIMEOUT_MS,
+  );
+  for (const expected of expectedUpgrades) {
+    const upgraded = await runCli(
+      target,
+      `read upgraded adapter ${expected.archivedId}@${expected.archivedVersion}`,
+      ["capabilities", expected.archivedId, "--json"],
+      [0],
+      PACKED_ARCHIVED_UPGRADE_COMMAND_TIMEOUT_MS,
+    );
+    assertCapabilityAdapterVersion(
+      `packed upgraded adapter ${expected.archivedId}@${expected.archivedVersion}`,
+      upgraded.stdout,
+      expected.archivedId,
+      expected.currentVersion,
+    );
+  }
+}
+
+function requireJsonObject(label: string, value: unknown): Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(`${label} is not a JSON object`);
+  }
+  return value as Record<string, unknown>;
+}
+
+async function collectWordcellDynamicModules(
+  root: string,
+  pattern: RegExp,
+): Promise<Readonly<{ keyFile: string; sha256: string; source: string }>[]> {
+  const candidates: { keyFile: string; sha256: string; source: string }[] = [];
+  const dist = join(root, "dist");
+  for (
+    const entry of (await readdir(dist, { withFileTypes: true }))
+      .toSorted((left, right) => left.name.localeCompare(right.name, "en"))
+  ) {
+    if (!entry.isFile() || !entry.name.endsWith(".js")) continue;
+    const keyFile = `dist/${entry.name}`;
+    const bytes = Buffer.from(await Bun.file(join(root, keyFile)).arrayBuffer());
+    let source: string;
+    try {
+      source = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    } catch {
+      continue;
+    }
+    if (source.match(pattern)?.length !== 1) continue;
+    candidates.push({
+      keyFile,
+      sha256: createHash("sha256").update(bytes).digest("hex"),
+      source,
+    });
+  }
+  return candidates;
+}
+
+async function resolveReviewedWordcellDynamicKeyFile(root: string): Promise<string> {
+  const manifest = requireJsonObject(
+    "clean consumer @hraness/wordcell manifest",
+    await Bun.file(join(root, "package.json")).json(),
+  );
+  if (manifest.version !== "0.27.0") {
+    throw new Error(
+      `clean consumer resolved @hraness/wordcell@${String(manifest.version)}, expected 0.27.0`,
+    );
+  }
+  // Wordcell's bundler splits the reviewed dynamic-resolution surface across
+  // two modules: the package-root helper owns the createRequire resolution and
+  // the acquisition chunk owns the literal "agent-browser" call site. Pin both
+  // byte identities so a changed resolver or a new call site needs review.
+  const resolvers = await collectWordcellDynamicModules(
+    root,
+    /createRequire\(parentUrl\)\.resolve\(`\$\{packageName\}\/package\.json`\)/gu,
+  );
+  const callers = await collectWordcellDynamicModules(
+    root,
+    /resolvePackageDirectory\("agent-browser"\)/gu,
+  );
+  const resolver = resolvers[0];
+  const caller = callers[0];
+  if (
+    resolvers.length !== 1
+    || callers.length !== 1
+    || resolver === undefined
+    || caller === undefined
+    || resolver.keyFile === caller.keyFile
+    || resolver.keyFile !== reviewedWordcellDynamicResolverKeyFile
+    || resolver.sha256 !== reviewedWordcellDynamicResolverSha256
+    || caller.keyFile !== reviewedWordcellDynamicCallSiteKeyFile
+    || caller.sha256 !== reviewedWordcellDynamicCallSiteSha256
+    || !caller.source.includes(
+      `from "./${basename(reviewedWordcellDynamicResolverKeyFile)}"`,
+    )
+  ) {
+    throw new Error(
+      `clean consumer @hraness/wordcell@0.27.0 dynamic-resolution modules differ from the reviewed resolver ${reviewedWordcellDynamicResolverKeyFile} and call site ${reviewedWordcellDynamicCallSiteKeyFile}`,
+    );
+  }
+  return resolver.keyFile;
+}
+
+function requireKeys(
+  label: string,
+  value: Readonly<Record<string, unknown>>,
+  required: readonly string[],
+): void {
+  const missing = required.filter((key) => !Object.hasOwn(value, key));
+  if (missing.length > 0) {
+    throw new Error(
+      `${label} is missing required keys: ${missing.join(", ")}`,
+    );
+  }
+}
+
+function assertCapabilityAdapterVersion(
+  label: string,
+  text: string,
+  adapterId: string,
+  expectedVersion: string,
+): void {
+  const response = parseJsonObject(label, text);
+  if (!Array.isArray(response.adapters) || response.adapters.length !== 1) {
+    throw new Error(`${label} did not return one exact adapter`);
+  }
+  const adapter = requireJsonObject(`${label}.adapters[0]`, response.adapters[0]);
+  if (adapter.id !== adapterId || adapter.version !== expectedVersion) {
+    throw new Error(
+      `${label} returned ${String(adapter.id)}@${String(adapter.version)}, expected ${adapterId}@${expectedVersion}`,
+    );
+  }
+}
+
+function resolveInstalledDependencyRoot(
+  dependencyName: string,
+  fromPackageRoot: string,
+): string {
+  const dependencyPath = dependencyName.split("/");
+  let directory = fromPackageRoot;
+  while (true) {
+    const candidate = join(directory, "node_modules", ...dependencyPath);
+    if (existsSync(join(candidate, "package.json"))) return candidate;
+    const parent = dirname(directory);
+    if (parent === directory) break;
+    directory = parent;
+  }
+  throw new Error(
+    `clean consumer cannot resolve closure package ${dependencyName} from ${fromPackageRoot}`,
+  );
+}
+
+async function assertInstalledClosurePackage(
+  expected: InstalledClosurePackage,
+): Promise<void> {
+  const manifest = requireJsonObject(
+    `clean consumer ${expected.name} manifest`,
+    await Bun.file(join(expected.root, "package.json")).json(),
+  );
+  if (manifest.version !== expected.version) {
+    throw new Error(
+      `clean consumer resolved closure package ${expected.name}@${String(manifest.version)}, expected ${expected.version}`,
+    );
+  }
+  const bytes = Buffer.from(
+    await Bun.file(join(expected.root, expected.keyFile)).arrayBuffer(),
+  );
+  const actualSha256 = createHash("sha256").update(bytes).digest("hex");
+  if (actualSha256 !== expected.sha256) {
+    throw new Error(
+      `clean consumer closure package ${expected.name}@${expected.version} ${expected.keyFile} has sha256 ${actualSha256}, expected ${expected.sha256}`,
+    );
+  }
+}
+
+function assertDoctorSchema(label: string, text: string): void {
+  const report = parseJsonObject(label, text);
+  requireKeys(label, report, ["capture", "media", "oh", "ok", "ghostget", "wrench"]);
+  if (typeof report.ok !== "boolean") {
+    throw new Error(`${label}.ok is not a boolean`);
+  }
+
+  const capture = requireJsonObject(`${label}.capture`, report.capture);
+  requireKeys(`${label}.capture`, capture, [
+    "dependencies",
+    "schemaVersion",
+    "warnings",
+  ]);
+  if (capture.schemaVersion !== 2) {
+    throw new Error(`${label}.capture.schemaVersion is not 2`);
+  }
+
+  const media = requireJsonObject(`${label}.media`, report.media);
+  requireKeys(`${label}.media`, media, [
+    "checks",
+    "errors",
+    "ok",
+  ]);
+
+  const ghostget = requireJsonObject(`${label}.ghostget`, report.ghostget);
+  requireKeys(`${label}.ghostget`, ghostget, [
+    "home",
+    "mediaArchiveReady",
+    "mutationPolicy",
+    "portablePlugins",
+  ]);
+  const legacy = requireJsonObject(`${label}.wrench`, report.wrench);
+  if (!isDeepStrictEqual(legacy, ghostget)) {
+    throw new Error(`${label}.wrench diverged from the canonical ghostget envelope`);
+  }
+  const predecessor = requireJsonObject(`${label}.oh`, report.oh);
+  if (!isDeepStrictEqual(predecessor, ghostget)) {
+    throw new Error(`${label}.oh diverged from the canonical ghostget envelope`);
+  }
+}
+
+async function exerciseCli(
+  target: Readonly<{ cliPath: string; cwd: string; label: string }>,
+  artifactLabel: string,
+): Promise<void> {
+  const support = await runCli(target, "explicit support", ["support", "--json"]);
+  const offer = requireJsonObject(`${target.label} support`, JSON.parse(support.stdout) as unknown);
+  const supportProduct = requireJsonObject(`${target.label} support.product`, offer.product);
+  if (support.stderr !== "" || offer.schemaVersion !== "hraness-support-offer-v1"
+    || offer.optional !== true || supportProduct.id !== "ghostget"
+    || Object.hasOwn(offer, "emailSuggestion")
+    || !Array.isArray(offer.actions) || offer.actions.length !== 2) {
+    throw new Error(`${target.label} support offer is malformed`);
+  }
+  const supportUrls = offer.actions.map((value: unknown) =>
+    requireJsonObject(`${target.label} support.action`, value).url);
+  if (!isDeepStrictEqual(supportUrls, [
+    "https://account.hraness.com/support?product=ghostget&source=cli#updates",
+    "https://account.hraness.com/support?product=ghostget&source=cli#support",
+  ])) throw new Error(`${target.label} support links differ from the canonical handoff`);
+
+  const protocolResult = await runCli(target, "support protocol", ["support", "protocol", "--json"]);
+  const protocol = requireJsonObject(`${target.label} support protocol`, JSON.parse(protocolResult.stdout) as unknown);
+  const commands = requireJsonObject(`${target.label} support protocol.commands`, protocol.commands);
+  if (protocolResult.stderr !== "" || protocol.schemaVersion !== "hraness-support-protocol-v1"
+    || protocol.optional !== true
+    || !isDeepStrictEqual(commands.offer, ["ghostget", "support", "offer", "--json"])
+    || !isDeepStrictEqual(commands.shown, ["ghostget", "support", "shown", "{invitationId}"])
+    || !isDeepStrictEqual(commands.release, ["ghostget", "support", "release", "{invitationId}"])) {
+    throw new Error(`${target.label} support protocol is malformed`);
+  }
+
+  const urlMetadataHelp = await runCli(
+    target,
+    "url-metadata help",
+    ["url-metadata", "--help"],
+  );
+  if (
+    urlMetadataHelp.stderr !== ""
+    || !urlMetadataHelp.stdout.includes("wordcell url-metadata")
+    || !urlMetadataHelp.stdout.includes("metadata-search-engine-rs")
+  ) {
+    throw new Error(`${target.label} url-metadata help is malformed`);
+  }
+
+  const doctor = await runCli(target, "doctor", ["doctor", "--json"], [0, 3]);
+  assertDoctorSchema(`${target.label} doctor`, doctor.stdout);
+
+  const adapterSync = await runCli(
+    target,
+    "adapter sync-bundled",
+    ["adapter", "sync-bundled", "--json"],
+  );
+  const adapterSyncResult = parseJsonObject(
+    `${target.label} adapter sync-bundled`,
+    adapterSync.stdout,
+  );
+  requireKeys(`${target.label} adapter sync-bundled`, adapterSyncResult, [
+    "commitId",
+    "installed",
+    "ok",
+    "preserved",
+  ]);
+  if (adapterSyncResult.ok !== true) {
+    throw new Error(`${target.label} adapter sync-bundled did not succeed`);
+  }
+
+  const capabilities = await runCli(target, "capabilities", ["capabilities", "--json"]);
+  parseJsonObject(`${target.label} capabilities`, capabilities.stdout);
+
+  const plugins = await runCli(target, "plugin list", ["plugin", "list", "--json"]);
+  parseJsonObject(`${target.label} plugin list`, plugins.stdout);
+
+  const authoringDirectory = join(work, `${artifactLabel}-example-web`);
+  const packageDirectory = join(work, `${artifactLabel}-example-web.ghostgetplugin`);
+  const init = await runCli(target, "plugin init", [
+    "plugin",
+    "init",
+    "example-web",
+    "--display-name",
+    "Example",
+    "--surface",
+    "example",
+    "--origin",
+    "https://www.example.com",
+    "--operation",
+    "feeds.read",
+    "--output",
+    authoringDirectory,
+    "--json",
+  ]);
+  parseJsonObject(`${target.label} plugin init`, init.stdout);
+
+  const check = await runCli(target, "plugin check", [
+    "plugin",
+    "check",
+    authoringDirectory,
+    "--json",
+  ]);
+  parseJsonObject(`${target.label} plugin check`, check.stdout);
+
+  const test = await runCli(target, "plugin test", [
+    "plugin",
+    "test",
+    authoringDirectory,
+    "--trust-code",
+    "--json",
+  ]);
+  parseJsonObject(`${target.label} plugin test`, test.stdout);
+
+  const pack = await runCli(target, "plugin pack", [
+    "plugin",
+    "pack",
+    authoringDirectory,
+    "--output",
+    packageDirectory,
+    "--json",
+  ]);
+  parseJsonObject(`${target.label} plugin pack`, pack.stdout);
+
+  const packedCheck = await runCli(target, "packed plugin check", [
+    "plugin",
+    "check",
+    packageDirectory,
+    "--json",
+  ]);
+  parseJsonObject(`${target.label} packed plugin check`, packedCheck.stdout);
+}
+
+function isPublicArtifact(value: unknown): boolean {
+  return typeof value === "object"
+    && value !== null
+    && !Array.isArray(value)
+    && "name" in value
+    && value.name === "@hraness/ghostget"
+    && (!("private" in value) || value.private === false);
+}
+
+try {
+  await runWhatsAppMessageLikeMeConsumerAcceptance();
+  await exerciseCli({
+    cliPath: cli,
+    cwd: providerPluginRepositoryRoot,
+    label: "source",
+  }, "source");
+
+  const manifest: unknown = await Bun.file(join(packageRoot, "package.json")).json();
+  if (isPublicArtifact(manifest)) {
+    const archive = join(work, "ghostget.tgz");
+    const consumer = join(work, "consumer");
+    await mkdir(consumer, { recursive: true });
+    await runCommand("pack public package", [
+      process.execPath,
+      "pm",
+      "pack",
+      "--filename",
+      archive,
+      "--ignore-scripts",
+      "--quiet",
+    ], packageRoot);
+    await writeFile(
+      join(consumer, "package.json"),
+      `${JSON.stringify({ private: true, type: "module" }, null, 2)}\n`,
+    );
+    if (existsSync(join(consumer, "bun.lock"))) {
+      throw new Error("clean consumer unexpectedly has a lockfile before install");
+    }
+    await runCommand(
+      "install packed public package without its repository lock",
+      [process.execPath, "add", archive, "--ignore-scripts"],
+      consumer,
+    );
+    const installedPackageRoot = join(
+      consumer,
+      "node_modules",
+      "@hraness",
+      "ghostget",
+    );
+    if (existsSync(join(installedPackageRoot, "bun.lock"))) {
+      throw new Error("packed Ghostget unexpectedly contains its repository lock");
+    }
+    await runCommand(
+      "import every packed public SDK entrypoint",
+      [
+        process.execPath,
+        "--eval",
+        `await Promise.all(${JSON.stringify(publicImportSpecifiers)}.map((specifier) => import(specifier)))`,
+      ],
+      consumer,
+    );
+    const installedManifest = requireJsonObject(
+      "packed Ghostget manifest",
+      await Bun.file(join(installedPackageRoot, "package.json")).json(),
+    );
+    const installedDependencies = requireJsonObject(
+      "packed Ghostget runtime dependencies",
+      installedManifest.dependencies,
+    );
+    const installedDependencyNames = Object.keys(installedDependencies).sort();
+    const expectedDependencyNames = Object.keys(
+      expectedClosureRuntimeDependencies,
+    ).sort();
+    if (!isDeepStrictEqual(installedDependencyNames, expectedDependencyNames)) {
+      throw new Error(
+        `packed Ghostget runtime dependency names differ from the reviewed closure: ${JSON.stringify(installedDependencyNames)}`,
+      );
+    }
+    for (
+      const [name, spec] of Object.entries(
+        expectedClosureRuntimeDependencies,
+      )
+    ) {
+      if (installedDependencies[name] !== spec) {
+        throw new Error(
+          `packed Ghostget must project closure dependency ${name}@${spec}, got ${String(installedDependencies[name])}`,
+        );
+      }
+    }
+    const installedWordcellRoot = resolveInstalledDependencyRoot(
+      "@hraness/wordcell",
+      installedPackageRoot,
+    );
+    const installedLocalCustodyRoot = resolveInstalledDependencyRoot(
+      "@hraness/local-custody",
+      installedPackageRoot,
+    );
+    const installedMessageLikeMeRoot = resolveInstalledDependencyRoot(
+      "@hraness/message-like-me",
+      installedPackageRoot,
+    );
+    const installedSupportRoot = resolveInstalledDependencyRoot(
+      "@hraness/support-foundation",
+      installedPackageRoot,
+    );
+    const installedSourceMapSupportRoot = resolveInstalledDependencyRoot(
+      "source-map-support",
+      installedPackageRoot,
+    );
+    const installedTypeScriptRoot = resolveInstalledDependencyRoot(
+      "typescript",
+      installedPackageRoot,
+    );
+    const installedSweetCookieRoot = resolveInstalledDependencyRoot(
+      "@steipete/sweet-cookie",
+      installedPackageRoot,
+    );
+    const installedWordcellDynamicKeyFile = await resolveReviewedWordcellDynamicKeyFile(
+      installedWordcellRoot,
+    );
+    await Promise.all([
+      assertInstalledClosurePackage({ name: "@hraness/support-foundation", version: "0.6.0", root: installedSupportRoot, keyFile: "dist/index.js", sha256: "2ccf18fdc6f1ddbe8c957dd3060447b5f61a498928dd3d18e0e74c3dd2868981" }),
+      assertInstalledClosurePackage({ name: "@hraness/support-foundation", version: "0.6.0", root: installedSupportRoot, keyFile: "dist/node.js", sha256: "af3ecd5fd24c5634c75b5285254ac2ffead0388c3c91eba48da089340885b9c3" }),
+      assertInstalledClosurePackage({
+        keyFile: installedWordcellDynamicKeyFile,
+        name: "@hraness/wordcell",
+        root: installedWordcellRoot,
+        sha256: reviewedWordcellDynamicResolverSha256,
+        version: "0.27.0",
+      }),
+      assertInstalledClosurePackage({
+        keyFile: reviewedWordcellDynamicCallSiteKeyFile,
+        name: "@hraness/wordcell",
+        root: installedWordcellRoot,
+        sha256: reviewedWordcellDynamicCallSiteSha256,
+        version: "0.27.0",
+      }),
+      assertInstalledClosurePackage({
+        keyFile: "dist/private-paths.js",
+        name: "@hraness/local-custody",
+        root: installedLocalCustodyRoot,
+        sha256:
+          "8266fec81ffa715f1edc845c022a35939547d093b6670b6b36a137b90cf6e88b",
+        version: "0.9.1",
+      }),
+      assertInstalledClosurePackage({
+        keyFile: "dist/atomic-publish.js",
+        name: "@hraness/local-custody",
+        root: installedLocalCustodyRoot,
+        sha256:
+          "f74453ce9bb37e71996c8763a05b3d299f0e60a25a0a7710f6c30c24fd832177",
+        version: "0.9.1",
+      }),
+      // local-custody v0.9.1 stages the Rust sidecar and its per-target
+      // manifest inside the published tarball; admission pins each staged
+      // byte-exact file the same way as the JS entry points.
+      assertInstalledClosurePackage({
+        keyFile: "dist/rust-artifacts/manifest.json",
+        name: "@hraness/local-custody",
+        root: installedLocalCustodyRoot,
+        sha256:
+          "00f47282e5e9f51343ec5e0c63cb0faa3019f8352e6d0709b3b062ae3a217076",
+        version: "0.9.1",
+      }),
+      assertInstalledClosurePackage({
+        keyFile:
+          "dist/rust-artifacts/local-custody/darwin-arm64/local-custody",
+        name: "@hraness/local-custody",
+        root: installedLocalCustodyRoot,
+        sha256:
+          "8a26839249060eb7822d79be39a3399b16e74250f4f289b73bfee122f5301b6a",
+        version: "0.9.1",
+      }),
+      assertInstalledClosurePackage({
+        keyFile:
+          "dist/rust-artifacts/local-custody/darwin-x64/local-custody",
+        name: "@hraness/local-custody",
+        root: installedLocalCustodyRoot,
+        sha256:
+          "f0f2cfa818073ebdb03eafa3acad48bac2bbbe1a0d14a6d6814c6c4bd6f55d57",
+        version: "0.9.1",
+      }),
+      assertInstalledClosurePackage({
+        keyFile:
+          "dist/rust-artifacts/local-custody/linux-x64/artifact.json",
+        name: "@hraness/local-custody",
+        root: installedLocalCustodyRoot,
+        sha256:
+          "eb445c00af1ec82ed220e01a7c3161f33e4ab8e08e2276a6fcc61f38382608ca",
+        version: "0.9.1",
+      }),
+      assertInstalledClosurePackage({
+        keyFile:
+          "dist/rust-artifacts/local-custody/linux-x64/local-custody",
+        name: "@hraness/local-custody",
+        root: installedLocalCustodyRoot,
+        sha256:
+          "35de4d107e30da2440fe1ac926581fd18fdf130d80c02e95694e23993e5d982d",
+        version: "0.9.1",
+      }),
+      assertInstalledClosurePackage({
+        keyFile: "dist/message-bundle-v1.js",
+        name: "@hraness/message-like-me",
+        root: installedMessageLikeMeRoot,
+        sha256:
+          "b4dbac79a20b83d72656fd363b8e9a651da1fb3e9a51d72a79cae3c30eafe93a",
+        version: "0.7.0",
+      }),
+      assertInstalledClosurePackage({
+        keyFile: "dist/message-bundle-v2.js",
+        name: "@hraness/message-like-me",
+        root: installedMessageLikeMeRoot,
+        sha256:
+          "aeab7249da34df33c4620b27b105fafdd19e9bfe74c92317ae61bf4d0291da21",
+        version: "0.7.0",
+      }),
+      assertInstalledClosurePackage({
+        keyFile: "dist/index.js",
+        name: "@steipete/sweet-cookie",
+        root: installedSweetCookieRoot,
+        sha256:
+          "3c94bf842f46b3a0a958dd472e5ab309239e9d2b770544ce3001a9b4cbba2b27",
+        version: "0.4.3",
+      }),
+      assertInstalledClosurePackage({
+        keyFile: "index.js",
+        name: "buffer-from",
+        root: resolveInstalledDependencyRoot(
+          "buffer-from",
+          installedSourceMapSupportRoot,
+        ),
+        sha256:
+          "2c069ba678c6db9acd475bcc8c5be20eb5077ea26c67514dea9429bc1ad4ff2f",
+        version: "1.1.2",
+      }),
+      assertInstalledClosurePackage({
+        keyFile: "source-map.js",
+        name: "source-map",
+        root: resolveInstalledDependencyRoot(
+          "source-map",
+          installedSourceMapSupportRoot,
+        ),
+        sha256:
+          "dc098456c2d9ab90a4c0a17cca9be16665b9813df20906553a98b0088a157be7",
+        version: "0.6.1",
+      }),
+      assertInstalledClosurePackage({
+        keyFile: "source-map-support.js",
+        name: "source-map-support",
+        root: installedSourceMapSupportRoot,
+        sha256:
+          "da6f90928140ff29ca0b72f4bf8299deb986ba45f055fc5eb51d50dea2e5364d",
+        version: "0.5.21",
+      }),
+      assertInstalledClosurePackage({
+        keyFile: "lib/typescript.js",
+        name: "typescript",
+        root: installedTypeScriptRoot,
+        sha256:
+          "569177652966bd528c319171c7dd22860dbf72bde116cbc4f644f1d02bb12e39",
+        version: "6.0.3",
+      }),
+    ]);
+    await runCommand(
+      "import packed Wordcell URL intelligence",
+      [
+        process.execPath,
+        "-e",
+        "import { ARCHIVE_TODAY_HOSTS, normalizeSourceUrlIdentity } from '@hraness/wordcell/url-intelligence'; if (!Array.isArray(ARCHIVE_TODAY_HOSTS) || ARCHIVE_TODAY_HOSTS.length === 0 || normalizeSourceUrlIdentity('https://example.com') !== 'https://example.com/') process.exit(1);",
+      ],
+      consumer,
+    );
+    await runCommand(
+      "import packed read client",
+      [
+        process.execPath,
+        "-e",
+        "import { invokeCapability, invokeCapabilitySync, readCachedCapability, revalidateCapability, staleWhileRevalidateCapability } from '@hraness/ghostget/client'; if (![invokeCapability, invokeCapabilitySync, readCachedCapability, revalidateCapability, staleWhileRevalidateCapability].every((value) => typeof value === 'function')) process.exit(1);",
+      ],
+      consumer,
+    );
+    await runCommand(
+      "import packed body-free Beeper client",
+      [
+        process.execPath,
+        "-e",
+        "import { exportBeeperContactInteractionsSync, parseBeeperContactInteractionExportResult } from '@hraness/ghostget/beeper'; if (![exportBeeperContactInteractionsSync, parseBeeperContactInteractionExportResult].every((value) => typeof value === 'function')) process.exit(1);",
+      ],
+      consumer,
+    );
+    await runCommand(
+      "import packed Apple Photos contact-evidence client",
+      [
+        process.execPath,
+        "-e",
+        "import { exportApplePhotosContactEvidenceSync, parseApplePhotosContactEvidenceExportResult } from '@hraness/ghostget/apple-photos'; if (![exportApplePhotosContactEvidenceSync, parseApplePhotosContactEvidenceExportResult].every((value) => typeof value === 'function')) process.exit(1);",
+      ],
+      consumer,
+    );
+    await runCommand(
+      "import packed WhatsApp Message Like Me client",
+      [
+        process.execPath,
+        "-e",
+        "import { exportWhatsAppMessageLikeMeSync, parseWhatsAppMessageLikeMeExportReceipt } from '@hraness/ghostget/whatsapp'; if (![exportWhatsAppMessageLikeMeSync, parseWhatsAppMessageLikeMeExportReceipt].every((value) => typeof value === 'function')) process.exit(1);",
+      ],
+      consumer,
+    );
+    await runCommand(
+      "exercise packed private-source client runtime contracts",
+      [process.execPath, "--eval", packedPrivateSourceClientRuntimeProgram],
+      consumer,
+    );
+    await runCommand(
+      "import packed omni client",
+      [
+        process.execPath,
+        "-e",
+        "import { readCachedOmniView, revalidateOmniView, staleWhileRevalidateOmniView } from '@hraness/ghostget/omni'; if (![readCachedOmniView, revalidateOmniView, staleWhileRevalidateOmniView].every((value) => typeof value === 'function')) process.exit(1);",
+      ],
+      consumer,
+    );
+    await writeFile(
+      join(consumer, "client-typecheck.ts"),
+      [
+        "import {",
+        "  readCachedCapability,",
+        "  invokeCapability,",
+        "  invokeCapabilitySync,",
+        "  revalidateCapability,",
+        "  staleWhileRevalidateCapability,",
+        "  type CapabilityReadRequest,",
+        "  type ReadProjectionCacheResult,",
+        "  type RevalidatedCapability,",
+        "  type GhostgetClientInvocationResult,",
+        "  type GhostgetClientReadFailure,",
+        "} from '@hraness/ghostget/client';",
+        "const request: CapabilityReadRequest = { adapterId: 'x', operationId: 'messaging.list' };",
+        "const cachedReader: (request: CapabilityReadRequest) => ReadProjectionCacheResult = readCachedCapability;",
+        "const revalidator: (request: CapabilityReadRequest) => Promise<RevalidatedCapability> = revalidateCapability;",
+        "function consumeInvocation(result: GhostgetClientInvocationResult): void {",
+        "  if (result.status === 'failed') {",
+        "    const failure: GhostgetClientReadFailure = result.readFailure;",
+        "    const output: null = result.output;",
+        "    const receiptStatus: 'failed' = result.receipt.status;",
+        "    void [failure, output, receiptStatus];",
+        "    return;",
+        "  }",
+        "  const output: unknown = result.output;",
+        "  const readFailure: undefined = result.readFailure;",
+        "  const receiptStatus: 'succeeded' = result.receipt.status;",
+        "  void [output, readFailure, receiptStatus];",
+        "}",
+        "consumeInvocation(invokeCapabilitySync(request));",
+        "void invokeCapability(request).then(consumeInvocation);",
+        "void [request, cachedReader, revalidator, staleWhileRevalidateCapability];",
+        "",
+      ].join("\n"),
+    );
+    await writeFile(
+      join(consumer, "beeper-typecheck.ts"),
+      [
+        "import {",
+        "  exportBeeperContactInteractionsSync,",
+        "  parseBeeperContactInteractionExportResult,",
+        "  type BeeperContactInteractionExportResult,",
+        "} from '@hraness/ghostget/beeper';",
+        "const result: BeeperContactInteractionExportResult | undefined = undefined;",
+        "void [result, exportBeeperContactInteractionsSync, parseBeeperContactInteractionExportResult];",
+        "",
+      ].join("\n"),
+    );
+    await writeFile(
+      join(consumer, "apple-photos-typecheck.ts"),
+      [
+        "import {",
+        "  exportApplePhotosContactEvidenceSync,",
+        "  parseApplePhotosContactEvidenceExportResult,",
+        "  type ApplePhotosContactEvidenceExportResult,",
+        "} from '@hraness/ghostget/apple-photos';",
+        "const result: ApplePhotosContactEvidenceExportResult | undefined = undefined;",
+        "void [result, exportApplePhotosContactEvidenceSync, parseApplePhotosContactEvidenceExportResult];",
+        "",
+      ].join("\n"),
+    );
+    await writeFile(
+      join(consumer, "whatsapp-typecheck.ts"),
+      [
+        "import {",
+        "  exportWhatsAppMessageLikeMeSync,",
+        "  parseWhatsAppMessageLikeMeExportReceipt,",
+        "  type WhatsAppMessageLikeMeExportReceipt,",
+        "} from '@hraness/ghostget/whatsapp';",
+        "const result: WhatsAppMessageLikeMeExportReceipt | undefined = undefined;",
+        "void [result, exportWhatsAppMessageLikeMeSync, parseWhatsAppMessageLikeMeExportReceipt];",
+        "",
+      ].join("\n"),
+    );
+    await writeFile(
+      join(consumer, "omni-typecheck.ts"),
+      [
+        "import {",
+        "  readCachedOmniView,",
+        "  revalidateOmniView,",
+        "  staleWhileRevalidateOmniView,",
+        "  type OmniViewCacheResult,",
+        "  type OmniViewRequest,",
+        "  type RevalidatedOmniView,",
+        "} from '@hraness/ghostget/omni';",
+        "const request: OmniViewRequest = {",
+        "  schemaVersion: 1,",
+        "  sources: [{",
+        "    adapterId: 'reddit-web',",
+        "    operationId: 'messaging.list',",
+        "    authId: 'reddit-main',",
+        "    input: { folder: 'inbox', limit: 25 },",
+        "  }],",
+        "};",
+        "const cachedReader: (request: OmniViewRequest) => OmniViewCacheResult = readCachedOmniView;",
+        "const revalidator: (request: OmniViewRequest) => Promise<RevalidatedOmniView> = revalidateOmniView;",
+        "const swr = staleWhileRevalidateOmniView(request);",
+        "void [request, cachedReader, revalidator, swr.cached, swr.revalidation];",
+        "",
+      ].join("\n"),
+    );
+    await writeFile(
+      join(consumer, "tsconfig.client.json"),
+      `${JSON.stringify({
+        compilerOptions: {
+          target: "ES2023",
+          lib: ["ES2023", "DOM"],
+          module: "Preserve",
+          moduleResolution: "Bundler",
+          moduleDetection: "force",
+          strict: true,
+          noEmit: true,
+          skipLibCheck: false,
+          types: [],
+        },
+        include: [
+          "client-typecheck.ts",
+          "beeper-typecheck.ts",
+          "apple-photos-typecheck.ts",
+          "whatsapp-typecheck.ts",
+          "omni-typecheck.ts",
+        ],
+      }, null, 2)}\n`,
+    );
+    await runCommand(
+      "typecheck packed read client without Bun ambient types",
+      [
+        process.execPath,
+        join(installedTypeScriptRoot, "bin", "tsc"),
+        "-p",
+        "tsconfig.client.json",
+      ],
+      consumer,
+    );
+    const packedCli = {
+      cliPath: join(consumer, "node_modules", ".bin", "ghostget"),
+      cwd: consumer,
+      label: "packed",
+    } as const;
+    await exercisePackedControls(packedCli, installedManifest.version);
+    await exercisePackedArchivedAdapterUpgrades(packedCli, installedPackageRoot);
+    const packedState = join(work, "packed-state");
+    environment.GHOSTGET_STATE_HOME = packedState;
+    environment.GHOSTGET_MEDIA_HOME = join(packedState, "media");
+    await mkdir(packedState, { recursive: true, mode: 0o700 });
+    await runCli(packedCli, "install isolated omni adapter", [
+      "adapter",
+      "install",
+      join(
+        installedPackageRoot,
+        "src",
+        "assets",
+        "adapters",
+        "reddit",
+        "wrench-web-adapter.json",
+      ),
+    ]);
+    await runCli(packedCli, "create isolated omni auth locator", [
+      "auth",
+      "add",
+      "reddit-main",
+      "--cookie-source",
+      "chrome",
+      "--subject",
+      "reddit:t2_account",
+    ]);
+    await runCommand(
+      "read deterministic empty omni cache through packed SDK",
+      [
+        process.execPath,
+        "-e",
+        [
+          "import { readCachedOmniView } from '@hraness/ghostget/omni';",
+          "const result = readCachedOmniView({ schemaVersion: 1, sources: [{ adapterId: 'reddit-web', operationId: 'messaging.list', authId: 'reddit-main', input: { folder: 'inbox', limit: 25 } }] });",
+          "if (result.schemaVersion !== 1 || result.source !== 'omni-cache') throw new Error('packed omni cache result envelope is malformed');",
+          "if (!/^[a-f0-9]{64}$/.test(result.identity.invocationDigest) || !/^[a-f0-9]{64}$/.test(result.identity.requestDigest) || !/^[a-f0-9]{64}$/.test(result.identity.sourceSetDigest)) throw new Error('packed omni cache identity is malformed');",
+          "if (result.view.schemaVersion !== 1 || !/^[a-f0-9]{64}$/.test(result.view.viewRevision)) throw new Error('packed omni cache view identity is malformed');",
+          "if (result.view.entities.length !== 0 || result.view.nextCursor !== null) throw new Error('packed omni cache was not empty');",
+          "if (result.view.sources.length !== 1) throw new Error('packed omni cache omitted its requested source');",
+          "const source = result.view.sources[0];",
+          "if (source.adapterId !== 'reddit-web' || source.operationId !== 'messaging.list' || source.authId !== 'reddit-main' || source.surfaceId !== 'reddit') throw new Error('packed omni cache source identity is malformed');",
+          "if (source.exact.state !== 'miss' || source.normalization.state !== 'missing') throw new Error('packed omni empty-cache states are malformed');",
+        ].join(" "),
+      ],
+      consumer,
+    );
+    await exerciseCli(packedCli, "packed");
+  }
+} finally {
+  await rm(work, { recursive: true, force: true });
+}

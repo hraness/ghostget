@@ -1,0 +1,757 @@
+import {
+  BEEPER_CLI_COMMAND_COVERAGE,
+  BEEPER_CLI_PIN,
+  BEEPER_CLI_V062_SURFACE_CONTRACT,
+  BEEPER_DESKTOP_API_PIN,
+  BEEPER_LOCAL_OPERATION_NAMES,
+  BEEPER_LOCAL_OPERATION_RUNTIME_TRANSPORTS,
+} from "../src/providers/beeper-local";
+import { WHATSAPP_PROTOCOL_PIN } from "../src/providers/whatsapp-web";
+import { providerMark, renderMarketingMarqueeHtml, type ProviderMarkId } from "@hraness/design-kit";
+import type {
+  ProviderCapabilityAttestation,
+  ProviderCapabilityAttestationRow,
+} from "./provider-capability-attestation";
+
+type ProviderIcon =
+  | "beeper"
+  | "broadcast"
+  | "chat"
+  | "code"
+  | "community"
+  | "mail"
+  | "network"
+  | "news"
+  | "photo"
+  | "publish"
+  | "store"
+  | "video";
+
+type ProviderPresentationDefinition = Readonly<{
+  accent: "blue" | "coral" | "gold" | "green" | "ink" | "violet";
+  icon: ProviderIcon;
+  /** The shared provider-registry mark shown in the homepage provider band. */
+  mark: ProviderMarkId;
+  name: string;
+  surfaceId: string;
+}>;
+
+export const PROVIDER_PRESENTATIONS = Object.freeze([
+  { accent: "blue", icon: "beeper", mark: "beeper", name: "Beeper", surfaceId: "beeper" },
+  { accent: "blue", icon: "network", mark: "bluesky", name: "Bluesky", surfaceId: "bluesky" },
+  { accent: "gold", icon: "store", mark: "storefront", name: "ClasificadosOnline", surfaceId: "clasificados" },
+  { accent: "blue", icon: "network", mark: "facebook", name: "Facebook", surfaceId: "facebook" },
+  { accent: "blue", icon: "community", mark: "facebook", name: "Facebook Groups", surfaceId: "facebook-group" },
+  { accent: "blue", icon: "store", mark: "facebook", name: "Facebook Marketplace", surfaceId: "facebook-marketplace" },
+  { accent: "blue", icon: "publish", mark: "facebook", name: "Facebook Pages", surfaceId: "facebook-page" },
+  { accent: "ink", icon: "code", mark: "github", name: "GitHub", surfaceId: "github" },
+  { accent: "coral", icon: "mail", mark: "gmail", name: "Gmail", surfaceId: "gmail" },
+  { accent: "gold", icon: "news", mark: "ycombinator", name: "Hacker News", surfaceId: "hacker-news" },
+  { accent: "violet", icon: "photo", mark: "instagram", name: "Instagram", surfaceId: "instagram" },
+  { accent: "blue", icon: "chat", mark: "imessage", name: "iMessage", surfaceId: "imessage" },
+  { accent: "blue", icon: "network", mark: "linkedin", name: "LinkedIn", surfaceId: "linkedin" },
+  { accent: "blue", icon: "mail", mark: "microsoft", name: "Microsoft Graph", surfaceId: "microsoft-graph" },
+  { accent: "coral", icon: "community", mark: "reddit", name: "Reddit", surfaceId: "reddit" },
+  { accent: "coral", icon: "publish", mark: "substack", name: "Substack", surfaceId: "substack" },
+  { accent: "ink", icon: "community", mark: "threads", name: "Threads", surfaceId: "threads" },
+  { accent: "violet", icon: "video", mark: "tiktok", name: "TikTok", surfaceId: "tiktok" },
+  { accent: "violet", icon: "broadcast", mark: "twitch", name: "Twitch", surfaceId: "twitch" },
+  { accent: "green", icon: "chat", mark: "whatsapp", name: "WhatsApp", surfaceId: "whatsapp" },
+  { accent: "coral", icon: "video", mark: "youtube", name: "YouTube", surfaceId: "youtube" },
+] as const satisfies readonly ProviderPresentationDefinition[]);
+
+export type ProviderDirectoryEntry = Readonly<{
+  accent: ProviderPresentationDefinition["accent"];
+  accessLabels: readonly string[];
+  adapterIdentities: readonly Readonly<{
+    id: string;
+    version: string;
+  }>[];
+  adapterCount: number;
+  capabilities: readonly string[];
+  captureRequiredCount: number;
+  contractVersions: readonly number[];
+  href: string;
+  icon: ProviderIcon;
+  mark: ProviderMarkId;
+  name: string;
+  observedCount: number;
+  ownerPermissionCount: number;
+  operationCount: number;
+  supportedActionCount: number;
+  surfaceId: string;
+  transports: readonly ProviderCapabilityAttestationRow["transport"][];
+}>;
+
+export type ProviderDirectory = Readonly<{
+  entries: readonly ProviderDirectoryEntry[];
+  providerCount: number;
+}>;
+
+export type BeeperPresentationFacts = Readonly<{
+  adapterVersion: string;
+  artifactTable: string;
+  cliBackedOperationCount: number;
+  cliCommandCount: number;
+  cliCommit: string;
+  cliReleaseManifestSha256: string;
+  cliReleaseUrl: string;
+  cliSourceDeclaredVersion: string;
+  cliSourcePackagePath: string;
+  cliSourceVersionDiscrepancy: string;
+  cliVersion: string;
+  desktopApiCommit: string;
+  desktopApiVersion: string;
+  desktopLoopbackOperationCount: number;
+  observedOperationCount: number;
+  pageDescription: string;
+  pageTitle: string;
+  semanticContractVersionLabel: string;
+  semanticContractVersions: readonly number[];
+}>;
+
+export type BeeperPresentationTransportCounts = Readonly<{
+  cliBackedOperationCount: number;
+  desktopLoopbackOperationCount: number;
+}>;
+
+export type WhatsAppPresentationFacts = Readonly<{
+  adapterVersion: string;
+  archiveSha256: typeof WHATSAPP_PROTOCOL_PIN.darwinArm64ArchiveSha256;
+  binarySha256: typeof WHATSAPP_PROTOCOL_PIN.darwinArm64BinarySha256;
+  observedOperationCount: 4;
+  pageDescription: string;
+  pageTitle: string;
+  wacliCommit: typeof WHATSAPP_PROTOCOL_PIN.commit;
+  wacliVersion: typeof WHATSAPP_PROTOCOL_PIN.version;
+}>;
+
+export const BEEPER_PRESENTATION_TRANSPORT_COUNTS = Object.freeze(
+  BEEPER_LOCAL_OPERATION_NAMES.reduce<BeeperPresentationTransportCounts>(
+    (counts, operation) => {
+      const transport = BEEPER_LOCAL_OPERATION_RUNTIME_TRANSPORTS[operation];
+      return transport === "desktop-loopback"
+        ? Object.freeze({
+          ...counts,
+          desktopLoopbackOperationCount: counts.desktopLoopbackOperationCount + 1,
+        })
+        : Object.freeze({
+          ...counts,
+          cliBackedOperationCount: counts.cliBackedOperationCount + 1,
+        });
+    },
+    Object.freeze({ cliBackedOperationCount: 0, desktopLoopbackOperationCount: 0 }),
+  ),
+);
+
+if (
+  BEEPER_PRESENTATION_TRANSPORT_COUNTS.cliBackedOperationCount
+    + BEEPER_PRESENTATION_TRANSPORT_COUNTS.desktopLoopbackOperationCount
+  !== BEEPER_LOCAL_OPERATION_NAMES.length
+  || BEEPER_PRESENTATION_TRANSPORT_COUNTS.cliBackedOperationCount < 1
+  || BEEPER_PRESENTATION_TRANSPORT_COUNTS.desktopLoopbackOperationCount < 1
+) throw new Error("Beeper presentation runtime transport classification is incomplete");
+
+export const BEEPER_PAGE_METADATA = Object.freeze({
+  description:
+    `Use ${BEEPER_LOCAL_OPERATION_NAMES.length} supported GhostGet actions with one connected Beeper Desktop account: ${BEEPER_PRESENTATION_TRANSPORT_COUNTS.cliBackedOperationCount} CLI-backed operations and ${BEEPER_PRESENTATION_TRANSPORT_COUNTS.desktopLoopbackOperationCount} fixed Desktop loopback reads.`,
+  title:
+    `Beeper support in GhostGet: ${BEEPER_LOCAL_OPERATION_NAMES.length} supported actions`,
+} as const);
+
+export const WHATSAPP_PAGE_METADATA = Object.freeze({
+  description:
+    `Use four read-only actions on local WhatsApp data. The private export of an existing Wacli ${WHATSAPP_PROTOCOL_PIN.version} store for TextButler never pairs, syncs, or sends.`,
+  title: "WhatsApp support in GhostGet: local reads and a private export for TextButler",
+} as const);
+
+/** Providers with a dedicated how-to guide get its canonical path; every other
+ * surface anchors into the capability reference. */
+const PROVIDER_GUIDE_PATHS: Readonly<Record<string, string>> = {
+  beeper: "/docs/how-to/connect-beeper/",
+  gmail: "/docs/how-to/connect-gmail/",
+  whatsapp: "/docs/how-to/export-whatsapp/",
+};
+
+function capabilityLabel(operation: string): string {
+  switch (operation.split(".")[0]) {
+    case "accounts": return "Accounts";
+    case "articles": return "Articles";
+    case "bridges": return "Bridges";
+    case "comments": return "Comments";
+    case "communities": return "Communities";
+    case "contacts": return "Contacts";
+    case "content": return "Content";
+    case "conversations": return "Conversations";
+    case "explore": return "Explore";
+    case "feeds": return "Feeds";
+    case "flair": return "Flair";
+    case "likes": return "Likes";
+    case "lists": return "Lists";
+    case "listings": return "Listings";
+    case "media": return "Media";
+    case "messaging": return "Messages";
+    case "notifications": return "Notifications";
+    case "organizations": return "Organizations";
+    case "posts": return "Posts";
+    case "presence": return "Presence";
+    case "profiles": return "Profiles";
+    case "reactions": return "Reactions";
+    case "relationships": return "Relationships";
+    case "replies": return "Replies";
+    case "sites": return "Registry sites";
+    case "subscribers": return "Subscribers";
+    case "threads": return "Threads";
+    case "tools": return "Registry tools";
+    default: throw new Error(`provider operation ${operation} has no public capability label`);
+  }
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+function compareStrings(left: string, right: string): number {
+  return left.localeCompare(right);
+}
+
+function setDifference(left: ReadonlySet<string>, right: ReadonlySet<string>): string[] {
+  return [...left].filter((value) => !right.has(value)).sort(compareStrings);
+}
+
+/** These catalog entries authorize the owner host; generic invoke rejects them. */
+export function isOwnerMessagingPermission(row: ProviderCapabilityAttestationRow): boolean {
+  if (!row.operation.startsWith("messaging.automation.")) return false;
+  const expectedAdapter = row.surfaceId === "imessage" ? "imessage-direct"
+    : row.surfaceId === "whatsapp" ? "whatsapp-web"
+    : row.surfaceId === "beeper" ? "beeper-local" : null;
+  const suffix = row.operation.slice("messaging.automation.".length);
+  const allowed = row.surfaceId === "beeper"
+    ? ["read", "send.text"]
+    : ["read", ...(row.surfaceId === "whatsapp" ? ["sync"] : []),
+      "send.text", "send.attachment", "send.reaction", "send.sticker", "send.link", "send.poll"];
+  const risk = suffix === "read" ? "R1" : suffix === "sync" ? "R2" : "R3";
+  if (row.adapterId !== expectedAdapter || !allowed.includes(suffix)
+    || row.risk !== risk || row.contractVersion !== 1) {
+    throw new Error("Unreviewed owner messaging permission in provider presentation");
+  }
+  return true;
+}
+
+export function createProviderDirectory(
+  attestation: ProviderCapabilityAttestation,
+  definitions: readonly ProviderPresentationDefinition[] = PROVIDER_PRESENTATIONS,
+): ProviderDirectory {
+  if (attestation.rows.length < 1) {
+    throw new Error("provider presentation requires at least one attested operation");
+  }
+  const definitionsBySurface = new Map<string, ProviderPresentationDefinition>();
+  for (const [index, definition] of definitions.entries()) {
+    if (!/^[a-z][a-z0-9-]{0,62}$/u.test(definition.surfaceId)) {
+      throw new Error(`provider presentation surface ${definition.surfaceId} is not strict kebab-case`);
+    }
+    if (definition.name.trim() !== definition.name || definition.name.length < 1) {
+      throw new Error(`provider presentation ${definition.surfaceId} has an invalid public name`);
+    }
+    if (providerMark(definition.mark)?.id !== definition.mark) {
+      throw new Error(`provider presentation ${definition.surfaceId} names an unregistered mark`);
+    }
+    if (definition.surfaceId === "beeper" && index !== 0) {
+      throw new Error("Beeper must remain the first provider presentation");
+    }
+    if (definitionsBySurface.has(definition.surfaceId)) {
+      throw new Error(`provider presentation repeats surface ${definition.surfaceId}`);
+    }
+    definitionsBySurface.set(definition.surfaceId, definition);
+  }
+  if (definitions[0]?.surfaceId !== "beeper") {
+    throw new Error("Beeper must remain the first provider presentation");
+  }
+
+  const adapterIdentities = new Map<string, Readonly<{
+    displayName: string;
+    kind: ProviderCapabilityAttestationRow["kind"];
+    surfaceId: string;
+    transport: ProviderCapabilityAttestationRow["transport"];
+    version: string;
+  }>>();
+  const adapterOperations = new Set<string>();
+  for (const row of attestation.rows) {
+    isOwnerMessagingPermission(row);
+    const validTransport =
+      (row.kind === "official-api" && row.transport === "provider-api")
+      || (row.kind === "local-cli" && row.transport === "local-cli")
+      || (
+        row.kind === "authenticated-web"
+        && (row.transport === "web-session-api" || row.transport === "linked-device")
+      );
+    if (!validTransport) {
+      throw new Error(`provider adapter ${row.adapterId} has an invalid ${row.kind}/${row.transport} channel`);
+    }
+    const identity = adapterIdentities.get(row.adapterId);
+    const nextIdentity = Object.freeze({
+      displayName: row.displayName,
+      kind: row.kind,
+      surfaceId: row.surfaceId,
+      transport: row.transport,
+      version: row.adapterVersion,
+    });
+    if (identity === undefined) {
+      adapterIdentities.set(row.adapterId, nextIdentity);
+    } else if (
+      identity.displayName !== nextIdentity.displayName
+      || identity.kind !== nextIdentity.kind
+      || identity.surfaceId !== nextIdentity.surfaceId
+      || identity.transport !== nextIdentity.transport
+      || identity.version !== nextIdentity.version
+    ) {
+      throw new Error(`provider adapter ${row.adapterId} changes identity across operations`);
+    }
+    const operationKey = `${row.adapterId}:${row.operation}`;
+    if (adapterOperations.has(operationKey)) {
+      throw new Error(`provider attestation repeats ${operationKey}`);
+    }
+    adapterOperations.add(operationKey);
+  }
+  const observedCount = attestation.rows.filter((row) => row.completeness === "observed").length;
+  const captureRequiredCount = attestation.rows.filter((row) =>
+    row.completeness === "capture-required").length;
+  if (
+    attestation.operationCount !== attestation.rows.length
+    || attestation.adapterCount !== adapterIdentities.size
+    || attestation.observedCount !== observedCount
+    || attestation.captureRequiredCount !== captureRequiredCount
+    || observedCount + captureRequiredCount !== attestation.rows.length
+  ) {
+    throw new Error("provider attestation totals do not match its operation rows");
+  }
+  const attestedSurfaces = new Set(attestation.rows.map((row) => row.surfaceId));
+  const presentedSurfaces = new Set(definitionsBySurface.keys());
+  const missingPresentation = setDifference(attestedSurfaces, presentedSurfaces);
+  const missingAttestation = setDifference(presentedSurfaces, attestedSurfaces);
+  if (missingPresentation.length > 0 || missingAttestation.length > 0) {
+    throw new Error([
+      missingPresentation.length > 0
+        ? `unpresented attested surfaces: ${missingPresentation.join(", ")}`
+        : "",
+      missingAttestation.length > 0
+        ? `presentation surfaces without an attestation: ${missingAttestation.join(", ")}`
+        : "",
+    ].filter(Boolean).join("; "));
+  }
+
+  const entries = definitions.flatMap((definition): ProviderDirectoryEntry[] => {
+    const rows = attestation.rows.filter((row) => row.surfaceId === definition.surfaceId);
+    const supportedRows = rows.filter((row) => row.completeness === "observed" && !isOwnerMessagingPermission(row));
+    if (supportedRows.length === 0) return [];
+    const adapterIdentities = [...new Map(supportedRows.map((row) => [
+      row.adapterId,
+      Object.freeze({ id: row.adapterId, version: row.adapterVersion }),
+    ] as const)).values()].sort((left, right) => compareStrings(left.id, right.id));
+    const contractVersions = [...new Set(supportedRows.map((row) => row.contractVersion))]
+      .sort((left, right) => left - right);
+    const transports = [...new Set(supportedRows.map((row) => row.transport))].sort(compareStrings);
+    const accessLabels = [...new Set(supportedRows.map(accessLabel))].sort(compareStrings);
+    const observedCount = rows.filter((row) => row.completeness === "observed").length;
+    const captureRequiredCount = rows.filter((row) =>
+      row.completeness === "capture-required").length;
+    if (observedCount + captureRequiredCount !== rows.length) {
+      throw new Error(`provider presentation could not classify every ${definition.surfaceId} operation`);
+    }
+    return [Object.freeze({
+      accent: definition.accent,
+      accessLabels: Object.freeze(accessLabels),
+      adapterCount: adapterIdentities.length,
+      adapterIdentities: Object.freeze(adapterIdentities),
+      capabilities: Object.freeze([...new Set(supportedRows.map((row) =>
+        capabilityLabel(row.operation)))].sort(compareStrings)),
+      captureRequiredCount,
+      contractVersions: Object.freeze(contractVersions),
+      href: PROVIDER_GUIDE_PATHS[definition.surfaceId]
+        ?? `/docs/reference/provider-capabilities/#provider-${definition.surfaceId}`,
+      icon: definition.icon,
+      mark: definition.mark,
+      name: definition.name,
+      observedCount,
+      ownerPermissionCount: rows.filter(row => row.completeness === "observed" && isOwnerMessagingPermission(row)).length,
+      operationCount: observedCount,
+      supportedActionCount: new Set(supportedRows.map((row) => row.operation)).size,
+      surfaceId: definition.surfaceId,
+      transports: Object.freeze(transports),
+    })];
+  });
+  return Object.freeze({ entries: Object.freeze(entries), providerCount: entries.length });
+}
+
+export function createWhatsAppPresentationFacts(
+  directory: ProviderDirectory,
+  attestation: ProviderCapabilityAttestation,
+): WhatsAppPresentationFacts {
+  const entry = directory.entries.find((candidate) => candidate.surfaceId === "whatsapp");
+  const observedRows = attestation.rows.filter((row) =>
+    row.surfaceId === "whatsapp" && row.completeness === "observed" && !isOwnerMessagingPermission(row));
+  const expectedOperations = [
+    "contacts.list",
+    "media.read",
+    "messaging.list",
+    "messaging.read",
+  ] as const;
+  const observedOperations = observedRows.map((row) => row.operation).sort();
+  if (
+    entry === undefined
+    || entry.supportedActionCount !== 4
+    || entry.observedCount - entry.ownerPermissionCount !== 4
+    || entry.adapterIdentities.length !== 1
+    || entry.adapterIdentities[0]?.id !== "whatsapp-web"
+    || !entry.transports.includes("linked-device")
+    || observedRows.some((row) => row.risk !== "R1")
+    || observedOperations.length !== expectedOperations.length
+    || observedOperations.some((operation, index) => operation !== expectedOperations[index])
+  ) {
+    throw new Error("WhatsApp provider page is reviewed for exactly four linked-device R1 reads");
+  }
+  return Object.freeze({
+    adapterVersion: entry.adapterIdentities[0].version,
+    archiveSha256: WHATSAPP_PROTOCOL_PIN.darwinArm64ArchiveSha256,
+    binarySha256: WHATSAPP_PROTOCOL_PIN.darwinArm64BinarySha256,
+    observedOperationCount: 4,
+    pageDescription: WHATSAPP_PAGE_METADATA.description,
+    pageTitle: WHATSAPP_PAGE_METADATA.title,
+    wacliCommit: WHATSAPP_PROTOCOL_PIN.commit,
+    wacliVersion: WHATSAPP_PROTOCOL_PIN.version,
+  });
+}
+
+function transportLabel(transport: ProviderCapabilityAttestationRow["transport"]): string {
+  switch (transport) {
+    case "linked-device": return "Linked device";
+    case "local-cli": return "Local app";
+    case "provider-api": return "Official API";
+    case "web-session-api": return "Signed-in web session";
+  }
+}
+
+/** Public access is a stronger claim than the transport name alone. */
+function accessLabel(row: ProviderCapabilityAttestationRow): string {
+  if (row.access === "public" && row.transport === "web-session-api") {
+    return "Public web, no sign-in";
+  }
+  return transportLabel(row.transport);
+}
+
+function entryCountLabel(entry: ProviderDirectoryEntry): string {
+  return `${entry.supportedActionCount} supported ${entry.supportedActionCount === 1 ? "action" : "actions"}`;
+}
+
+const providerIconPaths: Readonly<Record<ProviderIcon, readonly string[]>> = Object.freeze({
+  beeper: Object.freeze([
+    '<path d="M5.5 5.5h13a2.5 2.5 0 0 1 2.5 2.5v6.5a2.5 2.5 0 0 1-2.5 2.5H11l-5.5 3v-3A2.5 2.5 0 0 1 3 16.5V8a2.5 2.5 0 0 1 2.5-2.5Z"></path>',
+    '<path d="M8 10h.01M12 10h.01M16 10h.01M8 13.5h8"></path>',
+  ]),
+  broadcast: Object.freeze([
+    '<rect x="4" y="7" width="16" height="11" rx="2"></rect>',
+    '<path d="m9 22 3-4 3 4M8 3c2.7 2.3 5.3 2.3 8 0"></path>',
+  ]),
+  chat: Object.freeze([
+    '<path d="M5.5 5.5h13a2.5 2.5 0 0 1 2.5 2.5v7a2.5 2.5 0 0 1-2.5 2.5H11l-5.5 3v-3A2.5 2.5 0 0 1 3 15V8a2.5 2.5 0 0 1 2.5-2.5Z"></path>',
+    '<path d="M8 10h8M8 13.5h5"></path>',
+  ]),
+  code: Object.freeze([
+    '<path d="m9 7-5 5 5 5M15 7l5 5-5 5M13.5 4 10.5 20"></path>',
+  ]),
+  community: Object.freeze([
+    '<circle cx="9" cy="8" r="3"></circle><circle cx="17" cy="10" r="2.5"></circle>',
+    '<path d="M3.5 19c.6-3.3 2.4-5 5.5-5s4.9 1.7 5.5 5M14 15c3.6-.5 5.8.8 6.5 4"></path>',
+  ]),
+  mail: Object.freeze([
+    '<rect x="3" y="5" width="18" height="14" rx="2"></rect>',
+    '<path d="m4 7 8 6 8-6"></path>',
+  ]),
+  network: Object.freeze([
+    '<circle cx="5" cy="12" r="2.5"></circle><circle cx="19" cy="6" r="2.5"></circle><circle cx="19" cy="18" r="2.5"></circle>',
+    '<path d="m7.3 11 9.3-4M7.3 13l9.3 4"></path>',
+  ]),
+  news: Object.freeze([
+    '<rect x="4" y="3" width="16" height="18" rx="2"></rect>',
+    '<path d="M8 8h8M8 12h8M8 16h5"></path>',
+  ]),
+  photo: Object.freeze([
+    '<rect x="3" y="4" width="18" height="16" rx="3"></rect><circle cx="15.5" cy="9" r="2"></circle>',
+    '<path d="m5 17 4.5-4 3.2 2.5 2-1.8L19 17"></path>',
+  ]),
+  publish: Object.freeze([
+    '<path d="M5 3h10l4 4v14H5zM15 3v5h4"></path>',
+    '<path d="M8 12h8M8 16h6"></path>',
+  ]),
+  store: Object.freeze([
+    '<path d="M4 9h16l-1.5-5h-13zM5 9v11h14V9"></path>',
+    '<path d="M9 20v-6h6v6M3 9c0 2 3 3 4.5 1.2C9 12 12 12 13.5 10.2 15 12 18 11 21 9"></path>',
+  ]),
+  video: Object.freeze([
+    '<rect x="3" y="5" width="18" height="14" rx="3"></rect>',
+    '<path d="m10 9 5 3-5 3z"></path>',
+  ]),
+});
+
+function renderProviderIcon(icon: ProviderIcon): string {
+  return [
+    '<svg aria-hidden="true" class="provider-icon" focusable="false" viewBox="0 0 24 24">',
+    ...providerIconPaths[icon],
+    "</svg>",
+  ].join("");
+}
+
+export function renderProviderOverviewCards(directory: ProviderDirectory): string {
+  return directory.entries.map((entry) => [
+    `<article class="provider-card provider-accent-${entry.accent}${entry.surfaceId === "beeper" ? " provider-card-featured" : ""}">`,
+    '<div class="provider-card-heading">',
+    `<span aria-hidden="true" class="provider-mark" data-provider-icon="${entry.icon}">${renderProviderIcon(entry.icon)}</span>`,
+    `<h3><a href="${escapeHtml(entry.href)}">${escapeHtml(entry.name)}</a></h3>`,
+    "</div>",
+    `<p class="provider-state"><strong>${entryCountLabel(entry)}</strong></p>`,
+    `<p class="provider-capabilities">${entry.capabilities.map(escapeHtml).join(" · ")}</p>`,
+    `<p class="provider-transport">${entry.accessLabels.map(escapeHtml).join(" + ")}</p>`,
+    entry.surfaceId === "beeper"
+      ? `<p class="provider-feature-copy">${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.cliBackedOperationCount)} actions run through a pinned version of Beeper's official CLI, and ${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.desktopLoopbackOperationCount)} are fixed reads from Beeper Desktop. Writes need a preview first, and GhostGet never resends a write whose outcome is unknown.</p>`
+      : "",
+    "</article>",
+  ].join("")).join("");
+}
+
+/**
+ * The homepage band leads with the services readers recognize first and keeps
+ * surfaces that share one mark apart. A listed provider missing from this
+ * order follows in directory order, so it still appears and is counted.
+ */
+export const PROVIDER_MARQUEE_ORDER: readonly string[] = Object.freeze([
+  "linkedin",
+  "gmail",
+  "youtube",
+  "github",
+  "beeper",
+  "whatsapp",
+  "imessage",
+  "instagram",
+  "reddit",
+  "bluesky",
+  "threads",
+  "facebook",
+  "tiktok",
+  "substack",
+  "hacker-news",
+  "microsoft-graph",
+  "facebook-page",
+  "twitch",
+  "facebook-group",
+  "clasificados",
+  "facebook-marketplace",
+]);
+
+export const PROVIDER_MARQUEE_ID = "provider-band";
+
+/** Every directory entry exactly once, in the band's display order. */
+export function providerMarqueeEntries(directory: ProviderDirectory): readonly ProviderDirectoryEntry[] {
+  const rank = new Map(PROVIDER_MARQUEE_ORDER.map((surfaceId, index) => [surfaceId, index] as const));
+  return Object.freeze([...directory.entries].sort((left, right) =>
+    (rank.get(left.surfaceId) ?? PROVIDER_MARQUEE_ORDER.length) - (rank.get(right.surfaceId) ?? PROVIDER_MARQUEE_ORDER.length)));
+}
+
+/** The muted band under the homepage hero: every listed service, counted from the same directory. */
+export function renderProviderMarquee(directory: ProviderDirectory): string {
+  const entries = providerMarqueeEntries(directory);
+  if (entries.length !== directory.providerCount) {
+    throw new Error("the provider band must show every listed provider");
+  }
+  return renderMarketingMarqueeHtml({
+    action: { href: "/docs/reference/provider-capabilities/", label: "See every action" },
+    id: PROVIDER_MARQUEE_ID,
+    items: entries.map((entry) => ({ mark: entry.mark, name: entry.name })),
+    label: "Works with {count} services",
+  });
+}
+
+const operationTitleOverrides: Readonly<Record<string, string>> = Object.freeze({
+  "articles.draft.save": "Save article draft",
+  "communities.membership.set": "Update community membership",
+  "conversations.archive.set": "Update conversation archive state",
+  "conversations.avatar.set": "Update conversation avatar",
+  "conversations.description.set": "Update conversation description",
+  "conversations.disappearing.set": "Update disappearing messages",
+  "conversations.draft.set": "Update conversation draft",
+  "conversations.focus": "Focus conversation",
+  "conversations.mute.set": "Update conversation mute setting",
+  "conversations.notify": "Send Notify Anyway",
+  "conversations.pin.set": "Update conversation pin",
+  "conversations.priority.set": "Update conversation priority",
+  "conversations.read-state.set": "Update conversation read state",
+  "conversations.reminder.set": "Update conversation reminder",
+  "conversations.start": "Start conversation",
+  "conversations.title.set": "Update conversation title",
+  "flair.post.choices": "Read post flair choices",
+  "flair.user.choices": "Read user flair choices",
+  "lists.read": "Read Lists",
+  "messaging.content.search": "Search message content",
+  "messaging.delivery.read": "Read message delivery status",
+  "messaging.context.read": "Read message context",
+  "messaging.edit": "Edit message",
+  "messaging.list": "List messages",
+  "messaging.message.read": "Read message",
+  "messaging.read": "Read messages",
+  "messaging.search": "Search messages",
+  "messaging.send": "Send message",
+  "posts.analytics.read": "Read post analytics",
+  "posts.interactions.list": "List quotes, reposts and likes",
+  "relationships.follow.set": "Update follow relationship",
+  "relationships.recommendations.read": "Read account recommendations",
+  "subscribers.export": "Export subscribers",
+  "subscribers.import": "Add one subscriber",
+  "subscribers.import.status": "Read subscriber import status",
+});
+
+const operationVerbLabels: Readonly<Record<string, string>> = Object.freeze({
+  create: "Create",
+  delete: "Delete",
+  edit: "Edit",
+  focus: "Open",
+  list: "List",
+  notify: "Notify",
+  publish: "Publish",
+  quote: "Quote",
+  read: "Read",
+  repost: "Repost",
+  save: "Save",
+  search: "Search",
+  send: "Send",
+  set: "Update",
+  start: "Start",
+});
+
+function operationTitle(operation: string): string {
+  const override = operationTitleOverrides[operation];
+  if (override !== undefined) return override;
+  const parts = operation.split(".");
+  const verb = parts.pop();
+  const subject = parts.map((part) => part.replaceAll("-", " ")).join(" ");
+  const verbLabel = operationVerbLabels[verb ?? ""];
+  if (verbLabel === undefined || subject.length < 1) {
+    throw new Error(`provider operation ${operation} has no public action label`);
+  }
+  return `${verbLabel} ${subject}`;
+}
+
+export function renderProviderAttestationGroups(
+  directory: ProviderDirectory,
+  attestation: ProviderCapabilityAttestation,
+): string {
+  return directory.entries.map((entry) => {
+    const observedRows = attestation.rows.filter((row) =>
+      row.surfaceId === entry.surfaceId && row.completeness === "observed");
+    const supportedRows = observedRows.filter(row => !isOwnerMessagingPermission(row));
+    const permissions = observedRows.filter(isOwnerMessagingPermission);
+    const rowsByOperation = new Map<string, ProviderCapabilityAttestationRow[]>();
+    for (const row of supportedRows) {
+      const operationRows = rowsByOperation.get(row.operation) ?? [];
+      operationRows.push(row);
+      rowsByOperation.set(row.operation, operationRows);
+    }
+    const actions = [...rowsByOperation.entries()].sort(([left], [right]) =>
+      compareStrings(left, right)).map(([operation, rows]) => {
+      const access = [...new Set(rows.map(accessLabel))]
+        .sort(compareStrings).join(" + ");
+      return [
+        "<li>",
+        `<span><strong>${escapeHtml(operationTitle(operation))}</strong> (<code>${escapeHtml(operation)}</code>)</span>`,
+        " ",
+        `<span>· ${escapeHtml(access)}</span>`,
+        "</li>",
+      ].join("");
+    }).join("");
+    return [
+      `<section class="provider-attestation-group" id="provider-${escapeHtml(entry.surfaceId)}">`,
+      `<h3>${escapeHtml(entry.name)}</h3>`,
+      `<p>${entryCountLabel(entry)}${entry.capabilities.length > 0 ? `: ${entry.capabilities.map(escapeHtml).join(", ")}.` : "."}</p>`,
+      `<ul class="provider-operation-list">${actions}</ul>`,
+      ...(permissions.length ? [
+        `<h4>Owner messaging permissions</h4><p>${permissions.length} permission entries for an explicitly configured messaging host. These are unavailable through generic invoke; a grant also needs a ready account and the requested runtime capability.</p>`,
+        `<ul class="provider-owner-permissions">${permissions.map(row => `<li><code>${escapeHtml(row.operation)}</code> · ${escapeHtml(row.risk)} · owner host only</li>`).join("")}</ul>`,
+      ] : []),
+      "</section>",
+    ].join("");
+  }).join("");
+}
+
+function renderBeeperArtifactTable(): string {
+  const body = BEEPER_CLI_PIN.artifacts.map((artifact) => [
+    "<tr>",
+    `<th scope="row">${artifact.platform === "darwin" ? "macOS" : "Linux"} ${artifact.arch}</th>`,
+    `<td><a href="${escapeHtml(artifact.downloadUrl)}">Official release asset</a></td>`,
+    `<td><code>${artifact.archiveSha256}</code></td>`,
+    `<td><code>${artifact.executableSha256}</code></td>`,
+    "</tr>",
+  ].join("")).join("");
+  return [
+    '<table><thead><tr><th scope="col">Runtime</th><th scope="col">Download</th><th scope="col">Archive SHA-256</th><th scope="col">Executable SHA-256</th></tr></thead>',
+    `<tbody>${body}</tbody></table>`,
+  ].join("");
+}
+
+export function createBeeperPresentationFacts(
+  directory: ProviderDirectory,
+): BeeperPresentationFacts {
+  const beeper = directory.entries.find((entry) => entry.surfaceId === "beeper");
+  if (beeper === undefined) throw new Error("provider presentation lost Beeper");
+  const adapterIdentity = beeper.adapterIdentities[0];
+  if (
+    beeper.adapterIdentities.length !== 1
+    || adapterIdentity?.id !== "beeper-local"
+    || beeper.transports.length !== 1
+    || beeper.transports[0] !== "local-cli"
+    || beeper.captureRequiredCount !== 0
+    || beeper.observedCount - beeper.ownerPermissionCount
+      !== BEEPER_LOCAL_OPERATION_NAMES.length
+  ) {
+    throw new Error("Beeper presentation drifted from the exact local CLI contract");
+  }
+  if (adapterIdentity.version.length < 1 || beeper.contractVersions.length < 1) {
+    throw new Error("Beeper presentation lost its adapter version");
+  }
+  const cliSourceVersionDiscrepancy =
+    BEEPER_CLI_V062_SURFACE_CONTRACT.source.versionDiscrepancy;
+  if (
+    cliSourceVersionDiscrepancy === null
+    || BEEPER_CLI_V062_SURFACE_CONTRACT.source.packageDeclaredVersion
+      === BEEPER_CLI_PIN.version
+  ) {
+    throw new Error("Beeper presentation lost its reviewed source/executable version discrepancy");
+  }
+  const semanticContractVersionLabel = beeper.contractVersions.length === 1
+    ? `Contract version ${beeper.contractVersions[0]}`
+    : `Contract versions ${beeper.contractVersions.join(", ")}`;
+  return Object.freeze({
+    adapterVersion: adapterIdentity.version,
+    artifactTable: renderBeeperArtifactTable(),
+    cliBackedOperationCount: BEEPER_PRESENTATION_TRANSPORT_COUNTS.cliBackedOperationCount,
+    cliCommandCount: Object.keys(BEEPER_CLI_COMMAND_COVERAGE).length,
+    cliCommit: BEEPER_CLI_PIN.commit,
+    cliReleaseManifestSha256: BEEPER_CLI_PIN.releaseManifestSha256,
+    cliReleaseUrl: BEEPER_CLI_PIN.releaseUrl,
+    cliSourceDeclaredVersion:
+      BEEPER_CLI_V062_SURFACE_CONTRACT.source.packageDeclaredVersion,
+    cliSourcePackagePath: BEEPER_CLI_V062_SURFACE_CONTRACT.source.packagePath,
+    cliSourceVersionDiscrepancy,
+    cliVersion: BEEPER_CLI_PIN.version,
+    desktopApiCommit: BEEPER_DESKTOP_API_PIN.commit,
+    desktopApiVersion: BEEPER_DESKTOP_API_PIN.version,
+    desktopLoopbackOperationCount:
+      BEEPER_PRESENTATION_TRANSPORT_COUNTS.desktopLoopbackOperationCount,
+    observedOperationCount: beeper.observedCount - beeper.ownerPermissionCount,
+    pageDescription: BEEPER_PAGE_METADATA.description,
+    pageTitle: BEEPER_PAGE_METADATA.title,
+    semanticContractVersionLabel,
+    semanticContractVersions: beeper.contractVersions,
+  });
+}

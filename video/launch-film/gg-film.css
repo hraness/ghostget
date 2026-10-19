@@ -1,0 +1,28 @@
+/* GhostGet film surfaces (mockups.tsx). The panels reuse the site's mockup styles. */
+.gg-film {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr 1fr;
+  gap: 28px;
+  align-items: start;
+  /* Side margins let the camera centre the first and last panels. */
+  width: 2240px;
+  padding: 36px 300px;
+  font-family: "Film Sans", ui-sans-serif, system-ui, sans-serif;
+}
+.gg-film-panel { min-width: 0; }
+.gg-film [data-film="confirm"][data-film-state="done"] .ggm-preview-state { font-size: 0; }
+.gg-film [data-film="confirm"][data-film-state="done"] .ggm-preview-state::after {
+  content: "Confirmed. Sent once.";
+  font-size: 15px;
+  color: #a9c4bb;
+}
+.gg-open-card {
+  padding: 18px 22px;
+  border-radius: 14px;
+  background: #202226;
+  border: 1px solid #34363b;
+  color: #ece6d6;
+  font-family: "Film Sans", ui-sans-serif, system-ui, sans-serif;
+}
+.gg-open-card b { display: block; font-size: 22px; }
+.gg-open-card p { margin: 6px 0 0; font-size: 17px; color: #9d9a92; font-family: ui-monospace, monospace; }

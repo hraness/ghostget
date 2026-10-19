@@ -1,0 +1,1193 @@
+import { describe, expect, test } from "bun:test";
+
+import type { CookieRecordReader } from "@hraness/wordcell/clip/acquire";
+import type { StrictCookie } from "@hraness/wordcell/clip/cookies";
+import type { GhostgetAuth } from "../auth";
+import type { OperationInput, WebSessionRecipe } from "../model";
+import {
+  executeYouTubeWebOperation,
+  prepareYouTubeWebDesiredState,
+  probeYouTubeWebSubject,
+  readYouTubeWebDesiredState,
+  type YouTubeWebRuntimeDependencies,
+} from "./youtube-web-runtime";
+
+const CHANNEL_ID = `UC${"a".repeat(22)}`;
+const TARGET_CHANNEL_ID = `UC${"b".repeat(22)}`;
+const GAIA_ID = "123456789012345678901";
+const DELEGATE_ID = "delegated-page-id";
+const VIDEO_ID = "dQw4w9WgXcQ";
+const POST_ID = `Ug${"p".repeat(24)}`;
+const API_KEY = "AIzaSyntheticPublicKey1234567890";
+const SAPISID = "private-sapisid-cookie";
+
+const youtubeAuth = {
+  schemaVersion: 1,
+  id: "youtube-test",
+  kind: "cookie-source",
+  source: "arc",
+  profile: "Profile 1",
+  subject: `youtube:channel:${CHANNEL_ID}/gaia:${GAIA_ID}/delegate:${DELEGATE_ID}`,
+} as const satisfies GhostgetAuth;
+
+type CapturedRequest = {
+  readonly url: URL;
+  readonly method: string;
+  readonly headers: Headers;
+  readonly body: Readonly<Record<string, unknown>> | null;
+};
+
+function strictCookie(name: string, value: string): StrictCookie {
+  return {
+    name,
+    value,
+    domain: ".youtube.com",
+    hostOnly: false,
+    path: "/",
+    secure: true,
+    httpOnly: true,
+    sameSite: "None",
+    expires: 0,
+  };
+}
+
+function bootstrapHtml(loggedIn: unknown = true): string {
+  return [
+    "<!doctype html>",
+    `<script>ytcfg.set(${JSON.stringify({
+      INNERTUBE_API_KEY: API_KEY,
+      INNERTUBE_CONTEXT_CLIENT_NAME: 1,
+      LOGGED_IN: loggedIn,
+      SESSION_INDEX: 0,
+      DELEGATED_SESSION_ID: DELEGATE_ID,
+    })});</script>`,
+    `<script>ytcfg.set(${JSON.stringify({
+      INNERTUBE_CONTEXT: {
+        client: {
+          clientName: "WEB",
+          clientVersion: "2.20260722.01.00",
+          hl: "en",
+          gl: "US",
+          visitorData: "visitor-data",
+        },
+        request: { useSsl: true },
+      },
+    })});</script>`,
+  ].join("");
+}
+
+function jsonResponse(value: unknown): Response {
+  return new Response(JSON.stringify(value), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+function htmlResponse(loggedIn: unknown = true): Response {
+  return new Response(bootstrapHtml(loggedIn), {
+    status: 200,
+    headers: { "content-type": "text/html" },
+  });
+}
+
+function profileHtmlResponse(value: unknown): Response {
+  return new Response(
+    `<!doctype html><script>var ytInitialData = ${JSON.stringify(value)};</script>`,
+    { status: 200, headers: { "content-type": "text/html" } },
+  );
+}
+
+function accountMenuResponse(channelId = CHANNEL_ID): unknown {
+  return {
+    actions: [{
+      openPopupAction: {
+        popup: {
+          multiPageMenuRenderer: {
+            header: {
+              activeAccountHeaderRenderer: {
+                serviceEndpoint: { browseEndpoint: { browseId: channelId } },
+              },
+            },
+          },
+        },
+      },
+    }],
+  };
+}
+
+function accountsListResponse(channelId = CHANNEL_ID): unknown {
+  return {
+    actions: [{
+      getMultiPageMenuAction: {
+        menu: {
+          multiPageMenuRenderer: {
+            sections: [{
+              accountItemSectionRenderer: {
+                contents: [{
+                  accountItemRenderer: {
+                    isSelected: true,
+                    serviceEndpoint: {
+                      browseEndpoint: { browseId: channelId },
+                      selectActiveIdentityEndpoint: {
+                        supportedTokens: [{
+                          accountStateToken: { obfuscatedGaiaId: GAIA_ID },
+                        }],
+                      },
+                    },
+                  },
+                }],
+              },
+            }],
+          },
+        },
+      },
+    }],
+  };
+}
+
+function likeStateResponse(enabled: boolean): unknown {
+  return {
+    currentVideoEndpoint: { watchEndpoint: { videoId: VIDEO_ID } },
+    buttons: [{
+      toggleButtonRenderer: {
+        defaultIcon: { iconType: "LIKE" },
+        isToggled: enabled,
+      },
+    }],
+  };
+}
+
+function watchLaterStateResponse(enabled: boolean): unknown {
+  return {
+    currentVideoEndpoint: { watchEndpoint: { videoId: VIDEO_ID } },
+    menu: [{
+      playlistEditEndpoint: {
+        playlistId: "WL",
+        actions: [enabled
+          ? { action: "ACTION_REMOVE_VIDEO", removedVideoId: VIDEO_ID }
+          : { action: "ACTION_ADD_VIDEO", addedVideoId: VIDEO_ID }],
+      },
+    }],
+  };
+}
+
+function subscriptionStateResponse(enabled: boolean): unknown {
+  return {
+    metadata: {
+      channelMetadataRenderer: { externalId: TARGET_CHANNEL_ID },
+    },
+    frameworkUpdates: {
+      entityBatchUpdate: {
+        mutations: [{
+          payload: { subscriptionStateEntity: { subscribed: enabled } },
+        }],
+      },
+    },
+  };
+}
+
+function requestUrl(value: string | URL | Request): URL {
+  return new URL(typeof value === "string" ? value : value instanceof URL ? value.href : value.url);
+}
+
+function dependencies(
+  calls: CapturedRequest[],
+  handler: (request: CapturedRequest) => Response | Promise<Response>,
+  onAcquire?: () => void,
+): YouTubeWebRuntimeDependencies {
+  const acquireCookies: CookieRecordReader = () => {
+    onAcquire?.();
+    return Promise.resolve({
+      cookies: [strictCookie("SAPISID", SAPISID)],
+      warnings: [],
+    });
+  };
+  const fetch = (async (value: string | URL | Request, init?: RequestInit) => {
+    const bodyText = typeof init?.body === "string" ? init.body : null;
+    const request: CapturedRequest = {
+      url: requestUrl(value),
+      method: init?.method ?? "GET",
+      headers: new Headers(init?.headers),
+      body: bodyText === null ? null : JSON.parse(bodyText) as Readonly<Record<string, unknown>>,
+    };
+    calls.push(request);
+    return handler(request);
+  }) as typeof globalThis.fetch;
+  return {
+    acquireCookies,
+    fetch,
+    now: () => 1_700_000_000_000,
+    sleep: () => Promise.resolve(),
+  };
+}
+
+function endpoint(request: CapturedRequest): string {
+  return request.url.pathname.replace("/youtubei/v1/", "");
+}
+
+function baseHandler(
+  request: CapturedRequest,
+  operation: (request: CapturedRequest) => Response | null,
+  channelId = CHANNEL_ID,
+): Response {
+  if (request.url.pathname === "/") return htmlResponse();
+  if (endpoint(request) === "account/account_menu") return jsonResponse(accountMenuResponse(channelId));
+  if (endpoint(request) === "account/accounts_list") return jsonResponse(accountsListResponse(channelId));
+  const response = operation(request);
+  if (response !== null) return response;
+  throw new Error(`unexpected YouTube request ${request.method} ${request.url.href}`);
+}
+
+function recipe(action: WebSessionRecipe["action"]): WebSessionRecipe {
+  return {
+    site: "youtube",
+    action,
+    contractVersion: 1,
+    timeoutMs: 1_000,
+    maxOutputBytes: 4 * 1024 * 1024,
+  };
+}
+
+function body(request: CapturedRequest): Readonly<Record<string, unknown>> {
+  if (request.body === null) throw new Error("expected JSON request body");
+  return request.body;
+}
+
+function assertInnertubeEnvelope(request: CapturedRequest): void {
+  expect(request.method).toBe("POST");
+  expect(request.url.origin).toBe("https://www.youtube.com");
+  expect(request.url.searchParams.get("prettyPrint")).toBe("false");
+  expect(request.url.searchParams.get("key")).toBe(API_KEY);
+  expect([...request.url.searchParams.keys()].sort()).toEqual(["key", "prettyPrint"]);
+  expect(request.headers.get("authorization")).toMatch(
+    /^SAPISIDHASH 1700000000_[a-f0-9]{40}$/u,
+  );
+  expect(request.headers.get("authorization")).not.toContain(SAPISID);
+  expect(request.headers.get("x-origin")).toBe("https://www.youtube.com");
+  expect(request.headers.get("x-goog-authuser")).toBe("0");
+  expect(request.headers.get("x-goog-pageid")).toBe("delegated-page-id");
+  expect(request.headers.get("x-youtube-client-name")).toBe("1");
+  expect(request.headers.get("x-youtube-client-version")).toBe("2.20260722.01.00");
+  expect(body(request).context).toEqual({
+    client: {
+      clientName: "WEB",
+      clientVersion: "2.20260722.01.00",
+      hl: "en",
+      gl: "US",
+      visitorData: "visitor-data",
+    },
+    request: { useSsl: true },
+  });
+}
+
+describe("YouTube authenticated Innertube runtime", () => {
+  test("probes the current channel through both exact account endpoints", async () => {
+    const calls: CapturedRequest[] = [];
+    const unboundAuth: GhostgetAuth = {
+      schemaVersion: 1,
+      id: youtubeAuth.id,
+      kind: youtubeAuth.kind,
+      source: youtubeAuth.source,
+      profile: youtubeAuth.profile,
+    };
+    const subject = await probeYouTubeWebSubject(
+      unboundAuth,
+      {
+        dependencies: dependencies(calls, (request) =>
+          baseHandler(request, () => null)),
+      },
+    );
+    expect(subject).toBe(
+      `youtube:channel:${CHANNEL_ID}/gaia:${GAIA_ID}/delegate:${DELEGATE_ID}`,
+    );
+    expect(calls.map((request) => request.url.pathname)).toEqual([
+      "/",
+      "/youtubei/v1/account/account_menu",
+      "/youtubei/v1/account/accounts_list",
+    ]);
+    for (const request of calls.slice(1)) assertInnertubeEnvelope(request);
+  });
+
+  test("executes each observed R1 operation through fixed endpoints and bounded projections", async () => {
+    const scenarios: readonly {
+      readonly action: WebSessionRecipe["action"];
+      readonly input: OperationInput;
+      readonly handler: (request: CapturedRequest) => Response | null;
+      readonly expectedPaths: readonly string[];
+      readonly verify: (output: unknown) => void;
+    }[] = [
+      {
+        action: "feeds.read",
+        input: { feed: "subscriptions", limit: 5 },
+        handler: (request) => endpoint(request) === "browse"
+          ? jsonResponse({
+            contents: [{
+              videoRenderer: {
+                videoId: VIDEO_ID,
+                title: { simpleText: "Feed video" },
+              },
+            }],
+          })
+          : null,
+        expectedPaths: ["browse"],
+        verify: (output) => expect(output).toMatchObject({
+          feed: "subscriptions",
+          items: [{ kind: "video", id: VIDEO_ID, title: "Feed video" }],
+        }),
+      },
+      {
+        action: "media.read",
+        input: { video_id: VIDEO_ID },
+        handler: (request) => endpoint(request) === "player"
+          ? jsonResponse({
+            videoDetails: {
+              videoId: VIDEO_ID,
+              title: "Media video",
+              channelId: TARGET_CHANNEL_ID,
+            },
+            playabilityStatus: { status: "OK" },
+          })
+          : null,
+        expectedPaths: ["player"],
+        verify: (output) => expect(output).toMatchObject({
+          videoId: VIDEO_ID,
+          title: "Media video",
+          channelId: TARGET_CHANNEL_ID,
+        }),
+      },
+      {
+        action: "posts.read",
+        input: { post_id: POST_ID },
+        handler: (request) => endpoint(request) === "navigation/resolve_url"
+          ? jsonResponse({
+            endpoint: {
+              commandMetadata: {
+                webCommandMetadata: { url: `/post/${POST_ID}` },
+              },
+              browseEndpoint: {
+                browseId: "FEpost_detail",
+                params: "EhhzeW50aGV0aWMtcG9zdC1wYXJhbXM=",
+              },
+            },
+          })
+          : endpoint(request) === "browse"
+            ? jsonResponse({
+            contents: [{
+              backstagePostRenderer: {
+                postId: POST_ID,
+                contentText: { simpleText: "Community update" },
+              },
+            }],
+          })
+            : null,
+        expectedPaths: ["navigation/resolve_url", "browse"],
+        verify: (output) => expect(output).toMatchObject({
+          id: POST_ID,
+          body: "Community update",
+        }),
+      },
+      {
+        action: "profiles.read",
+        input: { profile: "@wrench_test" },
+        handler: (request) => endpoint(request) === "navigation/resolve_url"
+          ? jsonResponse({
+            endpoint: {
+              browseEndpoint: {
+                browseId: TARGET_CHANNEL_ID,
+                canonicalBaseUrl: "/@wrench_test",
+                params: "about-tab-params",
+              },
+            },
+          })
+          : request.url.pathname === "/@wrench_test/about"
+            ? profileHtmlResponse({
+              metadata: {
+                channelMetadataRenderer: {
+                  externalId: TARGET_CHANNEL_ID,
+                  title: "Ghostget Test",
+                  description: "Public channel bio",
+                },
+              },
+              engagementPanels: [{
+                aboutChannelViewModel: {
+                  channelId: TARGET_CHANNEL_ID,
+                  canonicalChannelUrl: "http://www.youtube.com/@wrench_test",
+                  subscriberCountText: "4 subscribers",
+                  videoCountText: "11 videos",
+                  viewCountText: "2,061 views",
+                },
+              }],
+            })
+            : null,
+        expectedPaths: ["navigation/resolve_url", "/@wrench_test/about"],
+        verify: (output) => expect(output).toEqual({
+          schemaVersion: 1,
+          provider: "youtube",
+          target: {
+            kind: "profile",
+            id: TARGET_CHANNEL_ID,
+            url: "https://www.youtube.com/@wrench_test",
+          },
+          observedAt: "2023-11-14T22:13:20.000Z",
+          completeness: "complete",
+          metrics: {
+            subscribers: { status: "available", value: 4, precision: "exact", unit: "count" },
+            videos: { status: "available", value: 11, precision: "exact", unit: "count" },
+            views: { status: "available", value: 2061, precision: "exact", unit: "count" },
+          },
+          metadata: {
+            handle: "wrench_test",
+            displayName: "Ghostget Test",
+            bio: "Public channel bio",
+          },
+        }),
+      },
+      {
+        action: "comments.read",
+        input: { video_id: VIDEO_ID, limit: 5 },
+        handler: (request) => {
+          if (endpoint(request) !== "next") return null;
+          if (body(request).videoId === VIDEO_ID) {
+            return jsonResponse({
+              currentVideoEndpoint: { watchEndpoint: { videoId: VIDEO_ID } },
+              contents: [{
+                itemSectionRenderer: {
+                  targetId: "comments-section",
+                  contents: [{
+                    continuationItemRenderer: {
+                      continuationEndpoint: {
+                        continuationCommand: { token: "comments-token" },
+                      },
+                    },
+                  }],
+                },
+              }],
+            });
+          }
+          if (body(request).continuation === "comments-token") {
+            return jsonResponse({
+              continuationContents: [{
+                commentThreadRenderer: {
+                  comment: {
+                    commentRenderer: {
+                      commentId: "comment_123456",
+                      contentText: { simpleText: "Comment body" },
+                    },
+                  },
+                },
+              }],
+            });
+          }
+          return null;
+        },
+        expectedPaths: ["next", "next"],
+        verify: (output) => expect(output).toMatchObject({
+          videoId: VIDEO_ID,
+          comments: [{ id: "comment_123456", body: "Comment body" }],
+        }),
+      },
+    ];
+    for (const scenario of scenarios) {
+      const calls: CapturedRequest[] = [];
+      const result = await executeYouTubeWebOperation(
+        recipe(scenario.action),
+        scenario.input,
+        youtubeAuth,
+        {
+          dependencies: dependencies(calls, (request) =>
+            baseHandler(request, scenario.handler)),
+        },
+      );
+      expect(result.status).toBe("succeeded");
+      expect(result.dispatch).toEqual({ planned: 0, started: 0, verified: 0 });
+      scenario.verify(result.output);
+      const operationCalls = calls.slice(3);
+      expect(operationCalls.map(endpoint)).toEqual([...scenario.expectedPaths]);
+      for (const request of calls.slice(1)) {
+        if (request.url.pathname.startsWith("/youtubei/v1/")) {
+          assertInnertubeEnvelope(request);
+        }
+      }
+    }
+  });
+
+  test("projects only the exact signed-out bootstrap flag as auth repair", async () => {
+    for (const [loggedIn, expectedCategory, expectedDisposition] of [
+      [false, "auth-repair-required", "repair-auth"],
+      ["false", "contract-drift", "do-not-retry"],
+    ] as const) {
+      const calls: CapturedRequest[] = [];
+      const result = await executeYouTubeWebOperation(
+        recipe("profiles.read"),
+        { profile: "@wrench_test" },
+        youtubeAuth,
+        {
+          dependencies: dependencies(calls, (request) => {
+            if (request.url.pathname === "/") return htmlResponse(loggedIn);
+            throw new Error(`unexpected signed-out fixture request ${request.url.href}`);
+          }),
+        },
+      );
+      expect(result).toMatchObject({
+        status: "failed",
+        readFailure: {
+          category: expectedCategory,
+          retryDisposition: expectedDisposition,
+        },
+        dispatchStarted: false,
+        dispatch: { planned: 0, started: 0, verified: 0 },
+      });
+      expect(calls.map((call) => call.url.pathname)).toEqual(["/"]);
+    }
+  });
+
+  test("keeps deterministic R2 implementations inert until live fixtures are authorized", () => {
+    for (const [action, input] of [
+      ["likes.set", { video_id: VIDEO_ID, liked: true }],
+      ["content.save", { video_id: VIDEO_ID, saved: true }],
+      ["relationships.follow.set", { channel_id: TARGET_CHANNEL_ID, followed: true }],
+    ] as const) {
+      let acquisitions = 0;
+      const calls: CapturedRequest[] = [];
+      expect(executeYouTubeWebOperation(
+        recipe(action),
+        input,
+        youtubeAuth,
+        {
+          dependencies: dependencies(
+            calls,
+            () => {
+              throw new Error("network must not run");
+            },
+            () => {
+              acquisitions += 1;
+            },
+          ),
+        },
+      )).rejects.toThrow("capture-required");
+      expect(acquisitions).toBe(0);
+      expect(calls).toHaveLength(0);
+    }
+  });
+
+  test("keeps video publication and authored-video deletion network-inert", () => {
+    for (const [action, contractVersion, input, reason] of [
+      ["media.publish", 2, {
+        age_restricted: false,
+        category_id: "22",
+        contains_synthetic_media: false,
+        made_for_kids: false,
+        media: { kind: "file", reference: "plan-video" },
+        notify_subscribers: false,
+        title: "Private fixture",
+        visibility: "private",
+      }, "selected MP4 remained at 0%"],
+      ["content.delete", 1, {
+        expected_title: "Private fixture",
+        video_id: VIDEO_ID,
+      }, "discarded the stalled incomplete Studio draft"],
+    ] as const) {
+      let acquisitions = 0;
+      let fileResolutions = 0;
+      const calls: CapturedRequest[] = [];
+      expect(executeYouTubeWebOperation(
+        { ...recipe(action), contractVersion },
+        input,
+        youtubeAuth,
+        {
+          fileResolver: () => {
+            fileResolutions += 1;
+            throw new Error("file resolution must not run");
+          },
+          dependencies: dependencies(
+            calls,
+            () => {
+              throw new Error("network must not run");
+            },
+            () => {
+              acquisitions += 1;
+            },
+          ),
+        },
+      )).rejects.toThrow(reason);
+      expect(acquisitions).toBe(0);
+      expect(fileResolutions).toBe(0);
+      expect(calls).toHaveLength(0);
+    }
+  });
+
+  test("prepares all three already-satisfied states before any mutation dispatch", async () => {
+    const scenarios = [
+      {
+        action: "likes.set",
+        input: { video_id: VIDEO_ID, liked: true },
+        expectedKind: "like",
+        expectedTargetId: VIDEO_ID,
+        expectedEndpoint: "next",
+        response: likeStateResponse(true),
+      },
+      {
+        action: "content.save",
+        input: { video_id: VIDEO_ID, saved: true },
+        expectedKind: "watch-later",
+        expectedTargetId: VIDEO_ID,
+        expectedEndpoint: "next",
+        response: watchLaterStateResponse(true),
+      },
+      {
+        action: "relationships.follow.set",
+        input: { channel_id: TARGET_CHANNEL_ID, followed: true },
+        expectedKind: "subscription",
+        expectedTargetId: TARGET_CHANNEL_ID,
+        expectedEndpoint: "browse",
+        response: subscriptionStateResponse(true),
+      },
+    ] as const;
+    for (const scenario of scenarios) {
+      const prepareCalls: CapturedRequest[] = [];
+      const preparation = await prepareYouTubeWebDesiredState(
+        recipe(scenario.action),
+        scenario.input,
+        youtubeAuth,
+        {
+          dependencies: dependencies(prepareCalls, (request) =>
+            baseHandler(request, (operationRequest) =>
+              endpoint(operationRequest) === scenario.expectedEndpoint
+                ? jsonResponse(scenario.response)
+                : null)),
+        },
+      );
+      expect(preparation).toEqual({
+        kind: scenario.expectedKind,
+        targetId: scenario.expectedTargetId,
+        desiredState: true,
+        actualState: true,
+        alreadyDesired: true,
+      });
+      expect(prepareCalls.slice(3).map(endpoint)).toEqual([
+        scenario.expectedEndpoint,
+      ]);
+      expect(prepareCalls.some((request) => [
+        "like/like",
+        "like/removelike",
+        "playlist/edit",
+        "subscription/subscribe",
+        "subscription/unsubscribe",
+      ].includes(endpoint(request)))).toBeFalse();
+
+      const readbackCalls: CapturedRequest[] = [];
+      expect(await readYouTubeWebDesiredState(
+        recipe(scenario.action),
+        scenario.input,
+        youtubeAuth,
+        {
+          dependencies: dependencies(readbackCalls, (request) =>
+            baseHandler(request, (operationRequest) =>
+              endpoint(operationRequest) === scenario.expectedEndpoint
+                ? jsonResponse(scenario.response)
+                : null)),
+        },
+      )).toEqual({
+        kind: scenario.expectedKind,
+        targetId: scenario.expectedTargetId,
+        enabled: true,
+      });
+      expect(readbackCalls.slice(3).map(endpoint)).toEqual([
+        scenario.expectedEndpoint,
+      ]);
+    }
+  });
+
+  test("fails account mismatch before any operation endpoint is called", async () => {
+    const calls: CapturedRequest[] = [];
+    let message = "";
+    try {
+      await executeYouTubeWebOperation(
+        recipe("media.read"),
+        { video_id: VIDEO_ID },
+        youtubeAuth,
+        {
+          dependencies: dependencies(calls, (request) =>
+            baseHandler(request, () => null, TARGET_CHANNEL_ID)),
+        },
+      );
+    } catch (error) {
+      message = error instanceof Error
+        ? `${error.message}: ${error.cause instanceof Error ? error.cause.message : ""}`
+        : String(error);
+    }
+    expect(message).toContain("current account did not match");
+    expect(calls.map((request) => request.url.pathname)).toEqual([
+      "/",
+      "/youtubei/v1/account/account_menu",
+      "/youtubei/v1/account/accounts_list",
+    ]);
+  });
+
+  test("capture-required actions have no executable code path", () => {
+    const calls: CapturedRequest[] = [];
+    expect(executeYouTubeWebOperation(
+      recipe("comments.create"),
+      { video_id: VIDEO_ID, body: "Not dispatched" },
+      youtubeAuth,
+      {
+        dependencies: dependencies(calls, (request) =>
+          baseHandler(request, () => null)),
+      },
+    )).rejects.toThrow("has no executable reviewed contract");
+    expect(calls).toHaveLength(0);
+  });
+});
+
+describe("YouTube replies.create", () => {
+  const PARENT_ID = "UgxParentComment123456AaABAg";
+  const REPLY_TOKEN = "reply-params-token-123456";
+  const replyRecipe: WebSessionRecipe = { ...recipe("replies.create"), contractVersion: 2 };
+
+  function toolbarKey(commentId: string): string {
+    return encodeURIComponent(Buffer.from(`\u0012\u0001${commentId}`).toString("base64"));
+  }
+
+  function threadResponse(commentId: string = PARENT_ID): unknown {
+    return {
+      continuationContents: [
+        {
+          commentThreadRenderer: {
+            comment: {
+              commentRenderer: { commentId: PARENT_ID, contentText: { simpleText: "Parent" } },
+            },
+          },
+        },
+        {
+          engagementToolbarSurfaceEntityPayload: {
+            key: toolbarKey(commentId),
+            replyCommand: {
+              innertubeCommand: {
+                createCommentReplyDialogEndpoint: {
+                  dialog: {
+                    commentReplyDialogRenderer: {
+                      replyButton: {
+                        buttonRenderer: {
+                          serviceEndpoint: {
+                            createCommentReplyEndpoint: { createReplyParams: REPLY_TOKEN },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      ],
+    };
+  }
+
+  function replyResponse(overrides: { id?: string; text?: string; channel?: string } = {}): unknown {
+    return {
+      actions: [{
+        commentRenderer: {
+          commentId: overrides.id ?? `${PARENT_ID}.reply123`,
+          contentText: { simpleText: overrides.text ?? "reply text" },
+          authorEndpoint: { browseEndpoint: { browseId: overrides.channel ?? CHANNEL_ID } },
+        },
+      }],
+    };
+  }
+
+  function handler(options: { thread?: unknown; reply?: unknown } = {}) {
+    return (request: CapturedRequest): Response | null => {
+      if (endpoint(request) === "next") {
+        if (body(request).videoId === VIDEO_ID) {
+          return jsonResponse({
+            currentVideoEndpoint: { watchEndpoint: { videoId: VIDEO_ID } },
+            contents: [{
+              itemSectionRenderer: {
+                targetId: "comments-section",
+                contents: [{
+                  continuationItemRenderer: {
+                    continuationEndpoint: { continuationCommand: { token: "comments-token" } },
+                  },
+                }],
+              },
+            }],
+          });
+        }
+        return jsonResponse(options.thread ?? threadResponse());
+      }
+      if (endpoint(request) === "comment/create_comment_reply") {
+        return jsonResponse(options.reply ?? replyResponse());
+      }
+      return null;
+    };
+  }
+
+  const input = { video_id: VIDEO_ID, comment_id: PARENT_ID, body: "reply text" };
+
+  test("posts one reply and binds parent, channel, and body", async () => {
+    const calls: CapturedRequest[] = [];
+    const result = await executeYouTubeWebOperation(replyRecipe, input, youtubeAuth, {
+      dependencies: dependencies(calls, (request) => baseHandler(request, handler())),
+    });
+    expect(result.status).toBe("succeeded");
+    expect(result.dispatch).toEqual({ planned: 1, started: 1, verified: 1 });
+    expect(result.output).toMatchObject({
+      parentId: PARENT_ID,
+      commentId: `${PARENT_ID}.reply123`,
+      authorChannelId: CHANNEL_ID,
+      body: "reply text",
+    });
+    const writes = calls.filter((call) => endpoint(call) === "comment/create_comment_reply");
+    expect(writes).toHaveLength(1);
+    expect(body(writes[0]!)).toMatchObject({
+      createReplyParams: REPLY_TOKEN,
+      commentText: "reply text",
+    });
+    assertInnertubeEnvelope(writes[0]!);
+  });
+
+  test("fails before dispatch when the parent comment is not on the video", async () => {
+    const calls: CapturedRequest[] = [];
+    const result = await executeYouTubeWebOperation(
+      replyRecipe,
+      { ...input, comment_id: "UgxSomeOtherComment123456AaABAg" },
+      youtubeAuth,
+      { dependencies: dependencies(calls, (request) => baseHandler(request, handler())) },
+    );
+    expect(result.status).toBe("failed");
+    expect(result.dispatch).toEqual({ planned: 1, started: 0, verified: 0 });
+    expect(calls.some((call) => endpoint(call) === "comment/create_comment_reply")).toBe(false);
+  });
+
+  test("fails before dispatch when the reply token does not bind the parent", async () => {
+    const calls: CapturedRequest[] = [];
+    const result = await executeYouTubeWebOperation(replyRecipe, input, youtubeAuth, {
+      dependencies: dependencies(calls, (request) =>
+        baseHandler(request, handler({ thread: threadResponse("UgxDifferentComment9999AaABAg") }))),
+    });
+    expect(result.status).toBe("failed");
+    expect(result.dispatch.started).toBe(0);
+    expect(calls.some((call) => endpoint(call) === "comment/create_comment_reply")).toBe(false);
+  });
+
+  for (const [name, reply] of [
+    ["another parent", replyResponse({ id: "UgxOtherParent123456AaABAg.reply123" })],
+    ["another body", replyResponse({ text: "different" })],
+    ["another channel", replyResponse({ channel: TARGET_CHANNEL_ID })],
+  ] as const) {
+    test(`reports indeterminate when the response binds ${name}`, async () => {
+      const calls: CapturedRequest[] = [];
+      const result = await executeYouTubeWebOperation(replyRecipe, input, youtubeAuth, {
+        dependencies: dependencies(calls, (request) => baseHandler(request, handler({ reply }))),
+      });
+      expect(result.status).toBe("indeterminate");
+      expect(result.dispatch).toEqual({ planned: 1, started: 1, verified: 0 });
+    });
+  }
+
+  describe("top-level comments.create", () => {
+    const COMMENT_TOKEN = "comment-params-token-123456";
+    const commentRecipe: WebSessionRecipe = { ...recipe("comments.create"), contractVersion: 2 };
+    const commentInput = { video_id: VIDEO_ID, body: "top level text" };
+
+    function headerThread(): unknown {
+      return {
+        onResponseReceivedEndpoints: [{
+          reloadContinuationItemsCommand: {
+            continuationItems: [{
+              commentsHeaderRenderer: {
+                createRenderer: { commentSimpleboxRenderer: { submitButton: { buttonRenderer: {
+                  serviceEndpoint: { createCommentEndpoint: { createCommentParams: COMMENT_TOKEN } },
+                } } } },
+              },
+            }],
+          },
+        }],
+      };
+    }
+
+    function created(overrides: { id?: string; text?: string; channel?: string } = {}): unknown {
+      return {
+        actions: [{
+          commentRenderer: {
+            commentId: overrides.id ?? "UgxNewTopLevel123456AaABAg",
+            contentText: { simpleText: overrides.text ?? "top level text" },
+            authorEndpoint: { browseEndpoint: { browseId: overrides.channel ?? CHANNEL_ID } },
+          },
+        }],
+      };
+    }
+
+    function commentHandler(options: { thread?: unknown; reply?: unknown } = {}) {
+      const inner = handler({ thread: options.thread ?? headerThread() });
+      return (request: CapturedRequest): Response | null => {
+        if (endpoint(request) === "comment/create_comment") {
+          return jsonResponse(options.reply ?? created());
+        }
+        return inner(request);
+      };
+    }
+
+    test("posts one comment and binds channel and body", async () => {
+      const calls: CapturedRequest[] = [];
+      const result = await executeYouTubeWebOperation(commentRecipe, commentInput, youtubeAuth, {
+        dependencies: dependencies(calls, (request) => baseHandler(request, commentHandler())),
+      });
+      expect(result.status).toBe("succeeded");
+      expect(result.dispatch).toEqual({ planned: 1, started: 1, verified: 1 });
+      expect(result.output).toMatchObject({ commentId: "UgxNewTopLevel123456AaABAg", authorChannelId: CHANNEL_ID });
+      const writes = calls.filter((call) => endpoint(call) === "comment/create_comment");
+      expect(writes).toHaveLength(1);
+      expect(body(writes[0]!)).toMatchObject({ createCommentParams: COMMENT_TOKEN, commentText: "top level text" });
+    });
+
+    test("fails before dispatch without a comment token", async () => {
+      const calls: CapturedRequest[] = [];
+      const result = await executeYouTubeWebOperation(commentRecipe, commentInput, youtubeAuth, {
+        dependencies: dependencies(calls, (request) =>
+          baseHandler(request, commentHandler({ thread: { continuationContents: [] } }))),
+      });
+      expect(result.status).toBe("failed");
+      expect(result.dispatch.started).toBe(0);
+    });
+
+    for (const [name, reply] of [
+      ["another body", created({ text: "different" })],
+      ["another channel", created({ channel: TARGET_CHANNEL_ID })],
+      ["a reply id", created({ id: "UgxParent123456AaABAg.reply123" })],
+    ] as const) {
+      test(`reports indeterminate when the response binds ${name}`, async () => {
+        const result = await executeYouTubeWebOperation(commentRecipe, commentInput, youtubeAuth, {
+          dependencies: dependencies([], (request) => baseHandler(request, commentHandler({ reply }))),
+        });
+        expect(result.status).toBe("indeterminate");
+        expect(result.dispatch).toEqual({ planned: 1, started: 1, verified: 0 });
+      });
+    }
+  });
+});
+
+describe("YouTube content.delete", () => {
+  const COMMENT_ID = "UgxOwnedComment1234567AaABAg";
+  const REPLY_ID = `${COMMENT_ID}.ownedReply123`;
+  const deleteRecipe: WebSessionRecipe = { ...recipe("content.delete"), contractVersion: 2 };
+
+  function toolbarKey(commentId: string): string {
+    return encodeURIComponent(Buffer.from(`\u0012\u0001${commentId}`).toString("base64"));
+  }
+
+  function deleteToken(commentId: string, type = 6): string {
+    return encodeURIComponent(
+      Buffer.concat([Buffer.from([0x08, type, 0x10, 0x59, 0x1a, commentId.length]), Buffer.from(commentId)])
+        .toString("base64"),
+    );
+  }
+
+  function toolbar(commentId: string, token: string | null) {
+    return {
+      engagementToolbarSurfaceEntityPayload: {
+        key: toolbarKey(commentId),
+        menuCommand: {
+          innertubeCommand: {
+            menuEndpoint: {
+              menu: {
+                menuRenderer: {
+                  items: [
+                    { menuNavigationItemRenderer: { icon: { iconType: "FLAG" } } },
+                    ...(token === null ? [] : [{
+                      menuNavigationItemRenderer: {
+                        icon: { iconType: "DELETE" },
+                        navigationEndpoint: {
+                          confirmDialogEndpoint: {
+                            content: {
+                              confirmDialogRenderer: {
+                                confirmButton: {
+                                  buttonRenderer: {
+                                    serviceEndpoint: { performCommentActionEndpoint: { action: token } },
+                                  },
+                                },
+                              },
+                            },
+                          },
+                        },
+                      },
+                    }]),
+                  ],
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+  }
+
+  function comment(id: string, text: string, channel: string = CHANNEL_ID) {
+    return {
+      commentRenderer: {
+        commentId: id,
+        contentText: { simpleText: text },
+        authorEndpoint: { browseEndpoint: { browseId: channel } },
+      },
+    };
+  }
+
+  function topThread(options: { present: boolean; token?: string | null; channel?: string; text?: string }) {
+    if (!options.present) return { continuationContents: [] };
+    return {
+      continuationContents: [
+        {
+          commentThreadRenderer: {
+            comment: comment(COMMENT_ID, options.text ?? "owned text", options.channel),
+            commentViewModel: { commentViewModel: { commentId: COMMENT_ID } },
+            replies: {
+              commentRepliesRenderer: {
+                contents: [{
+                  continuationItemRenderer: {
+                    continuationEndpoint: { continuationCommand: { token: "replies-token" } },
+                  },
+                }],
+              },
+            },
+          },
+        },
+        toolbar(COMMENT_ID, options.token === undefined ? deleteToken(COMMENT_ID) : options.token),
+      ],
+    };
+  }
+
+  function repliesPage(present: boolean, token: string | null = deleteToken(REPLY_ID)) {
+    return present
+      ? { continuationContents: [comment(REPLY_ID, "owned reply"), toolbar(REPLY_ID, token)] }
+      : { continuationContents: [] };
+  }
+
+  function handler(initial: { deleted: boolean; stays?: boolean }, options: {
+    thread?: (deleted: boolean) => unknown;
+    replies?: (deleted: boolean) => unknown;
+    action?: unknown;
+  } = {}) {
+    const state = { ...initial };
+    return (request: CapturedRequest): Response | null => {
+      if (endpoint(request) === "next") {
+        const requestBody = body(request);
+        if (requestBody.videoId === VIDEO_ID) {
+          return jsonResponse({
+            currentVideoEndpoint: { watchEndpoint: { videoId: VIDEO_ID } },
+            contents: [{
+              itemSectionRenderer: {
+                targetId: "comments-section",
+                contents: [{
+                  continuationItemRenderer: {
+                    continuationEndpoint: { continuationCommand: { token: "comments-token" } },
+                  },
+                }],
+              },
+            }],
+          });
+        }
+        if (requestBody.continuation === "replies-token") {
+          return jsonResponse((options.replies ?? ((deleted: boolean) => repliesPage(!deleted)))(
+            state.deleted && state.stays !== true,
+          ));
+        }
+        return jsonResponse((options.thread
+          ?? ((deleted: boolean) => topThread({ present: !deleted })))(state.deleted && state.stays !== true));
+      }
+      if (endpoint(request) === "comment/perform_comment_action") {
+        state.deleted = true;
+        return jsonResponse(options.action ?? { actionResults: [{ status: "STATUS_SUCCEEDED" }] });
+      }
+      return null;
+    };
+  }
+
+  const input = { video_id: VIDEO_ID, comment_id: COMMENT_ID, expected_body: "owned text" };
+  const replyInput = { video_id: VIDEO_ID, comment_id: REPLY_ID, expected_body: "owned reply" };
+  const writes = (calls: CapturedRequest[]) =>
+    calls.filter((call) => endpoint(call) === "comment/perform_comment_action");
+
+  test("deletes one owned top-level comment and proves it gone", async () => {
+    const calls: CapturedRequest[] = [];
+    const result = await executeYouTubeWebOperation(deleteRecipe, input, youtubeAuth, {
+      dependencies: dependencies(calls, (() => { const operation = handler({ deleted: false }); return (request: CapturedRequest) => baseHandler(request, operation); })()),
+    });
+    expect(result.status).toBe("succeeded");
+    expect(result.dispatch).toEqual({ planned: 1, started: 1, verified: 1 });
+    expect(result.output).toMatchObject({ commentId: COMMENT_ID, parentId: null, deleted: true });
+    expect(writes(calls)).toHaveLength(1);
+    expect(body(writes(calls)[0]!).actions).toEqual([deleteToken(COMMENT_ID)]);
+    assertInnertubeEnvelope(writes(calls)[0]!);
+  });
+
+  test("deletes one owned reply through its parent's replies page", async () => {
+    const calls: CapturedRequest[] = [];
+    const result = await executeYouTubeWebOperation(deleteRecipe, replyInput, youtubeAuth, {
+      dependencies: dependencies(calls, (() => { const operation = handler({ deleted: false }, { thread: () => topThread({ present: true }) }); return (request: CapturedRequest) => baseHandler(request, operation); })()),
+    });
+    expect(result.status).toBe("succeeded");
+    expect(result.output).toMatchObject({ commentId: REPLY_ID, parentId: COMMENT_ID, deleted: true });
+    expect(body(writes(calls)[0]!).actions).toEqual([deleteToken(REPLY_ID)]);
+  });
+
+  test("fails before dispatch when the comment is not on the video", async () => {
+    const calls: CapturedRequest[] = [];
+    const result = await executeYouTubeWebOperation(deleteRecipe, input, youtubeAuth, {
+      dependencies: dependencies(calls, (() => { const operation = handler({ deleted: true }); return (request: CapturedRequest) => baseHandler(request, operation); })()),
+    });
+    expect(result.status).toBe("failed");
+    expect(result.dispatch).toEqual({ planned: 1, started: 0, verified: 0 });
+    expect(writes(calls)).toHaveLength(0);
+  });
+
+  for (const [name, override] of [
+    ["another channel authored it", { thread: () => topThread({ present: true, channel: TARGET_CHANNEL_ID }) }],
+    ["the body differs", { thread: () => topThread({ present: true, text: "different" }) }],
+    ["no delete action is exposed", { thread: () => topThread({ present: true, token: null }) }],
+    ["the delete token is another comment's", {
+      thread: () => topThread({ present: true, token: deleteToken("UgxSomeOtherComment123456AaABAg") }),
+    }],
+    ["the token is not delete-typed", {
+      thread: () => topThread({ present: true, token: deleteToken(COMMENT_ID, 8) }),
+    }],
+  ] as const) {
+    test(`fails before dispatch when ${name}`, async () => {
+      const calls: CapturedRequest[] = [];
+      const result = await executeYouTubeWebOperation(deleteRecipe, input, youtubeAuth, {
+        dependencies: dependencies(calls, (() => { const operation = handler({ deleted: false }, override); return (request: CapturedRequest) => baseHandler(request, operation); })()),
+      });
+      expect(result.status).toBe("failed");
+      expect(result.dispatch.started).toBe(0);
+      expect(writes(calls)).toHaveLength(0);
+    });
+  }
+
+  test("reports indeterminate when the comment is still readable after the delete", async () => {
+    const calls: CapturedRequest[] = [];
+    const result = await executeYouTubeWebOperation(deleteRecipe, input, youtubeAuth, {
+      dependencies: dependencies(calls, (() => { const operation = handler({ deleted: false, stays: true }); return (request: CapturedRequest) => baseHandler(request, operation); })()),
+    });
+    expect(result.status).toBe("indeterminate");
+    expect(result.dispatch).toEqual({ planned: 1, started: 1, verified: 0 });
+    expect(writes(calls)).toHaveLength(1);
+  });
+
+  test("reports indeterminate when the action result is not a success", async () => {
+    const calls: CapturedRequest[] = [];
+    const result = await executeYouTubeWebOperation(deleteRecipe, input, youtubeAuth, {
+      dependencies: dependencies(calls, (() => { const operation = handler({ deleted: false }, { action: { actionResults: [{ status: "STATUS_FAILED" }] } }); return (request: CapturedRequest) => baseHandler(request, operation); })()),
+    });
+    expect(result.status).toBe("indeterminate");
+    expect(result.dispatch.verified).toBe(0);
+  });
+
+  test("keeps the archived content.delete@1 video reservation capture-required", async () => {
+    await expect(executeYouTubeWebOperation(
+      { ...recipe("content.delete"), contractVersion: 1 },
+      { video_id: VIDEO_ID, expected_title: "title" },
+      youtubeAuth,
+      { dependencies: dependencies([], (request) => baseHandler(request, () => null)) },
+    )).rejects.toThrow("capture-required");
+  });
+});

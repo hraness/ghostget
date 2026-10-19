@@ -1,0 +1,7 @@
+Usage: ghostget doctor [--json]
+
+Check that capture, media, accounts and actions have what they need, and
+say what to fix.
+
+Options
+  --json                             Print machine-readable output

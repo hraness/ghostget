@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en" data-hraness-theme="paper" data-palette="gruvbox">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#fbf1c7" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">
+    <title>{{WHATSAPP_PAGE_TITLE}}</title>
+    <meta name="description" content="{{WHATSAPP_PAGE_DESCRIPTION}}">
+    <meta name="robots" content="max-image-preview:large">
+    <link rel="canonical" href="https://ghostget.com/docs/how-to/export-whatsapp/">
+    <link rel="icon" href="/icon.png" type="image/png" sizes="32x32">
+    <link rel="icon" href="/icon-96.png" type="image/png" sizes="96x96">
+    <link rel="apple-touch-icon" href="/apple-icon.png" sizes="180x180">
+    <link rel="stylesheet" href="{{CSS_ASSET}}">
+    <link rel="sitemap" type="application/xml" href="/sitemap.xml">
+    {{MARKDOWN_ALTERNATE}}
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="GhostGet">
+    <meta property="og:title" content="{{WHATSAPP_PAGE_TITLE}}">
+    <meta property="og:description" content="{{WHATSAPP_PAGE_DESCRIPTION}}">
+    <meta property="og:url" content="https://ghostget.com/docs/how-to/export-whatsapp/">
+    <meta property="og:image" content="https://ghostget.com/og.png">
+    <meta property="og:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{WHATSAPP_PAGE_TITLE}}">
+    <meta name="twitter:description" content="{{WHATSAPP_PAGE_DESCRIPTION}}">
+    <meta name="twitter:image" content="https://ghostget.com/og.png">
+    <meta name="twitter:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
+    <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
+    <meta name="ghostget-posthog-key" content="{{POSTHOG_KEY}}">
+    <script type="application/ld+json">{{JSON_LD}}</script>
+    <script type="module" src="{{ANALYTICS_ASSET}}"></script>
+    <script type="module" src="{{FOIL_ASSET}}"></script>
+  </head>
+  <body data-hraness-landscape="page">
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="topbar guide-topbar">
+      <a aria-label="{{PORTFOLIO_NAME}} home" class="wordmark hraness-foil-text" data-foil="" href="/"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span> {{PORTFOLIO_NAME}}</a>
+      <nav aria-label="Primary">
+        <a href="/docs/tutorials/getting-started/">Install</a>
+        <a aria-current="location" href="/docs/reference/provider-capabilities/">Providers</a>
+        <a href="/docs/">Docs</a>
+        <a href="https://github.com/hraness/ghostget">GitHub <span aria-hidden="true">↗</span></a>
+        <a href="https://account.hraness.com/">Account</a>
+      </nav>
+    </header>
+    <main class="guide-main" id="main" tabindex="-1">
+      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">GhostGet</a></li><li><a href="/docs/">Docs</a></li><li aria-current="page">WhatsApp</li></ol></nav>
+      <article class="guide-article">
+        <header class="guide-hero provider-guide-hero">
+          <p class="eyebrow">How-to guide · WhatsApp local export · {{GHOSTGET_RELEASE}}</p>
+          <h1>Export WhatsApp history for TextButler</h1>
+          <p class="answer-lede">GhostGet reads an existing account-bound Wacli store and publishes one private bundle for TextButler in the TextButler local message bundle format, schema 2. This export does not pair a device, synchronize WhatsApp, open a network connection, or send a message.</p>
+          <p class="review-note">The current native export is available on macOS arm64 with official Wacli {{WHATSAPP_WACLI_VERSION}}. The <code>whatsapp-web</code> adapter {{WHATSAPP_ADAPTER_VERSION}} exposes {{WHATSAPP_OBSERVED_OPERATION_COUNT}} generic bounded R1 reads over that local projection. Its separate owner-only automation permissions do not turn those reads into send commands.</p>
+        </header>
+
+        <section aria-labelledby="export">
+          <h2 id="export">Write one seven-file private bundle</h2>
+          <div class="command-panel"><pre><code>ghostget whatsapp export-message-like-me --auth whatsapp-main \
+  --output /absolute/private/path/new-whatsapp-bundle --json</code></pre></div>
+          <p>The destination must be a new absolute directory below an owner-controlled parent. GhostGet writes six NDJSON files plus <code>manifest.json</code> into a private sibling directory, verifies the complete schema and hashes, then publishes all seven files with one atomic rename.</p>
+          <p>The immutable consumer is <a href="https://github.com/hraness/textbutler/releases/tag/v0.7.0">TextButler v0.7.0</a>. The bundle identifies local-message schema <code>2</code>, source <code>wacli-local@1.0.0</code>, provider <code>whatsapp@0.15.0</code>, and network <code>whatsapp</code>.</p>
+        </section>
+
+        <section aria-labelledby="included">
+          <h2 id="included">What the bundle contains</h2>
+          <p>The export retains locally stored message bodies, bubble boundaries, replies, attachment metadata, and only edit or deletion state the fixed projection can prove. Attachment bytes, media keys, credentials, protocol keys, source database paths, and local media paths stay out of the bundle.</p>
+          <p>Message-yourself conversations are excluded for both proven phone-number (PN) and linked-identity (LID) self aliases. Status, broadcast, newsletter, and unsupported non-conversation rows are excluded too.</p>
+          <p>Reaction rows are excluded. Wacli {{WHATSAPP_WACLI_VERSION}} cannot prove whether a locally stored reaction remains active or was removed, so GhostGet emits <code>reaction-state-unproven</code> instead of publishing retained reaction state.</p>
+        </section>
+
+        <section aria-labelledby="completeness">
+          <h2 id="completeness">Local history remains incomplete</h2>
+          <p>The receipt reports <code>bounded-local</code> completeness with reason <code>local-store-coverage-unknown</code> and warning <code>remote-history-incomplete</code>. A completed export proves the admitted local projection, not that WhatsApp has backfilled every remote message.</p>
+          <p>The helper binds one immutable database generation, validates the store once, reads row-ID pages through one bounded session, filters proven self chats before content crosses the helper boundary, and seals the final counts and rolling frame digest before publication.</p>
+        </section>
+
+        <section aria-labelledby="provenance">
+          <h2 id="provenance">Exact macOS arm64 export runtime</h2>
+          <div class="table-scroll version-table" role="region" aria-labelledby="provenance" tabindex="0">
+            <table>
+              <thead><tr><th scope="col">Boundary</th><th scope="col">Reviewed identity</th></tr></thead>
+              <tbody>
+                <tr><th scope="row">GhostGet</th><td><code>{{GHOSTGET_RELEASE}}</code></td></tr>
+                <tr><th scope="row">TextButler</th><td><a href="https://github.com/hraness/textbutler/releases/tag/v0.7.0">v0.7.0</a></td></tr>
+                <tr><th scope="row">Official Wacli</th><td><a href="https://github.com/openclaw/wacli/releases/tag/v{{WHATSAPP_WACLI_VERSION}}">v{{WHATSAPP_WACLI_VERSION}}</a> at <a href="https://github.com/openclaw/wacli/commit/{{WHATSAPP_WACLI_COMMIT}}"><code>{{WHATSAPP_WACLI_COMMIT}}</code></a></td></tr>
+                <tr><th scope="row">macOS arm64 archive SHA-256</th><td><code>{{WHATSAPP_ARCHIVE_SHA256}}</code></td></tr>
+                <tr><th scope="row">macOS arm64 executable SHA-256</th><td><code>{{WHATSAPP_BINARY_SHA256}}</code></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>The runtime checks the official release identity, exact executable SHA-256, and offline code signature before reading. The installer separately repeats the online Apple notarization check before it publishes the executable. Runtime reads do not claim to repeat online notarization.</p>
+        </section>
+
+        <section aria-labelledby="owner-messaging">
+          <h2 id="owner-messaging">Owner-controlled messaging is a separate setup</h2>
+          <p>The trusted <code>ghostget messaging automation serve --stdio</code> host supports enrolled direct and group conversations through a separate, pinned wacli build with reviewed patches. It requires an existing account, explicit managed operation permissions, and the exact installed automation runtime. Stock Wacli and the export runtime above do not establish automation readiness.</p>
+          <p>Groups require explicit enrollment with a complete participant list. Their history begins at enrollment, and an observed account or participant change stops the enrollment and revokes its sends. The host checks the participant list again before each send.</p>
+          <p>Initialization does not pair or start synchronization. The owner must explicitly start sync and grant a conversation its allowed action kinds, expiry, interval, and capacity. Available text, attachment, reaction, sticker, link, and poll actions depend on current account and runtime capabilities. The <code>messaging.automation.*</code> catalog entries are permission ceilings, not operations callable through generic <code>invoke</code> or <code>confirm</code>.</p>
+          <p>The host retains private plaintext conversation history and an action journal. Historical bootstrap is not a new-message event, gaps block automatic sends, and uncertain actions are not resubmitted. Provider acceptance does not prove delivery. This contract description does not claim a paired account or a successful live send on your machine.</p>
+          <p>Follow the release's <a href="{{GHOSTGET_REPOSITORY}}/blob/{{GHOSTGET_RELEASE}}/docs/messaging-automation.md">owner messaging setup and recovery guide</a> and review <a href="/privacy/">local data retention</a> before enabling it.</p>
+        </section>
+
+        <aside class="guide-callout" aria-labelledby="whatsapp-next">
+          <h2 id="whatsapp-next">Inspect the installed boundary</h2>
+          <p>Run <code>ghostget operator doctor --json</code>, inspect <a href="/docs/reference/provider-capabilities/#provider-whatsapp">the four local R1 contracts and separate owner-only permissions</a>, and keep private output outside Git or shared storage.</p>
+        </aside>
+      </article>
+    </main>
+    {{HRANESS_SITE_FOOTER}}
+  </body>
+</html>

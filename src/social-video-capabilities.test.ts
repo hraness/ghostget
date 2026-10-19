@@ -1,0 +1,289 @@
+import { describe, expect, test } from "bun:test";
+
+import type { InputField } from "./model";
+import { blueskyWebPlugin } from "./plugins/bluesky-web/plugin";
+import { linkedinOfficialPlugin } from "./plugins/linkedin-official/plugin";
+import { linkedinWebPlugin } from "./plugins/linkedin-web/plugin";
+import { metaWebPlugin } from "./plugins/meta-web/plugin";
+import { redditWebPlugin } from "./plugins/reddit-web/plugin";
+import { substackWebPlugin } from "./plugins/substack-web/plugin";
+import { tiktokWebPlugin } from "./plugins/tiktok-web/plugin";
+import { youtubeWebPlugin } from "./plugins/youtube-web/plugin";
+
+type Operation = (typeof linkedinWebPlugin.bindings)[number]["operations"][number];
+
+function binding(plugin: { readonly bindings: readonly { readonly surfaceId: string; readonly operations: readonly Operation[] }[] }, surfaceId: string) {
+  const result = plugin.bindings.find((candidate) => candidate.surfaceId === surfaceId);
+  if (result === undefined) throw new Error(`missing ${surfaceId} provider binding`);
+  return result;
+}
+
+function operation(
+  plugin: { readonly bindings: readonly { readonly surfaceId: string; readonly operations: readonly Operation[] }[] },
+  surfaceId: string,
+  name: "content.delete" | "media.publish" | "posts.publish",
+  contractVersion?: number,
+): Operation {
+  const matches = binding(plugin, surfaceId).operations.filter((candidate) =>
+    candidate.name === name
+    && (contractVersion === undefined || candidate.contractVersion === contractVersion));
+  const result = matches.sort((left, right) =>
+    right.contractVersion - left.contractVersion)[0];
+  if (result === undefined) throw new Error(`missing ${surfaceId} ${name}`);
+  return result;
+}
+
+function fileMediaTypes(field: InputField | undefined): readonly string[] {
+  if (field?.type === "file") return field.mediaTypes ?? [];
+  if (field?.type === "array" && field.items.type === "file") {
+    return field.items.mediaTypes ?? [];
+  }
+  throw new Error("social video media input must be a file or file array");
+}
+
+describe("social video provider contracts", () => {
+  test("keeps the official LinkedIn MP4 route observed", () => {
+    for (const [plugin, surfaceId] of [
+      [linkedinOfficialPlugin, "linkedin"],
+    ] as const) {
+      const publish = operation(plugin, surfaceId, "posts.publish");
+      expect(publish.state).toBe("observed");
+      expect(fileMediaTypes(publish.input.properties.media)).toContain("video/mp4");
+    }
+  });
+
+  test("reserves one bounded MP4 route for every remaining requested web surface", () => {
+    for (const [plugin, surfaceId] of [
+      [tiktokWebPlugin, "tiktok"],
+      [metaWebPlugin, "instagram"],
+      [youtubeWebPlugin, "youtube"],
+    ] as const) {
+      const publish = operation(plugin, surfaceId, "media.publish");
+      expect(publish).toMatchObject({
+        risk: "R3",
+        state: "capture-required",
+        dispatch: "single",
+      });
+      expect(fileMediaTypes(publish.input.properties.media)).toContain("video/mp4");
+    }
+  });
+
+  test("reserves Instagram video publishing and graduates exact authored deletion", () => {
+    const publish = operation(metaWebPlugin, "instagram", "media.publish");
+    expect(publish).toMatchObject({
+      contractVersion: 3,
+      risk: "R3",
+      state: "capture-required",
+      dispatch: "single",
+    });
+    expect(fileMediaTypes(publish.input.properties.media)).toEqual(["video/mp4"]);
+    expect(fileMediaTypes(publish.input.properties.thumbnail)).toEqual(["image/jpeg"]);
+    expect(publish.input.required).toEqual([
+      "media",
+      "thumbnail",
+      "caption",
+      "audience",
+    ]);
+
+    const deletion = operation(metaWebPlugin, "instagram", "content.delete");
+    expect(deletion).toMatchObject({
+      contractVersion: 2,
+      risk: "R3",
+      state: "observed",
+      dispatch: "single",
+      reconciliation: {
+        kind: "provider-bound-target-desired-state",
+        desiredState: false,
+      },
+    });
+    expect(deletion.input.required).toEqual([
+      "media_id",
+      "expected_caption",
+      "expected_media_kind",
+    ]);
+  });
+
+  test("graduates exact Bluesky MP4 publishing without widening image posts", () => {
+    const publish = operation(blueskyWebPlugin, "bluesky", "media.publish");
+    expect(publish).toMatchObject({
+      risk: "R3",
+      state: "observed",
+      contractVersion: 2,
+      dispatch: "single",
+      reconciliation: { kind: "provider-accepted-target-presence" },
+    });
+    expect(fileMediaTypes(publish.input.properties.media)).toEqual(["video/mp4"]);
+    expect(publish.input.required).toEqual(["body", "media"]);
+  });
+
+  test("graduates exact Threads native MP4 publishing without widening image posts", () => {
+    const publish = operation(metaWebPlugin, "threads", "media.publish");
+    expect(publish).toMatchObject({
+      risk: "R3",
+      state: "observed",
+      contractVersion: 1,
+      dispatch: "single",
+      reconciliation: { kind: "provider-accepted-target-presence" },
+    });
+    expect(fileMediaTypes(publish.input.properties.media)).toEqual(["video/mp4"]);
+    expect(publish.input.required).toEqual(["body", "media", "audience"]);
+  });
+
+  test("graduates exact LinkedIn MP4 publishing without widening image posts", () => {
+    const publish = operation(linkedinWebPlugin, "linkedin", "media.publish");
+    expect(publish).toMatchObject({
+      risk: "R3",
+      state: "observed",
+      contractVersion: 1,
+      dispatch: "single",
+      reconciliation: { kind: "provider-accepted-target-presence" },
+    });
+    expect(fileMediaTypes(publish.input.properties.media)).toEqual(["video/mp4"]);
+    expect(publish.input.required).toEqual(["body", "visibility", "media"]);
+    expect(publish.input.properties.visibility).toMatchObject({
+      enum: ["public", "connections"],
+    });
+  });
+
+  test("graduates exact Substack MP4 publishing without widening image posts", () => {
+    const publish = operation(substackWebPlugin, "substack", "media.publish");
+    expect(publish).toMatchObject({
+      risk: "R3",
+      state: "observed",
+      contractVersion: 1,
+      dispatch: "single",
+      reconciliation: { kind: "provider-accepted-target-presence" },
+    });
+    expect(fileMediaTypes(publish.input.properties.media)).toEqual(["video/mp4"]);
+    expect(publish.input.required).toEqual(["body", "media"]);
+  });
+
+  test("graduates Reddit native MP4 publishing with an explicit poster and declarations", () => {
+    const publish = operation(redditWebPlugin, "reddit", "media.publish");
+    expect(publish).toMatchObject({
+      risk: "R3",
+      state: "observed",
+      contractVersion: 9,
+      dispatch: "single",
+    });
+    expect(fileMediaTypes(publish.input.properties.media)).toEqual(["video/mp4"]);
+    expect(fileMediaTypes(publish.input.properties.thumbnail)).toEqual([
+      "image/jpeg",
+      "image/png",
+    ]);
+    expect(publish.input.required).toEqual([
+      "community",
+      "title",
+      "media",
+      "thumbnail",
+      "nsfw",
+      "spoiler",
+      "send_replies",
+    ]);
+  });
+
+  test("does not widen live-proven image post contracts by analogy", () => {
+    for (const [plugin, surfaceId, mediaField] of [
+      [linkedinWebPlugin, "linkedin", "media"],
+      [blueskyWebPlugin, "bluesky", "media"],
+      [substackWebPlugin, "substack", "media"],
+      [metaWebPlugin, "threads", "attachment"],
+    ] as const) {
+      const publish = operation(plugin, surfaceId, "posts.publish");
+      expect(publish.state).toBe("observed");
+      expect(fileMediaTypes(publish.input.properties[mediaField])).not.toContain("video/mp4");
+    }
+  });
+
+  test("requires explicit YouTube publication declarations", () => {
+    const publish = operation(youtubeWebPlugin, "youtube", "media.publish");
+    expect(publish).toMatchObject({
+      contractVersion: 2,
+      risk: "R3",
+      state: "capture-required",
+    });
+    expect(fileMediaTypes(publish.input.properties.media)).toEqual(["video/mp4"]);
+    expect(publish.input.required).toEqual([
+      "title",
+      "media",
+      "visibility",
+      "made_for_kids",
+      "notify_subscribers",
+      "category_id",
+      "contains_synthetic_media",
+      "age_restricted",
+    ]);
+    expect(publish.input.properties.visibility).toMatchObject({
+      enum: ["private", "unlisted", "public"],
+    });
+  });
+
+  test("narrows TikTok Studio publishing to one explicit MP4 plan", () => {
+    const publish = operation(tiktokWebPlugin, "tiktok", "media.publish");
+    expect(publish).toMatchObject({
+      contractVersion: 2,
+      risk: "R3",
+      state: "capture-required",
+      dispatch: "single",
+    });
+    expect(fileMediaTypes(publish.input.properties.media)).toEqual(["video/mp4"]);
+    expect(publish.input.required).toEqual([
+      "media",
+      "audience",
+      "allow_comments",
+      "allow_duet",
+      "allow_stitch",
+      "allow_content_reuse",
+      "allow_ai_remix",
+      "contains_synthetic_media",
+      "commercial_content",
+    ]);
+  });
+
+  test("reserves only exact authored-post TikTok deletion", () => {
+    const deletion = operation(tiktokWebPlugin, "tiktok", "content.delete");
+    expect(deletion).toMatchObject({
+      contractVersion: 1,
+      risk: "R3",
+      state: "capture-required",
+      dispatch: "single",
+    });
+    expect(deletion.input.required).toEqual(["post_id", "expected_caption"]);
+    expect(Object.keys(deletion.input.properties).sort()).toEqual([
+      "expected_caption",
+      "post_id",
+    ]);
+  });
+
+  test("observes exact authored YouTube comment and reply deletion", () => {
+    const deletion = operation(youtubeWebPlugin, "youtube", "content.delete");
+    expect(deletion).toMatchObject({
+      contractVersion: 2,
+      risk: "R3",
+      state: "observed",
+      dispatch: "single",
+    });
+    expect(deletion.input.required).toEqual(["video_id", "comment_id", "expected_body"]);
+    expect(Object.keys(deletion.input.properties).sort()).toEqual([
+      "comment_id",
+      "expected_body",
+      "video_id",
+    ]);
+  });
+
+  test("observes exact authored personal-Note Substack deletion", () => {
+    const deletion = operation(substackWebPlugin, "substack", "content.delete");
+    expect(deletion).toMatchObject({
+      contractVersion: 1,
+      risk: "R3",
+      state: "observed",
+      dispatch: "single",
+      reconciliation: { kind: "boolean-desired-state" },
+    });
+    expect(deletion.input.required).toEqual(["note_id", "expected_body"]);
+    expect(Object.keys(deletion.input.properties).sort()).toEqual([
+      "expected_body",
+      "note_id",
+    ]);
+  });
+});

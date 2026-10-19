@@ -1,0 +1,426 @@
+import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import { gunzipSync } from "node:zlib";
+
+import {
+  MAX_PACKAGE_TAR_BYTES,
+  packageArtifactBudget,
+} from "./package-budget.js";
+
+const blockSize = 512;
+const packagePrefix = "package/";
+
+const requiredPaths = Object.freeze([
+  "CHANGELOG.md",
+  "LICENSE",
+  "README.md",
+  "bunfig.toml",
+  "docs/imessage-direct-provider.md",
+  "docs/messaging-automation.md",
+  "docs/rental-listings.md",
+  "package.json",
+  "tsconfig.json",
+  "dist/apple-photos-client.js",
+  "dist/beeper-client.js",
+  "dist/client.js",
+  "dist/contracts.js",
+  "dist/media-acquisition.js",
+  "dist/pdf-acquisition.js",
+  "dist/index.js",
+  "dist/messaging.js",
+  "dist/messaging-automation-api.js",
+  "dist/omni-client.js",
+  "dist/whatsapp-client.js",
+  "skills/ghostget/SKILL.md",
+  "skills/ghostget/agents/openai.yaml",
+  "skills/ghostget/references/install.md",
+  "src/apple-photos-cli.ts",
+  "src/assets/adapters/beeper/wrench-web-adapter.v2.2.0.json",
+  "src/assets/adapters/beeper/wrench-web-adapter.v2.3.0.json",
+  "src/assets/adapters/beeper/wrench-web-adapter.v2.4.0.json",
+  "src/cli.ts",
+  "src/lightpanda-browser.ts",
+  "src/support.ts",
+  "src/contracts.ts",
+  "src/media-acquisition.ts",
+  "src/pdf-acquisition.ts",
+  "src/media/ephemeral-types.ts",
+  "src/media/ephemeral-stage.ts",
+  "src/media/ephemeral-acquire.ts",
+  "src/media/ephemeral-account.ts",
+  "src/index.ts",
+  "src/local-cli-surface-contract.ts",
+  "src/message-like-me-agentic-messaging.ts",
+  "src/messaging.ts",
+  "src/messaging-automation-api.ts",
+  "src/messaging-automation-descriptors.ts",
+  "src/messaging-automation-diagnostics.ts",
+  "src/messaging-automation-types.ts",
+  "src/messaging-automation-validation.ts",
+  "src/messaging-automation.ts",
+  "src/messaging-automation-factory.ts",
+  "src/messaging-automation-server.ts",
+  "src/providers/messaging-native-install.ts",
+  "src/providers/messaging-native-artifacts.ts",
+  "src/providers/imessage-automation.ts",
+  "src/providers/whatsapp-automation.ts",
+  "src/providers/whatsapp-automation-runtime.ts",
+  "src/assets/messaging-runtime/imsg-darwin-arm64.gz",
+  "src/assets/messaging-runtime/wacli-darwin-arm64.gz",
+  "src/assets/messaging-runtime/phone-number-metadata.json.gz",
+  "src/assets/messaging-runtime/phone-number-privacy.plist.gz",
+  "src/assets/messaging-runtime/phone-number-info.plist.gz",
+  "src/assets/messaging-runtime/NOTICE.txt",
+  "src/plugins/imessage-direct/vendor/0003-feat-rpc-add-no-fetch-rich-cards.patch",
+  "src/plugins/imessage-direct/vendor/0004-fix-enforce-exact-chat-service-before-dispatch.patch",
+  "src/plugins/whatsapp-linked-device/vendor/0001-ghostget-private-messaging.patch",
+  "src/plugins/whatsapp-linked-device/vendor/0002-ghostget-private-groups.patch",
+  "src/plugins/whatsapp-linked-device/vendor/provenance.json",
+  "src/providers/imessage-direct-install.ts",
+  "src/provider-plugin-registry.ts",
+  "src/whatsapp-message-like-me-cli.ts",
+  "src/ghostget.ts",
+]);
+
+// The CLI control-plane sources are mandatory for the current Ghostget artifact.
+const controlPaths = Object.freeze([
+  "src/control/account-revision.ts",
+  "src/control/activity.ts",
+  "src/control/approval-broker.ts",
+  "src/control/approval-client.ts",
+  "src/control/bundled-interfaces.ts",
+  "src/control/cli.ts",
+  "src/control/connections.ts",
+  "src/control/owner.ts",
+  "src/control/helper.ts",
+  "src/control/helper-client.ts",
+  "src/control/control-response.ts",
+  "src/control/admin-socket.ts",
+  "src/control/outputs.ts",
+  "src/control/registry.ts",
+  "src/control/registry-words.ts",
+  "src/control/retire-tray.ts",
+  "src/control/status-view.ts",
+  "src/control/tui.ts",
+  "src/control/tui-model.ts",
+  "src/control/tui-terminal.ts",
+  "src/control/interface-cli.ts",
+  "src/control/interface-json.ts",
+  "src/control/interface-schema.ts",
+  "src/control/interfaces.ts",
+  "src/control/protocol.ts",
+  "src/control/service.ts",
+  "src/control/validation.ts",
+  "src/control/web-gateway.ts",
+  "src/control/web-policy.ts",
+  "src/operation-permission-store.ts",
+  "src/operation-permission.ts",
+  "src/provider-plugin-import-analysis.ts",
+]);
+
+export type PackageArtifactEntry = Readonly<{
+  contentSha256?: string;
+  contentSha512?: string;
+  mode: number;
+  path: string;
+  size: number;
+  type: "directory" | "file";
+}>;
+
+export type PackageArtifactFile = Readonly<{
+  contentSha256: string;
+  contentSha512: string;
+  mode: number;
+  path: string;
+  size: number;
+}>;
+
+export interface PackageArtifactInventory {
+  readonly directories: readonly PackageArtifactEntry[];
+  readonly entries: readonly PackageArtifactEntry[];
+  readonly entryCount: number;
+  readonly fileCount: number;
+  readonly files: readonly PackageArtifactFile[];
+  readonly packedBytes: number;
+  readonly unpackedBytes: number;
+}
+
+function readString(block: Buffer, start: number, length: number, label: string): string {
+  const end = block.indexOf(0, start);
+  const boundedEnd = end === -1 || end > start + length ? start + length : end;
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(block.subarray(start, boundedEnd));
+  } catch {
+    throw new Error(`Package tar ${label} is not valid UTF-8`);
+  }
+}
+
+function readOctal(block: Buffer, start: number, length: number, label: string): number {
+  const value = readString(block, start, length, label).trim();
+  if (!/^[0-7]+$/u.test(value)) {
+    throw new Error(`Package tar ${label} is not an octal integer`);
+  }
+  const parsed = Number.parseInt(value, 8);
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
+    throw new Error(`Package tar ${label} is outside the safe integer range`);
+  }
+  return parsed;
+}
+
+function verifyHeaderChecksum(block: Buffer, offset: number): void {
+  const expected = readOctal(block, 148, 8, `header checksum at byte ${String(offset)}`);
+  let actual = 0;
+  for (let index = 0; index < block.length; index += 1) {
+    actual += index >= 148 && index < 156 ? 32 : block[index] ?? 0;
+  }
+  if (actual !== expected) {
+    throw new Error(
+      `Package tar header checksum at byte ${String(offset)} is ${String(actual)}, expected ${String(expected)}`,
+    );
+  }
+}
+
+function hasControlCharacters(value: string): boolean {
+  return [...value].some((character) => {
+    const codePoint = character.codePointAt(0) ?? 0;
+    return codePoint <= 0x1f || codePoint === 0x7f;
+  });
+}
+
+function compareUtf8(left: string, right: string): number {
+  return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
+}
+
+function relativePackagePath(path: string, type: "directory" | "file"): string {
+  if (!path.startsWith(packagePrefix)) {
+    throw new Error(`Package tar entry is outside ${packagePrefix}: ${path}`);
+  }
+  const untrimmed = path.slice(packagePrefix.length);
+  const relative = type === "directory" && untrimmed.endsWith("/")
+    ? untrimmed.slice(0, -1)
+    : untrimmed;
+  const parts = relative.split("/");
+  if (
+    relative.length === 0
+    || Buffer.byteLength(relative, "utf8") > 1_024
+    || relative.startsWith("/")
+    || relative.includes("\\")
+    || hasControlCharacters(relative)
+    || parts.some((part) => part === "" || part === "." || part === "..")
+  ) {
+    throw new Error(`Package tar entry has an unsafe path: ${path}`);
+  }
+  return relative;
+}
+
+function verifyAllowedPath(path: string, type: "directory" | "file", skillName: "ghostget" | "wrench"): void {
+  const allowed = type === "file"
+    ? path === "CHANGELOG.md"
+      || path === "LICENSE"
+      || path === "README.md"
+      || path === "bunfig.toml"
+      || path === "docs/imessage-direct-provider.md"
+      || path === "docs/rental-listings.md"
+      || path === "docs/messaging-automation.md"
+      || path === "package.json"
+      || path === "tsconfig.json"
+      || path.startsWith("dist/")
+      || path.startsWith(`skills/${skillName}/`)
+      || path.startsWith("src/")
+    : path === "dist"
+      || path.startsWith("dist/")
+      || path === "docs"
+      || path === "skills"
+      || path === `skills/${skillName}`
+      || path.startsWith(`skills/${skillName}/`)
+      || path === "src"
+      || path.startsWith("src/");
+  if (!allowed) throw new Error(`Unexpected package path: ${path}`);
+  if (type === "file" && /\.(?:property\.)?test\.[cm]?[jt]sx?$/u.test(path)) {
+    throw new Error(`Test source entered the package: ${path}`);
+  }
+  if (type === "file" && path.endsWith("/AGENTS.md") && path !== `skills/${skillName}/AGENTS.md`) {
+    throw new Error(`Repository guidance entered the package: ${path}`);
+  }
+  if (/(?:^|\/)(?:\.env(?:\.|$)|\.git(?:\/|$)|node_modules(?:\/|$))/u.test(path)) {
+    throw new Error(`Private or development state entered the package: ${path}`);
+  }
+}
+
+function verifyMode(path: string, type: "directory" | "file", mode: number): void {
+  const allowed = type === "directory" ? mode === 0o755 : mode === 0o644 || mode === 0o755;
+  if (!allowed) {
+    throw new Error(`Package tar entry ${path} has unsupported mode ${mode.toString(8)}`);
+  }
+}
+
+function verifyBound(label: string, value: number, range: Readonly<{ min: number; max: number }>): void {
+  if (value < range.min || value > range.max) {
+    throw new Error(
+      `Package ${label} ${String(value)} is outside the reviewed range ${String(range.min)}-${String(range.max)}`,
+    );
+  }
+}
+
+function verifyTrailer(tar: Buffer, offset: number): void {
+  if (offset + blockSize * 2 > tar.length) {
+    throw new Error("Package tar is missing its two-block zero trailer");
+  }
+  for (let index = offset; index < tar.length; index += 1) {
+    if (tar[index] !== 0) {
+      throw new Error("Package tar contains data after its zero trailer");
+    }
+  }
+}
+
+export async function inspectPackageArtifact(
+  archive: string,
+  expectedName = "@hraness/ghostget",
+): Promise<PackageArtifactInventory> {
+  if (expectedName !== "@hraness/ghostget" && expectedName !== "@hraness/wrench") {
+    throw new Error("Package inventory requires one exact current or historical package name");
+  }
+  // The receipt verifier supplies the version-bound package identity. Immutable
+  // historical archives retain their original skill and source entry paths.
+  const skillName = expectedName === "@hraness/wrench" ? "wrench" : "ghostget";
+  const expectedPaths = expectedName === "@hraness/wrench"
+    ? requiredPaths.map(path => path.replace("skills/ghostget/", "skills/wrench/").replace("src/ghostget.ts", "src/wrench.ts"))
+    : [...requiredPaths, ...controlPaths];
+  const compressed = await readFile(archive);
+  verifyBound("packed byte count", compressed.byteLength, packageArtifactBudget.packedBytes);
+
+  let tar: Buffer;
+  try {
+    tar = gunzipSync(compressed, { maxOutputLength: MAX_PACKAGE_TAR_BYTES });
+  } catch (error) {
+    throw new Error("Package tarball could not be safely decompressed", { cause: error });
+  }
+  if (tar.length % blockSize !== 0) {
+    throw new Error("Package tar length is not aligned to 512-byte records");
+  }
+
+  const entries: PackageArtifactEntry[] = [];
+  const files: PackageArtifactFile[] = [];
+  const directories: PackageArtifactEntry[] = [];
+  const seen = new Set<string>();
+  let foundTrailer = false;
+
+  let offset = 0;
+  while (offset + blockSize <= tar.length) {
+    const header = tar.subarray(offset, offset + blockSize);
+    if (header.every((byte) => byte === 0)) {
+      verifyTrailer(tar, offset);
+      foundTrailer = true;
+      break;
+    }
+    verifyHeaderChecksum(header, offset);
+    if (
+      !header.subarray(257, 263).equals(Buffer.from("ustar\0", "ascii"))
+      || !header.subarray(263, 265).equals(Buffer.from("00", "ascii"))
+    ) {
+      throw new Error(`Package tar header is not exact USTAR at byte ${String(offset)}`);
+    }
+
+    const name = readString(header, 0, 100, `entry name at byte ${String(offset)}`);
+    const prefix = readString(
+      header,
+      345,
+      header[475] === 0 ? 130 : 155,
+      `entry prefix at byte ${String(offset)}`,
+    );
+    const path = prefix.length > 0 ? `${prefix}/${name}` : name;
+    const size = readOctal(header, 124, 12, `entry size for ${path}`);
+    const mode = readOctal(header, 100, 8, `entry mode for ${path}`);
+    const typeFlag = header[156] ?? 0;
+    const type = typeFlag === 0 || typeFlag === 48
+      ? "file"
+      : typeFlag === 53
+        ? "directory"
+        : undefined;
+    if (type === undefined) {
+      throw new Error(
+        `Unsupported package tar entry type ${JSON.stringify(String.fromCharCode(typeFlag))}: ${path}`,
+      );
+    }
+
+    const dataOffset = offset + blockSize;
+    const contentEnd = dataOffset + size;
+    const nextOffset = dataOffset + Math.ceil(size / blockSize) * blockSize;
+    if (nextOffset > tar.length) {
+      throw new Error(`Package tar entry exceeds the archive: ${path}`);
+    }
+    if (tar.subarray(contentEnd, nextOffset).some((byte) => byte !== 0)) {
+      throw new Error(`Package tar entry padding is invalid: ${path}`);
+    }
+    if (type === "directory" && size !== 0) {
+      throw new Error(`Package tar directory has non-zero size: ${path}`);
+    }
+
+    const relative = relativePackagePath(path, type);
+    verifyAllowedPath(relative, type, skillName);
+    verifyMode(relative, type, mode);
+    if (seen.has(relative)) throw new Error(`Duplicate package path: ${relative}`);
+    seen.add(relative);
+
+    if (type === "file") {
+      const content = tar.subarray(dataOffset, contentEnd);
+      const file = Object.freeze({
+        contentSha256: createHash("sha256").update(content).digest("hex"),
+        contentSha512: createHash("sha512").update(content).digest("hex"),
+        mode,
+        path: relative,
+        size,
+      });
+      files.push(file);
+      entries.push(Object.freeze({ ...file, type }));
+    } else {
+      const directory = Object.freeze({ mode, path: relative, size, type });
+      directories.push(directory);
+      entries.push(directory);
+    }
+    offset = nextOffset;
+  }
+
+  if (!foundTrailer) throw new Error("Package tar is missing its zero trailer");
+  entries.sort((left, right) => compareUtf8(left.path, right.path) || compareUtf8(left.type, right.type));
+  files.sort((left, right) => compareUtf8(left.path, right.path));
+  directories.sort((left, right) => compareUtf8(left.path, right.path));
+  for (const path of expectedPaths) {
+    if (!files.some((file) => file.path === path)) {
+      throw new Error(`Required package path is missing: ${path}`);
+    }
+  }
+
+  const unpackedBytes = files.reduce((total, file) => total + file.size, 0);
+  verifyBound("entry count", entries.length, packageArtifactBudget.entryCount);
+  verifyBound("file count", files.length, packageArtifactBudget.fileCount);
+  verifyBound("unpacked byte count", unpackedBytes, packageArtifactBudget.unpackedBytes);
+
+  console.log(`Reviewed package inventory (${String(files.length)} files):`);
+  for (const file of files) {
+    console.log(
+      `${file.mode.toString(8).padStart(4, "0")} ${String(file.size).padStart(8, " ")}  ${file.path}  ${file.contentSha256}`,
+    );
+  }
+  console.log(
+    `Package budget: ${String(compressed.byteLength)} packed bytes; ${String(unpackedBytes)} unpacked bytes; ${String(files.length)} files; ${String(directories.length)} directories.`,
+  );
+
+  return Object.freeze({
+    directories: Object.freeze(directories),
+    entries: Object.freeze(entries),
+    entryCount: entries.length,
+    fileCount: files.length,
+    files: Object.freeze(files),
+    packedBytes: compressed.byteLength,
+    unpackedBytes,
+  });
+}
+
+if (import.meta.main) {
+  const args = process.argv.slice(2);
+  if (args.length !== 1 || args[0] === undefined) {
+    throw new Error("Usage: bun run scripts/package-artifact.ts <package.tgz>");
+  }
+  await inspectPackageArtifact(args[0]);
+}

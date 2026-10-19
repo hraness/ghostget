@@ -1,0 +1,16 @@
+<p>An agent can help with a task only if it can reach the information and tools the task needs. GhostGet connects that agent to web pages, media, and your accounts through named actions: read a page, find a conversation, or prepare a post.</p>
+<p>Your agent handles the request and decides what to do. GhostGet runs the supported action on your computer and returns the result. It works with agents that can run terminal commands, without adding another model or chat interface.</p>
+<h2 id="one-action-at-a-time">Give the agent an action it can name</h2>
+<p>Consider finding an email thread before a meeting. A browser-driving agent opens the mailbox, inspects the page, finds the search control, and follows the results. A named action accepts the search input and returns the matching data. The model can spend its next step on the thread rather than the controls around it.</p>
+<p>That difference is useful for repeatable work. It also defines the tool’s reach: GhostGet can run the actions in its <a href="/docs/reference/provider-capabilities/">service directory</a>. An unfamiliar form or an open-ended visual task may call for browser automation instead. <a href="/compare/">How agents reach the web</a> explains how the approaches fit together.</p>
+<h2 id="connect-your-accounts">Connect your accounts once</h2>
+<p>You sign in through the service’s supported connection method. GhostGet keeps the credentials outside the model’s tool responses and uses the account you selected for the request. The agent asks for an action without receiving the password, token, or cookies.</p>
+<p>Supported actions vary by service. For example, Gmail provides reads of contacts and threads; connecting it does not add a send action. The service directory lists what each connection can do, and the <a href="/docs/explanation/security-model/">security guide</a> explains how sign-ins and local data are stored.</p>
+<h2 id="review-before-sending">Review what will be sent</h2>
+<p>Reading a thread and sending a reply have different consequences. For a consequential write, GhostGet prepares a preview of the account, target, text, and attachments. The prepared action needs confirmation before it runs. Messaging also shows the conversation and ordered message parts so you can review the whole reply.</p>
+<p>A lost network reply creates a different problem: the service may have accepted a post even though the caller saw an error. GhostGet keeps that outcome unresolved and does not automatically resend it. Check the account for the result before considering a new submission. The documented web-session recovery flow can create a separate request only when you explicitly accept the risk of a duplicate.</p>
+<h2 id="start-with-a-page">Start with a public page</h2>
+<p>Install GhostGet using the <a href="/docs/tutorials/getting-started/">getting-started guide</a>, then ask your agent to read a page. A public URL needs no account connection:</p>
+<pre><code class="language-sh">ghostget read https://example.com</code></pre>
+<p>Connect a service when the task needs it. Use <code>ghostget capabilities</code> to inspect the actions available in your installation.</p>
+{{LAUNCH_FILM}}

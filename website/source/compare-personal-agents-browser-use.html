@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en" data-hraness-theme="paper" data-palette="gruvbox">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#fbf1c7" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">
+    <title>Browser control or named actions: choosing an agent tool</title>
+    <meta name="description" content="Choose browser control for unfamiliar visual work and named actions for repeated tasks with known inputs, outputs, and account permissions.">
+    <meta name="robots" content="max-image-preview:large">
+    <link rel="canonical" href="https://ghostget.com/compare/personal-agents-browser-use/">
+    <link rel="icon" href="/icon.png" type="image/png" sizes="32x32">
+    <link rel="icon" href="/icon-96.png" type="image/png" sizes="96x96">
+    <link rel="apple-touch-icon" href="/apple-icon.png" sizes="180x180">
+    <link rel="stylesheet" href="{{CSS_ASSET}}">
+    <link rel="sitemap" type="application/xml" href="/sitemap.xml">
+    {{MARKDOWN_ALTERNATE}}
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="GhostGet">
+    <meta property="og:title" content="Browser control or named actions: choosing an agent tool">
+    <meta property="og:description" content="Choose browser control for unfamiliar visual work and named actions for repeated tasks with known inputs, outputs, and account permissions.">
+    <meta property="og:url" content="https://ghostget.com/compare/personal-agents-browser-use/">
+    <meta property="og:image" content="{{EDITORIAL_IMAGE_URL}}">
+    <meta property="og:image:alt" content="{{EDITORIAL_IMAGE_ALT}}">
+    <meta property="og:image:width" content="{{EDITORIAL_IMAGE_WIDTH}}">
+    <meta property="og:image:height" content="{{EDITORIAL_IMAGE_HEIGHT}}">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Browser control or named actions: choosing an agent tool">
+    <meta name="twitter:description" content="Choose browser control for unfamiliar visual work and named actions for repeated tasks with known inputs, outputs, and account permissions.">
+    <meta name="twitter:image" content="{{EDITORIAL_IMAGE_URL}}">
+    <meta name="twitter:image:alt" content="{{EDITORIAL_IMAGE_ALT}}">
+    <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
+    <meta name="ghostget-posthog-key" content="{{POSTHOG_KEY}}">
+    <script type="application/ld+json">{{JSON_LD}}</script>
+    <script type="module" src="{{ANALYTICS_ASSET}}"></script>
+    <script type="module" src="{{FOIL_ASSET}}"></script>
+  </head>
+  <body data-hraness-landscape="page">
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="topbar guide-topbar">
+      <a aria-label="{{PORTFOLIO_NAME}} home" class="wordmark hraness-foil-text" data-foil="" href="/"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span> {{PORTFOLIO_NAME}}</a>
+      <nav aria-label="Primary">
+        <a href="/docs/tutorials/getting-started/">Install</a>
+        <a href="/docs/reference/provider-capabilities/">Providers</a>
+        <a href="/docs/">Docs</a>
+        <a href="https://github.com/hraness/ghostget">GitHub <span aria-hidden="true">↗</span></a>
+        <a href="https://account.hraness.com/">Account</a>
+      </nav>
+    </header>
+    <main class="guide-main" id="main" tabindex="-1">
+      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">GhostGet</a></li><li aria-current="page">Browser control or named actions: choosing an agent tool</li></ol></nav>
+      <article class="guide-article">
+<header class="guide-hero">
+<h1>Browser control or named actions: choosing an agent tool</h1>
+<p class="answer-lede">A browser-driving agent chooses its next click from what the page shows. A tool with named actions accepts a specific request and returns a result. Choose between them by how much of the task is known before the agent starts.</p>
+{{EDITORIAL_FIGURE}}
+{{ESSAY_PROVENANCE}}
+</header>
+<section aria-labelledby="exploration"><h2 id="exploration">Use browser control when the path is part of the problem</h2>
+<p>Suppose an agent needs to find a setting in an unfamiliar application. The menu labels, page layout, and available controls determine the next step. Browser automation lets it inspect those details, navigate, and respond to what it finds.</p>
+<p>This flexibility is useful for visual checks, unfamiliar forms, and tasks that span several pages. It also means the agent must interpret intermediate page state. The result depends on the page, the available browser controls, and the agent’s decisions at each step.</p>
+<p><a href="https://github.com/browser-use/browser-use">browser-use</a> supplies a browser-driving agent library. <a href="https://github.com/microsoft/playwright-mcp">Playwright MCP</a> exposes browser controls to an agent you already use. Their interfaces suit different setups, but both allow the agent to steer.</p></section>
+<section aria-labelledby="repeatable-actions"><h2 id="repeatable-actions">Use a named action when the request is already clear</h2>
+<p>Finding recent messages in a known conversation does not necessarily require deciding which screen to open. A tool can accept the conversation identifier and return the messages directly. The agent then works with the result instead of the navigation around it.</p>
+<p>GhostGet exposes this kind of interface for the actions in its <a href="/docs/reference/provider-capabilities/">service directory</a>. Account selection and credentials stay inside the connection. The agent supplies the documented inputs and receives the action’s output.</p>
+<p>A supported action can use a browser internally without exposing browser control to the caller. That is how some GhostGet page captures render content: the agent requests the page, while the tool controls the rendering steps.</p></section>
+<section aria-labelledby="compare-the-work"><h2 id="compare-the-work">Compare the work the agent must do</h2>
+<div class="table-scroll" role="region" aria-labelledby="compare-the-work" tabindex="0"><table><thead><tr><th scope="col">Task</th><th scope="col">Browser control</th><th scope="col">Named action</th></tr></thead><tbody>
+<tr><th scope="row">Find an unfamiliar setting</th><td>Explore menus and inspect the page.</td><td>Needs an action that already covers the setting.</td></tr>
+<tr><th scope="row">Read a known conversation</th><td>Navigate to it and extract the messages.</td><td>Pass its identifier to a supported read action.</td></tr>
+<tr><th scope="row">Publish a prepared post</th><td>Fill and submit the site’s form through the browser tool.</td><td>Prepare the exact account and content, then confirm the write.</td></tr>
+<tr><th scope="row">The site changes</th><td>The agent may find another path through the interface.</td><td>Affected GhostGet actions stop when the response no longer matches what they expect.</td></tr>
+</tbody></table></div></section>
+<section aria-labelledby="combine-tools"><h2 id="combine-tools">Give each tool a defined role</h2>
+<p>An agent setup can use both approaches. Browser control handles exploration; a named action handles a repeatable task once the required input is known. Make the handoff explicit so a failed read does not become an unexpected write in another tool.</p>
+<p>GhostGet does not silently replace an unavailable action with browser control. Check the <a href="/docs/reference/provider-capabilities/">supported actions</a> before connecting an account, then use the <a href="/docs/explanation/security-model/">security guide</a> to understand confirmation and recovery.</p></section>
+      </article>
+    </main>
+    {{HRANESS_SITE_FOOTER}}
+  </body>
+</html>

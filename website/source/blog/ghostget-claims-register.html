@@ -1,0 +1,16 @@
+<p>You press send, wait, and get a timeout. The message may still have arrived. A failed response tells you that the caller did not receive an answer; it does not always tell you what happened at the other end.</p>
+<p>This distinction matters whenever an agent publishes a post, sends a message, or makes another change that should happen once. Treating every error as permission to retry can repeat the action.</p>
+<h2 id="where-the-reply-went">The request and the reply take separate journeys</h2>
+<p>A successful send has several steps: your tool submits the request, the service accepts it, the service performs the action, and a reply comes back. The connection can fail after the action but before the reply reaches you.</p>
+<p>From the caller’s point of view, that can look like a failure before anything happened. The visible error is the same, but the correct next step is different. Sending again is appropriate only when you have enough information to rule out an unwanted duplicate.</p>
+<h2 id="check-before-repeating">Check for the result before repeating the action</h2>
+<p>For a message, inspect the conversation for the exact text, recipient, and approximate send time. For a published post, look for the post on the selected account. If the service returns a request or transaction identifier, keep it and use the service’s status lookup.</p>
+<p>A read that finds the result can settle the question. A read that finds nothing may need more care: the service might delay showing a result, return only part of a history, or search a different account. Match the evidence to the request you made.</p>
+<h2 id="what-an-idempotency-key-does">What an idempotency key does</h2>
+<p>Some APIs let the caller attach a unique key to an operation. If the same request is repeated with that key, the service recognizes the earlier operation instead of performing it again. This behavior is called idempotency.</p>
+<p>The key has to be reused for the same intended action. Generating a new key on every retry makes each retry look like a new request. The service also defines how long it remembers keys and how it handles a repeated key with different inputs.</p>
+<p><a href="https://docs.aws.amazon.com/ec2/latest/devguide/ec2-api-idempotency.html">Amazon EC2’s idempotency documentation</a> gives a concrete example of this API design. Use the documented behavior of the service you are calling; a local key alone cannot make a remote service deduplicate requests.</p>
+<h2 id="keep-uncertainty-visible">Keep an unknown outcome visible</h2>
+<p>A tool should distinguish a confirmed failure from an unknown outcome. The latter needs investigation, not an automatic return to the send queue. Keep the account, intended content, request identifier, and known result together so the next step can use that context.</p>
+<p>GhostGet records consequential requests and leaves an uncertain send unresolved instead of automatically repeating it. Its documented web-session recovery flow permits a separate new request only when you explicitly accept the risk of a duplicate. The original attempt remains unknown.</p>
+<p>The <a href="/docs/explanation/security-model/">security guide</a> describes the account workflow. The <a href="/claims/">claims register</a> lists the checks behind its send and recovery behavior.</p>

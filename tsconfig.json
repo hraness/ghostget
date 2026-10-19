@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": [
+      "ES2023"
+    ],
+    "module": "Preserve",
+    "moduleResolution": "Bundler",
+    "moduleDetection": "force",
+    "jsx": "react-jsx",
+    "paths": {
+      "@hraness/ghostget": [
+        "./src/index.ts"
+      ],
+      "@hraness/ghostget/client": [
+        "./src/client.ts"
+      ],
+      "@hraness/ghostget/beeper": [
+        "./src/beeper-client.ts"
+      ],
+      "@hraness/ghostget/apple-photos": [
+        "./src/apple-photos-client.ts"
+      ],
+      "@hraness/ghostget/whatsapp": [
+        "./src/whatsapp-client.ts"
+      ],
+      "@hraness/ghostget/omni": [
+        "./src/omni-client.ts"
+      ],
+      "@hraness/ghostget/messaging": [
+        "./src/messaging.ts"
+      ],
+      "@hraness/ghostget/messaging-automation": [
+        "./src/messaging-automation-types.ts"
+      ],
+      "@hraness/ghostget/contracts": [
+        "./src/contracts.ts"
+      ],
+      "@hraness/ghostget/media-acquisition": [
+        "./src/media-acquisition.ts"
+      ],
+      "@hraness/ghostget/pdf-acquisition": [
+        "./src/pdf-acquisition.ts"
+      ],
+      "next": [
+        "./website/next-types.d.ts"
+      ]
+    },
+    "verbatimModuleSyntax": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "useUnknownInCatchVariables": true,
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": [
+      "bun"
+    ]
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "examples/**/*.ts",
+    "examples/**/*.tsx",
+    "website/build.ts",
+    "website/ask-ai-about-this.test.ts",
+    "website/vercel-build.ts",
+    "website/vercel-build.test.ts",
+    "website/provider-capability-attestation.ts",
+    "website/provider-capability-attestation.test.ts",
+    "website/site.test.ts",
+    "website/blog.test.ts"
+  ]
+}

@@ -1,0 +1,21 @@
+Usage: ghostget plugin <command> [options]
+
+Plugins add site support as code. Only install plugins you trust.
+
+Commands
+  plugin list [--json]               List installed plugins
+  plugin show <id> [--json]          Show one plugin
+  plugin init <id> [options]         Start a new plugin
+  plugin scaffold [options]          Start a plugin from recorded API evidence
+  plugin check <directory>           Check a plugin
+  plugin test <directory> --trust-code
+                                     Run a plugin's offline tests
+  plugin pack <directory> --output <directory>
+                                     Package a plugin
+  plugin install <directory> --trust-code
+                                     Install a packaged plugin
+  plugin doctor [--json]             Check installed plugins
+  plugin disable <id>                Turn a plugin off
+  plugin remove <id> --yes           Remove a plugin
+
+Guide: https://ghostget.com/docs/plugins

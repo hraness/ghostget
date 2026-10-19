@@ -1,0 +1,2730 @@
+/**
+ * Pinned formal-verification checkers behind `bun run verify:quint` and
+ * `bun run verify:lean`.
+ *
+ * Every checker archive is downloaded at an exact version and admitted only at
+ * its pinned byte size and SHA-256, and a cached archive is hashed again on
+ * every use. Toolchains are extracted fresh into a private temporary
+ * directory. A checker counts only when it finishes and prints its recognized
+ * verdict: a timeout, a crash, an unparsed or inconclusive result, and a
+ * compile or typecheck alone all fail the run. Sanitized checker logs go to
+ * `artifacts/verification/`, which CI retains. This script and
+ * `verification/` are development-only and are never packaged.
+ */
+import { createHash, randomUUID } from "node:crypto";
+import { createReadStream } from "node:fs";
+import {
+  chmod,
+  cp,
+  lstat,
+  mkdir,
+  mkdtemp,
+  open,
+  readdir,
+  readFile,
+  realpath,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
+import { homedir, tmpdir } from "node:os";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+
+import { newIdGenerator } from "@informalsystems/quint/dist/src/idGenerator.js";
+import { parsePhase1fromText } from "@informalsystems/quint/dist/src/parsing/quintParserFrontend.js";
+
+import { parseItfTrace } from "./verification-itf.js";
+import { LEAN_LAKE_VARIABLE, LEAN_PROJECT_VARIABLE } from "./verification-lean-oracle.js";
+
+export const REPOSITORY_ROOT = resolve(import.meta.dir, "..");
+export const VERIFICATION_ARTIFACTS = "artifacts/verification";
+
+// ---------------------------------------------------------------------------
+// Pins
+// ---------------------------------------------------------------------------
+
+export type PlatformKey = "linux-x64" | "linux-arm64" | "darwin-x64" | "darwin-arm64";
+export const PLATFORM_KEYS: readonly PlatformKey[] = Object.freeze([
+  "linux-x64",
+  "linux-arm64",
+  "darwin-x64",
+  "darwin-arm64",
+]);
+
+export type PinnedArchive = Readonly<{
+  /** File name in the download cache. */
+  name: string;
+  url: string;
+  bytes: number;
+  sha256: string;
+  format: "tar.gz" | "tar.zst";
+  /** The single top-level entry the archive must contain. */
+  entry: string;
+}>;
+
+const releaseAsset = (repository: string, tag: string, name: string): string =>
+  `https://github.com/${repository}/releases/download/${tag}/${name}`;
+
+function pinned(archive: PinnedArchive): PinnedArchive {
+  return Object.freeze({ ...archive });
+}
+
+function perPlatform(
+  archives: Readonly<Record<PlatformKey, PinnedArchive>>,
+): Readonly<Record<PlatformKey, PinnedArchive>> {
+  return Object.freeze({ ...archives });
+}
+
+export const QUINT = Object.freeze({
+  version: "0.32.0",
+  packageName: "@informalsystems/quint",
+  cli: "node_modules/@informalsystems/quint/dist/src/cli.js",
+});
+
+export const APALACHE = Object.freeze({
+  version: "0.62.2",
+  build: "f0dec98",
+  archive: pinned({
+    name: "apalache-0.62.2.tgz",
+    url: releaseAsset("apalache-mc/apalache", "v0.62.2", "apalache-0.62.2.tgz"),
+    bytes: 192_004_349,
+    sha256: "765f610537281a0f25b8c30f2554f19523e2859c824e80e62276653ee23c10e2",
+    format: "tar.gz",
+    entry: "apalache-0.62.2",
+  }),
+});
+
+const temurin = (suffix: string, bytes: number, sha256: string): PinnedArchive => {
+  const name = `OpenJDK21U-jdk_${suffix}_hotspot_21.0.12.1_1.tar.gz`;
+  return pinned({
+    name,
+    url: releaseAsset("adoptium/temurin21-binaries", "jdk-21.0.12.1%2B1", name),
+    bytes,
+    sha256,
+    format: "tar.gz",
+    entry: "jdk-21.0.12.1+1",
+  });
+};
+
+export const JDK = Object.freeze({
+  runtimeVersion: "21.0.12.1+1-LTS",
+  vendor: "Eclipse Adoptium",
+  vendorVersion: "Temurin-21.0.12.1+1",
+  archives: perPlatform({
+    "linux-x64": temurin("x64_linux", 207_473_347, "ce79869e1307ed8ee1e2baa86a412b1eb5b75d10a01006d788a6f968bcfaee94"),
+    "linux-arm64": temurin("aarch64_linux", 205_641_175, "23e37e026f12f3e706f18938ff611db3032d075b09d0879a25d06718c773e223"),
+    "darwin-x64": temurin("x64_mac", 194_316_575, "44db0f08196daf19a47f90d13388b0c943b67663cb537f998fe29e836fa842ce"),
+    "darwin-arm64": temurin("aarch64_mac", 200_073_404, "3623232f33a9c3baadf304480b2535f9a3cba8a58d42ecbb438ba267315d9998"),
+  }),
+});
+
+const elan = (target: string, bytes: number, sha256: string): PinnedArchive => {
+  const name = `elan-${target}.tar.gz`;
+  return pinned({
+    name,
+    url: releaseAsset("leanprover/elan", "v4.2.4", name),
+    bytes,
+    sha256,
+    format: "tar.gz",
+    entry: "elan-init",
+  });
+};
+
+export const ELAN = Object.freeze({
+  version: "4.2.4",
+  archives: perPlatform({
+    "linux-x64": elan("x86_64-unknown-linux-gnu", 4_996_571, "42b94d4244e8353142c456ec0e4ca6528fd898a6c604d4059f494e706e431f63"),
+    "linux-arm64": elan("aarch64-unknown-linux-gnu", 5_131_114, "05febd124d84ebf994b2e7479922a5650b1e950c17ae3bd1ddd776b65bb72bf9"),
+    "darwin-x64": elan("x86_64-apple-darwin", 2_330_818, "8a340b309d8ed2e96f930761fa223b3af57a38f5d253b53ac90293c9516f8cd4"),
+    "darwin-arm64": elan("aarch64-apple-darwin", 2_190_845, "7ad829861392c718dfebde3a83b5c8508df47be02af68894b094b0b3952616e5"),
+  }),
+});
+
+const lean = (suffix: string, bytes: number, sha256: string): PinnedArchive => {
+  const entry = `lean-4.34.0-${suffix}`;
+  return pinned({
+    name: `${entry}.tar.zst`,
+    url: releaseAsset("leanprover/lean4", "v4.34.0", `${entry}.tar.zst`),
+    bytes,
+    sha256,
+    format: "tar.zst",
+    entry,
+  });
+};
+
+export const LEAN = Object.freeze({
+  version: "4.34.0",
+  toolchain: "leanprover/lean4:v4.34.0",
+  /** The directory elan uses for the pinned toolchain under `$ELAN_HOME/toolchains`. */
+  toolchainDirectory: "leanprover--lean4---v4.34.0",
+  archives: perPlatform({
+    "linux-x64": lean("linux", 580_367_391, "caaa98356098c85dc0fcbbd28e1ec66f39eb6551829972b752ff20e1286b646b"),
+    "linux-arm64": lean("linux_aarch64", 581_973_544, "40b04fdb7fb849d3c80e10c3bbeebc7b7354b6d3f07450b9168c2149b40d2a82"),
+    "darwin-x64": lean("darwin", 564_239_871, "e90afe84c0a2aa3583f3ecd08e51fb7eeebb84d36f99b7cac5d3c067fa8640b0"),
+    "darwin-arm64": lean("darwin_aarch64", 561_666_156, "69f263fa6e21bbc2466bbfb1affcd92479ee2714c883a07de548e099a5922932"),
+  }),
+});
+
+/**
+ * The Rust differential oracle under `verification/oracles/`. Cargo fetches
+ * its crates from crates.io, and `cargo build --locked` admits each one only
+ * at the checksum `Cargo.lock` records, so these pins cover the toolchain and
+ * the direct dependency. `scripts/verification-oracles.ts` checks that
+ * `rust-toolchain.toml` and `Cargo.toml` still name them.
+ */
+export const RUST_ORACLE = Object.freeze({
+  toolchain: "1.97.1",
+  crates: Object.freeze({ url: "2.5.8" }),
+  directory: "verification/oracles",
+  binary: "verification/oracles/target/release/ghostget-oracle",
+});
+
+/** The standard-library-only generator of the golden vectors. */
+export const VECTOR_GENERATOR = Object.freeze({
+  minimumPython: "3.11",
+  path: "verification/vectors/generate.py",
+});
+
+/** Every archive this script may download, for pin review and tests. */
+export function pinnedArchives(): readonly PinnedArchive[] {
+  return [
+    APALACHE.archive,
+    ...PLATFORM_KEYS.flatMap((key) => [JDK.archives[key], ELAN.archives[key], LEAN.archives[key]]),
+  ];
+}
+
+/**
+ * The first 16 hex digits of SHA-256 over every pinned archive's name, URL,
+ * byte count, and digest. The CI cache key carries it, so changing any pin,
+ * not only a version, starts a fresh download cache.
+ */
+export function pinnedArchivesDigest(): string {
+  const pins = pinnedArchives().map(({ name, url, bytes, sha256 }) => ({ name, url, bytes, sha256 }));
+  return createHash("sha256").update(JSON.stringify(pins)).digest("hex").slice(0, 16);
+}
+
+export function platformKey(platform: string = process.platform, arch: string = process.arch): PlatformKey {
+  const key = `${platform}-${arch}`;
+  const known = PLATFORM_KEYS.find((candidate) => candidate === key);
+  if (known === undefined) {
+    throw new Error(`The formal-verification toolchain has no pinned archives for ${key}`);
+  }
+  return known;
+}
+
+// Bounds for one checker step. The CI job timeout bounds the whole run.
+const DOWNLOAD_TIMEOUT_MS = 15 * 60_000;
+const EXTRACT_TIMEOUT_MS = 5 * 60_000;
+const QUINT_TIMEOUT_MS = 5 * 60_000;
+/**
+ * The bound on one `quint run --mbt` trace generation inside the replay test.
+ * It must end before the Bun runner timeout that `verify:quint` sets for that
+ * test, so a hung Quint fails with this bound's diagnosis rather than the
+ * runner's.
+ */
+export const QUINT_TRACE_TIMEOUT_MS = 150_000;
+/**
+ * The bound on one Apalache check. With `QUINT_CONCURRENCY` two checker jobs
+ * share the runner's four vCPUs, so a check that finishes in about ten
+ * minutes alone can need roughly twice that when a second Apalache or a
+ * `bun test` replay runs beside it. The fence check passed in 18m23s, then
+ * hit the old 20-minute limit on three merged-source runs; the latest reached
+ * its final-state checks. Reserve headroom without changing any proof bounds.
+ * A timeout still fails the check.
+ */
+export const APALACHE_TIMEOUT_MS = 25 * 60_000;
+// Deeper nightly checks retain their separate larger bounds.
+const NIGHTLY_QUINT_TIMEOUT_MS = 30 * 60_000;
+const NIGHTLY_APALACHE_TIMEOUT_MS = 60 * 60_000;
+/**
+ * The `package.json` script that runs the replay tests. It holds the Bun
+ * runner's timeout and concurrency policy; `verify:quint` appends every
+ * model's replay test to it.
+ */
+export const QUINT_REPLAY_SCRIPT = "verify:quint:replay";
+/** The bound on the one `bun test` run of every replay test. */
+export const QUINT_REPLAY_TIMEOUT_MS = 15 * 60_000;
+/**
+ * How many jobs `verify:quint` runs at once: each model's checks form one job
+ * and the replay run forms another. A GitHub-hosted Linux runner for this
+ * public repository has 4 vCPUs and 16 GB, and one Apalache run holds a 4 GiB
+ * heap, so two jobs fit beside the runner's own processes.
+ */
+export const QUINT_CONCURRENCY = 2;
+const LEAN_BUILD_TIMEOUT_MS = 10 * 60_000;
+const SHORT_TIMEOUT_MS = 60_000;
+const KILL_GRACE_MS = 5_000;
+const MAX_TOOL_OUTPUT_BYTES = 16 * 1024 * 1024;
+const FAILURE_TAIL_LINES = 60;
+
+// ---------------------------------------------------------------------------
+// Download admission
+// ---------------------------------------------------------------------------
+
+export type FetchLike = (
+  url: string,
+  init: { redirect: "follow"; signal: AbortSignal },
+) => Promise<Response>;
+
+export type AdmissionOptions = Readonly<{
+  cacheDirectory: string;
+  fetch?: FetchLike;
+  timeoutMs?: number;
+  log?: (line: string) => void;
+}>;
+
+/** The download cache: `$GHOSTGET_VERIFICATION_CACHE` or `~/.cache/ghostget-verification`. */
+export function verificationCacheDirectory(
+  environment: Readonly<Record<string, string | undefined>> = process.env,
+  home: string = homedir(),
+): string {
+  const configured = environment.GHOSTGET_VERIFICATION_CACHE;
+  if (configured !== undefined && configured !== "") {
+    if (!isAbsolute(configured)) throw new Error("GHOSTGET_VERIFICATION_CACHE must be an absolute path");
+    return configured;
+  }
+  return join(home, ".cache", "ghostget-verification");
+}
+
+async function regularFileDigest(path: string): Promise<Readonly<{ bytes: number; sha256: string }> | null> {
+  let metadata;
+  try {
+    metadata = await lstat(path);
+  } catch (error) {
+    if (errorCode(error) === "ENOENT") return null;
+    throw error;
+  }
+  if (!metadata.isFile()) {
+    await rm(path, { recursive: true, force: true });
+    return null;
+  }
+  const hash = createHash("sha256");
+  let bytes = 0;
+  for await (const chunk of createReadStream(path)) {
+    const data = chunk as Buffer;
+    hash.update(data);
+    bytes += data.byteLength;
+  }
+  return { bytes, sha256: hash.digest("hex") };
+}
+
+async function writeAll(handle: Awaited<ReturnType<typeof open>>, chunk: Uint8Array): Promise<void> {
+  let offset = 0;
+  while (offset < chunk.byteLength) {
+    const { bytesWritten } = await handle.write(chunk, offset, chunk.byteLength - offset);
+    if (bytesWritten <= 0) throw new Error("the download could not be written");
+    offset += bytesWritten;
+  }
+}
+
+async function download(archive: PinnedArchive, target: string, options: AdmissionOptions): Promise<void> {
+  const fetchArchive = options.fetch ?? ((url, init) => fetch(url, init));
+  const partial = `${target}.${randomUUID()}.partial`;
+  const handle = await open(partial, "wx", 0o600);
+  let closed = false;
+  let admitted = false;
+  try {
+    options.log?.(`Downloading ${archive.name} (${archive.bytes.toLocaleString("en-US")} bytes)`);
+    const response = await fetchArchive(archive.url, {
+      redirect: "follow",
+      signal: AbortSignal.timeout(options.timeoutMs ?? DOWNLOAD_TIMEOUT_MS),
+    });
+    if (!response.ok || response.body === null) {
+      throw new Error(`${archive.name}: the download failed with HTTP ${String(response.status)}`);
+    }
+    const declared = response.headers.get("content-length");
+    if (declared !== null && declared !== String(archive.bytes)) {
+      await response.body.cancel().catch(() => undefined);
+      throw new Error(`${archive.name}: the server declared ${declared} bytes, not the pinned ${String(archive.bytes)}`);
+    }
+    const hash = createHash("sha256");
+    let bytes = 0;
+    const reader = response.body.getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > archive.bytes) {
+        await reader.cancel().catch(() => undefined);
+        throw new Error(`${archive.name}: the download exceeds its pinned ${String(archive.bytes)} bytes`);
+      }
+      hash.update(value);
+      await writeAll(handle, value);
+    }
+    const sha256 = hash.digest("hex");
+    if (bytes !== archive.bytes || sha256 !== archive.sha256) {
+      throw new Error(
+        `${archive.name}: the download is ${String(bytes)} bytes with SHA-256 ${sha256}, not the pinned ${String(archive.bytes)} bytes and ${archive.sha256}`,
+      );
+    }
+    await handle.sync();
+    await handle.close();
+    closed = true;
+    await rename(partial, target);
+    admitted = true;
+  } finally {
+    if (!closed) await handle.close().catch(() => undefined);
+    if (!admitted) await rm(partial, { force: true });
+  }
+}
+
+/**
+ * Return the path of a cached archive whose size and SHA-256 equal its pin.
+ * A cached file is hashed on every use; a mismatch is deleted and downloaded
+ * once more, and a download that does not match its pin fails.
+ */
+export async function admitArchive(archive: PinnedArchive, options: AdmissionOptions): Promise<string> {
+  if (!isAbsolute(options.cacheDirectory)) throw new Error("The verification cache must be an absolute path");
+  const downloads = join(options.cacheDirectory, "downloads");
+  await mkdir(downloads, { recursive: true, mode: 0o700 });
+  await chmod(downloads, 0o700);
+  const target = join(downloads, archive.name);
+  const cached = await regularFileDigest(target);
+  if (cached !== null) {
+    if (cached.bytes === archive.bytes && cached.sha256 === archive.sha256) return target;
+    options.log?.(`${archive.name}: the cached archive does not match its pin; downloading it again`);
+    await rm(target, { force: true });
+  }
+  await download(archive, target, options);
+  options.log?.(`Admitted ${archive.name} at SHA-256 ${archive.sha256}`);
+  return target;
+}
+
+// ---------------------------------------------------------------------------
+// Bounded checker processes
+// ---------------------------------------------------------------------------
+
+export type ToolOutcome =
+  | Readonly<{ kind: "exited"; exitCode: number; stdout: string; stderr: string }>
+  | Readonly<{
+    kind: "timed-out" | "output-limit" | "signaled" | "spawn-failed";
+    detail: string;
+    stdout: string;
+    stderr: string;
+  }>;
+
+export type ToolRunOptions = Readonly<{
+  cwd: string;
+  environment: Readonly<Record<string, string>>;
+  timeoutMs: number;
+  maxOutputBytes?: number;
+  /** How long a stopped group gets after SIGTERM, and then after SIGKILL, before its output is abandoned. */
+  killGraceMs?: number;
+}>;
+
+async function collectOutput(
+  stream: ReadableStream<Uint8Array>,
+  limit: number,
+  onOverflow: () => void,
+  abandon: AbortSignal,
+): Promise<string> {
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  let overflowed = false;
+  const cancel = (): void => {
+    void reader.cancel().catch(() => undefined);
+  };
+  abandon.addEventListener("abort", cancel, { once: true });
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (overflowed) continue;
+      if (total + value.byteLength > limit) {
+        overflowed = true;
+        onOverflow();
+        continue;
+      }
+      chunks.push(value);
+      total += value.byteLength;
+    }
+  } catch {
+    // An abandoned stream ends the capture; the stop reason is reported instead.
+  } finally {
+    abandon.removeEventListener("abort", cancel);
+    reader.releaseLock();
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+/**
+ * Run one checker process in its own process group with an exact environment,
+ * a deadline, and bounded output. A timeout or an output overflow stops the
+ * whole group and is reported as such, never as a checker verdict.
+ */
+export async function runTool(command: readonly string[], options: ToolRunOptions): Promise<ToolOutcome> {
+  if (process.platform === "win32") throw new Error("The formal-verification checkers run only on Linux and macOS");
+  let child: ReturnType<typeof Bun.spawn<"ignore", "pipe", "pipe">>;
+  try {
+    child = Bun.spawn([...command], {
+      cwd: options.cwd,
+      env: { ...options.environment },
+      stdin: "ignore",
+      stdout: "pipe",
+      stderr: "pipe",
+      detached: true,
+    });
+  } catch (error) {
+    return { kind: "spawn-failed", detail: errorMessage(error), stdout: "", stderr: "" };
+  }
+  const limit = options.maxOutputBytes ?? MAX_TOOL_OUTPUT_BYTES;
+  const grace = options.killGraceMs ?? KILL_GRACE_MS;
+  const abandon = new AbortController();
+  const timers: ReturnType<typeof setTimeout>[] = [];
+  let stop: "timed-out" | "output-limit" | null = null;
+  const signalGroup = (signal: "SIGTERM" | "SIGKILL"): void => {
+    try {
+      process.kill(-child.pid, signal);
+    } catch {
+      try {
+        child.kill(signal);
+      } catch {
+        // The process has already exited.
+      }
+    }
+  };
+  const halt = (reason: "timed-out" | "output-limit"): void => {
+    if (stop !== null) return;
+    stop = reason;
+    signalGroup("SIGTERM");
+    timers.push(setTimeout(() => {
+      signalGroup("SIGKILL");
+      timers.push(setTimeout(() => abandon.abort(), grace));
+    }, grace));
+  };
+  timers.push(setTimeout(() => halt("timed-out"), options.timeoutMs));
+  try {
+    const [stdout, stderr, exitCode] = await Promise.all([
+      collectOutput(child.stdout, limit, () => halt("output-limit"), abandon.signal),
+      collectOutput(child.stderr, limit, () => halt("output-limit"), abandon.signal),
+      child.exited,
+    ]);
+    const stopped: "timed-out" | "output-limit" | null = stop;
+    if (stopped === "timed-out") {
+      return { kind: stopped, detail: `no result within ${String(options.timeoutMs)} ms`, stdout, stderr };
+    }
+    if (stopped === "output-limit") {
+      return { kind: stopped, detail: `output exceeded ${String(limit)} bytes`, stdout, stderr };
+    }
+    if (child.signalCode !== null) {
+      return { kind: "signaled", detail: `terminated by ${child.signalCode}`, stdout, stderr };
+    }
+    return { kind: "exited", exitCode, stdout, stderr };
+  } finally {
+    for (const timer of timers) clearTimeout(timer);
+  }
+}
+
+export type CheckerResult = Readonly<{ exitCode: number; stdout: string; stderr: string }>;
+
+/** Reject a checker run that did not finish; its output is never evidence. */
+export function requireFinished(tool: string, outcome: ToolOutcome): CheckerResult {
+  if (outcome.kind === "exited") return outcome;
+  throw new Error(`${tool} did not finish (${outcome.detail}); a timeout or an interrupted checker run is not evidence`);
+}
+
+// ---------------------------------------------------------------------------
+// Verdicts
+// ---------------------------------------------------------------------------
+
+export type CheckerVerdict = "pass" | "violation" | "inconclusive";
+
+const lines = (text: string): readonly string[] => text.split(/\r?\n/u);
+const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+
+/** A clean typecheck is a precondition for a checker run, never evidence on its own. */
+export function quintTypecheckVerdict(result: CheckerResult): "pass" | "inconclusive" {
+  return result.exitCode === 0 && result.stdout.trim() === "" && result.stderr.trim() === ""
+    ? "pass"
+    : "inconclusive";
+}
+
+/** The reproduction line Quint prints for a decimal seed. */
+export function quintSeedLine(seed: string): string {
+  return `Use --seed=0x${BigInt(seed).toString(16)} --backend=typescript to reproduce.`;
+}
+
+/** Quint's reproduction line for the trace it reports. */
+const QUINT_REPRODUCTION_LINE = /^Use --seed=0x[0-9a-f]+ --backend=typescript to reproduce\.$/u;
+
+/**
+ * Classify one `quint run`. A pass needs exit 0, the no-violation line, one
+ * reproduction line, and no error output; a violation needs exit 1, the
+ * violation line, one reproduction line, and Quint's invariant error.
+ * Anything else is inconclusive. Quint prints the seed of the trace it
+ * reports: the violating trace, or the longest sample. That is the requested
+ * seed only when the first sample is reported, so the line is required but
+ * its seed is not compared.
+ */
+export function quintSimulationVerdict(result: CheckerResult): CheckerVerdict {
+  const seeded = lines(result.stdout).filter((line) => QUINT_REPRODUCTION_LINE.test(line.trim())).length === 1;
+  const ok = /^\[ok\] No violation found \(/mu.test(result.stdout);
+  const violated = /^\[violation\] Found an issue \(/mu.test(result.stdout);
+  if (!seeded || ok === violated) return "inconclusive";
+  if (result.exitCode === 0 && ok && result.stderr.trim() === "") return "pass";
+  if (result.exitCode === 1 && violated && lines(result.stderr).some((line) => line.trim() === "error: Invariant violated")) {
+    return "violation";
+  }
+  return "inconclusive";
+}
+
+/**
+ * Classify one Apalache `check`. Both verdicts need the pinned version line;
+ * a pass needs exit 0, `NoError`, the requested length, and `EXITCODE: OK`;
+ * a violation needs exit 12, an `Error` outcome, and `EXITCODE: ERROR (12)`.
+ */
+export function apalacheVerdict(result: CheckerResult, length: number): CheckerVerdict {
+  const text = result.stdout;
+  const version = new RegExp(
+    `^# APALACHE version: ${escapeRegExp(APALACHE.version)} \\| build: ${escapeRegExp(APALACHE.build)}(?:\\s|$)`,
+    "mu",
+  );
+  if (!version.test(text)) return "inconclusive";
+  const noError = /^The outcome is: NoError(?:\s|$)/mu.test(text);
+  const error = /^The outcome is: Error(?:\s|$)/mu.test(text);
+  if (noError === error) return "inconclusive";
+  if (
+    result.exitCode === 0 && noError
+    && new RegExp(`^Checker reports no error up to computation length ${String(length)}(?:\\s|$)`, "mu").test(text)
+    && /^EXITCODE: OK\s*$/mu.test(text)
+  ) {
+    return "pass";
+  }
+  if (
+    result.exitCode === 12 && error
+    && /^Found [1-9][0-9]* error\(s\)(?:\s|$)/mu.test(text)
+    && /^EXITCODE: ERROR \(12\)\s*$/mu.test(text)
+  ) {
+    return "violation";
+  }
+  return "inconclusive";
+}
+
+export function requireVerdict(
+  step: string,
+  expected: "pass" | "violation",
+  verdict: CheckerVerdict,
+): void {
+  if (verdict === expected) return;
+  const reason = verdict === "inconclusive"
+    ? "the checker output was not a recognized result, which is not evidence"
+    : expected === "pass"
+      ? "the checker found a violation"
+      : "the checker did not find the seeded defect, so this model is not accepted as evidence";
+  throw new Error(`${step}: expected ${expected}, got ${verdict}; ${reason}`);
+}
+
+// ---------------------------------------------------------------------------
+// Quint model manifest
+// ---------------------------------------------------------------------------
+
+export type QuintModel = Readonly<{
+  file: string;
+  module: string;
+  init: string;
+  step: string;
+  invariants: readonly string[];
+  simulation: Readonly<{ seed: string; maxSamples: number; maxSteps: number }>;
+  apalache: Readonly<{ length: number }>;
+  /**
+   * Deeper bounds for the nightly workflow. Absent means the nightly run
+   * repeats the CI bounds. Present bounds are at least the CI bounds and
+   * deepen at least one of them.
+   */
+  nightly?: QuintNightlyBounds;
+  mutants: readonly Readonly<{ step: string; invariant: string }>[];
+  replay: Readonly<{
+    test: string;
+    target: "reference" | "production";
+    traces: number;
+    seed: string;
+    maxSteps: number;
+  }>;
+}>;
+
+export type QuintNightlyBounds = Readonly<{
+  simulation: Readonly<{ maxSamples: number; maxSteps: number }>;
+  apalache: Readonly<{ length: number }>;
+}>;
+
+/** `ci` runs in `Required` inside the verification step budget; `nightly` runs only in the nightly workflow. */
+export type QuintProfile = "ci" | "nightly";
+
+export type QuintBounds = Readonly<{
+  simulation: Readonly<{ seed: string; maxSamples: number; maxSteps: number }>;
+  apalache: Readonly<{ length: number }>;
+}>;
+
+/** The bounds a profile checks a model at. The simulation seed never changes between profiles. */
+export function quintBounds(model: QuintModel, profile: QuintProfile): QuintBounds {
+  if (profile === "ci" || model.nightly === undefined) {
+    return Object.freeze({ simulation: model.simulation, apalache: model.apalache });
+  }
+  return Object.freeze({
+    simulation: Object.freeze({ seed: model.simulation.seed, ...model.nightly.simulation }),
+    apalache: model.nightly.apalache,
+  });
+}
+
+const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/u;
+const DECIMAL_SEED = /^[1-9][0-9]{0,15}$/u;
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value) as unknown;
+  return prototype === Object.prototype || prototype === null;
+}
+
+export function exactObject(value: unknown, keys: readonly string[], label: string): Record<string, unknown> {
+  if (!isPlainObject(value)) throw new Error(`${label} must be an object`);
+  const actual = Object.keys(value).sort();
+  const expected = [...keys].sort();
+  if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) {
+    throw new Error(`${label} must have exactly the fields ${expected.join(", ")}`);
+  }
+  return value;
+}
+
+function identifier(value: unknown, label: string): string {
+  if (typeof value !== "string" || !IDENTIFIER.test(value)) throw new Error(`${label} must be a Quint identifier`);
+  return value;
+}
+
+function boundedInteger(value: unknown, minimum: number, maximum: number, label: string): number {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < minimum || value > maximum) {
+    throw new Error(`${label} must be an integer from ${String(minimum)} to ${String(maximum)}`);
+  }
+  return value;
+}
+
+function decimalSeed(value: unknown, label: string): string {
+  if (typeof value !== "string" || !DECIMAL_SEED.test(value) || !Number.isSafeInteger(Number(value))) {
+    throw new Error(`${label} must be a decimal seed string`);
+  }
+  return value;
+}
+
+function uniqueIdentifiers(value: unknown, label: string): readonly string[] {
+  if (!Array.isArray(value) || value.length === 0 || value.length > 32) {
+    throw new Error(`${label} must be a non-empty list`);
+  }
+  const items = value.map((item, index) => identifier(item, `${label}[${String(index)}]`));
+  if (new Set(items).size !== items.length) throw new Error(`${label} must not repeat an entry`);
+  return Object.freeze(items);
+}
+
+function parseNightlyBounds(
+  value: unknown,
+  simulation: Readonly<{ maxSamples: number; maxSteps: number }>,
+  apalache: Readonly<{ length: number }>,
+  label: string,
+): QuintNightlyBounds {
+  const bounds = exactObject(value, ["simulation", "apalache"], label);
+  const nightlySimulation = exactObject(bounds.simulation, ["maxSamples", "maxSteps"], `${label}.simulation`);
+  const nightlyApalache = exactObject(bounds.apalache, ["length"], `${label}.apalache`);
+  const parsed = Object.freeze({
+    simulation: Object.freeze({
+      maxSamples: boundedInteger(nightlySimulation.maxSamples, simulation.maxSamples, 100_000, `${label}.simulation.maxSamples`),
+      maxSteps: boundedInteger(nightlySimulation.maxSteps, simulation.maxSteps, 100, `${label}.simulation.maxSteps`),
+    }),
+    apalache: Object.freeze({
+      length: boundedInteger(nightlyApalache.length, apalache.length, 50, `${label}.apalache.length`),
+    }),
+  });
+  if (
+    parsed.simulation.maxSamples === simulation.maxSamples
+    && parsed.simulation.maxSteps === simulation.maxSteps
+    && parsed.apalache.length === apalache.length
+  ) {
+    throw new Error(`${label} must deepen at least one CI bound`);
+  }
+  return parsed;
+}
+
+/** Parse `verification/quint/models.json`. Every model needs a mutant and a replay test. */
+export function parseQuintModels(value: unknown): readonly QuintModel[] {
+  const manifest = exactObject(value, ["schema", "models"], "models.json");
+  if (manifest.schema !== "ghostget-quint-models-v1") throw new Error("models.json has an unknown schema");
+  if (!Array.isArray(manifest.models) || manifest.models.length === 0 || manifest.models.length > 64) {
+    throw new Error("models.json must list between 1 and 64 models");
+  }
+  const models = manifest.models.map((entry, index): QuintModel => {
+    const label = `models[${String(index)}]`;
+    const fields = [
+      "file", "module", "init", "step", "invariants", "simulation", "apalache", "mutants", "replay",
+    ];
+    const model = exactObject(entry, isPlainObject(entry) && Object.hasOwn(entry, "nightly") ? [...fields, "nightly"] : fields, label);
+    if (typeof model.file !== "string" || !/^[a-z0-9][a-z0-9-]*\.qnt$/u.test(model.file)) {
+      throw new Error(`${label}.file must name a .qnt file in verification/quint`);
+    }
+    const simulation = exactObject(model.simulation, ["seed", "maxSamples", "maxSteps"], `${label}.simulation`);
+    const apalache = exactObject(model.apalache, ["length"], `${label}.apalache`);
+    const replay = exactObject(model.replay, ["test", "target", "traces", "seed", "maxSteps"], `${label}.replay`);
+    if (typeof replay.test !== "string" || !/^(?:scripts|src)\/[a-z0-9][a-z0-9./-]*\.test\.ts$/u.test(replay.test)
+      || replay.test.includes("..")) {
+      throw new Error(`${label}.replay.test must be a repository test file`);
+    }
+    if (replay.target !== "reference" && replay.target !== "production") {
+      throw new Error(`${label}.replay.target must be reference or production`);
+    }
+    if (!Array.isArray(model.mutants) || model.mutants.length === 0 || model.mutants.length > 32) {
+      throw new Error(`${label}.mutants must list at least one seeded defect`);
+    }
+    const invariants = uniqueIdentifiers(model.invariants, `${label}.invariants`);
+    const step = identifier(model.step, `${label}.step`);
+    const mutants = model.mutants.map((mutant, mutantIndex) => {
+      const fields = exactObject(mutant, ["step", "invariant"], `${label}.mutants[${String(mutantIndex)}]`);
+      const mutantStep = identifier(fields.step, `${label}.mutants[${String(mutantIndex)}].step`);
+      if (mutantStep === step) throw new Error(`${label}.mutants[${String(mutantIndex)}] must use a mutant step`);
+      const invariant = identifier(fields.invariant, `${label}.mutants[${String(mutantIndex)}].invariant`);
+      if (!invariants.includes(invariant)) {
+        throw new Error(`${label}.mutants[${String(mutantIndex)}] must violate one of the model's invariants`);
+      }
+      return Object.freeze({ step: mutantStep, invariant });
+    });
+    const ciSimulation = Object.freeze({
+      seed: decimalSeed(simulation.seed, `${label}.simulation.seed`),
+      maxSamples: boundedInteger(simulation.maxSamples, 1, 100_000, `${label}.simulation.maxSamples`),
+      maxSteps: boundedInteger(simulation.maxSteps, 1, 100, `${label}.simulation.maxSteps`),
+    });
+    const ciApalache = Object.freeze({ length: boundedInteger(apalache.length, 1, 50, `${label}.apalache.length`) });
+    const nightly = model.nightly === undefined
+      ? undefined
+      : parseNightlyBounds(model.nightly, ciSimulation, ciApalache, `${label}.nightly`);
+    const pairs = mutants.map((mutant) => `${mutant.step} ${mutant.invariant}`);
+    if (new Set(pairs).size !== pairs.length) throw new Error(`${label}.mutants must not list a step and invariant twice`);
+    return Object.freeze({
+      file: model.file,
+      module: identifier(model.module, `${label}.module`),
+      init: identifier(model.init, `${label}.init`),
+      step,
+      invariants,
+      simulation: ciSimulation,
+      apalache: ciApalache,
+      ...nightly === undefined ? {} : { nightly },
+      mutants: Object.freeze(mutants),
+      replay: Object.freeze({
+        test: replay.test,
+        target: replay.target,
+        traces: boundedInteger(replay.traces, 1, 10_000, `${label}.replay.traces`),
+        seed: decimalSeed(replay.seed, `${label}.replay.seed`),
+        maxSteps: boundedInteger(replay.maxSteps, 1, 100, `${label}.replay.maxSteps`),
+      }),
+    });
+  });
+  const files = models.map((model) => model.file);
+  if (new Set(files).size !== files.length) throw new Error("models.json must not list a model twice");
+  return Object.freeze(models);
+}
+
+export async function readQuintModels(root: string = REPOSITORY_ROOT): Promise<readonly QuintModel[]> {
+  return parseQuintModels(JSON.parse(await readFile(join(root, "verification/quint/models.json"), "utf8")) as unknown);
+}
+
+export function requireQuintProofSource(file: string, membershipSource: string, compiledSource: string): void {
+  if (membershipSource !== compiledSource) {
+    throw new Error(`${file} positive membership source differs from its cached IR source`);
+  }
+}
+
+export function quintPositiveChecks(model: QuintModel, source: string): readonly Readonly<{ invariant: string; members: readonly string[] }>[] {
+  if (model.file !== "approvals.qnt") {
+    return model.invariants.map((invariant) => ({ invariant, members: [invariant] }));
+  }
+  const members = ["atMostOneUse", "onlyHolderAllowed"];
+  if (model.module !== "approvals" || model.init !== "init" || model.step !== "step"
+    || JSON.stringify(model.invariants) !== JSON.stringify(members)) {
+    throw new Error("approvals.qnt positive-check registry changed; requalify its conjunction");
+  }
+  const parsed = parsePhase1fromText(newIdGenerator(), source, model.file);
+  if (parsed.errors.length !== 0 || parsed.modules.length !== 1 || parsed.modules[0]?.name !== model.module) {
+    throw new Error("approvals.qnt must parse as its one registered module");
+  }
+  const declarations = parsed.modules[0].declarations;
+  const localDeclarations = declarations.filter((declaration) => "name" in declaration);
+  if (localDeclarations.length !== declarations.length
+    || new Set(localDeclarations.map((declaration) => declaration.name)).size !== declarations.length
+    || declarations.some((declaration) => declaration.kind === "import" || declaration.kind === "export" || declaration.kind === "instance")) {
+    throw new Error("approvals.qnt conjunction requires unique local declarations");
+  }
+  const definitions = [...members, "approvalsSafety"].map((name) => localDeclarations.find((declaration) => declaration.name === name));
+  if (definitions.some((definition) => definition?.kind !== "def" || definition.qualifier !== "val" || definition.typeAnnotation?.kind !== "bool")) {
+    throw new Error("approvals.qnt conjunction and members must be boolean state values");
+  }
+  const conjunction = definitions[2];
+  if (conjunction?.kind !== "def" || conjunction.expr.kind !== "app" || conjunction.expr.opcode !== "and"
+    || conjunction.expr.args.length !== members.length
+    || !conjunction.expr.args.every((argument, index) => argument.kind === "name" && argument.name === members[index])) {
+    throw new Error("approvalsSafety must be exactly the conjunction of every registered invariant");
+  }
+  return [{ invariant: "approvalsSafety", members }];
+}
+
+/** The `quint run` arguments for one seeded simulation at a profile's bounds. */
+export function quintRunArguments(
+  model: QuintModel,
+  step: string,
+  invariant: string,
+  profile: QuintProfile = "ci",
+): readonly string[] {
+  const { simulation } = quintBounds(model, profile);
+  return [
+    "run",
+    "--backend", "typescript",
+    "--main", model.module,
+    "--init", model.init,
+    "--step", step,
+    "--invariant", invariant,
+    "--max-samples", String(simulation.maxSamples),
+    "--max-steps", String(simulation.maxSteps),
+    "--seed", simulation.seed,
+    model.file,
+  ];
+}
+
+/** The `quint run --mbt` arguments that write a model's replay traces into `directory`. */
+export function quintTraceArguments(
+  model: QuintModel,
+  step: string,
+  traces: number,
+  seed: string,
+  directory: string,
+): readonly string[] {
+  return [
+    "run",
+    "--backend", "typescript",
+    "--main", model.module,
+    "--init", model.init,
+    "--step", step,
+    "--max-samples", String(traces),
+    "--max-steps", String(model.replay.maxSteps),
+    "--seed", seed,
+    "--mbt",
+    "--n-traces", String(traces),
+    "--out-itf", join(directory, "trace_{seq}.itf.json"),
+    model.file,
+  ];
+}
+
+// ---------------------------------------------------------------------------
+// Lean trust base
+// ---------------------------------------------------------------------------
+
+export const KERNEL_AXIOMS: readonly string[] = Object.freeze(["propext", "Classical.choice", "Quot.sound"]);
+/** Axioms that no allow-list may admit: they mark `sorry` or trusted native evaluation. */
+export const FORBIDDEN_AXIOMS: readonly string[] = Object.freeze([
+  "sorryAx",
+  "Lean.ofReduceBool",
+  "Lean.ofReduceNat",
+  "Lean.trustCompiler",
+]);
+
+export type LeanMutant = Readonly<{
+  /** The required theorem whose property the seeded defect breaks. */
+  theorem: string;
+  /** The definition the theorem states its property about, which the defect stands in for. */
+  guarded: string;
+  /** The seeded defect: a definition with the guarded definition's type that reproduces the pre-fix behaviour. */
+  defect: string;
+  /**
+   * A required theorem whose statement is exactly the negation of the
+   * theorem's statement with the guarded definition replaced by the defect.
+   */
+  refutation: string;
+}>;
+
+export type LeanTheorem = Readonly<{
+  name: string;
+  /** SHA-256 of the kernel type that `AxiomAudit.lean` prints, so a changed statement needs review. */
+  type: string;
+}>;
+
+export type LeanProofs = Readonly<{
+  library: string;
+  theorems: readonly LeanTheorem[];
+  mutants: readonly LeanMutant[];
+  allowedAxioms: readonly string[];
+}>;
+
+const LEAN_NAME = /^[A-Za-z_][A-Za-z0-9_']*(?:\.[A-Za-z_][A-Za-z0-9_']*)*$/u;
+
+/** Parse `verification/lean/proofs.json`. */
+export function parseLeanProofs(value: unknown): LeanProofs {
+  const manifest = exactObject(value, ["schema", "library", "theorems", "mutants", "allowedAxioms"], "proofs.json");
+  if (manifest.schema !== "ghostget-lean-proofs-v2") throw new Error("proofs.json has an unknown schema");
+  if (typeof manifest.library !== "string" || !/^[A-Z][A-Za-z0-9]*$/u.test(manifest.library)) {
+    throw new Error("proofs.json library must be one Lean module root");
+  }
+  const library = manifest.library;
+  const names = (entry: unknown, label: string, nonEmpty: boolean): readonly string[] => {
+    if (!Array.isArray(entry) || (nonEmpty && entry.length === 0) || entry.length > 10_000) {
+      throw new Error(`proofs.json ${label} must be a${nonEmpty ? " non-empty" : ""} list`);
+    }
+    const items = entry.map((item) => {
+      if (typeof item !== "string" || !LEAN_NAME.test(item)) throw new Error(`proofs.json ${label} must hold Lean names`);
+      return item;
+    });
+    if (new Set(items).size !== items.length) throw new Error(`proofs.json ${label} must not repeat a name`);
+    return Object.freeze(items);
+  };
+  if (!Array.isArray(manifest.theorems) || manifest.theorems.length === 0 || manifest.theorems.length > 10_000) {
+    throw new Error("proofs.json theorems must be a non-empty list");
+  }
+  const theorems = Object.freeze(manifest.theorems.map((entry, index): LeanTheorem => {
+    const label = `proofs.json theorems[${String(index)}]`;
+    const theorem = exactObject(entry, ["name", "type"], label);
+    if (typeof theorem.name !== "string" || !LEAN_NAME.test(theorem.name)) throw new Error(`${label}.name must be a Lean name`);
+    if (!theorem.name.startsWith(`${library}.`)) throw new Error("proofs.json theorems must live in the audited library");
+    if (typeof theorem.type !== "string" || !/^[0-9a-f]{64}$/u.test(theorem.type)) {
+      throw new Error(`${label}.type must be the SHA-256 hex digest of the theorem's kernel type`);
+    }
+    return Object.freeze({ name: theorem.name, type: theorem.type });
+  }));
+  const theoremNames = theorems.map((theorem) => theorem.name);
+  if (new Set(theoremNames).size !== theoremNames.length) throw new Error("proofs.json theorems must not repeat a name");
+  if (!Array.isArray(manifest.mutants) || manifest.mutants.length === 0 || manifest.mutants.length > 1_000) {
+    throw new Error("proofs.json mutants must list at least one seeded defect");
+  }
+  const mutants = manifest.mutants.map((entry, index): LeanMutant => {
+    const label = `proofs.json mutants[${String(index)}]`;
+    const mutant = exactObject(entry, ["theorem", "guarded", "defect", "refutation"], label);
+    const [theorem, guarded, defect, refutation] = [mutant.theorem, mutant.guarded, mutant.defect, mutant.refutation].map((name) => {
+      if (typeof name !== "string" || !LEAN_NAME.test(name) || !name.startsWith(`${library}.`)) {
+        throw new Error(`${label} must name declarations in the audited library`);
+      }
+      return name;
+    }) as [string, string, string, string];
+    if (!theoremNames.includes(theorem) || !theoremNames.includes(refutation) || theorem === refutation) {
+      throw new Error(`${label} must name two different required theorems`);
+    }
+    if (theoremNames.includes(defect)) throw new Error(`${label} defect must be a definition, not a required theorem`);
+    if (theoremNames.includes(guarded)) throw new Error(`${label} guarded must be a definition, not a required theorem`);
+    if (guarded === defect) throw new Error(`${label} defect must differ from the definition it stands in for`);
+    return Object.freeze({ theorem, guarded, defect, refutation });
+  });
+  const allowedAxioms = names(manifest.allowedAxioms, "allowedAxioms", false);
+  if (allowedAxioms.some((name) => FORBIDDEN_AXIOMS.includes(name) || KERNEL_AXIOMS.includes(name))) {
+    throw new Error("proofs.json allowedAxioms may not list sorryAx, native-evaluation axioms, or the kernel axioms");
+  }
+  return Object.freeze({ library, theorems, mutants: Object.freeze(mutants), allowedAxioms });
+}
+
+/** Words that mark a Lean trust escape wherever they appear, comments included. */
+const LEAN_TRUST_ESCAPES = Object.freeze([
+  "skipKernelTC",
+  "implemented_by",
+  "native_decide",
+  "ofReduceBool",
+  "ofReduceNat",
+  "trustCompiler",
+  "addDeclWithoutChecking",
+  "sorryAx",
+]);
+/** Keywords that library code may not use. */
+const LEAN_FORBIDDEN_CODE = Object.freeze([
+  "sorry",
+  "admit",
+  "unsafe",
+  "extern",
+  "#eval",
+  "#exit",
+  "run_cmd",
+  "run_elab",
+  "run_meta",
+  "run_tac",
+  "elab",
+  "elab_rules",
+  "initialize",
+  "builtin_initialize",
+]);
+const LEAN_ALLOWED_IMPORT_ROOTS = Object.freeze(["Init", "Std"]);
+const LEAN_IDENTIFIER_CHARACTER = /[\p{L}\p{N}_'!?]/u;
+
+function isLeanIdentifierCharacter(character: string | undefined): boolean {
+  return character !== undefined && LEAN_IDENTIFIER_CHARACTER.test(character);
+}
+
+/**
+ * Blank Lean comments while keeping string and character literals and line
+ * breaks, so a forbidden word inside a string still counts.
+ */
+export function leanCodeWithoutComments(text: string): Readonly<{ code: string; problems: readonly string[] }> {
+  const problems: string[] = [];
+  let code = "";
+  let index = 0;
+  const blank = (character: string): string => character === "\n" ? "\n" : " ";
+  while (index < text.length) {
+    const character = text[index]!;
+    const next = text[index + 1];
+    if (character === "-" && next === "-") {
+      while (index < text.length && text[index] !== "\n") {
+        code += " ";
+        index += 1;
+      }
+      continue;
+    }
+    if (character === "/" && next === "-") {
+      let depth = 1;
+      code += "  ";
+      index += 2;
+      while (index < text.length && depth > 0) {
+        if (text[index] === "/" && text[index + 1] === "-") {
+          depth += 1;
+          code += "  ";
+          index += 2;
+        } else if (text[index] === "-" && text[index + 1] === "/") {
+          depth -= 1;
+          code += "  ";
+          index += 2;
+        } else {
+          code += blank(text[index]!);
+          index += 1;
+        }
+      }
+      if (depth > 0) problems.push("an unterminated block comment");
+      continue;
+    }
+    if (character === "\"") {
+      const start = index;
+      index += 1;
+      while (index < text.length && text[index] !== "\"") index += text[index] === "\\" ? 2 : 1;
+      if (index >= text.length) {
+        problems.push("an unterminated string literal");
+        code += text.slice(start);
+        break;
+      }
+      index += 1;
+      code += text.slice(start, index);
+      continue;
+    }
+    if (character === "r" && !isLeanIdentifierCharacter(text[index - 1])) {
+      const raw = /^r(#*)"/u.exec(text.slice(index, index + 260));
+      if (raw !== null) {
+        const close = `"${raw[1]!}`;
+        const end = text.indexOf(close, index + raw[0].length);
+        if (end < 0) {
+          problems.push("an unterminated raw string literal");
+          code += text.slice(index);
+          break;
+        }
+        code += text.slice(index, end + close.length);
+        index = end + close.length;
+        continue;
+      }
+    }
+    if (character === "'" && !isLeanIdentifierCharacter(text[index - 1])) {
+      const literal = /^'(?:\\(?:[\\"'nrt]|x[0-9a-fA-F]{2}|u\{[0-9a-fA-F]{1,6}\})|[^'\\\n])'/u.exec(text.slice(index, index + 16));
+      if (literal !== null) {
+        code += literal[0];
+        index += literal[0].length;
+        continue;
+      }
+    }
+    code += character;
+    index += 1;
+  }
+  return Object.freeze({ code, problems: Object.freeze(problems) });
+}
+
+function wordPattern(word: string): RegExp {
+  const prefix = /^[A-Za-z_]/u.test(word) ? "(?<![\\p{L}\\p{N}_'!?])" : "";
+  return new RegExp(`${prefix}${escapeRegExp(word)}(?![\\p{L}\\p{N}_'!?])`, "u");
+}
+
+/**
+ * Scan one Lean library source for trust escapes. Findings name the rule, not
+ * the source text. The kernel-level axiom audit remains the authority; this
+ * scan catches escapes the audit cannot see, such as disabled kernel checks.
+ */
+export function leanSourceFindings(text: string, proofs: LeanProofs): readonly string[] {
+  const findings: string[] = [];
+  for (const word of LEAN_TRUST_ESCAPES) {
+    if (wordPattern(word).test(text)) findings.push(`uses the trust escape ${word}`);
+  }
+  const { code, problems } = leanCodeWithoutComments(text);
+  findings.push(...problems.map((problem) => `has ${problem}`));
+  for (const word of LEAN_FORBIDDEN_CODE) {
+    if (wordPattern(word).test(code)) findings.push(`uses ${word}`);
+  }
+  if (/\+native(?![\p{L}\p{N}_'!?])/u.test(code)) findings.push("uses native evaluation");
+  for (const match of code.matchAll(/(?<![\p{L}\p{N}_'!?])axiom\s+([^\s:({[]+)/gu)) {
+    const name = match[1]!;
+    const allowed = proofs.allowedAxioms.some((axiom) => axiom === name || axiom.endsWith(`.${name}`));
+    if (!allowed) findings.push("declares an axiom that proofs.json does not allow");
+  }
+  if (/(?<![\p{L}\p{N}_'!?])axiom(?![\p{L}\p{N}_'!?])\s*$/mu.test(code)) {
+    findings.push("declares an axiom that proofs.json does not allow");
+  }
+  for (const line of code.split("\n")) {
+    const declaration = /^\s*(?:(?:public|private|meta)\s+)*import\s+(.*)$/u.exec(line);
+    if (declaration === null) continue;
+    for (const module of declaration[1]!.trim().split(/\s+/u)) {
+      if (module === "all" || module === "") continue;
+      const root = module.split(".")[0]!;
+      if (root !== proofs.library && !LEAN_ALLOWED_IMPORT_ROOTS.includes(root)) {
+        findings.push(`imports ${module}, outside the core-only allow-list`);
+      }
+    }
+  }
+  return Object.freeze([...new Set(findings)]);
+}
+
+export type AuditedDeclaration = Readonly<{
+  declaration: string;
+  kind: string;
+  module: string;
+  /** The kernel type as `Expr.dbgToString` prints it. */
+  type: string;
+  axioms: readonly string[];
+  /** The constants the declaration's type uses. */
+  uses: readonly string[];
+}>;
+
+/** One seeded-defect check that `AxiomAudit.lean` ran at the kernel-term level. */
+export type AuditedMutant = Readonly<{
+  theorem: string;
+  guarded: string;
+  defect: string;
+  refutation: string;
+  /** All four declarations exist. */
+  found: boolean;
+  /** The defect has the guarded definition's type and universe parameters. */
+  sameSignature: boolean;
+  /** The refutation states exactly the negation of the theorem with the guarded definition replaced by the defect. */
+  negates: boolean;
+}>;
+
+export type AxiomAudit = Readonly<{
+  declarations: readonly AuditedDeclaration[];
+  mutants: readonly AuditedMutant[];
+}>;
+
+/** The `AxiomAudit.lean` arguments: the library root, then each mutant's four names. */
+export function axiomAuditArguments(proofs: LeanProofs): readonly string[] {
+  return [proofs.library, ...proofs.mutants.flatMap((mutant) => [mutant.theorem, mutant.guarded, mutant.defect, mutant.refutation])];
+}
+
+/** SHA-256 of a theorem's printed kernel type, as `proofs.json` records it. */
+export function leanTypeDigest(type: string): string {
+  return createHash("sha256").update(type).digest("hex");
+}
+
+const DECLARATION_KINDS = new Set([
+  "axiom", "definition", "theorem", "opaque", "quotient", "inductive", "constructor", "recursor",
+]);
+
+/** Parse the JSON lines that `AxiomAudit.lean` prints. */
+export function parseAxiomAudit(stdout: string): AxiomAudit {
+  const entries = stdout.split("\n").filter((line) => line.trim() !== "");
+  const summaryLine = entries.pop();
+  if (summaryLine === undefined) throw new Error("The axiom audit printed nothing");
+  let summary: Record<string, unknown>;
+  try {
+    summary = exactObject(JSON.parse(summaryLine) as unknown, ["declarations", "mutants"], "axiom audit summary");
+  } catch {
+    throw new Error("The axiom audit did not end with its summary line");
+  }
+  const total = summary.declarations;
+  const checks = summary.mutants;
+  if (typeof total !== "number" || typeof checks !== "number" || !Number.isSafeInteger(checks) || checks < 0
+    || total + checks !== entries.length || total === 0) {
+    throw new Error("The axiom audit summary does not match its declarations");
+  }
+  const parsedLine = (line: string, index: number): unknown => {
+    try {
+      return JSON.parse(line) as unknown;
+    } catch {
+      throw new Error(`Axiom audit line ${String(index + 1)} is not JSON`);
+    }
+  };
+  const strings = (list: unknown): list is string[] =>
+    Array.isArray(list) && list.every((item) => typeof item === "string" && item !== "");
+  const declarations = entries.slice(0, total).map((line, index): AuditedDeclaration => {
+    const entry = exactObject(parsedLine(line, index), ["declaration", "kind", "module", "type", "axioms", "uses"], `axiom audit line ${String(index + 1)}`);
+    if (typeof entry.declaration !== "string" || entry.declaration === "" || typeof entry.module !== "string"
+      || typeof entry.kind !== "string" || !DECLARATION_KINDS.has(entry.kind)
+      || typeof entry.type !== "string" || entry.type === ""
+      || !strings(entry.axioms) || !strings(entry.uses)) {
+      throw new Error(`Axiom audit line ${String(index + 1)} is malformed`);
+    }
+    return Object.freeze({
+      declaration: entry.declaration,
+      kind: entry.kind,
+      module: entry.module,
+      type: entry.type,
+      axioms: Object.freeze([...entry.axioms]),
+      uses: Object.freeze([...entry.uses]),
+    });
+  });
+  const mutants = entries.slice(total).map((line, offset): AuditedMutant => {
+    const index = total + offset;
+    const label = `axiom audit line ${String(index + 1)}`;
+    const entry = exactObject(parsedLine(line, index), [
+      "mutant", "guarded", "defect", "refutation", "found", "sameSignature", "negates",
+    ], label);
+    const names = [entry.mutant, entry.guarded, entry.defect, entry.refutation];
+    if (!names.every((name) => typeof name === "string" && name !== "")
+      || typeof entry.found !== "boolean" || typeof entry.sameSignature !== "boolean" || typeof entry.negates !== "boolean") {
+      throw new Error(`Axiom audit line ${String(index + 1)} is malformed`);
+    }
+    const [theorem, guarded, defect, refutation] = names as [string, string, string, string];
+    return Object.freeze({
+      theorem, guarded, defect, refutation, found: entry.found, sameSignature: entry.sameSignature, negates: entry.negates,
+    });
+  });
+  const declared = declarations.map((entry) => entry.declaration);
+  if (new Set(declared).size !== declared.length) throw new Error("The axiom audit repeats a declaration");
+  return Object.freeze({ declarations: Object.freeze(declarations), mutants: Object.freeze(mutants) });
+}
+
+/**
+ * Findings for an audited library: missing or changed theorems, unlisted or
+ * forbidden axioms, and seeded defects whose refutation is not, at the
+ * kernel-term level, the negation of the guarded theorem with the defect in
+ * place of the definition it guards.
+ */
+export function axiomAuditFindings(audit: AxiomAudit, proofs: LeanProofs): readonly string[] {
+  const findings: string[] = [];
+  const { declarations } = audit;
+  const allowed = new Set([...KERNEL_AXIOMS, ...proofs.allowedAxioms]);
+  const byName = new Map(declarations.map((entry) => [entry.declaration, entry]));
+  for (const theorem of proofs.theorems) {
+    const entry = byName.get(theorem.name);
+    if (entry === undefined) findings.push(`${theorem.name} is missing`);
+    else if (entry.kind !== "theorem") findings.push(`${theorem.name} is a ${entry.kind}, not a theorem`);
+    else if (leanTypeDigest(entry.type) !== theorem.type) {
+      findings.push(`${theorem.name} states something other than proofs.json records; review it and set its type to ${leanTypeDigest(entry.type)}`);
+    }
+  }
+  for (const mutant of proofs.mutants) {
+    for (const [role, name] of [["seeded defect", mutant.defect], ["guarded definition", mutant.guarded]] as const) {
+      const entry = byName.get(name);
+      if (entry === undefined) findings.push(`the ${role} ${name} is missing`);
+      else if (entry.kind !== "definition") findings.push(`the ${role} ${name} is ${/^[aeiou]/u.test(entry.kind) ? "an" : "a"} ${entry.kind}, not a definition`);
+    }
+    const theorem = byName.get(mutant.theorem);
+    if (theorem?.uses.includes(mutant.defect) === true) {
+      findings.push(`${mutant.theorem} states its property about the seeded defect ${mutant.defect}`);
+    }
+    if (theorem?.uses.includes(mutant.guarded) === false) {
+      findings.push(`${mutant.theorem} does not state anything about ${mutant.guarded}`);
+    }
+    if (byName.get(mutant.refutation)?.uses.includes(mutant.defect) === false) {
+      findings.push(`${mutant.refutation} does not state anything about the seeded defect ${mutant.defect}`);
+    }
+    const checks = audit.mutants.filter((check) => check.theorem === mutant.theorem && check.guarded === mutant.guarded
+      && check.defect === mutant.defect && check.refutation === mutant.refutation);
+    if (checks.length !== 1) {
+      findings.push(`the audit checked the seeded defect ${mutant.defect} against ${mutant.theorem} ${String(checks.length)} times, not once`);
+      continue;
+    }
+    const check = checks[0]!;
+    if (!check.found) {
+      findings.push(`the audit could not find every declaration of the seeded defect ${mutant.defect}`);
+      continue;
+    }
+    if (!check.sameSignature) findings.push(`the seeded defect ${mutant.defect} does not have the type of ${mutant.guarded}`);
+    if (!check.negates) {
+      findings.push(`${mutant.refutation} does not state the negation of ${mutant.theorem} with ${mutant.guarded} replaced by ${mutant.defect}`);
+    }
+  }
+  if (audit.mutants.length !== proofs.mutants.length) {
+    findings.push(`the audit checked ${String(audit.mutants.length)} seeded defects, but proofs.json lists ${String(proofs.mutants.length)}`);
+  }
+  for (const entry of declarations) {
+    if (entry.module !== proofs.library && !entry.module.startsWith(`${proofs.library}.`)) {
+      findings.push(`${entry.declaration} comes from ${entry.module}, outside ${proofs.library}`);
+    }
+    if (entry.kind === "axiom" && !proofs.allowedAxioms.includes(entry.declaration)) {
+      findings.push(`${entry.declaration} is an axiom that proofs.json does not allow`);
+    }
+    for (const axiom of entry.axioms) {
+      if (FORBIDDEN_AXIOMS.includes(axiom)) findings.push(`${entry.declaration} depends on ${axiom}`);
+      else if (!allowed.has(axiom)) findings.push(`${entry.declaration} depends on the unlisted axiom ${axiom}`);
+    }
+  }
+  return Object.freeze(findings);
+}
+
+/** Static checks on the Lake project: the pinned toolchain, no packages, and no build options. */
+export function leanProjectFindings(files: Readonly<{
+  toolchain: string;
+  manifest: string;
+  lakefile: string;
+}>): readonly string[] {
+  const findings: string[] = [];
+  if (files.toolchain !== `${LEAN.toolchain}\n`) findings.push(`lean-toolchain must be exactly ${LEAN.toolchain}`);
+  try {
+    const manifest = JSON.parse(files.manifest) as unknown;
+    if (!isPlainObject(manifest) || !Array.isArray(manifest.packages) || manifest.packages.length !== 0) {
+      findings.push("lake-manifest.json must list no packages");
+    }
+  } catch {
+    findings.push("lake-manifest.json must be JSON");
+  }
+  for (const word of LEAN_TRUST_ESCAPES) {
+    if (wordPattern(word).test(files.lakefile)) findings.push(`lakefile.toml uses the trust escape ${word}`);
+  }
+  try {
+    const lakefile = Bun.TOML.parse(files.lakefile) as Record<string, unknown>;
+    const top = Object.keys(lakefile).sort();
+    if (top.join(",") !== "defaultTargets,lean_lib,name") {
+      findings.push("lakefile.toml may set only name, defaultTargets, and lean_lib");
+    }
+    const libraries = lakefile.lean_lib;
+    if (!Array.isArray(libraries) || libraries.length !== 1 || !isPlainObject(libraries[0])
+      || Object.keys(libraries[0]).some((key) => !["name", "roots", "globs"].includes(key))) {
+      findings.push("lakefile.toml must declare one lean_lib with only name, roots, and globs");
+    }
+  } catch {
+    findings.push("lakefile.toml must be TOML");
+  }
+  return Object.freeze(findings);
+}
+
+// ---------------------------------------------------------------------------
+// Sanitized logs
+// ---------------------------------------------------------------------------
+
+export type PathReplacement = readonly [prefix: string, placeholder: string];
+
+/* eslint-disable no-control-regex -- terminal control sequences are removed on purpose. */
+const TERMINAL_SEQUENCES = /\u001B\[[0-?]*[ -/]*[@-~]|\u001B\][^\u0007\u001B]*(?:\u0007|\u001B\\)|\u001B[@-_]/gu;
+const CONTROL_CHARACTERS = /[\u0000-\u0008\u000B-\u001F\u007F-\u009F]/gu;
+/* eslint-enable no-control-regex */
+
+/**
+ * Remove terminal controls and every C0 and C1 control character except line
+ * feed and tab, replace local absolute paths with placeholders, longest first,
+ * and neutralize the source-CI markers that job-log admission counts.
+ */
+export function sanitizeCheckerOutput(text: string, replacements: readonly PathReplacement[]): string {
+  let output = text.replace(/\r\n/gu, "\n").replace(TERMINAL_SEQUENCES, "").replace(CONTROL_CHARACTERS, "");
+  const ordered = [...replacements]
+    .filter(([prefix]) => prefix.length > 1)
+    .sort((left, right) => right[0].length - left[0].length);
+  for (const [prefix, placeholder] of ordered) output = output.split(prefix).join(placeholder);
+  return output
+    .split("WRENCH_SOURCE_CI_IDENTITY=").join("<source-ci-marker>")
+    .split("[command]").join("<command>");
+}
+
+export async function pathReplacements(entries: readonly PathReplacement[]): Promise<readonly PathReplacement[]> {
+  const all: PathReplacement[] = [];
+  for (const [prefix, placeholder] of entries) {
+    all.push([prefix, placeholder]);
+    try {
+      const real = await realpath(prefix);
+      if (real !== prefix) all.push([real, placeholder]);
+    } catch {
+      // A path that does not exist has no other spelling to replace.
+    }
+  }
+  return all;
+}
+
+function tail(text: string): string {
+  const all = text.trimEnd().split("\n");
+  return all.slice(-FAILURE_TAIL_LINES).join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// Checker runs
+// ---------------------------------------------------------------------------
+
+type RunContext = Readonly<{
+  root: string;
+  profile: QuintProfile;
+  work: string;
+  artifacts: string;
+  cacheDirectory: string;
+  platform: PlatformKey;
+  replacements: readonly PathReplacement[];
+  log: (line: string) => void;
+}>;
+
+function sanitize(context: RunContext, text: string): string {
+  return sanitizeCheckerOutput(text, context.replacements);
+}
+
+/** Keeps only the lines of a checker's output that are safe and useful to retain. */
+export type OutputFilter = (text: string) => string;
+
+/** A finished checker run plus the sanitized record written to its log. */
+type LoggedResult = CheckerResult & Readonly<{ record: string }>;
+
+async function runLogged(
+  context: RunContext,
+  step: string,
+  logName: string,
+  command: readonly string[],
+  options: ToolRunOptions,
+  filter: OutputFilter = (text) => text,
+): Promise<LoggedResult> {
+  const outcome = await runTool(command, options);
+  const status = outcome.kind === "exited" ? `exit ${String(outcome.exitCode)}` : `${outcome.kind}: ${outcome.detail}`;
+  const record = sanitize(context, [
+    `$ ${command.join(" ")}`,
+    `# ${status}`,
+    "## stdout",
+    filter(outcome.stdout),
+    "## stderr",
+    filter(outcome.stderr),
+    "",
+  ].join("\n"));
+  await writeFile(join(context.artifacts, `${logName}.log`), record, { mode: 0o644 });
+  try {
+    return { ...requireFinished(step, outcome), record };
+  } catch (error) {
+    context.log(tail(record));
+    throw error;
+  }
+}
+
+/**
+ * `requireVerdict` for a logged run. CI retains checker logs only after a
+ * successful run, so a rejected verdict prints the tail of its sanitized log.
+ */
+function requireLoggedVerdict(
+  context: RunContext,
+  step: string,
+  expected: "pass" | "violation",
+  verdict: CheckerVerdict,
+  result: LoggedResult,
+): void {
+  try {
+    requireVerdict(step, expected, verdict);
+  } catch (error) {
+    context.log(tail(result.record));
+    throw error;
+  }
+}
+
+function toolEnvironment(context: RunContext, extra: Readonly<Record<string, string>> = {}): Readonly<Record<string, string>> {
+  return Object.freeze({
+    HOME: join(context.work, "home"),
+    TMPDIR: join(context.work, "tmp"),
+    LANG: "C",
+    LC_ALL: "C",
+    TZ: "UTC",
+    PATH: "/usr/bin:/bin",
+    ...extra,
+  });
+}
+
+function requireExecutable(name: string): string {
+  const found = Bun.which(name);
+  if (found === null) throw new Error(`${name} must be on PATH for the formal-verification checkers`);
+  return found;
+}
+
+async function extractArchive(
+  context: RunContext,
+  archivePath: string,
+  archive: PinnedArchive,
+  destination: string,
+  extractedName: string,
+): Promise<string> {
+  await mkdir(destination, { recursive: true });
+  const staging = await mkdtemp(join(destination, ".extract-"));
+  const tar = requireExecutable("tar");
+  const flags = archive.format === "tar.gz" ? ["-xzf"] : ["--zstd", "-xf"];
+  const zstdDirectory = archive.format === "tar.zst" ? `${dirname(requireExecutable("zstd"))}:` : "";
+  const result = await runLogged(context, `extract ${archive.name}`, `extract-${archive.entry}`, [
+    tar, ...flags, archivePath, "-C", staging,
+  ], {
+    cwd: context.work,
+    environment: toolEnvironment(context, { PATH: `${zstdDirectory}/usr/bin:/bin` }),
+    timeoutMs: EXTRACT_TIMEOUT_MS,
+  });
+  if (result.exitCode !== 0) throw new Error(`extract ${archive.name}: tar exited with ${String(result.exitCode)}`);
+  const entries = await readdir(staging);
+  if (entries.length !== 1 || entries[0] !== archive.entry) {
+    throw new Error(`${archive.name} must contain exactly the top-level entry ${archive.entry}`);
+  }
+  const target = join(destination, extractedName);
+  await rename(join(staging, archive.entry), target);
+  await rm(staging, { recursive: true, force: true });
+  return target;
+}
+
+async function admitAll(context: RunContext, archives: readonly PinnedArchive[]): Promise<readonly string[]> {
+  return Promise.all(archives.map((archive) => admitArchive(archive, {
+    cacheDirectory: context.cacheDirectory,
+    log: context.log,
+  })));
+}
+
+async function prepareJdk(context: RunContext, archivePath: string): Promise<Readonly<{ java: string; home: string }>> {
+  const archive = JDK.archives[context.platform];
+  const extracted = await extractArchive(context, archivePath, archive, join(context.work, "tools"), "jdk");
+  const home = context.platform.startsWith("darwin") ? join(extracted, "Contents", "Home") : extracted;
+  const java = join(home, "bin", "java");
+  const result = await runLogged(context, "java -version", "jdk-identity", [
+    java, "-XshowSettings:properties", "-version",
+  ], {
+    cwd: context.work,
+    environment: toolEnvironment(context, { JAVA_HOME: home }),
+    timeoutMs: SHORT_TIMEOUT_MS,
+  }, jdkIdentityLines);
+  if (result.exitCode !== 0 || !jdkIdentityMatches(result.stderr)) {
+    throw new Error(`The extracted JDK is not ${JDK.vendorVersion} (${JDK.runtimeVersion})`);
+  }
+  return { java, home };
+}
+
+const JDK_IDENTITY = Object.freeze([
+  ["java.runtime.version", JDK.runtimeVersion],
+  ["java.vendor", JDK.vendor],
+  ["java.vendor.version", JDK.vendorVersion],
+] as const);
+
+const jdkPropertyLine = (name: string): RegExp => new RegExp(`^\\s*${escapeRegExp(name)} = (.*)$`, "u");
+
+/**
+ * Keep only the JDK identity lines of `java -XshowSettings:properties -version`.
+ * The full property dump names the local user and home directory.
+ */
+export function jdkIdentityLines(text: string): string {
+  return lines(text)
+    .filter((line) => JDK_IDENTITY.some(([name]) => jdkPropertyLine(name).test(line))
+      || /^(?:openjdk version |OpenJDK Runtime Environment |OpenJDK 64-Bit Server VM )/u.test(line))
+    .join("\n");
+}
+
+/** True only when each pinned identity property appears exactly once with its pinned value. */
+export function jdkIdentityMatches(text: string): boolean {
+  return JDK_IDENTITY.every(([name, expected]) => {
+    const values = lines(text)
+      .map((line) => jdkPropertyLine(name).exec(line)?.[1])
+      .filter((value) => value !== undefined);
+    return values.length === 1 && values[0] === expected;
+  });
+}
+
+async function quintVersion(context: RunContext, node: string): Promise<string> {
+  const manifest = JSON.parse(await readFile(join(context.root, "node_modules", QUINT.packageName, "package.json"), "utf8")) as {
+    version?: unknown;
+  };
+  if (manifest.version !== QUINT.version) throw new Error(`Installed Quint is not ${QUINT.version}; run bun install`);
+  const result = await runLogged(context, "quint --version", "quint-version", [node, join(context.root, QUINT.cli), "--version"], {
+    cwd: context.work,
+    environment: quintEnvironment(context, node),
+    timeoutMs: SHORT_TIMEOUT_MS,
+  });
+  if (result.exitCode !== 0 || result.stdout.trim() !== QUINT.version) {
+    throw new Error(`The Quint CLI does not report version ${QUINT.version}`);
+  }
+  return result.stdout.trim();
+}
+
+function quintEnvironment(context: RunContext, node: string): Readonly<Record<string, string>> {
+  return toolEnvironment(context, {
+    PATH: `${dirname(node)}:/usr/bin:/bin`,
+    NO_COLOR: "1",
+    FORCE_COLOR: "0",
+  });
+}
+
+/** Every model's replay test as a `bun test` path, once each, in manifest order. */
+export function quintReplayTests(models: readonly QuintModel[]): readonly string[] {
+  return [...new Set(models.map((model) => `./${model.replay.test}`))];
+}
+
+/** The one command that runs every model's replay test, so a new model needs no script edit. */
+export function quintReplayCommand(bun: string, models: readonly QuintModel[]): readonly string[] {
+  return [bun, "run", QUINT_REPLAY_SCRIPT, ...quintReplayTests(models)];
+}
+
+// ---------------------------------------------------------------------------
+// CI shards
+// ---------------------------------------------------------------------------
+
+/**
+ * The number of parallel `quint` jobs PR CI runs. Each job runs the work
+ * units `quintWorkForShard` assigns to it at the CI bounds; together they
+ * check exactly what `bun run verify:quint` checks in one process.
+ */
+export const QUINT_CI_SHARD_COUNT = 4;
+const MAX_QUINT_SHARD_COUNT = 16;
+const DEFAULT_QUINT_MODEL_WEIGHT = 60;
+
+// Wall seconds one model took in the CI profile on GitHub-hosted ubuntu-latest
+// (run 36028981199): typecheck, seeded
+// simulations, the Apalache check of every invariant and mutant, and its ITF
+// replay test. Used only to pack shards; every model still runs exactly once.
+// A model without a reading takes the default weight until its first CI log.
+const MEASURED_QUINT_MODEL_WEIGHTS = Object.freeze({
+  "release.qnt": 330,
+  "state-claim.qnt": 170,
+  "media.qnt": 155,
+  "path-claim.qnt": 140,
+  "approvals.qnt": 77,
+  "messaging.qnt": 46,
+  "lock.qnt": 20,
+});
+
+// A model listed here packs by check instead of as one unit: its core work
+// (typecheck, every seeded simulation, and the Apalache check of every
+// invariant), its ITF replay run, and each listed mutant's Apalache check are
+// separate units, so a slow invariant check runs alone on its shard while its
+// mutants and replay run elsewhere. fence.qnt's fenceSafety check alone takes
+// 15-23 minutes, and its five mutant checks took another 7-10 minutes in
+// series behind it (runs 36511561912 and 36507515053), which pushed the fence
+// shard past its step bound on main (run 36342247630). Mutants a model does
+// not list here stay in its core unit. Weights are wall seconds from those
+// runs; every listed mutant must exist in the manifest.
+const MEASURED_QUINT_SPLIT_WEIGHTS: Readonly<Record<string, Readonly<{
+  core: number;
+  replay: number;
+  mutants: Readonly<Record<string, number>>;
+}>>> = Object.freeze({
+  "fence.qnt": Object.freeze({
+    core: 1150,
+    replay: 200,
+    mutants: Object.freeze({
+      "stepHashKeyed fenceSafety": 245,
+      "stepUnelected fenceSafety": 205,
+      "stepElectInFlight fenceSafety": 70,
+      "stepSubjectBlind fenceSafety": 35,
+      "stepCallerRelease fenceSafety": 20,
+    }),
+  }),
+});
+
+export type QuintShard = Readonly<{ shard: number; shardCount: number }>;
+export type QuintMutant = QuintModel["mutants"][number];
+
+/**
+ * One schedulable part of a model's `verify:quint` work. `core` is the
+ * typecheck, every seeded simulation (invariants and mutants), and the
+ * Apalache check of every invariant; `mutants` are the mutants whose Apalache
+ * checks this unit runs; `replay` runs the model's ITF replay test.
+ */
+export type QuintWork = Readonly<{
+  model: QuintModel;
+  core: boolean;
+  mutants: readonly QuintMutant[];
+  replay: boolean;
+  weight: number;
+}>;
+
+export function quintModelWeight(file: string): number {
+  const split = MEASURED_QUINT_SPLIT_WEIGHTS[file];
+  if (split !== undefined) {
+    return split.core + split.replay + Object.values(split.mutants).reduce((sum, weight) => sum + weight, 0);
+  }
+  return MEASURED_QUINT_MODEL_WEIGHTS[file as keyof typeof MEASURED_QUINT_MODEL_WEIGHTS]
+    ?? DEFAULT_QUINT_MODEL_WEIGHT;
+}
+
+function mutantKey(mutant: QuintMutant): string {
+  return `${mutant.step} ${mutant.invariant}`;
+}
+
+/** Every model's work units, in manifest order; each model's parts appear in exactly one unit. */
+export function quintWorkUnits(models: readonly QuintModel[]): readonly QuintWork[] {
+  if (new Set(models.map((model) => model.file)).size !== models.length) {
+    throw new Error("the model inventory lists a file twice");
+  }
+  const files = new Set(models.map((model) => model.file));
+  for (const file of Object.keys(MEASURED_QUINT_SPLIT_WEIGHTS)) {
+    if (!files.has(file)) throw new Error(`the split weights name ${file}, which the model inventory does not list`);
+  }
+  return Object.freeze(models.flatMap((model): QuintWork[] => {
+    const split = MEASURED_QUINT_SPLIT_WEIGHTS[model.file];
+    if (split === undefined) {
+      return [Object.freeze({ model, core: true, mutants: model.mutants, replay: true, weight: quintModelWeight(model.file) })];
+    }
+    const known = new Set(model.mutants.map(mutantKey));
+    for (const key of Object.keys(split.mutants)) {
+      if (!known.has(key)) throw new Error(`the split weights for ${model.file} name mutant ${key}, which the manifest does not list`);
+    }
+    const separate = model.mutants.filter((mutant) => split.mutants[mutantKey(mutant)] !== undefined);
+    return [
+      Object.freeze({
+        model,
+        core: true,
+        mutants: Object.freeze(model.mutants.filter((mutant) => split.mutants[mutantKey(mutant)] === undefined)),
+        replay: false,
+        weight: split.core,
+      }),
+      Object.freeze({ model, core: false, mutants: Object.freeze([]), replay: true, weight: split.replay }),
+      ...separate.map((mutant) => Object.freeze({
+        model,
+        core: false,
+        mutants: Object.freeze([mutant]),
+        replay: false,
+        weight: split.mutants[mutantKey(mutant)]!,
+      })),
+    ];
+  }));
+}
+
+/** A short description of one unit for the shard log. */
+export function describeQuintWork(unit: QuintWork): string {
+  const parts = [
+    ...(unit.core ? ["core"] : []),
+    ...(unit.mutants.length > 0 && !unit.core ? unit.mutants.map((mutant) => `mutant ${mutant.step}`) : []),
+    ...(unit.replay ? ["replay"] : []),
+  ];
+  return unit.core && unit.replay && unit.mutants.length === unit.model.mutants.length
+    ? unit.model.file
+    : `${unit.model.file} (${parts.join(", ")})`;
+}
+
+function positiveShardInteger(value: unknown, label: string): number {
+  if (typeof value === "number") {
+    if (!Number.isInteger(value) || value < 1 || value > MAX_QUINT_SHARD_COUNT) {
+      throw new Error(`${label} must be an integer from 1 to ${String(MAX_QUINT_SHARD_COUNT)}`);
+    }
+    return value;
+  }
+  if (typeof value !== "string" || !/^[1-9][0-9]*$/u.test(value) || Number(value) > MAX_QUINT_SHARD_COUNT) {
+    throw new Error(`${label} must be an integer from 1 to ${String(MAX_QUINT_SHARD_COUNT)}`);
+  }
+  return Number(value);
+}
+
+/** Parse `<shard> <shardCount>` strictly: decimal integers with 1 <= shard <= shardCount <= 16. */
+export function parseQuintShard(shard: unknown, shardCount: unknown): QuintShard {
+  const parsedCount = positiveShardInteger(shardCount, "shardCount");
+  const parsedShard = positiveShardInteger(shard, "shard");
+  if (parsedShard > parsedCount) {
+    throw new Error(`shard ${String(parsedShard)} is outside 1..${String(parsedCount)}`);
+  }
+  return Object.freeze({ shard: parsedShard, shardCount: parsedCount });
+}
+
+/**
+ * Pack the work units into `shardCount` shards by measured weight, heaviest
+ * first onto the lightest shard, so the slowest shard is as short as the
+ * heaviest unit allows. The packing is a deterministic partition: every unit
+ * lands in exactly one shard, and each shard keeps manifest order.
+ */
+export function assignQuintWorkShards(
+  models: readonly QuintModel[],
+  shardCount: number,
+): readonly (readonly QuintWork[])[] {
+  if (!Number.isInteger(shardCount) || shardCount < 1 || shardCount > MAX_QUINT_SHARD_COUNT) {
+    throw new Error(`shardCount must be an integer from 1 to ${String(MAX_QUINT_SHARD_COUNT)}`);
+  }
+  const units = quintWorkUnits(models);
+  const shards: number[][] = Array.from({ length: shardCount }, () => []);
+  const weights = Array.from({ length: shardCount }, () => 0);
+  // Units sort by weight, then by manifest position, so ties stay deterministic.
+  const ordered = units.map((unit, index) => ({ unit, index })).sort((left, right) => {
+    const delta = right.unit.weight - left.unit.weight;
+    return delta !== 0 ? delta : left.index - right.index;
+  });
+  for (const { unit, index } of ordered) {
+    let lightest = 0;
+    for (let candidate = 1; candidate < shardCount; candidate += 1) {
+      if (weights[candidate]! < weights[lightest]!) lightest = candidate;
+    }
+    shards[lightest]!.push(index);
+    weights[lightest]! += unit.weight;
+  }
+  return Object.freeze(shards.map((indices) =>
+    Object.freeze([...indices].sort((left, right) => left - right).map((index) => units[index]!))
+  ));
+}
+
+/** The work units one CI shard runs; a shard that would run nothing is a misconfiguration. */
+export function quintWorkForShard(models: readonly QuintModel[], shard: QuintShard): readonly QuintWork[] {
+  const selected = assignQuintWorkShards(models, shard.shardCount)[shard.shard - 1];
+  if (selected === undefined || selected.length === 0) {
+    throw new Error(`quint shard ${String(shard.shard)}/${String(shard.shardCount)} has no work`);
+  }
+  return selected;
+}
+
+// ---------------------------------------------------------------------------
+// Pull-request Apalache scope
+// ---------------------------------------------------------------------------
+
+/**
+ * The environment variable that lets one pull-request `quint` shard skip every
+ * Apalache check. Only the CI workflow's scope step sets it, only on a
+ * `pull_request` event, and only when `decideApalacheScope` in
+ * `scripts/verification-quint-scope.ts` finds no change that can alter an
+ * Apalache verdict. Push CI on `main` and the nightly run never set it, so
+ * release admission, which reads the exact main commit's push CI, still sees
+ * every Apalache verdict.
+ */
+export const QUINT_SKIP_APALACHE_VARIABLE = "GHOSTGET_QUINT_SKIP_APALACHE";
+
+/**
+ * The environment variable that limits one pull-request `quint` shard's
+ * Apalache checks to the comma-separated model files it names. The scope step
+ * sets it, under the same conditions as `QUINT_SKIP_APALACHE_VARIABLE`, when a
+ * pull request's only verdict-relevant changes are to those model files.
+ */
+export const QUINT_APALACHE_MODELS_VARIABLE = "GHOSTGET_QUINT_APALACHE_MODELS";
+
+/**
+ * Every path an Apalache verdict may depend on: the models and their manifest,
+ * the checker pins, bounds, invocation, and counterexample parsing in the
+ * `scripts/verification-*` files (the scope script among them), the Quint pin
+ * in the package manifest and lockfile, and the CI workflows. Each entry is a
+ * path prefix, so the scope errs toward running Apalache. `package.json` and
+ * `bun.lock` count only when `quintPackagePins` or `quintLockClosure` differ,
+ * and a change to one listed model file checks only that model.
+ */
+export const QUINT_APALACHE_SCOPE = Object.freeze([
+  "verification/quint/",
+  "scripts/verification-",
+  "package.json",
+  "bun.lock",
+  ".github/workflows/ci.yml",
+  ".github/workflows/verification-nightly.yml",
+]);
+
+/** Whether a change to these repository paths may change an Apalache verdict. */
+export function quintApalacheScopeChanged(paths: readonly string[]): boolean {
+  return paths.some((path) => QUINT_APALACHE_SCOPE.some((entry) => path.startsWith(entry)));
+}
+
+/**
+ * Which Apalache checks one `quint` run performs: every model's (`all`), none
+ * (`none`), or only the listed model files' (`models`, never empty).
+ */
+export type ApalacheSelection =
+  | Readonly<{ kind: "all" }>
+  | Readonly<{ kind: "none" }>
+  | Readonly<{ kind: "models"; files: readonly string[] }>;
+
+export const APALACHE_ALL: ApalacheSelection = Object.freeze({ kind: "all" });
+
+const QUINT_MODEL_FILE = /^[a-z0-9][a-z0-9-]*\.qnt$/u;
+
+/**
+ * Parse the two scope variables strictly. Both unset or empty checks every
+ * model; `QUINT_SKIP_APALACHE_VARIABLE=1` alone checks none; a non-empty,
+ * duplicate-free, comma-separated list of model file names in
+ * `QUINT_APALACHE_MODELS_VARIABLE` alone checks only those. Anything else,
+ * including both set at once, is an error.
+ */
+export function parseApalacheSelection(skip: string | undefined, models: string | undefined): ApalacheSelection {
+  const skipSet = skip !== undefined && skip !== "";
+  const modelsSet = models !== undefined && models !== "";
+  if (skipSet && modelsSet) {
+    throw new Error(`set at most one of ${QUINT_SKIP_APALACHE_VARIABLE} and ${QUINT_APALACHE_MODELS_VARIABLE}`);
+  }
+  if (skipSet) {
+    if (skip !== "1") throw new Error(`${QUINT_SKIP_APALACHE_VARIABLE} must be unset or 1`);
+    return Object.freeze({ kind: "none" });
+  }
+  if (!modelsSet) return APALACHE_ALL;
+  const files = models.split(",");
+  if (files.some((file) => !QUINT_MODEL_FILE.test(file)) || new Set(files).size !== files.length) {
+    throw new Error(`${QUINT_APALACHE_MODELS_VARIABLE} must be a comma-separated list of distinct model files`);
+  }
+  return Object.freeze({ kind: "models", files: Object.freeze(files) });
+}
+
+/** Encode a selection as the one `$GITHUB_ENV` line that carries it, or `null` for `all`. */
+export function apalacheSelectionEnvironmentLine(selection: ApalacheSelection): string | null {
+  if (selection.kind === "all") return null;
+  if (selection.kind === "none") return `${QUINT_SKIP_APALACHE_VARIABLE}=1`;
+  if (selection.files.length === 0) throw new Error("a models selection names at least one model");
+  const line = `${QUINT_APALACHE_MODELS_VARIABLE}=${selection.files.join(",")}`;
+  parseApalacheSelection(undefined, line.slice(QUINT_APALACHE_MODELS_VARIABLE.length + 1));
+  return line;
+}
+
+/** The Quint package name whose pin and lockfile closure Apalache verdicts depend on. */
+export const QUINT_PACKAGE = "@informalsystems/quint";
+
+const PACKAGE_DEPENDENCY_FIELDS = Object.freeze([
+  "dependencies",
+  "devDependencies",
+  "optionalDependencies",
+  "peerDependencies",
+]);
+const PACKAGE_WHOLE_FIELDS = Object.freeze([
+  "overrides",
+  "resolutions",
+  "trustedDependencies",
+  "packageManager",
+  "engines",
+  "type",
+  "workspaces",
+]);
+
+/**
+ * The canonical projection of `package.json` that a Quint or Apalache verdict
+ * can depend on: the Quint entry of every dependency map, the whole override,
+ * resolution, trust, package-manager, engine, module-type, and workspace
+ * fields, and every script whose name starts with `verify`. A version bump,
+ * a new unrelated dependency, or an unrelated script leaves it unchanged.
+ * Malformed input throws, so the caller runs every Apalache check.
+ */
+export function quintPackagePins(text: string): string {
+  const parsed = JSON.parse(text) as unknown;
+  if (!isPlainObject(parsed)) throw new Error("package.json must be an object");
+  const projection: Record<string, unknown> = {};
+  for (const field of PACKAGE_DEPENDENCY_FIELDS) {
+    const map = parsed[field];
+    if (map === undefined) continue;
+    if (!isPlainObject(map)) throw new Error(`package.json ${field} must be an object`);
+    projection[field] = Object.hasOwn(map, QUINT_PACKAGE) ? map[QUINT_PACKAGE] : null;
+  }
+  for (const field of PACKAGE_WHOLE_FIELDS) {
+    if (Object.hasOwn(parsed, field)) projection[field] = parsed[field];
+  }
+  const scripts = parsed.scripts;
+  if (scripts !== undefined) {
+    if (!isPlainObject(scripts)) throw new Error("package.json scripts must be an object");
+    projection.scripts = Object.fromEntries(Object.keys(scripts).filter((name) => name.startsWith("verify")).sort().map((name) => [name, scripts[name]]));
+  }
+  return canonicalJson(projection);
+}
+
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (isPlainObject(value)) {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "null";
+}
+
+/** Split a `bun.lock` package key such as `a/@scope/b/c` into its package names. */
+function lockKeyNames(key: string): string[] {
+  const parts = key.split("/");
+  const names: string[] = [];
+  for (let index = 0; index < parts.length; index += 1) {
+    const part = parts[index]!;
+    if (part.startsWith("@")) {
+      const name = parts[index + 1];
+      if (name === undefined || name === "") throw new Error(`bun.lock package key ${key} is malformed`);
+      names.push(`${part}/${name}`);
+      index += 1;
+    } else {
+      if (part === "") throw new Error(`bun.lock package key ${key} is malformed`);
+      names.push(part);
+    }
+  }
+  return names;
+}
+
+/**
+ * The canonical projection of `bun.lock` that a Quint verdict can depend on:
+ * every package entry reachable from the Quint package through its
+ * dependencies and its optional and peer dependencies that the lockfile
+ * lists, resolved the way Node resolves
+ * nested `node_modules`. An update to a package outside that closure leaves
+ * it unchanged. A missing Quint entry, an unresolvable required dependency,
+ * or malformed input throws, so the caller runs every Apalache check.
+ */
+export function quintLockClosure(text: string): string {
+  // bun.lock is JSON with trailing commas.
+  const parsed = JSON.parse(text.replace(/,(\s*[\]}])/gu, "$1")) as unknown;
+  if (!isPlainObject(parsed) || !isPlainObject(parsed.packages)) throw new Error("bun.lock must list its packages");
+  const packages = parsed.packages;
+  const resolve = (from: readonly string[], name: string): string | null => {
+    for (let depth = from.length; depth >= 0; depth -= 1) {
+      const key = [...from.slice(0, depth), name].join("/");
+      if (Object.hasOwn(packages, key)) return key;
+    }
+    return null;
+  };
+  const closure = new Map<string, unknown>();
+  const pending: string[] = [];
+  const root = resolve([], QUINT_PACKAGE);
+  if (root === null) throw new Error(`bun.lock does not list ${QUINT_PACKAGE}`);
+  pending.push(root);
+  while (pending.length > 0) {
+    const key = pending.pop()!;
+    if (closure.has(key)) continue;
+    const entry = packages[key];
+    if (!Array.isArray(entry)) throw new Error(`bun.lock package ${key} must be an array`);
+    closure.set(key, entry);
+    const metadata = entry.find(isPlainObject) ?? {};
+    const from = lockKeyNames(key);
+    for (const [field, required] of [["dependencies", true], ["optionalDependencies", false], ["peerDependencies", false]] as const) {
+      const map = metadata[field];
+      if (map === undefined) continue;
+      if (!isPlainObject(map)) throw new Error(`bun.lock package ${key} ${field} must be an object`);
+      for (const name of Object.keys(map)) {
+        const resolved = resolve(from, name);
+        if (resolved === null) {
+          if (required) throw new Error(`bun.lock package ${key} depends on ${name}, which it does not list`);
+          continue;
+        }
+        pending.push(resolved);
+      }
+    }
+  }
+  return canonicalJson(Object.fromEntries([...closure.entries()].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)));
+}
+
+/**
+ * Run the work units: typecheck every core model, require each invariant to
+ * pass seeded simulation and bounded Apalache checking, require both checkers
+ * to find every mutant, and run every selected model's replay test. Each unit
+ * forms one job and the replay run forms another; at most `QUINT_CONCURRENCY`
+ * jobs run at once. A pull-request shard's `apalache` selection, which only
+ * the CI scope step narrows, limits Apalache to the selected models; the
+ * typecheck, simulations, and replay of every model still run, and each
+ * skipped Apalache check is recorded as skipped.
+ */
+export async function verifyQuint(
+  context: RunContext,
+  shard: QuintShard | null = null,
+  apalache: ApalacheSelection = APALACHE_ALL,
+): Promise<void> {
+  const manifest = await readQuintModels(context.root);
+  if (apalache.kind === "models") {
+    const known = new Set(manifest.map((model) => model.file));
+    for (const file of apalache.files) {
+      if (!known.has(file)) throw new Error(`${QUINT_APALACHE_MODELS_VARIABLE} names ${file}, which the model inventory does not list`);
+    }
+  }
+  const checksApalache = (model: QuintModel): boolean =>
+    apalache.kind === "all" || (apalache.kind === "models" && apalache.files.includes(model.file));
+  const units = shard === null ? quintWorkUnits(manifest) : quintWorkForShard(manifest, shard);
+  if (shard !== null) {
+    context.log(`quint shard ${String(shard.shard)}/${String(shard.shardCount)}: ${units.map(describeQuintWork).join(", ")}`);
+  }
+  const nightly = context.profile === "nightly";
+  if (apalache.kind !== "all" && nightly) {
+    throw new Error(`the nightly profile never skips Apalache; unset ${QUINT_SKIP_APALACHE_VARIABLE} and ${QUINT_APALACHE_MODELS_VARIABLE}`);
+  }
+  if (apalache.kind === "none") {
+    context.log(
+      `${QUINT_SKIP_APALACHE_VARIABLE}=1: this pull request changes nothing an Apalache verdict depends on, so this shard skips every Apalache check; push CI on main runs them all`,
+    );
+  } else if (apalache.kind === "models") {
+    context.log(
+      `${QUINT_APALACHE_MODELS_VARIABLE}=${apalache.files.join(",")}: this pull request changes only these models, so this shard checks only their Apalache work; push CI on main runs them all`,
+    );
+  }
+  const node = requireExecutable("node");
+  const quint = join(context.root, QUINT.cli);
+  const quintDirectory = join(context.root, "verification", "quint");
+  const version = await quintVersion(context, node);
+  const runsApalache = units.some((unit) => checksApalache(unit.model) && (unit.core || unit.mutants.length > 0));
+  let apalacheJar = "";
+  let jdk: Awaited<ReturnType<typeof prepareJdk>> | null = null;
+  if (runsApalache) {
+    const [apalachePath, jdkPath] = await admitAll(context, [APALACHE.archive, JDK.archives[context.platform]]);
+    jdk = await prepareJdk(context, jdkPath!);
+    const apalache = await extractArchive(context, apalachePath!, APALACHE.archive, join(context.work, "tools"), "apalache");
+    apalacheJar = join(apalache, "lib", "apalache.jar");
+  }
+  const irDirectory = join(context.work, "quint-ir");
+  await mkdir(irDirectory, { recursive: true });
+  const quintRun = (step: string, logName: string, argumentsList: readonly string[]) =>
+    runLogged(context, step, logName, [node, quint, ...argumentsList], {
+      cwd: quintDirectory,
+      environment: quintEnvironment(context, node),
+      timeoutMs: nightly ? NIGHTLY_QUINT_TIMEOUT_MS : QUINT_TIMEOUT_MS,
+    });
+  const apalacheRun = async (
+    step: string,
+    logName: string,
+    length: number,
+    init: string,
+    ir: string,
+    next: string,
+    invariant: string,
+  ) => {
+    if (jdk === null) throw new Error("Apalache was not prepared for this shard");
+    const outDirectory = await mkdtemp(join(context.work, "apalache-out-"));
+    const result = await runLogged(context, step, logName, [
+      jdk.java,
+      "-Xmx4096m",
+      "-XX:+UseG1GC",
+      `-Djava.io.tmpdir=${join(context.work, "tmp")}`,
+      "-jar", apalacheJar,
+      "check",
+      `--length=${String(length)}`,
+      `--init=${init}`,
+      `--next=${next}`,
+      `--inv=${invariant}`,
+      `--out-dir=${outDirectory}`,
+      ir,
+    ], {
+      cwd: context.work,
+      environment: toolEnvironment(context, { JAVA_HOME: jdk.home }),
+      timeoutMs: nightly ? NIGHTLY_APALACHE_TIMEOUT_MS : APALACHE_TIMEOUT_MS,
+    });
+    return { result, outDirectory };
+  };
+  // Two units of one model may share a shard; compile its IR once.
+  const compiledIr = new Map<string, Promise<Readonly<{ path: string; source: string }>>>();
+  const compileModel = (model: QuintModel): Promise<Readonly<{ path: string; source: string }>> => {
+    const existing = compiledIr.get(model.file);
+    if (existing !== undefined) return existing;
+    const compiling = (async () => {
+      // Quint writes the IR with an asynchronous stdout write and then exits,
+      // which cuts a macOS pipe off at 64 KiB. A file receives every byte.
+      const irPath = join(irDirectory, `${model.module}.qnt.json`);
+      const source = await readFile(join(quintDirectory, model.file), "utf8");
+      const compiled = await runLogged(context, `quint compile ${model.file}`, `quint-compile-${model.module}`, [
+        "/bin/sh", "-c", 'out="$1"; shift; exec "$@" > "$out"', "sh", irPath,
+        node, quint, "compile", "--target", "json", "--main", model.module, model.file,
+      ], { cwd: quintDirectory, environment: quintEnvironment(context, node), timeoutMs: QUINT_TIMEOUT_MS });
+      let ir: unknown;
+      try {
+        ir = JSON.parse(await readFile(irPath, "utf8")) as unknown;
+      } catch {
+        ir = null;
+      }
+      if (compiled.exitCode !== 0 || compiled.stdout !== "" || !isPlainObject(ir)) {
+        throw new Error(`quint compile ${model.file} did not produce its JSON IR`);
+      }
+      if (source !== await readFile(join(quintDirectory, model.file), "utf8")) {
+        throw new Error(`${model.file} changed while its IR was compiled`);
+      }
+      return { path: irPath, source };
+    })();
+    compiledIr.set(model.file, compiling);
+    return compiling;
+  };
+  const checkUnit = async (unit: QuintWork): Promise<Record<string, unknown>> => {
+    const model = unit.model;
+    const name = model.module;
+    const bounds = quintBounds(model, context.profile);
+    const positiveChecks: Record<string, unknown>[] = [];
+    if (unit.core) {
+      if (nightly && model.nightly === undefined) context.log(`${model.file}: no nightly bounds recorded; repeating the CI bounds`);
+      const typecheck = await quintRun(`quint typecheck ${model.file}`, `quint-typecheck-${name}`, ["typecheck", model.file]);
+      requireLoggedVerdict(context, `quint typecheck ${model.file}`, "pass", quintTypecheckVerdict(typecheck), typecheck);
+      for (const invariant of model.invariants) {
+        const step = `quint run ${name} ${model.step} ${invariant}`;
+        const result = await quintRun(step, `quint-run-${name}-${invariant}`, quintRunArguments(model, model.step, invariant, context.profile));
+        requireLoggedVerdict(context, step, "pass", quintSimulationVerdict(result), result);
+        context.log(`${step}: no violation in ${String(bounds.simulation.maxSamples)} samples of up to ${String(bounds.simulation.maxSteps)} steps (seed ${bounds.simulation.seed})`);
+      }
+      // Every mutant's simulation belongs to the core unit; a mutant unit
+      // carries only that mutant's Apalache check.
+      for (const mutant of model.mutants) {
+        const step = `quint run ${name} ${mutant.step} ${mutant.invariant}`;
+        const result = await quintRun(step, `quint-mutant-${name}-${mutant.step}-${mutant.invariant}`, quintRunArguments(model, mutant.step, mutant.invariant, context.profile));
+        requireLoggedVerdict(context, step, "violation", quintSimulationVerdict(result), result);
+        context.log(`${step}: the seeded defect violates ${mutant.invariant}, as required`);
+      }
+    }
+    if (checksApalache(model)) {
+      if (unit.core || unit.mutants.length > 0) {
+        const source = unit.core ? await readFile(join(quintDirectory, model.file), "utf8") : null;
+        const checks = source === null ? [] : quintPositiveChecks(model, source);
+        const compiled = await compileModel(model);
+        const irPath = compiled.path;
+        if (unit.core) {
+          requireQuintProofSource(model.file, source!, compiled.source);
+          const sourceSha256 = createHash("sha256").update(source!).digest("hex");
+          const irSha256 = createHash("sha256").update(await readFile(irPath)).digest("hex");
+          if (source !== await readFile(join(quintDirectory, model.file), "utf8")) {
+            throw new Error(`${model.file} changed while its positive-check IR was compiled`);
+          }
+          for (const check of checks) {
+            const { invariant, members } = check;
+            const step = `apalache check ${name} ${model.step} ${invariant}`;
+            const logName = `apalache-${name}-${invariant}`;
+            const { result } = await apalacheRun(
+              step, logName, bounds.apalache.length, model.init, irPath, model.step, invariant,
+            );
+            requireLoggedVerdict(context, step, "pass", apalacheVerdict(result, bounds.apalache.length), result);
+            positiveChecks.push({ invariant, members, sourceSha256, irSha256, init: model.init, next: model.step, length: bounds.apalache.length, verdict: "pass", log: `${logName}.log` });
+            context.log(`${step}: no violation up to length ${String(bounds.apalache.length)}`);
+          }
+        }
+        for (const mutant of unit.mutants) {
+          const step = `apalache check ${name} ${mutant.step} ${mutant.invariant}`;
+          const { result, outDirectory } = await apalacheRun(
+            step, `apalache-mutant-${name}-${mutant.step}-${mutant.invariant}`, bounds.apalache.length, model.init, irPath, mutant.step, mutant.invariant,
+          );
+          requireLoggedVerdict(context, step, "violation", apalacheVerdict(result, bounds.apalache.length), result);
+          const counterexample = await apalacheCounterexample(outDirectory, `${name}.qnt.json`);
+          await writeFile(join(context.artifacts, `apalache-mutant-${name}-${mutant.step}-${mutant.invariant}.itf.json`), counterexample);
+          context.log(`${step}: the seeded defect violates ${mutant.invariant}, as required`);
+        }
+      }
+    }
+    return {
+      model: model.file,
+      core: unit.core,
+      invariants: unit.core ? model.invariants : [],
+      positiveChecks,
+      mutants: unit.mutants.map((mutant) => mutant.step),
+      profile: context.profile,
+      simulation: unit.core ? bounds.simulation : null,
+      apalache: checksApalache(model) ? bounds.apalache : "skipped",
+      replay: unit.replay ? { test: model.replay.test, target: model.replay.target } : null,
+    };
+  };
+  const replayModels = units.filter((unit) => unit.replay).map((unit) => unit.model);
+  const checkedUnits = units.filter((unit) => unit.core || (checksApalache(unit.model) && unit.mutants.length > 0));
+  const summary: Record<string, unknown>[] = [];
+  await runAtMost([
+    ...(replayModels.length > 0 ? [() => runQuintReplays(context, replayModels)] : []),
+    ...checkedUnits.map((unit, index) => async () => {
+      summary[index] = await checkUnit(unit);
+    }),
+  ], QUINT_CONCURRENCY);
+  await writeFile(join(context.artifacts, "toolchain.json"), `${JSON.stringify({
+    quint: version,
+    apalache: runsApalache ? `${APALACHE.version} (build ${APALACHE.build})` : "skipped",
+    jdk: runsApalache ? `${JDK.vendorVersion} (${JDK.runtimeVersion})` : "skipped",
+    archives: runsApalache
+      ? [APALACHE.archive, JDK.archives[context.platform]].map((archive) => ({
+        name: archive.name, bytes: archive.bytes, sha256: archive.sha256,
+      }))
+      : [],
+    replays: replayModels.map((model) => model.replay.test),
+    units: summary,
+  }, null, 2)}\n`);
+}
+
+/**
+ * Run the tasks in order with at most `limit` running at once. After a task
+ * fails no further task starts, the running ones finish, and the failure of
+ * the earliest-listed failed task is rethrown.
+ */
+export async function runAtMost(tasks: readonly (() => Promise<void>)[], limit: number): Promise<void> {
+  if (!Number.isSafeInteger(limit) || limit < 1) throw new Error("runAtMost needs a positive integer limit");
+  const failures = new Map<number, unknown>();
+  let next = 0;
+  const worker = async (): Promise<void> => {
+    while (failures.size === 0 && next < tasks.length) {
+      const index = next;
+      next += 1;
+      try {
+        await tasks[index]!();
+      } catch (error) {
+        failures.set(index, error);
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, tasks.length) }, worker));
+  if (failures.size > 0) throw failures.get(Math.min(...failures.keys()));
+}
+
+/**
+ * Run the replay tests in the caller's environment: they write traces with
+ * Quint and drive production code, which needs the real `node` and `bun`.
+ */
+async function runQuintReplays(context: RunContext, models: readonly QuintModel[]): Promise<void> {
+  const environment: Record<string, string> = {};
+  for (const [name, value] of Object.entries(process.env)) {
+    if (value !== undefined) environment[name] = value;
+  }
+  const step = `bun run ${QUINT_REPLAY_SCRIPT}`;
+  const result = await runLogged(context, step, "quint-replay", quintReplayCommand(process.execPath, models), {
+    cwd: context.root,
+    environment,
+    timeoutMs: QUINT_REPLAY_TIMEOUT_MS,
+  });
+  context.log(tail(result.record));
+  if (result.exitCode !== 0) throw new Error(`${step} exited with ${String(result.exitCode)}`);
+  context.log(`${step}: every replay test passed (${quintReplayTests(models).join(", ")})`);
+}
+
+/** Read and strictly parse the single counterexample Apalache wrote for a violation. */
+async function apalacheCounterexample(outDirectory: string, irName: string): Promise<string> {
+  const runs = await readdir(join(outDirectory, irName));
+  if (runs.length !== 1) throw new Error("Apalache must write exactly one run directory");
+  const path = join(outDirectory, irName, runs[0]!, "violation1.itf.json");
+  const text = await readFile(path, "utf8");
+  const trace = parseItfTrace(text);
+  if (trace.states.length < 2) throw new Error("The Apalache counterexample must reach a violating state");
+  return text;
+}
+
+async function listLeanSources(directory: string, base: string = directory): Promise<readonly string[]> {
+  const found: string[] = [];
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name === ".lake") continue;
+      found.push(...await listLeanSources(path, base));
+    } else if (entry.isFile() && entry.name.endsWith(".lean")) {
+      found.push(relative(base, path));
+    } else if (!entry.isFile()) {
+      throw new Error(`verification/lean must hold only files and directories: ${relative(base, path)}`);
+    }
+  }
+  return found.sort();
+}
+
+/**
+ * The differential runner: a root file beside the library that imports it and
+ * answers the tests in `LEAN_DIFFERENTIAL_TESTS` over standard input. It is
+ * scanned like the library but is not part of it, so the axiom audit and the
+ * build leave it out; `lake env lean --run` elaborates it when a test starts.
+ */
+export const LEAN_DIFFERENTIAL_RUNNER = "Differential.lean";
+
+/**
+ * Tests that compare production TypeScript with the Lean model on generated
+ * inputs. Each runs in its own test process, because the web-policy test
+ * replaces the private state store module for its whole process.
+ */
+export const LEAN_DIFFERENTIAL_TESTS = Object.freeze([
+  "./scripts/verification-lean-web-policy.test.ts",
+  "./scripts/verification-lean-run-journal.test.ts",
+  "./scripts/verification-lean-messaging-run.test.ts",
+]);
+
+/** Static checks that need no toolchain: project files, the proof list, and the source scan. */
+export async function leanStaticFindings(root: string = REPOSITORY_ROOT): Promise<Readonly<{
+  proofs: LeanProofs;
+  findings: readonly string[];
+}>> {
+  const project = join(root, "verification", "lean");
+  const proofs = parseLeanProofs(JSON.parse(await readFile(join(project, "proofs.json"), "utf8")) as unknown);
+  const findings = [...leanProjectFindings({
+    toolchain: await readFile(join(project, "lean-toolchain"), "utf8"),
+    manifest: await readFile(join(project, "lake-manifest.json"), "utf8"),
+    lakefile: await readFile(join(project, "lakefile.toml"), "utf8"),
+  })];
+  const sources = await listLeanSources(project);
+  const library = sources.filter((path) => path !== "AxiomAudit.lean" && path !== LEAN_DIFFERENTIAL_RUNNER);
+  if (!sources.includes(LEAN_DIFFERENTIAL_RUNNER)) findings.push(`${LEAN_DIFFERENTIAL_RUNNER} is missing`);
+  else {
+    for (const finding of leanSourceFindings(await readFile(join(project, LEAN_DIFFERENTIAL_RUNNER), "utf8"), proofs)) {
+      findings.push(`${LEAN_DIFFERENTIAL_RUNNER} ${finding}`);
+    }
+  }
+  const expectedRoot = `${proofs.library}.lean`;
+  if (!library.includes(expectedRoot)) findings.push(`${expectedRoot} is missing`);
+  for (const path of library) {
+    if (path !== expectedRoot && !path.startsWith(`${proofs.library}${sep}`)) {
+      findings.push(`${path} is outside the ${proofs.library} library`);
+      continue;
+    }
+    for (const finding of leanSourceFindings(await readFile(join(project, path), "utf8"), proofs)) {
+      findings.push(`${path} ${finding}`);
+    }
+  }
+  return { proofs, findings: Object.freeze(findings) };
+}
+
+/**
+ * Build the core-only Lake project with warnings as errors on the pinned
+ * toolchain, then audit every library declaration's axioms at the kernel.
+ */
+export async function verifyLean(context: RunContext): Promise<void> {
+  const { proofs, findings } = await leanStaticFindings(context.root);
+  if (findings.length > 0) throw new Error(`The Lean source scan failed:\n${findings.join("\n")}`);
+  requireExecutable("zstd");
+  const [elanPath, leanPath] = await admitAll(context, [ELAN.archives[context.platform], LEAN.archives[context.platform]]);
+  const elanHome = join(context.work, "elan");
+  const elanInit = await extractArchive(context, elanPath!, ELAN.archives[context.platform], join(context.work, "tools"), "elan-init");
+  const elanEnvironment = toolEnvironment(context, { ELAN_HOME: elanHome });
+  const install = await runLogged(context, "elan-init", "elan-init", [
+    elanInit, "-y", "--default-toolchain", "none", "--no-modify-path",
+  ], { cwd: context.work, environment: elanEnvironment, timeoutMs: SHORT_TIMEOUT_MS });
+  if (install.exitCode !== 0) throw new Error("elan-init did not install elan");
+  const elanBinary = join(elanHome, "bin", "elan");
+  const elanVersion = await runLogged(context, "elan --version", "elan-version", [elanBinary, "--version"], {
+    cwd: context.work, environment: elanEnvironment, timeoutMs: SHORT_TIMEOUT_MS,
+  });
+  if (elanVersion.exitCode !== 0 || !elanVersion.stdout.startsWith(`elan ${ELAN.version} `)) {
+    throw new Error(`The installed elan is not ${ELAN.version}`);
+  }
+  const toolchain = await extractArchive(
+    context, leanPath!, LEAN.archives[context.platform], join(elanHome, "toolchains"), LEAN.toolchainDirectory,
+  );
+  const listed = await runLogged(context, "elan toolchain list", "elan-toolchains", [elanBinary, "toolchain", "list"], {
+    cwd: context.work, environment: elanEnvironment, timeoutMs: SHORT_TIMEOUT_MS,
+  });
+  const toolchains = lines(listed.stdout).map((line) => line.trim()).filter((line) => line !== "");
+  if (listed.exitCode !== 0 || toolchains.length !== 1 || toolchains[0]!.split(/\s+/u)[0] !== LEAN.toolchain) {
+    throw new Error(`elan must resolve exactly the seeded ${LEAN.toolchain} toolchain`);
+  }
+  const project = join(context.work, "project");
+  await cp(join(context.root, "verification", "lean"), project, {
+    recursive: true,
+    filter: (source) => !source.split(sep).includes(".lake"),
+  });
+  const lake = join(toolchain, "bin", "lake");
+  const leanEnvironment = toolEnvironment(context, {
+    ELAN_HOME: elanHome,
+    PATH: `${join(toolchain, "bin")}:/usr/bin:/bin`,
+  });
+  const resolved = await runLogged(context, "elan which lake", "elan-which-lake", [elanBinary, "which", "lake"], {
+    cwd: project, environment: elanEnvironment, timeoutMs: SHORT_TIMEOUT_MS,
+  });
+  if (resolved.exitCode !== 0 || resolved.stdout.trim() !== lake) {
+    throw new Error(`lean-toolchain must resolve to the seeded ${LEAN.toolchain} toolchain`);
+  }
+  const leanVersion = await runLogged(context, "lean --version", "lean-version", [join(toolchain, "bin", "lean"), "--version"], {
+    cwd: project, environment: leanEnvironment, timeoutMs: SHORT_TIMEOUT_MS,
+  });
+  if (leanVersion.exitCode !== 0 || !leanVersion.stdout.startsWith(`Lean (version ${LEAN.version},`)) {
+    throw new Error(`The seeded toolchain is not Lean ${LEAN.version}`);
+  }
+  const build = await runLogged(context, "lake build --wfail", "lean-build", [lake, "build", "--wfail"], {
+    cwd: project, environment: leanEnvironment, timeoutMs: LEAN_BUILD_TIMEOUT_MS,
+  });
+  if (build.exitCode !== 0) {
+    context.log(tail(sanitize(context, `${build.stdout}\n${build.stderr}`)));
+    throw new Error("lake build --wfail failed");
+  }
+  const audit = await runLogged(context, "axiom audit", "lean-axiom-audit", [
+    lake, "env", "lean", "--run", "AxiomAudit.lean", ...axiomAuditArguments(proofs),
+  ], { cwd: project, environment: leanEnvironment, timeoutMs: LEAN_BUILD_TIMEOUT_MS });
+  if (audit.exitCode !== 0 || audit.stderr.trim() !== "") {
+    context.log(tail(sanitize(context, `${audit.stdout}\n${audit.stderr}`)));
+    throw new Error("The axiom audit did not finish cleanly");
+  }
+  const audited = parseAxiomAudit(audit.stdout);
+  const { declarations } = audited;
+  const auditFindings = axiomAuditFindings(audited, proofs);
+  if (auditFindings.length > 0) throw new Error(`The axiom audit failed:\n${auditFindings.join("\n")}`);
+  await writeFile(join(context.artifacts, "lean-axiom-audit.jsonl"), sanitize(context, audit.stdout));
+  const theorems = declarations.filter((entry) => entry.kind === "theorem").length;
+  context.log(`lake build --wfail: ${proofs.library} builds on Lean ${LEAN.version} with warnings as errors`);
+  context.log(`axiom audit: ${String(declarations.length)} declarations, ${String(theorems)} theorems, all ${String(proofs.theorems.length)} required theorems present with their recorded statements, only allowed axioms`);
+  for (const mutant of proofs.mutants) {
+    context.log(`seeded defect ${mutant.defect}: ${mutant.refutation} proves the negation of ${mutant.theorem} with ${mutant.guarded} replaced by ${mutant.defect}`);
+  }
+  await verifyLeanDifferentials(context, lake, project, leanEnvironment);
+  await verifyAuditCanary(context, proofs, lake, leanEnvironment);
+  context.log("axiom audit canary: a seeded sorry fails lake build --wfail and the audit reports sorryAx, as required");
+  await verifyLeanDifferential(context, lake, project, leanEnvironment);
+  context.log(`differential test: ${LEAN_DIFFERENTIAL_TEST} agrees with the Lean definitions on generated inputs, and production rejects every seeded defect's counterexample`);
+  await writeFile(join(context.artifacts, "toolchain.json"), `${JSON.stringify({
+    elan: elanVersion.stdout.trim().split(" ").slice(0, 2).join(" "),
+    lean: sanitize(context, leanVersion.stdout.trim()),
+    toolchain: LEAN.toolchain,
+    archives: [ELAN.archives[context.platform], LEAN.archives[context.platform]].map((archive) => ({
+      name: archive.name, bytes: archive.bytes, sha256: archive.sha256,
+    })),
+    theorems: proofs.theorems,
+    mutants: proofs.mutants,
+    allowedAxioms: proofs.allowedAxioms,
+  }, null, 2)}\n`);
+}
+
+/** The test that runs production TypeScript and the built Lean definitions on the same generated inputs. */
+export const LEAN_DIFFERENTIAL_TEST = "scripts/verification-lean-encodings.test.ts";
+
+/**
+ * The Bun runner bound on one differential test. Each property takes seconds,
+ * so a Lean reference that stops answering fails that test well inside the
+ * process bound instead of consuming the whole Lean budget.
+ */
+const LEAN_DIFFERENTIAL_TEST_TIMEOUT_MS = 180_000;
+
+/** Property replay coordinates the differential test honors, passed through when set. */
+const PROPERTY_REPLAY_VARIABLES = ["GHOSTGET_PROPERTY_SEED", "GHOSTGET_PROPERTY_PATH"] as const;
+
+async function verifyLeanDifferential(
+  context: RunContext,
+  lake: string,
+  project: string,
+  leanEnvironment: Readonly<Record<string, string>>,
+): Promise<void> {
+  const replay = Object.fromEntries(PROPERTY_REPLAY_VARIABLES.flatMap((name) => {
+    const value = process.env[name];
+    return value === undefined || value === "" ? [] : [[name, value]];
+  }));
+  const run = await runLogged(context, "lean differential test", "lean-differential", [
+    process.execPath, "test", "--no-orphans", "--timeout", String(LEAN_DIFFERENTIAL_TEST_TIMEOUT_MS), "--max-concurrency", "1",
+    `./${LEAN_DIFFERENTIAL_TEST}`,
+  ], {
+    cwd: context.root,
+    environment: { ...leanEnvironment, ...replay, GHOSTGET_LEAN_LAKE: lake, GHOSTGET_LEAN_PROJECT: project },
+    timeoutMs: LEAN_BUILD_TIMEOUT_MS,
+  });
+  if (run.exitCode !== 0) {
+    context.log(tail(sanitize(context, `${run.stdout}\n${run.stderr}`)));
+    throw new Error(`${LEAN_DIFFERENTIAL_TEST} failed`);
+  }
+}
+
+/** The module the canary adds to a copy of the library. */
+export const LEAN_CANARY_MODULE = "SeededSorryCanary";
+
+/** The canary source: one theorem proved by `sorry`, which every check must reject. */
+export function leanCanarySource(library: string): string {
+  const namespace = `${library}.${LEAN_CANARY_MODULE}`;
+  return `namespace ${namespace}\n\ntheorem canary : False := sorry\n\nend ${namespace}\n`;
+}
+
+/**
+ * Run each differential test against the built project. A test that cannot
+ * reach the Lean runner fails, so a pass here means both sides answered.
+ */
+async function verifyLeanDifferentials(
+  context: RunContext,
+  lake: string,
+  project: string,
+  leanEnvironment: Readonly<Record<string, string>>,
+): Promise<void> {
+  const environment = Object.freeze({
+    ...leanEnvironment,
+    [LEAN_LAKE_VARIABLE]: lake,
+    [LEAN_PROJECT_VARIABLE]: project,
+  });
+  for (const file of LEAN_DIFFERENTIAL_TESTS) {
+    const name = basename(file, ".test.ts");
+    const run = await runLogged(context, `bun test ${file}`, name, [
+      process.execPath, "test", "--no-orphans", "--timeout", "600000", "--max-concurrency", "1", file,
+    ], { cwd: context.root, environment, timeoutMs: LEAN_BUILD_TIMEOUT_MS });
+    const summary = /^\s*(\d+) pass\s*\n\s*(\d+) fail/mu.exec(`${run.stdout}\n${run.stderr}`);
+    if (run.exitCode !== 0 || summary === null || summary[2] !== "0" || summary[1] === "0") {
+      context.log(tail(sanitize(context, `${run.stdout}\n${run.stderr}`)));
+      throw new Error(`The Lean differential test ${file} failed`);
+    }
+    context.log(`differential ${name}: ${summary[1]!} tests pass against the Lean model, including the seeded-defect check`);
+  }
+}
+
+/**
+ * Show that the checks can fail: a copy of the library with a `sorry` theorem
+ * must fail `lake build --wfail`, and the audit must report its `sorryAx`.
+ */
+async function verifyAuditCanary(
+  context: RunContext,
+  proofs: LeanProofs,
+  lake: string,
+  environment: Readonly<Record<string, string>>,
+): Promise<void> {
+  const canary = join(context.work, "canary");
+  await cp(join(context.root, "verification", "lean"), canary, {
+    recursive: true,
+    filter: (source) => !source.split(sep).includes(".lake"),
+  });
+  const module = `${proofs.library}.${LEAN_CANARY_MODULE}`;
+  await writeFile(join(canary, proofs.library, `${LEAN_CANARY_MODULE}.lean`), leanCanarySource(proofs.library));
+  const rootFile = join(canary, `${proofs.library}.lean`);
+  await writeFile(rootFile, `import ${module}\n${await readFile(rootFile, "utf8")}`);
+  const options = { cwd: canary, environment, timeoutMs: LEAN_BUILD_TIMEOUT_MS };
+  const strict = await runLogged(context, "canary lake build --wfail", "lean-canary-build-wfail", [lake, "build", "--wfail"], options);
+  if (strict.exitCode === 0 || !/declaration uses [`']sorry[`']/u.test(`${strict.stdout}\n${strict.stderr}`)) {
+    throw new Error("lake build --wfail accepted the seeded sorry canary, so its pass is not evidence");
+  }
+  const lenient = await runLogged(context, "canary lake build", "lean-canary-build", [lake, "build"], options);
+  if (lenient.exitCode !== 0) throw new Error("The seeded sorry canary did not build without --wfail");
+  const audit = await runLogged(context, "canary axiom audit", "lean-canary-axiom-audit", [
+    lake, "env", "lean", "--run", "AxiomAudit.lean", ...axiomAuditArguments(proofs),
+  ], options);
+  if (audit.exitCode !== 0) throw new Error("The axiom audit did not finish on the seeded sorry canary");
+  const findings = axiomAuditFindings(parseAxiomAudit(audit.stdout), proofs);
+  if (!findings.includes(`${module}.canary depends on sorryAx`)) {
+    throw new Error("The axiom audit did not report the seeded sorry canary, so its pass is not evidence");
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Entry point
+// ---------------------------------------------------------------------------
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function errorCode(error: unknown): unknown {
+  return typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
+}
+
+export type VerificationMode = "quint" | "quint-nightly" | "lean";
+
+export function parseVerificationMode(argv: readonly string[]): VerificationMode {
+  const mode = argv[0];
+  if (argv.length !== 1 || (mode !== "quint" && mode !== "quint-nightly" && mode !== "lean")) {
+    throw new Error("usage: bun run ./scripts/verification-tools.ts quint|quint-nightly|lean");
+  }
+  return mode;
+}
+
+export type VerificationRequest = Readonly<{ mode: VerificationMode; shard: QuintShard | null }>;
+
+/**
+ * The command line: one mode, or `quint <shard> <shardCount>` for one CI
+ * shard of the Quint models. Only `quint` shards; the nightly profile and
+ * Lean always run whole.
+ */
+export function parseVerificationRequest(argv: readonly string[]): VerificationRequest {
+  if (argv.length === 3 && argv[0] === "quint") {
+    try {
+      return Object.freeze({ mode: "quint", shard: parseQuintShard(argv[1], argv[2]) });
+    } catch (error) {
+      throw new Error(`usage: bun run ./scripts/verification-tools.ts quint <shard> <shardCount>: ${errorMessage(error)}`);
+    }
+  }
+  if (argv.length !== 1) {
+    throw new Error("usage: bun run ./scripts/verification-tools.ts quint|quint-nightly|lean, or quint <shard> <shardCount>");
+  }
+  return Object.freeze({ mode: parseVerificationMode(argv), shard: null });
+}
+
+export async function runVerification(
+  mode: VerificationMode,
+  root: string = REPOSITORY_ROOT,
+  shard: QuintShard | null = null,
+): Promise<void> {
+  if (shard !== null && mode !== "quint") throw new Error(`verify:${mode} does not shard`);
+  const apalache = parseApalacheSelection(process.env[QUINT_SKIP_APALACHE_VARIABLE], process.env[QUINT_APALACHE_MODELS_VARIABLE]);
+  if (apalache.kind !== "all" && mode !== "quint") {
+    throw new Error(`verify:${mode} never skips Apalache; unset ${QUINT_SKIP_APALACHE_VARIABLE} and ${QUINT_APALACHE_MODELS_VARIABLE}`);
+  }
+  const platform = platformKey();
+  const cacheDirectory = verificationCacheDirectory();
+  const artifacts = join(root, VERIFICATION_ARTIFACTS, mode);
+  await rm(artifacts, { recursive: true, force: true });
+  await mkdir(artifacts, { recursive: true });
+  const work = await mkdtemp(join(tmpdir(), `ghostget-verification-${mode}-`));
+  try {
+    await mkdir(join(work, "home"), { mode: 0o700 });
+    await mkdir(join(work, "tmp"), { mode: 0o700 });
+    const toolDirectories = ["node", "zstd"].flatMap((name): PathReplacement[] => {
+      const found = Bun.which(name);
+      const directory = found === null ? null : dirname(found);
+      return directory === null || directory === "/usr/bin" || directory === "/bin" ? [] : [[directory, `<${name}-bin>`]];
+    });
+    const replacements = await pathReplacements([
+      [work, "<work>"],
+      [cacheDirectory, "<cache>"],
+      [root, "<repository>"],
+      ...toolDirectories,
+      [tmpdir(), "<tmp>"],
+      [homedir(), "<home>"],
+    ]);
+    const context: RunContext = {
+      root,
+      profile: mode === "quint-nightly" ? "nightly" : "ci",
+      work,
+      artifacts,
+      cacheDirectory,
+      platform,
+      replacements,
+      log: (line) => console.log(sanitizeCheckerOutput(line, replacements)),
+    };
+    try {
+      if (mode === "quint" || mode === "quint-nightly") await verifyQuint(context, shard, apalache);
+      else await verifyLean(context);
+    } catch (error) {
+      throw new Error(sanitizeCheckerOutput(errorMessage(error), replacements));
+    }
+  } finally {
+    await rm(work, { recursive: true, force: true });
+  }
+}
+
+if (import.meta.main) {
+  let request: VerificationRequest;
+  try {
+    request = parseVerificationRequest(process.argv.slice(2));
+  } catch (error) {
+    console.error(errorMessage(error));
+    process.exit(2);
+  }
+  const label = request.shard === null
+    ? `verify:${request.mode}`
+    : `verify:${request.mode} shard ${String(request.shard.shard)}/${String(request.shard.shardCount)}`;
+  try {
+    await runVerification(request.mode, REPOSITORY_ROOT, request.shard);
+    console.log(`${label} passed`);
+  } catch (error) {
+    console.error(`${label} failed: ${errorMessage(error)}`);
+    process.exit(1);
+  }
+}

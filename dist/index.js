@@ -1,0 +1,393 @@
+// @bun
+import {
+  startProviderPluginCleanupTrackedOperation
+} from "./index-n4szk3nw.js";
+import {
+  localCliToolArtifactForCurrentRuntime,
+  parseLocalCliToolIdentityV1
+} from "./index-vwcgtdx2.js";
+import {
+  hasExactKeys
+} from "./index-5m1wfgkw.js";
+import {
+  PROVIDER_PLUGIN_ID_MAX_LENGTH,
+  PROVIDER_PLUGIN_OPERATION_NAME_MAX_LENGTH,
+  isPortableProviderPluginVersion,
+  isProviderPluginId,
+  isProviderPluginOperationName,
+  isProviderPluginSurfaceId
+} from "./index-26yq8q16.js";
+import {
+  GHOSTGET_MESSAGING_CLIENT_INTENT_BINDING_V1_CONTRACT_ID,
+  GHOSTGET_MESSAGING_CLIENT_INTENT_BINDING_V1_FORMAT,
+  GHOSTGET_MESSAGING_CONTEXT_BINDING_V1_CONTRACT_DESCRIPTOR,
+  GHOSTGET_MESSAGING_CONTEXT_BINDING_V1_CONTRACT_HASH,
+  GHOSTGET_MESSAGING_CONTEXT_BINDING_V1_CONTRACT_ID,
+  GHOSTGET_MESSAGING_CONTEXT_BINDING_V1_FORMAT,
+  GHOSTGET_MESSAGING_CONTEXT_BINDING_V2_CONTRACT_DESCRIPTOR,
+  GHOSTGET_MESSAGING_CONTEXT_BINDING_V2_CONTRACT_HASH,
+  GHOSTGET_MESSAGING_CONTEXT_BINDING_V2_CONTRACT_ID,
+  GHOSTGET_MESSAGING_CONTEXT_BINDING_V2_FORMAT,
+  GHOSTGET_MESSAGING_CONTEXT_INSTANCE_V1_CONTRACT_ID,
+  GHOSTGET_MESSAGING_CONTEXT_INSTANCE_V2_CONTRACT_ID,
+  GHOSTGET_MESSAGING_RECEIPT_BINDING_V1_CONTRACT_DESCRIPTOR,
+  GHOSTGET_MESSAGING_RECEIPT_BINDING_V1_CONTRACT_HASH,
+  GHOSTGET_MESSAGING_RECEIPT_BINDING_V1_CONTRACT_ID,
+  GHOSTGET_MESSAGING_RECEIPT_BINDING_V1_FORMAT,
+  GHOSTGET_MESSAGING_RECEIPT_BINDING_V2_CONTRACT_DESCRIPTOR,
+  GHOSTGET_MESSAGING_RECEIPT_BINDING_V2_CONTRACT_HASH,
+  GHOSTGET_MESSAGING_RECEIPT_BINDING_V2_CONTRACT_ID,
+  GHOSTGET_MESSAGING_RECEIPT_BINDING_V2_FORMAT,
+  MESSAGE_LIKE_ME_SOURCE_CONVERSATION_COORDINATE_V1_CONTRACT_ID,
+  MESSAGE_LIKE_ME_SOURCE_CONVERSATION_COORDINATE_V1_SCHEMA_VERSION,
+  createBeeperMessageLikeMeContextBindingV1,
+  createBeeperMessageLikeMeContextBindingV2,
+  createGhostgetMessagingReceiptBindingV1,
+  createGhostgetMessagingReceiptBindingV2,
+  ghostgetMessagingContextBindingSha256V1,
+  ghostgetMessagingContextBindingSha256V2,
+  messageLikeMeSourceConversationCoordinateBindingV1,
+  parseGhostgetMessagingClientIntentBindingV1,
+  parseGhostgetMessagingContextBindingV1,
+  parseGhostgetMessagingContextBindingV2,
+  parseMessageLikeMeSourceConversationCoordinateV1
+} from "./index-3tc3rw83.js";
+import {
+  canonicalJson,
+  isCanonicalJsonText
+} from "./index-pqsan2cn.js";
+import"./index-z1w83f81.js";
+// src/article-draft-document.ts
+var ARTICLE_DRAFT_DOCUMENT_SCHEMA_VERSION = 1;
+var ARTICLE_DRAFT_DOCUMENT_IMAGE_SCHEMA_VERSION = 2;
+var MAX_ARTICLE_DRAFT_DOCUMENT_BYTES = 512 * 1024;
+var MAX_ARTICLE_DRAFT_BLOCKS = 5000;
+var MAX_ARTICLE_DRAFT_CHARACTERS = 125000;
+var articleDraftStyleOrder = Object.freeze({
+  bold: 0,
+  italic: 1,
+  strikethrough: 2
+});
+var textBlockTypes = new Set([
+  "paragraph",
+  "heading1",
+  "heading2",
+  "blockquote",
+  "unordered-list-item",
+  "ordered-list-item"
+]);
+function isRecord(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function record(value, label) {
+  if (!isRecord(value))
+    throw new Error(`${label} must be an object`);
+  return value;
+}
+function exactKeys(value, keys, label) {
+  if (!hasExactKeys(value, keys)) {
+    throw new Error(`${label} must contain exactly ${[...keys].sort().join(",") || "no fields"}`);
+  }
+}
+function boundedHttpsUrl(value, label) {
+  if (typeof value !== "string" || value.length < 1 || value.length > 8192 || /[\0\r\n]/u.test(value)) {
+    throw new Error(`${label} must be a bounded absolute HTTPS URL`);
+  }
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(`${label} must be a bounded absolute HTTPS URL`);
+  }
+  if (parsed.protocol !== "https:" || parsed.username !== "" || parsed.password !== "" || parsed.href !== value)
+    throw new Error(`${label} must be one canonical absolute HTTPS URL`);
+  return parsed.href;
+}
+function validUtf16Boundary(text, offset) {
+  if (offset <= 0 || offset >= text.length)
+    return true;
+  const previous = text.charCodeAt(offset - 1);
+  const next = text.charCodeAt(offset);
+  return !(previous >= 55296 && previous <= 56319 && next >= 56320 && next <= 57343);
+}
+function boundedRange(value, text, label) {
+  const offset = value.offset;
+  const length = value.length;
+  if (!Number.isSafeInteger(offset) || !Number.isSafeInteger(length) || offset < 0 || length < 1 || offset + length > text.length || !validUtf16Boundary(text, offset) || !validUtf16Boundary(text, offset + length))
+    throw new Error(`${label} must stay on UTF-16 boundaries inside its text`);
+  return Object.freeze({ offset, length });
+}
+function checkedLimits(value) {
+  if (!Number.isSafeInteger(value.maximumBlocks) || value.maximumBlocks < 1 || value.maximumBlocks > MAX_ARTICLE_DRAFT_BLOCKS || !Number.isSafeInteger(value.maximumCharacters) || value.maximumCharacters < 1 || value.maximumCharacters > MAX_ARTICLE_DRAFT_CHARACTERS)
+    throw new Error("Article draft document limits are invalid");
+  return value;
+}
+function compareStyleRanges(left, right) {
+  return left.offset - right.offset || left.length - right.length || articleDraftStyleOrder[left.style] - articleDraftStyleOrder[right.style];
+}
+function parseArticleDraftDocument(value, limitsValue) {
+  const limits = checkedLimits(limitsValue);
+  if (typeof value !== "string" || value.length < 1 || Buffer.byteLength(value, "utf8") > MAX_ARTICLE_DRAFT_DOCUMENT_BYTES || value.includes("\x00"))
+    throw new Error("input.document must be bounded canonical ArticleDraftDocument JSON");
+  let parsed;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    throw new Error("input.document must be valid ArticleDraftDocument JSON");
+  }
+  if (!isCanonicalJsonText(value, parsed)) {
+    throw new Error("input.document must use canonical JSON encoding");
+  }
+  const root = record(parsed, "input.document");
+  exactKeys(root, ["schemaVersion", "blocks"], "input.document");
+  if (root.schemaVersion !== ARTICLE_DRAFT_DOCUMENT_SCHEMA_VERSION || !Array.isArray(root.blocks)) {
+    throw new Error(`input.document must use ArticleDraftDocument schemaVersion ${ARTICLE_DRAFT_DOCUMENT_SCHEMA_VERSION}`);
+  }
+  if (root.blocks.length < 1 || root.blocks.length > limits.maximumBlocks) {
+    throw new Error(`input.document must contain 1-${limits.maximumBlocks} blocks`);
+  }
+  const blocks = [];
+  let totalCharacters = 0;
+  for (const [index, rawBlock] of root.blocks.entries()) {
+    const label = `input.document.blocks[${index}]`;
+    const block = record(rawBlock, label);
+    const allowed = [
+      "type",
+      "text",
+      ...block.links === undefined ? [] : ["links"],
+      ...block.styles === undefined ? [] : ["styles"]
+    ];
+    exactKeys(block, allowed, label);
+    if (typeof block.type !== "string" || !textBlockTypes.has(block.type)) {
+      throw new Error(`${label}.type is outside ArticleDraftDocument schemaVersion 1`);
+    }
+    if (typeof block.text !== "string" || /[\0\r\n]/u.test(block.text)) {
+      throw new Error(`${label}.text must be one bounded line`);
+    }
+    totalCharacters += block.text.length;
+    if (totalCharacters > limits.maximumCharacters) {
+      throw new Error(`input.document text must contain at most ${limits.maximumCharacters} UTF-16 code units`);
+    }
+    const rawLinks = block.links ?? [];
+    const rawStyles = block.styles ?? [];
+    if (!Array.isArray(rawLinks) || rawLinks.length > 500 || !Array.isArray(rawStyles) || rawStyles.length > 500)
+      throw new Error(`${label} ranges exceeded their bounds`);
+    const links = rawLinks.map((rawLink, rangeIndex) => {
+      const rangeLabel = `${label}.links[${rangeIndex}]`;
+      const link = record(rawLink, rangeLabel);
+      exactKeys(link, ["offset", "length", "url"], rangeLabel);
+      const range = boundedRange(link, block.text, rangeLabel);
+      return Object.freeze({ ...range, url: boundedHttpsUrl(link.url, `${rangeLabel}.url`) });
+    });
+    let linkEnd = 0;
+    for (const link of links) {
+      if (link.offset < linkEnd)
+        throw new Error(`${label}.links must be ordered and non-overlapping`);
+      linkEnd = link.offset + link.length;
+    }
+    const styles = rawStyles.map((rawStyle, rangeIndex) => {
+      const rangeLabel = `${label}.styles[${rangeIndex}]`;
+      const style = record(rawStyle, rangeLabel);
+      exactKeys(style, ["offset", "length", "style"], rangeLabel);
+      const range = boundedRange(style, block.text, rangeLabel);
+      if (style.style !== "bold" && style.style !== "italic" && style.style !== "strikethrough") {
+        throw new Error(`${rangeLabel}.style is outside ArticleDraftDocument schemaVersion 1`);
+      }
+      return Object.freeze({ ...range, style: style.style });
+    });
+    for (let rangeIndex = 1;rangeIndex < styles.length; rangeIndex += 1) {
+      const previous = styles[rangeIndex - 1];
+      const current = styles[rangeIndex];
+      if (compareStyleRanges(previous, current) > 0) {
+        throw new Error(`${label}.styles must be ordered by offset, then length, then style`);
+      }
+    }
+    const styleEnds = {};
+    for (const style of styles) {
+      const previousEnd = styleEnds[style.style];
+      if (previousEnd !== undefined && style.offset < previousEnd) {
+        throw new Error(`${label}.styles must not contain duplicate or overlapping same-style ranges`);
+      }
+      styleEnds[style.style] = style.offset + style.length;
+    }
+    blocks.push(Object.freeze({
+      type: block.type,
+      text: block.text,
+      links: Object.freeze(links),
+      styles: Object.freeze(styles)
+    }));
+  }
+  if (totalCharacters < 1)
+    throw new Error("input.document must contain article text");
+  return Object.freeze({
+    schemaVersion: ARTICLE_DRAFT_DOCUMENT_SCHEMA_VERSION,
+    blocks: Object.freeze(blocks)
+  });
+}
+function articleDraftDocumentIssues(value, limits) {
+  try {
+    parseArticleDraftDocument(value, limits);
+    return Object.freeze([]);
+  } catch (error) {
+    return Object.freeze([
+      error instanceof Error ? error.message : "input.document is invalid"
+    ]);
+  }
+}
+function checkedImageLimits(value) {
+  const text = checkedLimits(value);
+  if (!Number.isSafeInteger(value.maximumImages) || value.maximumImages < 1 || value.maximumImages > 100)
+    throw new Error("Article draft image limits are invalid");
+  return Object.freeze({ ...text, maximumImages: value.maximumImages });
+}
+function optionalImageText(value, label, maximum) {
+  if (value === undefined)
+    return;
+  if (typeof value !== "string" || value.length < 1 || value.length > maximum || /[\0\r]/u.test(value))
+    throw new Error(`${label} must be bounded text`);
+  return value;
+}
+function parseArticleDraftDocumentV2(value, limitsValue) {
+  const limits = checkedImageLimits(limitsValue);
+  if (typeof value !== "string" || value.length < 1 || Buffer.byteLength(value, "utf8") > MAX_ARTICLE_DRAFT_DOCUMENT_BYTES || value.includes("\x00"))
+    throw new Error("input.document must be bounded canonical ArticleDraftDocument JSON");
+  let parsed;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    throw new Error("input.document must be valid ArticleDraftDocument JSON");
+  }
+  if (!isCanonicalJsonText(value, parsed)) {
+    throw new Error("input.document must use canonical JSON encoding");
+  }
+  const root = record(parsed, "input.document");
+  exactKeys(root, ["schemaVersion", "blocks"], "input.document");
+  if (root.schemaVersion !== ARTICLE_DRAFT_DOCUMENT_IMAGE_SCHEMA_VERSION || !Array.isArray(root.blocks)) {
+    throw new Error(`input.document must use ArticleDraftDocument schemaVersion ${ARTICLE_DRAFT_DOCUMENT_IMAGE_SCHEMA_VERSION}`);
+  }
+  if (root.blocks.length < 1 || root.blocks.length > limits.maximumBlocks) {
+    throw new Error(`input.document must contain 1-${limits.maximumBlocks} blocks`);
+  }
+  const blocks = [];
+  const imageIndexes = new Set;
+  let totalCharacters = 0;
+  for (const [index, rawBlock] of root.blocks.entries()) {
+    const label = `input.document.blocks[${index}]`;
+    const block = record(rawBlock, label);
+    if (block.type === "image") {
+      exactKeys(block, [
+        "type",
+        "imageIndex",
+        ...block.altText === undefined ? [] : ["altText"],
+        ...block.caption === undefined ? [] : ["caption"]
+      ], label);
+      if (!Number.isSafeInteger(block.imageIndex) || block.imageIndex < 0 || block.imageIndex >= limits.maximumImages || imageIndexes.has(block.imageIndex))
+        throw new Error(`${label}.imageIndex must be a unique bounded zero-based image index`);
+      const altText = optionalImageText(block.altText, `${label}.altText`, 1000);
+      const caption = optionalImageText(block.caption, `${label}.caption`, 1000);
+      imageIndexes.add(block.imageIndex);
+      blocks.push(Object.freeze({
+        type: "image",
+        imageIndex: block.imageIndex,
+        ...altText === undefined ? {} : { altText },
+        ...caption === undefined ? {} : { caption }
+      }));
+      continue;
+    }
+    const parsedText = parseArticleDraftDocument(canonicalJson({
+      schemaVersion: ARTICLE_DRAFT_DOCUMENT_SCHEMA_VERSION,
+      blocks: [rawBlock]
+    }), {
+      maximumBlocks: 1,
+      maximumCharacters: limits.maximumCharacters
+    }).blocks[0];
+    if (parsedText === undefined)
+      throw new Error(`${label} was omitted after validation`);
+    totalCharacters += parsedText.text.length;
+    if (totalCharacters > limits.maximumCharacters) {
+      throw new Error(`input.document text must contain at most ${limits.maximumCharacters} UTF-16 code units`);
+    }
+    blocks.push(parsedText);
+  }
+  if (totalCharacters < 1)
+    throw new Error("input.document must contain article text");
+  const orderedIndexes = [...imageIndexes].sort((left, right) => left - right);
+  if (orderedIndexes.some((value2, index) => value2 !== index)) {
+    throw new Error("input.document imageIndex values must be contiguous from zero");
+  }
+  return Object.freeze({
+    schemaVersion: ARTICLE_DRAFT_DOCUMENT_IMAGE_SCHEMA_VERSION,
+    blocks: Object.freeze(blocks)
+  });
+}
+function articleDraftDocumentV2Issues(value, limits) {
+  try {
+    parseArticleDraftDocumentV2(value, limits);
+    return Object.freeze([]);
+  } catch (error) {
+    return Object.freeze([
+      error instanceof Error ? error.message : "input.document is invalid"
+    ]);
+  }
+}
+
+// src/index.ts
+var PROVIDER_PLUGIN_ID_MAX_LENGTH2 = PROVIDER_PLUGIN_ID_MAX_LENGTH;
+var PROVIDER_PLUGIN_OPERATION_NAME_MAX_LENGTH2 = PROVIDER_PLUGIN_OPERATION_NAME_MAX_LENGTH;
+var isPortableProviderPluginVersion2 = isPortableProviderPluginVersion;
+var isProviderPluginId2 = isProviderPluginId;
+var isProviderPluginOperationName2 = isProviderPluginOperationName;
+var isProviderPluginSurfaceId2 = isProviderPluginSurfaceId;
+export {
+  startProviderPluginCleanupTrackedOperation,
+  parseMessageLikeMeSourceConversationCoordinateV1,
+  parseLocalCliToolIdentityV1,
+  parseGhostgetMessagingContextBindingV2,
+  parseGhostgetMessagingContextBindingV1,
+  parseGhostgetMessagingClientIntentBindingV1,
+  parseArticleDraftDocumentV2,
+  parseArticleDraftDocument,
+  messageLikeMeSourceConversationCoordinateBindingV1,
+  localCliToolArtifactForCurrentRuntime,
+  isProviderPluginSurfaceId2 as isProviderPluginSurfaceId,
+  isProviderPluginOperationName2 as isProviderPluginOperationName,
+  isProviderPluginId2 as isProviderPluginId,
+  isPortableProviderPluginVersion2 as isPortableProviderPluginVersion,
+  ghostgetMessagingContextBindingSha256V2,
+  ghostgetMessagingContextBindingSha256V1,
+  createGhostgetMessagingReceiptBindingV2,
+  createGhostgetMessagingReceiptBindingV1,
+  createBeeperMessageLikeMeContextBindingV2,
+  createBeeperMessageLikeMeContextBindingV1,
+  articleDraftDocumentV2Issues,
+  articleDraftDocumentIssues,
+  PROVIDER_PLUGIN_OPERATION_NAME_MAX_LENGTH2 as PROVIDER_PLUGIN_OPERATION_NAME_MAX_LENGTH,
+  PROVIDER_PLUGIN_ID_MAX_LENGTH2 as PROVIDER_PLUGIN_ID_MAX_LENGTH,
+  MESSAGE_LIKE_ME_SOURCE_CONVERSATION_COORDINATE_V1_SCHEMA_VERSION,
+  MESSAGE_LIKE_ME_SOURCE_CONVERSATION_COORDINATE_V1_CONTRACT_ID,
+  MAX_ARTICLE_DRAFT_DOCUMENT_BYTES,
+  MAX_ARTICLE_DRAFT_CHARACTERS,
+  MAX_ARTICLE_DRAFT_BLOCKS,
+  GHOSTGET_MESSAGING_RECEIPT_BINDING_V2_FORMAT,
+  GHOSTGET_MESSAGING_RECEIPT_BINDING_V2_CONTRACT_ID,
+  GHOSTGET_MESSAGING_RECEIPT_BINDING_V2_CONTRACT_HASH,
+  GHOSTGET_MESSAGING_RECEIPT_BINDING_V2_CONTRACT_DESCRIPTOR,
+  GHOSTGET_MESSAGING_RECEIPT_BINDING_V1_FORMAT,
+  GHOSTGET_MESSAGING_RECEIPT_BINDING_V1_CONTRACT_ID,
+  GHOSTGET_MESSAGING_RECEIPT_BINDING_V1_CONTRACT_HASH,
+  GHOSTGET_MESSAGING_RECEIPT_BINDING_V1_CONTRACT_DESCRIPTOR,
+  GHOSTGET_MESSAGING_CONTEXT_INSTANCE_V2_CONTRACT_ID,
+  GHOSTGET_MESSAGING_CONTEXT_INSTANCE_V1_CONTRACT_ID,
+  GHOSTGET_MESSAGING_CONTEXT_BINDING_V2_FORMAT,
+  GHOSTGET_MESSAGING_CONTEXT_BINDING_V2_CONTRACT_ID,
+  GHOSTGET_MESSAGING_CONTEXT_BINDING_V2_CONTRACT_HASH,
+  GHOSTGET_MESSAGING_CONTEXT_BINDING_V2_CONTRACT_DESCRIPTOR,
+  GHOSTGET_MESSAGING_CONTEXT_BINDING_V1_FORMAT,
+  GHOSTGET_MESSAGING_CONTEXT_BINDING_V1_CONTRACT_ID,
+  GHOSTGET_MESSAGING_CONTEXT_BINDING_V1_CONTRACT_HASH,
+  GHOSTGET_MESSAGING_CONTEXT_BINDING_V1_CONTRACT_DESCRIPTOR,
+  GHOSTGET_MESSAGING_CLIENT_INTENT_BINDING_V1_FORMAT,
+  GHOSTGET_MESSAGING_CLIENT_INTENT_BINDING_V1_CONTRACT_ID,
+  ARTICLE_DRAFT_DOCUMENT_SCHEMA_VERSION,
+  ARTICLE_DRAFT_DOCUMENT_IMAGE_SCHEMA_VERSION
+};

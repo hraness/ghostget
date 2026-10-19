@@ -1,0 +1,12 @@
+{
+  "name": "Introducing GhostGet",
+  "aspect": "16:9",
+  "fps": 30,
+  "seed": 20260924,
+  "background": "#141517",
+  "accent": "#a9c4bb",
+  "productCss": [
+    "../../website/launch/mockups.css",
+    "gg-film.css"
+  ]
+}

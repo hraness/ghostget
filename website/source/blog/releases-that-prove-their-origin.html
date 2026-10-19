@@ -1,0 +1,24 @@
+<p>A checksum tells you whether a download matches another copy of the same file. To learn who built it and from which source, you also need a signed build record. Checking both connects the software on your disk to the release you chose.</p>
+<p>This matters for a local tool such as GhostGet, which can work in accounts you connect. You can inspect the public source and then verify that the downloaded package came from the project’s release workflow.</p>
+<h2 id="checksums-and-build-records">Checksums and build records answer different questions</h2>
+<p>A checksum is a fingerprint of a file’s bytes. If one byte changes, its checksum changes. Comparing a download with a published checksum catches corruption or a mismatch, but someone who replaces both can make them agree.</p>
+<p>A signed build record, also called an attestation, binds that fingerprint to an identity. GhostGet’s record identifies the repository, source commit, version tag, and GitHub Actions workflow that built the package. The GitHub CLI verifies the signature and checks those identities against the ones you require.</p>
+<p>A successful verification establishes origin. It is not a review of the source code or its dependencies; those need their own evaluation.</p>
+<h2 id="download-one-release">Download one release into its own directory</h2>
+<p>Install and sign in to the <a href="https://cli.github.com/">GitHub CLI</a>. Choose a version from <a href="https://github.com/hraness/ghostget/releases">GhostGet’s releases</a>, then replace <code>&lt;version&gt;</code> in the commands with that number:</p>
+<pre><code class="language-sh">gh release download v&lt;version&gt; -R hraness/ghostget --dir ghostget-&lt;version&gt;
+cd ghostget-&lt;version&gt;
+shasum -a 256 -c SHA256SUMS</code></pre>
+<p>Keep the package and its companion files together. <code>SHA256SUMS</code> records the file fingerprints, <code>release-manifest.json</code> records the package identity, and <code>provenance.jsonl</code> contains the signed build records.</p>
+<h2 id="verify-the-builder">Verify the builder and the version</h2>
+<p>Require the GhostGet repository, its release workflow, and the selected tag. The following command also requires a GitHub-hosted runner:</p>
+<pre><code class="language-sh">gh attestation verify hraness-ghostget-&lt;version&gt;.tgz   -R hraness/ghostget   --bundle provenance.jsonl   --signer-workflow hraness/ghostget/.github/workflows/release.yml   --source-ref refs/tags/v&lt;version&gt;   --deny-self-hosted-runners</code></pre>
+<p>A successful check exits with status zero. Add <code>--format json</code> to inspect the verified identity. If the check fails, investigate the reported mismatch before installing the file.</p>
+<p>You can also check that the file belongs to the immutable GitHub Release:</p>
+<pre><code class="language-sh">gh release verify v&lt;version&gt; -R hraness/ghostget
+gh release verify-asset v&lt;version&gt; hraness-ghostget-&lt;version&gt;.tgz -R hraness/ghostget</code></pre>
+<h2 id="install-the-file-you-checked">Install the file you checked</h2>
+<pre><code class="language-sh">bun add --global ./hraness-ghostget-&lt;version&gt;.tgz
+ghostget --version</code></pre>
+<p>Installing the local file preserves the connection between the verification and the package you run. The <a href="/docs/tutorials/getting-started/">getting-started guide</a> continues with your first page read and account connection.</p>
+<p>For an npm installation, run <code>npm audit signatures</code> in the project that contains it to check registry signatures and package provenance.</p>
