@@ -1,0 +1,656 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "WRENCH_VERCEL_BUILD=release-bound-v1 bunx bun@1.3.14 run website:vercel-build",
+  "framework": null,
+  "headers": [
+    {
+      "source": "/claims.json",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, max-age=0"
+        },
+        {
+          "key": "Content-Type",
+          "value": "application/json; charset=utf-8"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), geolocation=(), microphone=(), payment=(), usb=()"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Vary",
+          "value": "Accept"
+        }
+      ]
+    },
+    {
+      "source": "/((?!preview/$).*)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "form-action 'self' https://account.hraness.com; frame-src 'self'; script-src 'self' 'unsafe-inline'"
+        }
+      ]
+    },
+    {
+      "source": "/preview/",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'none'; img-src 'self'; style-src 'self'; base-uri 'none'; form-action 'none'"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/404.md",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/blog/feed.xml",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/atom+xml; charset=utf-8"
+        }
+      ]
+    },
+    {
+      "source": "/(.*).md",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "text/markdown; charset=utf-8"
+        },
+        {
+          "key": "Vary",
+          "value": "Accept"
+        }
+      ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
+  ],
+  "installCommand": "bunx bun@1.3.14 install --frozen-lockfile --ignore-scripts",
+  "outputDirectory": "website/dist",
+  "rewrites": [
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "header",
+          "key": "accept",
+          "value": "text/markdown"
+        }
+      ],
+      "destination": "/index.md"
+    },
+    {
+      "source": "/:path((?!preview/).*)/",
+      "has": [
+        {
+          "type": "header",
+          "key": "accept",
+          "value": "text/markdown"
+        }
+      ],
+      "destination": "/:path.md"
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/favicon.ico",
+      "destination": "/icon.png",
+      "permanent": true
+    },
+    {
+      "source": "/index.html",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/preview",
+      "destination": "/preview/",
+      "permanent": true
+    },
+    {
+      "source": "/preview/index.html",
+      "destination": "/preview/",
+      "permanent": true
+    },
+    {
+      "source": "/docs",
+      "destination": "/docs/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/index.html",
+      "destination": "/docs/",
+      "permanent": true
+    },
+    {
+      "source": "/getting-started",
+      "destination": "/docs/tutorials/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/getting-started/",
+      "destination": "/docs/tutorials/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/getting-started/index.html",
+      "destination": "/docs/tutorials/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/getting-started/:path*",
+      "destination": "/docs/tutorials/getting-started/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/getting-started.md",
+      "destination": "/docs/tutorials/getting-started.md",
+      "permanent": true
+    },
+    {
+      "source": "/docs/tutorials/getting-started",
+      "destination": "/docs/tutorials/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/tutorials/getting-started/index.html",
+      "destination": "/docs/tutorials/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/capture-and-archives",
+      "destination": "/docs/how-to/capture-and-archive/",
+      "permanent": true
+    },
+    {
+      "source": "/capture-and-archives/",
+      "destination": "/docs/how-to/capture-and-archive/",
+      "permanent": true
+    },
+    {
+      "source": "/capture-and-archives/index.html",
+      "destination": "/docs/how-to/capture-and-archive/",
+      "permanent": true
+    },
+    {
+      "source": "/capture-and-archives/:path*",
+      "destination": "/docs/how-to/capture-and-archive/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/capture-and-archives.md",
+      "destination": "/docs/how-to/capture-and-archive.md",
+      "permanent": true
+    },
+    {
+      "source": "/docs/how-to/capture-and-archive",
+      "destination": "/docs/how-to/capture-and-archive/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/how-to/capture-and-archive/index.html",
+      "destination": "/docs/how-to/capture-and-archive/",
+      "permanent": true
+    },
+    {
+      "source": "/provider-capabilities",
+      "destination": "/docs/reference/provider-capabilities/",
+      "permanent": true
+    },
+    {
+      "source": "/provider-capabilities/",
+      "destination": "/docs/reference/provider-capabilities/",
+      "permanent": true
+    },
+    {
+      "source": "/provider-capabilities/index.html",
+      "destination": "/docs/reference/provider-capabilities/",
+      "permanent": true
+    },
+    {
+      "source": "/provider-capabilities/:path*",
+      "destination": "/docs/reference/provider-capabilities/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/provider-capabilities.md",
+      "destination": "/docs/reference/provider-capabilities.md",
+      "permanent": true
+    },
+    {
+      "source": "/docs/reference/provider-capabilities",
+      "destination": "/docs/reference/provider-capabilities/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/reference/provider-capabilities/index.html",
+      "destination": "/docs/reference/provider-capabilities/",
+      "permanent": true
+    },
+    {
+      "source": "/providers/beeper",
+      "destination": "/docs/how-to/connect-beeper/",
+      "permanent": true
+    },
+    {
+      "source": "/providers/beeper/",
+      "destination": "/docs/how-to/connect-beeper/",
+      "permanent": true
+    },
+    {
+      "source": "/providers/beeper/index.html",
+      "destination": "/docs/how-to/connect-beeper/",
+      "permanent": true
+    },
+    {
+      "source": "/providers/beeper/:path*",
+      "destination": "/docs/how-to/connect-beeper/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/providers/beeper.md",
+      "destination": "/docs/how-to/connect-beeper.md",
+      "permanent": true
+    },
+    {
+      "source": "/docs/how-to/connect-beeper",
+      "destination": "/docs/how-to/connect-beeper/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/how-to/connect-beeper/index.html",
+      "destination": "/docs/how-to/connect-beeper/",
+      "permanent": true
+    },
+    {
+      "source": "/providers/whatsapp",
+      "destination": "/docs/how-to/export-whatsapp/",
+      "permanent": true
+    },
+    {
+      "source": "/providers/whatsapp/",
+      "destination": "/docs/how-to/export-whatsapp/",
+      "permanent": true
+    },
+    {
+      "source": "/providers/whatsapp/index.html",
+      "destination": "/docs/how-to/export-whatsapp/",
+      "permanent": true
+    },
+    {
+      "source": "/providers/whatsapp/:path*",
+      "destination": "/docs/how-to/export-whatsapp/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/providers/whatsapp.md",
+      "destination": "/docs/how-to/export-whatsapp.md",
+      "permanent": true
+    },
+    {
+      "source": "/docs/how-to/export-whatsapp",
+      "destination": "/docs/how-to/export-whatsapp/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/how-to/export-whatsapp/index.html",
+      "destination": "/docs/how-to/export-whatsapp/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/how-to/connect-gmail",
+      "destination": "/docs/how-to/connect-gmail/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/how-to/connect-gmail/index.html",
+      "destination": "/docs/how-to/connect-gmail/",
+      "permanent": true
+    },
+    {
+      "source": "/providers",
+      "destination": "/providers/",
+      "permanent": true
+    },
+    {
+      "source": "/providers/index.html",
+      "destination": "/providers/",
+      "permanent": true
+    },
+    {
+      "source": "/security",
+      "destination": "/docs/explanation/security-model/",
+      "permanent": true
+    },
+    {
+      "source": "/security/",
+      "destination": "/docs/explanation/security-model/",
+      "permanent": true
+    },
+    {
+      "source": "/security/index.html",
+      "destination": "/docs/explanation/security-model/",
+      "permanent": true
+    },
+    {
+      "source": "/security/:path*",
+      "destination": "/docs/explanation/security-model/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/security.md",
+      "destination": "/docs/explanation/security-model.md",
+      "permanent": true
+    },
+    {
+      "source": "/docs/explanation/security-model",
+      "destination": "/docs/explanation/security-model/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/explanation/security-model/index.html",
+      "destination": "/docs/explanation/security-model/",
+      "permanent": true
+    },
+    {
+      "source": "/plugins",
+      "destination": "/docs/how-to/author-provider-plugin/",
+      "permanent": true
+    },
+    {
+      "source": "/plugins/",
+      "destination": "/docs/how-to/author-provider-plugin/",
+      "permanent": true
+    },
+    {
+      "source": "/plugins/index.html",
+      "destination": "/docs/how-to/author-provider-plugin/",
+      "permanent": true
+    },
+    {
+      "source": "/plugins/:path*",
+      "destination": "/docs/how-to/author-provider-plugin/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/plugins.md",
+      "destination": "/docs/how-to/author-provider-plugin.md",
+      "permanent": true
+    },
+    {
+      "source": "/docs/how-to/author-provider-plugin",
+      "destination": "/docs/how-to/author-provider-plugin/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/how-to/author-provider-plugin/index.html",
+      "destination": "/docs/how-to/author-provider-plugin/",
+      "permanent": true
+    },
+    {
+      "source": "/claims",
+      "destination": "/claims/",
+      "permanent": true
+    },
+    {
+      "source": "/claims/index.html",
+      "destination": "/claims/",
+      "permanent": true
+    },
+    {
+      "source": "/compare",
+      "destination": "/compare/",
+      "permanent": true
+    },
+    {
+      "source": "/compare/index.html",
+      "destination": "/compare/",
+      "permanent": true
+    },
+    {
+      "source": "/compare/browser-use",
+      "destination": "/compare/browser-use/",
+      "permanent": true
+    },
+    {
+      "source": "/compare/browser-use/index.html",
+      "destination": "/compare/browser-use/",
+      "permanent": true
+    },
+    {
+      "source": "/compare/browserbase",
+      "destination": "/compare/browserbase/",
+      "permanent": true
+    },
+    {
+      "source": "/compare/browserbase/index.html",
+      "destination": "/compare/browserbase/",
+      "permanent": true
+    },
+    {
+      "source": "/compare/playwright-mcp",
+      "destination": "/compare/playwright-mcp/",
+      "permanent": true
+    },
+    {
+      "source": "/compare/playwright-mcp/index.html",
+      "destination": "/compare/playwright-mcp/",
+      "permanent": true
+    },
+    {
+      "source": "/compare/agent-browser",
+      "destination": "/compare/agent-browser/",
+      "permanent": true
+    },
+    {
+      "source": "/compare/agent-browser/index.html",
+      "destination": "/compare/agent-browser/",
+      "permanent": true
+    },
+    {
+      "source": "/compare/firecrawl",
+      "destination": "/compare/firecrawl/",
+      "permanent": true
+    },
+    {
+      "source": "/compare/firecrawl/index.html",
+      "destination": "/compare/firecrawl/",
+      "permanent": true
+    },
+    {
+      "source": "/compare/jina-reader",
+      "destination": "/compare/jina-reader/",
+      "permanent": true
+    },
+    {
+      "source": "/compare/jina-reader/index.html",
+      "destination": "/compare/jina-reader/",
+      "permanent": true
+    },
+    {
+      "source": "/about",
+      "destination": "/about/",
+      "permanent": true
+    },
+    {
+      "source": "/about/index.html",
+      "destination": "/about/",
+      "permanent": true
+    },
+    {
+      "source": "/contact",
+      "destination": "/contact/",
+      "permanent": true
+    },
+    {
+      "source": "/contact/index.html",
+      "destination": "/contact/",
+      "permanent": true
+    },
+    {
+      "source": "/privacy",
+      "destination": "/privacy/",
+      "permanent": true
+    },
+    {
+      "source": "/privacy/index.html",
+      "destination": "/privacy/",
+      "permanent": true
+    },
+    {
+      "source": "/compare/personal-agents-browser-use",
+      "destination": "/compare/personal-agents-browser-use/",
+      "permanent": true
+    },
+    {
+      "source": "/compare/personal-agents-browser-use/index.html",
+      "destination": "/compare/personal-agents-browser-use/",
+      "permanent": true
+    },
+    {
+      "source": "/agentic-web-spoofing",
+      "destination": "/agentic-web-spoofing/",
+      "permanent": true
+    },
+    {
+      "source": "/agentic-web-spoofing/index.html",
+      "destination": "/agentic-web-spoofing/",
+      "permanent": true
+    },
+    {
+      "source": "/vms-cannot-contain-agents",
+      "destination": "/vms-cannot-contain-agents/",
+      "permanent": true
+    },
+    {
+      "source": "/vms-cannot-contain-agents/index.html",
+      "destination": "/vms-cannot-contain-agents/",
+      "permanent": true
+    },
+    {
+      "source": "/paypal-grapheneos-attestation",
+      "destination": "/paypal-grapheneos-attestation/",
+      "permanent": true
+    },
+    {
+      "source": "/paypal-grapheneos-attestation/index.html",
+      "destination": "/paypal-grapheneos-attestation/",
+      "permanent": true
+    },
+    {
+      "source": "/rumour-is-the-exploit",
+      "destination": "/rumour-is-the-exploit/",
+      "permanent": true
+    },
+    {
+      "source": "/rumour-is-the-exploit/index.html",
+      "destination": "/rumour-is-the-exploit/",
+      "permanent": true
+    },
+    {
+      "source": "/omarchy-root-escalation",
+      "destination": "/omarchy-root-escalation/",
+      "permanent": true
+    },
+    {
+      "source": "/omarchy-root-escalation/index.html",
+      "destination": "/omarchy-root-escalation/",
+      "permanent": true
+    },
+    {
+      "source": "/blog",
+      "destination": "/blog/",
+      "permanent": true
+    },
+    {
+      "source": "/blog/index.html",
+      "destination": "/blog/",
+      "permanent": true
+    },
+    {
+      "source": "/blog/introducing-ghostget",
+      "destination": "/blog/introducing-ghostget/",
+      "permanent": true
+    },
+    {
+      "source": "/blog/introducing-ghostget/index.html",
+      "destination": "/blog/introducing-ghostget/",
+      "permanent": true
+    },
+    {
+      "source": "/blog/built-on-ghostget",
+      "destination": "/blog/built-on-ghostget/",
+      "permanent": true
+    },
+    {
+      "source": "/blog/built-on-ghostget/index.html",
+      "destination": "/blog/built-on-ghostget/",
+      "permanent": true
+    },
+    {
+      "source": "/blog/ghostget-claims-register",
+      "destination": "/blog/ghostget-claims-register/",
+      "permanent": true
+    },
+    {
+      "source": "/blog/ghostget-claims-register/index.html",
+      "destination": "/blog/ghostget-claims-register/",
+      "permanent": true
+    },
+    {
+      "source": "/blog/releases-that-prove-their-origin",
+      "destination": "/blog/releases-that-prove-their-origin/",
+      "permanent": true
+    },
+    {
+      "source": "/blog/releases-that-prove-their-origin/index.html",
+      "destination": "/blog/releases-that-prove-their-origin/",
+      "permanent": true
+    },
+    {
+      "source": "/blog/replayable-property-tests",
+      "destination": "/blog/replayable-property-tests/",
+      "permanent": true
+    },
+    {
+      "source": "/blog/replayable-property-tests/index.html",
+      "destination": "/blog/replayable-property-tests/",
+      "permanent": true
+    }
+  ]
+}

@@ -1,0 +1,381 @@
+#!/usr/bin/env bun
+
+import { ghostgetBareUsage, ghostgetHelpRequest, hasPdfSignInOptions } from "./usage";
+import { cliStyle, renderCliError } from "./cli-style";
+import { terminalIntro } from "./cli-intro";
+import { GHOSTGET_VERSION } from "./version";
+import type {
+  GhostgetCatalogCommand,
+  GhostgetCatalogOutput,
+} from "./catalog-cli";
+
+type CliOutput = {
+  readonly stdout: GhostgetCatalogOutput["stdout"];
+  readonly stderr?: GhostgetCatalogOutput["stderr"];
+};
+
+type GhostgetProcessModule = {
+  readonly runGhostgetProcess: (overrides?: {
+    readonly rawArguments?: readonly string[];
+    readonly output?: Required<CliOutput>;
+    readonly onUsefulResult?: () => void;
+  }) => Promise<void>;
+};
+
+type GhostgetCatalogModule = {
+  readonly runGhostgetCatalogCommand: (
+    command: GhostgetCatalogCommand,
+    environment: Readonly<Record<string, string | undefined>>,
+    output: GhostgetCatalogOutput,
+  ) => Promise<number>;
+};
+
+type PublicKbCliModule = {
+  readonly main: (
+    rawArguments?: readonly string[],
+    output?: Required<CliOutput>,
+  ) => Promise<number>;
+};
+
+type GhostgetSupportModule = {
+  readonly runGhostgetSupportCommand: (
+    args: readonly string[],
+    output: Required<CliOutput>,
+  ) => Promise<number>;
+  readonly showGhostgetSupportInvitation: () => Promise<void>;
+  readonly ghostgetSupportAdvancedHelp: () => string;
+};
+
+const defaultOutput: GhostgetCatalogOutput = {
+  stdout: (value) => process.stdout.write(value),
+  stderr: (value) => process.stderr.write(value),
+};
+
+const loadGhostgetProcess = (): Promise<GhostgetProcessModule> => import("./ghostget");
+const loadGhostgetCatalog = (): Promise<GhostgetCatalogModule> => import("./catalog-cli");
+const loadPublicKbCli = (): Promise<PublicKbCliModule> => import("@hraness/wordcell/cli");
+const loadGhostgetSupport = (): Promise<GhostgetSupportModule> => import("./support");
+
+/** An inherited marker belongs only to the real executable entrypoint. */
+export function standaloneSupportDepth(value: string | undefined): number | null {
+  if (value === undefined) return 0;
+  return value.length === 1 && /^[0-8]$/u.test(value) ? Number(value) : null;
+}
+
+function supportOutputAllowed(rawArguments: readonly string[]): boolean {
+  return !rawArguments.some((argument) => [
+    "--help", "-h", "--version", "-V", "--quiet", "--silent",
+  ].includes(argument));
+}
+
+const publicGhostgetCommands = new Set([
+  "adapters",
+  "agents",
+  "backlinks",
+  "check",
+  "context",
+  "graph",
+  "index",
+  "init",
+  "links",
+  "list",
+  "notes",
+  "pdf",
+  "refresh",
+  "search",
+  "url-metadata",
+]);
+
+export function isPublicGhostgetCommand(rawArguments: readonly string[]): boolean {
+  const command = rawArguments[0];
+  return command !== undefined && publicGhostgetCommands.has(command);
+}
+
+export function isImmediateGhostgetHelpRequest(
+  rawArguments: readonly string[],
+): boolean {
+  return rawArguments.length === 0
+    || (
+      rawArguments.length === 1
+      && (
+        rawArguments[0] === "help"
+        || rawArguments[0] === "--help"
+        || rawArguments[0] === "-h"
+      )
+    );
+}
+
+export function isImmediateGhostgetVersionRequest(
+  rawArguments: readonly string[],
+): boolean {
+  const [first, second, ...rest] = rawArguments;
+  return (first === "--version" || first === "-V")
+    && rest.length === 0
+    && (second === undefined || second === "--json");
+}
+
+/** The canonical package version as plain text or a JSON object with `--json`. */
+export function ghostgetVersionText(rawArguments: readonly string[]): string {
+  return rawArguments.includes("--json")
+    ? `${JSON.stringify({ name: "ghostget", version: GHOSTGET_VERSION })}\n`
+    : `ghostget ${GHOSTGET_VERSION}\n`;
+}
+
+function hasOnlyOptionalJson(
+  values: readonly string[],
+): boolean {
+  return values.length <= 1
+    && (values.length === 0 || values[0] === "--json");
+}
+
+function isProviderPluginId(value: string): boolean {
+  return value.length <= 63
+    && /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u.test(value);
+}
+
+/**
+ * Recognize only complete catalog command shapes. Malformed or broader plugin
+ * commands retain the canonical parser and process boundary in ghostget.ts.
+ */
+export function routedGhostgetCatalogCommand(
+  rawArguments: readonly string[],
+): GhostgetCatalogCommand | null {
+  const first = rawArguments[0];
+  if (first === "capabilities") {
+    const positional = rawArguments.slice(1).filter(
+      (argument) => !argument.startsWith("--"),
+    );
+    const options = rawArguments.slice(1).filter(
+      (argument) => argument.startsWith("--"),
+    );
+    if (positional.length > 1 || !hasOnlyOptionalJson(options)) return null;
+    return {
+      command: "capabilities",
+      ...(positional[0] === undefined
+        ? {}
+        : { adapterId: positional[0] }),
+      json: options.includes("--json"),
+    };
+  }
+  if (first !== "plugin" && first !== "plugins") return null;
+  const subcommand = rawArguments[1];
+  if (
+    subcommand === "list"
+    && hasOnlyOptionalJson(rawArguments.slice(2))
+  ) {
+    return {
+      command: "plugin-list",
+      json: rawArguments.includes("--json"),
+    };
+  }
+  const id = rawArguments[2];
+  if (
+    subcommand === "show"
+    && id !== undefined
+    && isProviderPluginId(id)
+    && hasOnlyOptionalJson(rawArguments.slice(3))
+  ) {
+    return {
+      command: "plugin-show",
+      id,
+      json: rawArguments.includes("--json"),
+    };
+  }
+  return null;
+}
+
+/**
+ * Render help, release identity, and catalog inspection without evaluating the
+ * full command graph.
+ *
+ * Every other invocation delegates to the existing process boundary, which
+ * retains its signal, exit-code, parsing, dependency, and error behavior.
+ */
+export async function runGhostgetCliProcess(
+  rawArguments: readonly string[] = process.argv.slice(2),
+  output: CliOutput = defaultOutput,
+  loadProcess: () => Promise<GhostgetProcessModule> = loadGhostgetProcess,
+  loadCatalog: () => Promise<GhostgetCatalogModule> = loadGhostgetCatalog,
+  loadKnowledgeCli: () => Promise<PublicKbCliModule> = loadPublicKbCli,
+  loadSupport: () => Promise<GhostgetSupportModule> = loadGhostgetSupport,
+  standaloneRoot = false,
+): Promise<void> {
+  const help = ghostgetHelpRequest(rawArguments);
+  if (help !== null && help.kind !== "delegate") {
+    if (help.kind === "unknown-topic") {
+      const style = cliStyle(process.env, process.stderr.isTTY === true);
+      (output.stderr ?? defaultOutput.stderr)(renderCliError(
+        style,
+        `No help topic named "${help.topic.replace(/[^\x20-\x7e]/gu, "?").slice(0, 64)}".`,
+        "ghostget --help",
+      ));
+      process.exitCode = 2;
+      return;
+    }
+    if (help.kind === "bare") {
+      if (output === defaultOutput) output.stdout(terminalIntro({ isTTY: process.stdout.isTTY, columns: process.stdout.columns, term: process.env.TERM }));
+      output.stdout(ghostgetBareUsage(GHOSTGET_VERSION));
+    } else if (help.kind === "advanced") {
+      output.stdout(help.text);
+      // The agent support verbs are shared wording from support-foundation.
+      // Only this topic loads it; every other help path stays static.
+      try {
+        const support = await loadSupport();
+        const block = support.ghostgetSupportAdvancedHelp();
+        if (block !== "") output.stdout(block.endsWith("\n") ? `\n${block}` : `\n${block}\n`);
+      } catch {
+        // Advanced help stays useful when the shared module cannot load.
+      }
+    } else {
+      output.stdout(help.text);
+    }
+    process.exitCode = 0;
+    return;
+  }
+  if (help !== null) rawArguments = help.arguments;
+  if (isImmediateGhostgetVersionRequest(rawArguments)) {
+    output.stdout(ghostgetVersionText(rawArguments));
+    process.exitCode = 0;
+    return;
+  }
+  const providerArguments = rawArguments[0] === "operator"
+      && rawArguments[1] === "doctor"
+    ? ["doctor", ...rawArguments.slice(2)]
+    : rawArguments;
+  const resolvedOutput: Required<CliOutput> = {
+    stdout: output.stdout,
+    stderr: output.stderr ?? defaultOutput.stderr,
+  };
+  try {
+    const { assertGatewayCommandAllowed } = await import("./control/web-policy");
+    assertGatewayCommandAllowed(rawArguments, process.env);
+  } catch {
+    resolvedOutput.stderr("Ghostget gateway-only policy blocks this command, or its policy state is unavailable. Review it with ghostget status, or change it with ghostget web rules set.\n");
+    process.exitCode = 1;
+    return;
+  }
+  try {
+    if (rawArguments[0] === "tui") {
+      const { runTuiCommand } = await import("./control/tui");
+      process.exitCode = await runTuiCommand(rawArguments, process.env, resolvedOutput);
+      return;
+    }
+    if (rawArguments[0] === "web" && rawArguments[1] !== "rules") {
+      const { runWebCommand } = await import("./control/cli");
+      process.exitCode = await runWebCommand(rawArguments, process.env, resolvedOutput);
+      return;
+    }
+    if (rawArguments[0] === "interface" && rawArguments[1] !== "activate") {
+      const { runInterfaceCommand } = await import("./control/interface-cli");
+      process.exitCode = runInterfaceCommand(rawArguments, process.env, resolvedOutput);
+      return;
+    }
+    const { registryOwns, runRegistryCommand } = await import("./control/registry");
+    if (registryOwns(rawArguments)) {
+      process.exitCode = await runRegistryCommand(rawArguments, process.env, resolvedOutput);
+      return;
+    }
+    if (rawArguments[0] === "menubar") {
+      const { runRetiredMenubarCommand } = await import("./control/retire-tray");
+      process.exitCode = await runRetiredMenubarCommand(rawArguments.slice(1), process.env, resolvedOutput);
+      return;
+    }
+  } catch {
+    resolvedOutput.stderr("Ghostget could not start this control command. Run its --help command and check that no other Ghostget controller is open.\n");
+    process.exitCode = 1;
+    return;
+  }
+  if (rawArguments[0] === "support") {
+    const support = await loadSupport();
+    process.exitCode = await support.runGhostgetSupportCommand(rawArguments.slice(1), resolvedOutput);
+    return;
+  }
+  const captureOutput = rawArguments[0] === "pdf" && rawArguments.includes("--json") ? (await import("./capture-error")).captureErrorOutput(resolvedOutput) : resolvedOutput;
+  if (rawArguments[0] === "pdf" && help === null && hasPdfSignInOptions(rawArguments.slice(1))) {
+    const { runSignedInPdfCommand, runWordcellPdfWithDownload } = await import("./pdf-auth");
+    process.exitCode = await runSignedInPdfCommand(rawArguments.slice(1), captureOutput, {
+      environment: process.env,
+      runWordcellPdf: async (pdfArguments, download) => download === undefined
+        ? (await loadKnowledgeCli()).main(["pdf", ...pdfArguments], captureOutput)
+        : runWordcellPdfWithDownload(pdfArguments, download, process.env, captureOutput),
+    });
+    return;
+  }
+  if (isPublicGhostgetCommand(rawArguments)) {
+    const knowledge = await loadKnowledgeCli();
+    process.exitCode = await knowledge.main(rawArguments, captureOutput);
+    return;
+  }
+  const catalogCommand = routedGhostgetCatalogCommand(providerArguments);
+  if (catalogCommand !== null) {
+    const catalog = await loadCatalog();
+    process.exitCode = await catalog.runGhostgetCatalogCommand(
+      catalogCommand,
+      process.env,
+      resolvedOutput,
+    );
+    return;
+  }
+  const runtime = await loadProcess();
+  let usefulResult = false;
+  await runtime.runGhostgetProcess({
+    rawArguments: providerArguments,
+    output: resolvedOutput,
+    onUsefulResult: () => { usefulResult = true; },
+  });
+  if (
+    process.exitCode === 0
+    && output === defaultOutput
+    && standaloneRoot
+    && usefulResult
+    && supportOutputAllowed(rawArguments)
+  ) {
+    try {
+      const support = await loadSupport();
+      await support.showGhostgetSupportInvitation();
+    } catch {
+      // An optional invitation cannot change the result of completed work.
+    }
+  }
+}
+
+/** Update only the real executable; SDK callers keep their original behavior. */
+export async function runGhostgetExecutable(
+  args: readonly string[] = process.argv.slice(2),
+  startUpdate = async (arguments_: readonly string[], depth: number | null) =>
+    (await import("./update")).startGhostgetUpdate(arguments_, depth),
+  runCommand = runGhostgetCliProcess,
+  reportRun = async (arguments_: readonly string[]) =>
+    (await import("./telemetry")).reportGhostgetCliRun(GHOSTGET_VERSION, process.env, arguments_),
+): Promise<void> {
+  const depth = standaloneSupportDepth(process.env.GHOSTGET_CLI_DEPTH);
+  const delegatedHelp = args.length === 2 && (args[1] === "--help" || args[1] === "-h")
+    && ghostgetHelpRequest(["help", args[0]!])?.kind === "delegate";
+  const controlHelp = (args.length === 1 && ["web", "interface"].includes(args[0]!))
+    || (args[0] === "menubar" && args.some(argument => argument === "--help" || argument === "-h"));
+  const supportProtocol = args[0] === "support" && args[1] === "protocol" && hasOnlyOptionalJson(args.slice(2));
+  const staticOnly = args.length === 0
+    || ghostgetHelpRequest(args) !== null
+    || delegatedHelp || controlHelp || supportProtocol
+    || isImmediateGhostgetVersionRequest(args)
+    || args.every((arg) => arg === "--help" || arg === "-h" || arg === "--version" || arg === "-V");
+  const update = staticOnly ? undefined : await startUpdate(args, depth);
+  if (update?.handled) { process.exitCode = update.exitCode; return; }
+  let telemetry: Promise<void> | undefined;
+  try {
+    // Re-entered copies inherit the original depth and set it only after the
+    // updater has finished, so a restarted root is still the root command.
+    process.env.GHOSTGET_CLI_DEPTH = String(depth === null ? 8 : Math.min(depth + 1, 8));
+    if (depth === 0 && !staticOnly) {
+      telemetry = Promise.resolve().then(() => reportRun(args)).catch(() => {});
+    }
+    await runCommand(args, undefined, undefined, undefined, undefined, undefined, depth === 0);
+  } finally {
+    // Join lazy imports and local setup before allowing package replacement.
+    // The report starts an unref'd socket and does not wait for its network I/O.
+    await telemetry;
+    await update?.release();
+  }
+}
+
+if (import.meta.main) await runGhostgetExecutable();

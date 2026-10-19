@@ -1,0 +1,723 @@
+import { redactSensitiveText } from "@hraness/wordcell/clip/persist";
+import {
+  sanitizeTerminalLine,
+  sanitizeTerminalText,
+} from "@hraness/wordcell/clip/terminal";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+
+import {
+  canonicalJson,
+  DOM_ACTION_TRANSPORT_DISABLED_MESSAGE,
+  isLocalCliOperation,
+  isProviderOperation,
+  isReviewedTemplateOperation,
+  isWebSessionOperation,
+  manifestHash,
+  sha256,
+  type GhostgetOperation,
+} from "./model";
+import {
+  getProviderContract,
+  providerContractHash,
+} from "./provider-contracts";
+import {
+  getLocalCliContract,
+  localCliContractHash,
+} from "./local-cli-contracts";
+import type {
+  ProviderPluginOperationV1,
+  ProviderPluginV1,
+} from "./provider-plugin";
+import type {
+  listPortableProviderPlugins,
+  showPortableProviderPlugin,
+} from "./provider-plugin-lifecycle";
+import type { ProviderPluginRegistry } from "./provider-plugin-registry";
+import { providerPluginRegistry } from "./provider-plugins";
+import {
+  ghostgetStateHome,
+  listInstalledManifests,
+} from "./storage";
+import {
+  getWebSessionContract,
+  webSessionContractHash,
+} from "./web-session-contracts";
+
+export type GhostgetCatalogCommand =
+  | {
+      readonly command: "capabilities";
+      readonly adapterId?: string;
+      readonly json: boolean;
+    }
+  | { readonly command: "plugin-list"; readonly json: boolean }
+  | {
+      readonly command: "plugin-show";
+      readonly id: string;
+      readonly json: boolean;
+    };
+
+export type GhostgetCatalogOutput = {
+  readonly stdout: (value: string) => void;
+  readonly stderr: (value: string) => void;
+};
+
+const PROVIDER_PLUGIN_TRUST_NOTICE =
+  "Provider source plugins are trusted in-process code.";
+const PORTABLE_PROVIDER_PLUGIN_TRUST_NOTICE =
+  "Portable plugins run as explicitly trusted child-process code; process isolation is not a hostile-code sandbox.";
+const PROVIDER_PLUGIN_INSTALLATION_NOTICE =
+  "Adapter manifests remain non-executable data selectors; portable executable packages use the separate plugin trust store.";
+
+function safe(value: string): string {
+  return sanitizeTerminalLine(redactSensitiveText(value));
+}
+
+function safeJson(
+  value: unknown,
+  reviewedPublicStrings: ReadonlySet<string> = new Set(),
+): string {
+  return `${JSON.stringify(value, (_key, candidate: unknown) =>
+    typeof candidate === "string"
+      ? sanitizeTerminalText(
+          reviewedPublicStrings.has(candidate)
+            ? candidate
+            : redactSensitiveText(candidate),
+        )
+      : candidate, 2)}\n`;
+}
+
+function providerPluginTrustBoundary(): Record<string, unknown> {
+  return {
+    sourceExecution: "trusted-in-process",
+    portableExecution: "trusted-child-process",
+    sandboxed: false,
+    installedExecutablePlugins: true,
+    sourceRegistry: "static-source",
+    portableRegistry: "private-content-addressed",
+    notice: PROVIDER_PLUGIN_TRUST_NOTICE,
+    portableNotice: PORTABLE_PROVIDER_PLUGIN_TRUST_NOTICE,
+    installationNotice: PROVIDER_PLUGIN_INSTALLATION_NOTICE,
+    installedCapabilitiesCommand: "ghostget capabilities [adapter]",
+  };
+}
+
+function providerPluginSummary(
+  plugin: ProviderPluginV1,
+): Record<string, unknown> {
+  const operations: ProviderPluginOperationV1[] = [];
+  for (const binding of plugin.bindings) operations.push(...binding.operations);
+  return {
+    apiVersion: plugin.apiVersion,
+    id: plugin.id,
+    version: plugin.version,
+    displayName: plugin.displayName,
+    sourceKind: plugin.sourceKind,
+    bindingCount: plugin.bindings.length,
+    operationCount: operations.length,
+    contractCount: operations.reduce(
+      (count, operation) => count + operation.contractVersions.length,
+      0,
+    ),
+    transports: [
+      ...new Set(plugin.bindings.map((binding) => binding.transport)),
+    ].sort(),
+    surfaces: [
+      ...new Set(plugin.bindings.map((binding) => binding.surfaceId)),
+    ].sort(),
+  };
+}
+
+function providerPluginView(plugin: ProviderPluginV1): Record<string, unknown> {
+  return {
+    apiVersion: plugin.apiVersion,
+    id: plugin.id,
+    version: plugin.version,
+    displayName: plugin.displayName,
+    sourceKind: plugin.sourceKind,
+    implementationSources: plugin.implementationSources.map(
+      (source) => source.label,
+    ),
+    bindings: plugin.bindings.map((binding) => ({
+      transport: binding.transport,
+      surfaceId: binding.surfaceId,
+      origin: binding.origin,
+      ...(binding.transport === "provider-api"
+        ? { runtimeOrigins: binding.runtimeOrigins }
+        : {}),
+      ...(binding.transport === "local-cli"
+        ? { localCliTool: binding.tool }
+        : {}),
+      manifestOrigins: binding.manifestOrigins,
+      protectedHostnameFamilies: binding.protectedHostnameFamilies,
+      authKinds: binding.authKinds,
+      subject: {
+        format: binding.subject.format,
+        hasCurrentSubjectProbe: binding.subject.probe !== undefined,
+      },
+      linkedDeviceLifecycle:
+        binding.transport === "linked-device"
+        && binding.linkedDeviceLifecycle !== undefined,
+      operations: binding.operations.map((operation) => ({
+        name: operation.name,
+        contractVersions: operation.contractVersions,
+        risk: operation.risk,
+        state: operation.state,
+        validatesSubjectInput: operation.validateSubjectInput !== undefined,
+        reconciliation: operation.reconciliation?.kind ?? null,
+        omni: operation.omni === undefined
+          ? null
+          : operation.omni.state === "supported"
+            ? {
+                state: "supported",
+                schemaVersion: operation.omni.schemaVersion,
+                materializerId: operation.omni.materializerId,
+                materializerVersion: operation.omni.materializerVersion,
+              }
+            : {
+                state: "unsupported",
+                reason: operation.omni.reason,
+              },
+      })),
+    })),
+  };
+}
+
+function renderProviderPluginListText(
+  plugins: readonly ProviderPluginV1[],
+): string {
+  const lines = [
+    `Ghostget trusted provider source plugins (${plugins.length})`,
+    PROVIDER_PLUGIN_TRUST_NOTICE,
+    PROVIDER_PLUGIN_INSTALLATION_NOTICE,
+  ];
+  for (const plugin of plugins) {
+    const operationCount = plugin.bindings.reduce(
+      (count, binding) => count + binding.operations.length,
+      0,
+    );
+    lines.push(
+      `- ${plugin.id} ${plugin.version} (${plugin.displayName}; ${plugin.sourceKind}; ${plugin.bindings.length} binding${plugin.bindings.length === 1 ? "" : "s"}; ${operationCount} operation${operationCount === 1 ? "" : "s"})`,
+    );
+  }
+  lines.push(
+    "Run 'ghostget plugin show <id>' for routes and implementation ownership.",
+    "Run 'ghostget capabilities [adapter]' for installed data manifests.",
+  );
+  return `${lines.join("\n")}\n`;
+}
+
+function renderProviderPluginText(plugin: ProviderPluginV1): string {
+  const lines = [
+    "Ghostget provider source plugin",
+    `${plugin.displayName} (${plugin.id})`,
+    `  API/version: ${plugin.apiVersion}/${plugin.version}`,
+    `  Source: ${plugin.sourceKind}; trusted in-process; not sandboxed`,
+    "  Implementation sources:",
+    ...plugin.implementationSources.map((source) => `    - ${source.label}`),
+    "  Bindings:",
+  ];
+  for (const binding of plugin.bindings) {
+    const runtimeOriginLine = binding.transport === "provider-api"
+      ? [`      Credential-bearing runtime origins: ${binding.runtimeOrigins.join(", ")}`]
+      : [];
+    const localCliToolLines = binding.transport === "local-cli"
+      ? [
+          `      Tool: ${binding.tool.id}@${binding.tool.version} (${binding.tool.versionScheme}; ${binding.tool.implementation})`,
+          `      Provenance: ${[
+            binding.tool.releaseCommit === undefined
+              ? null
+              : `commit ${binding.tool.releaseCommit}`,
+            binding.tool.releaseManifestSha256 === undefined
+              ? null
+              : `manifest ${binding.tool.releaseManifestSha256}`,
+            binding.tool.sourceUrl === undefined
+              ? null
+              : `source ${binding.tool.sourceUrl}`,
+          ].filter((value): value is string => value !== null).join("; ") || "not declared"}`,
+          `      Artifacts: ${binding.tool.artifacts.map((artifact) =>
+            `${artifact.platform}/${artifact.arch}:${artifact.executableSha256}`).join(", ")}`,
+        ]
+      : [];
+    lines.push(
+      `    - ${binding.transport}/${binding.surfaceId}`,
+      `      Origin: ${binding.origin}`,
+      ...runtimeOriginLine,
+      ...localCliToolLines,
+      `      Manifest origins: ${binding.manifestOrigins.join(", ")}`,
+      `      Protected host families: ${binding.protectedHostnameFamilies.join(", ")}`,
+      `      Auth: ${binding.authKinds.join(", ")}`,
+      `      Subject: ${binding.subject.format}; current-subject probe ${binding.subject.probe === undefined ? "not declared" : "declared"}`,
+      `      Operations: ${binding.operations.flatMap((operation) =>
+        operation.contractVersions.map(
+          (version) => `${operation.name}@${version}`,
+        )).join("; ")}`,
+    );
+  }
+  lines.push(
+    PROVIDER_PLUGIN_INSTALLATION_NOTICE,
+    "Run 'ghostget capabilities [adapter]' to inspect installed data manifests.",
+  );
+  return `${lines.join("\n")}\n`;
+}
+
+function renderPortableProviderPluginListText(
+  plugins: ReturnType<typeof listPortableProviderPlugins>,
+): string {
+  const lines = [
+    `Ghostget installed portable provider plugins (${plugins.length})`,
+    PORTABLE_PROVIDER_PLUGIN_TRUST_NOTICE,
+  ];
+  for (const plugin of plugins) {
+    lines.push(
+      `- ${plugin.id} ${plugin.version} (${plugin.displayName}; ${plugin.activation}; bundle ${plugin.bundleSha256.slice(0, 16)}…; ${plugin.bindings} binding${plugin.bindings === 1 ? "" : "s"}; ${plugin.operations} operation${plugin.operations === 1 ? "" : "s"})`,
+    );
+  }
+  lines.push(
+    "Run 'ghostget plugin doctor' to reverify every active package and trust record.",
+  );
+  return `${lines.join("\n")}\n`;
+}
+
+function renderPortableProviderPluginText(
+  plugin: NonNullable<ReturnType<typeof showPortableProviderPlugin>>,
+): string {
+  return [
+    "Ghostget portable provider plugin",
+    `${plugin.summary.displayName} (${plugin.summary.id})`,
+    `  Version: ${plugin.summary.version}`,
+    `  Activation: ${plugin.summary.activation}`,
+    `  Bundle: ${plugin.summary.bundleSha256}`,
+    `  Manifest: ${plugin.summary.manifestSha256}`,
+    "  Execution: explicitly trusted child process; not a hostile-code sandbox",
+    `  Provenance: ${JSON.stringify(plugin.trust.provenance)}`,
+    `  Capabilities: ${JSON.stringify(plugin.summary.capabilities)}`,
+    `  Bindings: ${plugin.manifest.bindings.map((binding) =>
+      `${binding.transport}/${binding.surfaceId}`).join(", ")}`,
+    "",
+  ].join("\n");
+}
+
+export function installedOperationTransport(
+  operation: GhostgetOperation,
+): "provider-api" | "web-session-api" | "local-cli" | "reviewed-template-api" {
+  if (isProviderOperation(operation)) return "provider-api";
+  if (isWebSessionOperation(operation)) return "web-session-api";
+  if (isLocalCliOperation(operation)) return "local-cli";
+  if (isReviewedTemplateOperation(operation)) return "reviewed-template-api";
+  throw new Error(DOM_ACTION_TRANSPORT_DISABLED_MESSAGE);
+}
+
+export function reviewedTemplateHash(
+  recipe: Extract<GhostgetOperation, { readonly reviewedTemplate: unknown }>["reviewedTemplate"],
+): string {
+  return sha256(canonicalJson(recipe));
+}
+
+export function listRuntimeManifests(
+  environment: Readonly<Record<string, string | undefined>>,
+  registry: ProviderPluginRegistry,
+): ReturnType<typeof listInstalledManifests> {
+  const stored = listInstalledManifests(environment, registry);
+  const storedIds = new Set(stored.map((entry) => entry.id));
+  const owned = registry.listOwnedManifests();
+  const collision = owned.find((manifest) => storedIds.has(manifest.id));
+  if (collision !== undefined) {
+    throw new Error(
+      `adapter ${collision.id} collides with an enabled portable provider plugin`,
+    );
+  }
+  return Object.freeze([
+    ...stored,
+    ...owned.map((manifest) => Object.freeze({
+      id: manifest.id,
+      result: Object.freeze({ ok: true as const, value: manifest }),
+    })),
+  ].sort((left, right) => left.id.localeCompare(right.id)));
+}
+
+function capabilitySummary(
+  manifests: ReturnType<typeof listRuntimeManifests>,
+  registry: ProviderPluginRegistry,
+  reviewedPublicStrings: Set<string>,
+) {
+  return manifests.map(({ id, result }) =>
+    result.ok
+      ? {
+          id,
+          version: result.value.version,
+          displayName: result.value.displayName,
+          surfaceId: result.value.surfaceId ?? null,
+          origins: result.value.origins,
+          manifestHash: manifestHash(result.value),
+          operations: Object.entries(result.value.operations).map(
+            ([operationId, operation]) => {
+              const provider = isProviderOperation(operation)
+                ? getProviderContract(operation.provider, registry)
+                : null;
+              const webSession = isWebSessionOperation(operation)
+                ? getWebSessionContract(operation.webSession, registry)
+                : null;
+              const localCli = isLocalCliOperation(operation)
+                ? getLocalCliContract(operation.localCli, registry)
+                : null;
+              const reviewedTemplate = isReviewedTemplateOperation(operation)
+                ? operation.reviewedTemplate
+                : null;
+              if (provider !== null) {
+                for (const scopeSet of provider.requiredScopeSets) {
+                  for (const scope of scopeSet) reviewedPublicStrings.add(scope);
+                }
+              }
+              return {
+                id: operationId,
+                description: operation.description,
+                risk: operation.risk,
+                sideEffect: operation.sideEffect,
+                idempotency: operation.idempotency,
+                dedupeWindowMs: operation.dedupeWindowMs,
+                transport: installedOperationTransport(operation),
+                input: operation.input,
+                ...(provider === null
+                  ? {}
+                  : {
+                      provider: provider.provider,
+                      providerAction: provider.operation,
+                      providerContractVersion: provider.contractVersion,
+                      providerContractHash: providerContractHash(
+                        provider,
+                        registry,
+                      ),
+                      requiredScopeSets: provider.requiredScopeSets,
+                      coverage: provider.coverage,
+                      implementation: provider.implementation,
+                    }),
+                ...(webSession === null
+                  ? {}
+                  : {
+                      site: webSession.site,
+                      webSessionAction: webSession.operation,
+                      webSessionContractVersion: webSession.contractVersion,
+                      webSessionContractHash: webSessionContractHash(
+                        webSession,
+                        registry,
+                      ),
+                      state: webSession.state,
+                      implementation: webSession.implementation,
+                    }),
+                ...(localCli === null
+                  ? {}
+                  : {
+                      surface: localCli.surface,
+                      localCliAction: localCli.operation,
+                      localCliContractVersion: localCli.contractVersion,
+                      localCliContractHash: localCliContractHash(
+                        localCli,
+                        registry,
+                      ),
+                      localCliTool: localCli.tool,
+                      state: localCli.state,
+                      implementation: localCli.implementation,
+                    }),
+                ...(reviewedTemplate === null
+                  ? {}
+                  : {
+                      state: reviewedTemplate.state,
+                      reviewedTemplateContractVersion:
+                        reviewedTemplate.contractVersion,
+                      reviewedTemplateContractHash:
+                        reviewedTemplateHash(reviewedTemplate),
+                      ...(reviewedTemplate.state === "capture-required"
+                        ? { instructions: reviewedTemplate.instructions }
+                        : {
+                            reviewedAt: reviewedTemplate.reviewedAt,
+                            evidenceSha256: reviewedTemplate.evidenceSha256,
+                            origin: reviewedTemplate.template.origin,
+                          }),
+                    }),
+              };
+            },
+          ),
+        }
+      : { id, invalid: true, issues: result.issues });
+}
+
+function renderCapabilityOperationText(
+  id: string,
+  operation: GhostgetOperation,
+  registry: ProviderPluginRegistry,
+): readonly string[] {
+  const transport = installedOperationTransport(operation);
+  const contract = isProviderOperation(operation)
+    ? getProviderContract(operation.provider, registry)
+    : isWebSessionOperation(operation)
+      ? getWebSessionContract(operation.webSession, registry)
+      : isLocalCliOperation(operation)
+        ? getLocalCliContract(operation.localCli, registry)
+        : isReviewedTemplateOperation(operation)
+          ? operation.reviewedTemplate
+          : null;
+  if (contract === null) throw new Error(DOM_ACTION_TRANSPORT_DISABLED_MESSAGE);
+  const lines = [
+    `  ${safe(id)} (${transport}; contract ${contract.state}; ${operation.risk})`,
+    `    ${safe(operation.description)}`,
+  ];
+  if (contract.state === "capture-required") {
+    lines.push("    Unavailable until its contract is captured and reviewed.");
+  }
+  const required = new Set(operation.input.required);
+  const inputs = Object.entries(operation.input.properties).map(([name, field]) =>
+    `${safe(name)}${required.has(name) ? "*" : ""} (${field.type})`);
+  lines.push(`    Inputs: ${inputs.length === 0 ? "none" : inputs.join(", ")}`);
+  if (operation.sideEffect !== "none") {
+    lines.push(`    Effect: ${safe(operation.sideEffect)}`);
+  }
+  if ("requiredScopeSets" in contract) {
+    // These are reviewed public scope identifiers, as in the JSON allowlist.
+    const scopeSets = contract.requiredScopeSets.map((scopes) =>
+      scopes.length === 0
+        ? "[no scopes]"
+        : `[${scopes.map((scope) => sanitizeTerminalLine(scope)).join(" + ")}]`);
+    lines.push(
+      scopeSets.length === 0
+        ? "    OAuth scopes: none declared; account access is still checked."
+        : `    OAuth scopes (one complete set): ${scopeSets.join(" or ")}`,
+    );
+  }
+  return lines;
+}
+
+function renderCapabilitiesText(
+  manifests: ReturnType<typeof listRuntimeManifests>,
+  adapterId: string | undefined,
+  registry: ProviderPluginRegistry,
+): string {
+  if (adapterId !== undefined && manifests.length === 0) {
+    return `Adapter ${safe(adapterId)} is not installed.\n`
+      + "Run 'ghostget capabilities' to list installed adapters.\n"
+      + "Run 'ghostget adapter sync-bundled' to install bundled adapter contracts.\n";
+  }
+  if (manifests.length === 0) {
+    return "No adapters installed.\n"
+      + "Read a public page now: ghostget read https://example.com\n"
+      + "Install bundled adapter contracts: ghostget adapter sync-bundled\n"
+      + "Exact full contracts in JSON: ghostget capabilities --json\n";
+  }
+  const lines = [
+    adapterId === undefined
+      ? `Installed adapters (${manifests.length})`
+      : `Adapter ${safe(adapterId)}`,
+    "Installed contracts do not confirm account access or runtime readiness.",
+    "",
+  ];
+  for (const { id, result } of manifests) {
+    if (!result.ok) {
+      lines.push(`  ${safe(id)} (invalid manifest)`);
+      if (adapterId !== undefined) {
+        lines.push(...result.issues.map((issue) => `    ${safe(issue)}`));
+      }
+      continue;
+    }
+    const manifest = result.value;
+    const operations = Object.entries(manifest.operations);
+    if (adapterId === undefined) {
+      const transports = [...new Set(operations.map(([, operation]) =>
+        installedOperationTransport(operation)))];
+      lines.push(
+        `  ${safe(id)}: ${safe(manifest.displayName)} (${operations.length} operations; ${transports.join(", ")})`,
+      );
+    } else {
+      lines.push(
+        `${safe(manifest.displayName)} (version ${safe(manifest.version)})`,
+        `${operations.length} operations; * marks a required input.`,
+        "",
+      );
+      for (const [operationId, operation] of operations) {
+        lines.push(...renderCapabilityOperationText(operationId, operation, registry), "");
+      }
+    }
+  }
+  if (adapterId === undefined) {
+    lines.push("", "Operation details: ghostget capabilities <adapter>");
+  }
+  lines.push(
+    `Exact full contracts (input schemas, scopes and hashes): ghostget capabilities${adapterId === undefined ? "" : ` ${safe(adapterId)}`} --json`,
+  );
+  return `${lines.join("\n")}\n`;
+}
+
+export function runCapabilities(
+  command: Extract<GhostgetCatalogCommand, { readonly command: "capabilities" }>,
+  environment: Readonly<Record<string, string | undefined>>,
+  output: GhostgetCatalogOutput,
+  registry: ProviderPluginRegistry,
+): number {
+  const values = listRuntimeManifests(environment, registry);
+  const selected = command.adapterId === undefined
+    ? values
+    : values.filter((entry) => entry.id === command.adapterId);
+  const found = selected.length > 0 || command.adapterId === undefined;
+  if (command.json) {
+    const reviewedPublicStrings = new Set<string>();
+    const summaries = capabilitySummary(values, registry, reviewedPublicStrings);
+    output.stdout(safeJson({
+      ok: found,
+      adapters: command.adapterId === undefined
+        ? summaries
+        : summaries.filter((entry) => entry.id === command.adapterId),
+    }, reviewedPublicStrings));
+  } else {
+    output.stdout(renderCapabilitiesText(selected, command.adapterId, registry));
+  }
+  return found ? 0 : 3;
+}
+
+export async function runPluginList(
+  command: Extract<GhostgetCatalogCommand, { readonly command: "plugin-list" }>,
+  environment: Readonly<Record<string, string | undefined>>,
+  output: GhostgetCatalogOutput,
+  registry: ProviderPluginRegistry,
+): Promise<number> {
+  const { listPortableProviderPlugins } =
+    await import("./provider-plugin-lifecycle");
+  const sourcePlugins = registry.list();
+  const portablePlugins = listPortableProviderPlugins(environment);
+  const sourceIds = new Set(sourcePlugins.map((plugin) => plugin.id));
+  const collision = portablePlugins.find((plugin) => sourceIds.has(plugin.id));
+  if (collision !== undefined) {
+    throw new Error(
+      `portable plugin ${collision.id} conflicts with a trusted source plugin ID`,
+    );
+  }
+  if (command.json) {
+    output.stdout(safeJson({
+      ok: true,
+      kind: "provider-plugin-list",
+      trustBoundary: providerPluginTrustBoundary(),
+      plugins: [
+        ...sourcePlugins.map((plugin) => ({
+          ...providerPluginSummary(plugin),
+          execution: "trusted-in-process",
+          activation: "source",
+        })),
+        ...portablePlugins,
+      ],
+    }));
+  } else {
+    output.stdout(
+      sanitizeTerminalText(
+        redactSensitiveText(
+          `${renderProviderPluginListText(sourcePlugins)}\n`
+          + renderPortableProviderPluginListText(portablePlugins),
+        ),
+      ),
+    );
+  }
+  return 0;
+}
+
+export async function runPluginShow(
+  command: Extract<GhostgetCatalogCommand, { readonly command: "plugin-show" }>,
+  environment: Readonly<Record<string, string | undefined>>,
+  output: GhostgetCatalogOutput,
+  registry: ProviderPluginRegistry,
+): Promise<number> {
+  const { showPortableProviderPlugin } =
+    await import("./provider-plugin-lifecycle");
+  const sourcePlugin = registry.get(command.id);
+  const portablePlugin = showPortableProviderPlugin(command.id, environment);
+  if (sourcePlugin !== undefined && portablePlugin !== null) {
+    throw new Error(
+      `portable plugin ${command.id} conflicts with a trusted source plugin ID`,
+    );
+  }
+  if (sourcePlugin === undefined && portablePlugin === null) {
+    if (command.json) {
+      output.stdout(safeJson({
+        ok: false,
+        kind: "provider-plugin",
+        requestedId: command.id,
+        trustBoundary: providerPluginTrustBoundary(),
+        plugin: null,
+      }));
+    } else {
+      output.stdout(
+        `Ghostget provider plugin ${safe(command.id)} was not found.\n`
+        + "Run 'ghostget plugin list' to inspect source and portable plugins.\n",
+      );
+    }
+    return 3;
+  }
+  if (command.json) {
+    output.stdout(safeJson({
+      ok: true,
+      kind: "provider-plugin",
+      trustBoundary: providerPluginTrustBoundary(),
+      plugin: sourcePlugin === undefined
+        ? portablePlugin
+        : providerPluginView(sourcePlugin),
+    }));
+  } else {
+    output.stdout(
+      sanitizeTerminalText(
+        redactSensitiveText(
+          sourcePlugin === undefined
+            ? renderPortableProviderPluginText(
+                portablePlugin
+                  ?? (() => {
+                    throw new Error("portable plugin disappeared");
+                  })(),
+              )
+            : renderProviderPluginText(sourcePlugin),
+        ),
+      ),
+    );
+  }
+  return 0;
+}
+
+export async function runGhostgetCatalogCommand(
+  command: GhostgetCatalogCommand,
+  environment: Readonly<Record<string, string | undefined>>,
+  output: GhostgetCatalogOutput,
+): Promise<number> {
+  try {
+    if (command.command === "capabilities") {
+      let registry = providerPluginRegistry;
+      const storeRoot = join(ghostgetStateHome(environment), "provider-plugins");
+      if (existsSync(storeRoot)) {
+        const { listInstalledPortableProviderPlugins } =
+          await import("./provider-plugin-store");
+        const installed = listInstalledPortableProviderPlugins(storeRoot);
+        if (installed.length > 0) {
+          const { createPortableProviderPluginCatalog } =
+            await import("./provider-plugin-portable-catalog");
+          registry = createPortableProviderPluginCatalog(
+            providerPluginRegistry,
+            environment,
+          ).registry;
+        }
+      }
+      return runCapabilities(command, environment, output, registry);
+    }
+    if (command.command === "plugin-list") {
+      return await runPluginList(
+        command,
+        environment,
+        output,
+        providerPluginRegistry,
+      );
+    }
+    return await runPluginShow(
+      command,
+      environment,
+      output,
+      providerPluginRegistry,
+    );
+  } catch (error) {
+    output.stderr(
+      `ghostget: ${safe(error instanceof Error ? error.message : String(error))}\n`,
+    );
+    return 3;
+  }
+}

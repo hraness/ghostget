@@ -1,0 +1,106 @@
+{
+  "version": 1,
+  "surfaces": {
+    "local:messaging-group-history-exclusions": {
+      "kind": "authoritative",
+      "retention": "tombstone",
+      "owner": "src/messaging-automation.ts",
+      "source": "Enrollment-scoped IDs of baseline, historical, or future-dated group messages; no message bodies",
+      "deletion": "src/messaging-automation.ts",
+      "expiry": "Retained with the enrollment; never evicted independently or copied to another enrollment",
+      "budget": {
+        "maxEntries": 50000,
+        "maxBytesPerMessageId": 256,
+        "maxJournalBytes": 201326592
+      }
+    },
+    "local:contract-repair-inbox": {
+      "kind": "derived",
+      "retention": "ttl:P30D",
+      "owner": "src/contract-repair-inbox.ts",
+      "source": "Validated invocation failures and explicit collection-plan demand; advisory only",
+      "budget": {
+        "maxEntries": 128,
+        "maxBytes": 262144,
+        "maxBytesPerSignal": 2048
+      },
+      "expiry": "Hidden after 30 days; expired entries are compacted on the next admitted write"
+    },
+    "local:keychain-notice-record": {
+      "kind": "derived",
+      "retention": "persistent",
+      "owner": "src/keychain-notice-record.ts",
+      "source": "Browsers whose last keychain read returned without a macOS dialog; only hides a repeated notice",
+      "budget": {
+        "maxEntries": 5,
+        "maxBytes": 1024
+      },
+      "expiry": "Rebuildable; deleting it only brings the keychain notice back"
+    },
+    "provider:microsoft-graph-reads": {
+      "kind": "served",
+      "retention": "ephemeral",
+      "owner": "src/providers/microsoft-graph.ts",
+      "budget": {
+        "maxRequestsPerInvocation": 2,
+        "maxBytesPerResponse": 4194304,
+        "maxIdentityResponseBytes": 16384,
+        "maxRowsPerPage": 100,
+        "maxAttendeesPerEvent": 500,
+        "maxAttendeesPerPage": 5000,
+        "maxTraversalPages": 100,
+        "maxCalendarDays": 90
+      },
+      "status": "capture-required; public execution rejects before credentials or network"
+    },
+    "local:cli-update-policy": {
+      "kind": "authoritative",
+      "retention": "persistent",
+      "owner": "src/update.ts",
+      "deletion": "src/update.ts",
+      "budget": {
+        "maxBytesPerStateFile": 16384,
+        "maxCoordinationEntries": 4096
+      },
+      "source": "Explicit update policy and verified installed release receipts; no account or captured content"
+    },
+    "local:cli-update-archives": {
+      "kind": "derived",
+      "retention": "persistent",
+      "owner": "src/update.ts",
+      "source": "Verified immutable release archives retained for global package-manager replay",
+      "budget": {
+        "maxBytesPerArchive": 536870912
+      },
+      "expiry": "Retain manager-referenced archives; cleanup requires proving no installation or running manager references them"
+    },
+    "local:cancelled-invocation-plans": {
+      "kind": "authoritative",
+      "retention": "tombstone",
+      "owner": "src/runtime.ts",
+      "deletion": "src/runtime.ts",
+      "source": "Atomic proof that an exact encrypted invocation plan was cancelled under its single-confirmer claim before any execution journal or receipt existed; digest only",
+      "budget": {
+        "maxEntries": 4096,
+        "maxBytesPerEntry": 256,
+        "maxBytes": 1048576
+      },
+      "expiry": "Never expired or replaced by a new plan. Full history refuses new proof without erasing existing recovery evidence; removed only with the stopped product-owned state directory."
+    },
+    "local:ephemeral-media-acquisition": {
+      "kind": "derived",
+      "retention": "ephemeral",
+      "owner": "src/media/ephemeral-acquire.ts",
+      "source": "Explicit finite media request; account/source digests, private temporary audio/captions/thumbnail, no archive",
+      "deletion": "docs/ephemeral-media.md",
+      "expiry": "Consumer cleanup after copy; unfinished subprocess custody remains explicitly pending for supervised recovery",
+      "budget": {
+        "maxBytes": 536870912,
+        "maxFiles": 256,
+        "maxDurationSeconds": 14400,
+        "maxAcquisitionMs": 3600000
+      }
+    }
+  },
+  "exempt": []
+}

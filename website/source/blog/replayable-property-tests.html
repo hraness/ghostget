@@ -1,0 +1,37 @@
+<p>An unexpected input becomes much easier to fix when a test can produce it again. Property testing starts with a rule, generates inputs that exercise it, and reduces a failing input to a smaller example. Keeping that example makes the discovery useful long after the first failure.</p>
+<h2 id="write-the-rule">Write the rule before the examples</h2>
+<p>An example test might check that reading and writing a record preserves a person’s name. A property test states the broader rule: for every valid record the generator produces, reading and writing it preserves all its fields.</p>
+<p>The generator should include the awkward cases that ordinary examples tend to miss: empty values, unusual characters, nested objects, and keys that resemble language features. Those inputs are valuable because they challenge assumptions the happy path never touches.</p>
+<h2 id="a-small-key-with-a-large-effect">A small key can expose a large assumption</h2>
+<p>One useful example is this JSON object:</p>
+<pre><code class="language-json">{"__proto__":0}</code></pre>
+<p><code>JSON.parse</code> treats <code>__proto__</code> as an ordinary key. Some ways of copying properties onto an ordinary JavaScript object treat the same name specially. A copy can therefore lose the key instead of preserving the JSON value.</p>
+<p>GhostGet keeps a regression test for this case and a nested variant. The example gives a maintainer something concrete to understand, while a generated round-trip property continues looking for related cases.</p>
+<h2 id="keep-the-replay-recipe">Keep the replay recipe with the failure</h2>
+<p>A generated test uses a seed to choose its starting sequence. When a case fails, the testing library tries smaller inputs that still fail; the shrink path records that reduction. With the same test, generator, and library version, the seed and path reproduce the case.</p>
+<p>Here is a complete fast-check example. It checks that reversing an array twice preserves its values, and records replay information if the rule fails:</p>
+<pre><code class="language-ts">import assert from "node:assert/strict";
+import fc from "fast-check";
+
+const property = fc.property(fc.array(fc.integer()), (values) =&gt; {
+  assert.deepEqual(values.toReversed().toReversed(), values);
+});
+
+const result = fc.check(property);
+if (result.failed &amp;&amp; result.counterexamplePath !== null) {
+  console.log({ seed: result.seed, path: result.counterexamplePath });
+  fc.assert(property, {
+    seed: result.seed,
+    path: result.counterexamplePath,
+    endOnFailure: true,
+  });
+}</code></pre>
+<p>The final call runs the failing case again. For a real failure, save those reported values and rerun the same property with that seed and path while you investigate.</p>
+<p>Save the smallest failing input as a named example as well. A library upgrade can change what a seed generates; the explicit example preserves the behavior you intended to protect.</p>
+<h2 id="test-sequences-as-well-as-values">Test sequences as well as values</h2>
+<p>Some bugs depend on order. A send succeeds, the connection drops, the program restarts, and the request is submitted again. Each individual step may look reasonable while the sequence duplicates the message.</p>
+<p>A stateful property test generates actions and compares the running program with a simpler model after each step. For storage, a useful rule is that an interrupted update leaves either the old value or the new one, never half of each. For a consequential request, recovery should preserve whether it may already have been sent.</p>
+<p>Choose failure points around the steps that change state: before a write, after it reaches disk, and before the caller receives a reply. A restart should preserve enough information to decide what happened.</p>
+<h2 id="use-an-independent-comparison">Use a second implementation for shared standards</h2>
+<p>When a format has a written standard, an independently written implementation provides another useful comparison. Run the same input through both and investigate disagreements. URL handling and canonical JSON, a consistent byte representation used when hashing structured data, both have standards against which implementations can be compared.</p>
+<p>Agreement on generated inputs adds evidence; it does not establish agreement on every possible input. Combine it with examples from the standard and permanent regressions for disagreements you resolve. The <a href="https://fast-check.dev/docs/advanced/model-based-testing/">fast-check documentation</a> explains how to build the generators and stateful models.</p>

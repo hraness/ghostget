@@ -1,0 +1,1282 @@
+import { afterEach, describe, expect, test } from "bun:test";
+import {
+  createCipheriv,
+  createHash,
+  randomBytes,
+} from "node:crypto";
+import {
+  chmodSync,
+  existsSync,
+  lstatSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { canonicalJson } from "./model";
+import { rotateReadProjectionAuthIncarnation } from "./read-projection-admission";
+import {
+  historicalSessionSecretOwner,
+  parseSessionSecretFileName,
+  planSessionSecretRemoval,
+  readSessionSecret,
+  readSessionSecretSnapshot,
+  removeSessionSecret,
+  removeSessionSecretsForAuth,
+  sessionSecretFileName,
+  writeSessionSecret,
+  writeSessionSecretIfUnchanged,
+} from "./session-secrets";
+import { assertProperty, fc } from "./test-support";
+
+const TEST_CHILD_SIGNAL_TIMEOUT_MS = 45_000;
+const roots: string[] = [];
+
+afterEach(() => {
+  for (const root of roots.splice(0)) {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+function environment(): {
+  readonly root: string;
+  readonly value: Readonly<Record<string, string | undefined>>;
+} {
+  const root = mkdtempSync(join(tmpdir(), "wrench-session-secret-"));
+  chmodSync(root, 0o700);
+  roots.push(root);
+  return {
+    root,
+    value: { ...process.env, GHOSTGET_STATE_HOME: root },
+  };
+}
+
+function jsonRecord(text: string, label: string): Record<string, unknown> {
+  const value: unknown = JSON.parse(text);
+  if (!isRecord(value)) {
+    throw new Error(`${label} must be an object`);
+  }
+  return value;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function sha256(text: string): string {
+  return createHash("sha256").update(text, "utf8").digest("hex");
+}
+
+async function waitForFile(path: string): Promise<void> {
+  const deadline = Date.now() + TEST_CHILD_SIGNAL_TIMEOUT_MS;
+  while (!existsSync(path)) {
+    if (Date.now() >= deadline) {
+      throw new Error(`timed out waiting for test worker file: ${path}`);
+    }
+    await Bun.sleep(10);
+  }
+}
+
+describe("encrypted provider-session cache", () => {
+  test("round-trips private material without plaintext, broad modes, or auth-realm drift", () => {
+    const state = environment();
+    const authHash = "a".repeat(64);
+    const secret = {
+      accessJwt: "access-secret-that-must-not-be-plaintext",
+      refreshJwt: "refresh-secret-that-must-not-be-plaintext",
+    };
+    writeSessionSecret("bluesky", "bluesky-main", authHash, secret, state.value);
+    const path = join(
+      state.root,
+      "session-secrets",
+      "bluesky--bluesky-main.json",
+    );
+    const raw = readFileSync(path, "utf8");
+    const encrypted = jsonRecord(raw, "encrypted session secret");
+    expect(raw).not.toContain(secret.accessJwt);
+    expect(raw).not.toContain(secret.refreshJwt);
+    expect(encrypted.schemaVersion).toBe(3);
+    expect(encrypted.keyId).toMatch(/^[a-f0-9]{64}$/u);
+    expect(encrypted.authIdentityHash).toMatch(/^[a-f0-9]{64}$/u);
+    expect(encrypted.authIdentityHash).not.toBe(authHash);
+    expect(encrypted.generation).toMatch(/^[a-f0-9]{64}$/u);
+    const coordinate = jsonRecord(
+      readFileSync(join(
+        state.root,
+        "session-secrets",
+        "coordinates",
+        "bluesky--bluesky-main.json",
+      ), "utf8"),
+      "session-secret coordinate state",
+    );
+    expect(encrypted.generation).toBe(coordinate.generation);
+    expect(lstatSync(path).mode & 0o777).toBe(0o600);
+    expect(lstatSync(join(state.root, "session-secrets")).mode & 0o777).toBe(0o700);
+    expect(lstatSync(join(state.root, "session-secrets", "coordinates")).mode & 0o777)
+      .toBe(0o700);
+    expect(lstatSync(join(
+      state.root,
+      "session-secrets",
+      "coordinates",
+      "bluesky--bluesky-main.json",
+    )).mode & 0o777).toBe(0o600);
+    expect(lstatSync(join(state.root, ".session-encryption-key")).mode & 0o777)
+      .toBe(0o600);
+    const snapshot = readSessionSecretSnapshot(
+      "bluesky",
+      "bluesky-main",
+      authHash,
+      state.value,
+    );
+    expect(snapshot).toEqual({
+      value: secret,
+      contentSha256: sha256(raw),
+    });
+    const paddedRaw = ` \n\t${raw}`;
+    writeFileSync(path, paddedRaw, { mode: 0o600 });
+    const byteExactSnapshot = readSessionSecretSnapshot(
+      "bluesky",
+      "bluesky-main",
+      authHash,
+      state.value,
+    );
+    expect(byteExactSnapshot).toEqual({
+      value: secret,
+      contentSha256: sha256(paddedRaw),
+    });
+    expect(byteExactSnapshot.contentSha256).not.toBe(snapshot.contentSha256);
+    expect(readSessionSecret("bluesky", "bluesky-main", authHash, state.value))
+      .toEqual(secret);
+    expect(readSessionSecret(
+      "bluesky",
+      "bluesky-main",
+      "b".repeat(64),
+      state.value,
+    )).toBeNull();
+    expect(removeSessionSecret("bluesky", "bluesky-main", state.value)).toBeTrue();
+    expect(readSessionSecret("bluesky", "bluesky-main", authHash, state.value))
+      .toBeNull();
+  });
+
+  test("invalidates encrypted secrets when the auth incarnation rotates", () => {
+    const state = environment();
+    const authHash = "6".repeat(64);
+    writeSessionSecret(
+      "bluesky",
+      "bluesky-main",
+      authHash,
+      { refreshJwt: "first-incarnation-secret" },
+      state.value,
+    );
+    const before = readSessionSecretSnapshot(
+      "bluesky",
+      "bluesky-main",
+      authHash,
+      state.value,
+    );
+    expect(before.value).toEqual({
+      refreshJwt: "first-incarnation-secret",
+    });
+
+    rotateReadProjectionAuthIncarnation("bluesky-main", state.value);
+
+    const after = readSessionSecretSnapshot(
+      "bluesky",
+      "bluesky-main",
+      authHash,
+      state.value,
+    );
+    expect(after).toEqual({
+      value: null,
+      contentSha256: before.contentSha256,
+    });
+  });
+
+  test("rejects a stale session writer after an auth incarnation rotation", () => {
+    const state = environment();
+    const authHash = "7".repeat(64);
+    writeSessionSecret(
+      "linkedin",
+      "linkedin-main",
+      authHash,
+      { generation: 1, cookies: ["stale-cookie"] },
+      state.value,
+    );
+    const stale = readSessionSecretSnapshot(
+      "linkedin",
+      "linkedin-main",
+      authHash,
+      state.value,
+    );
+    const staleAbsent = readSessionSecretSnapshot(
+      "future-plugin",
+      "linkedin-main",
+      authHash,
+      state.value,
+    );
+    expect(staleAbsent.value).toBeNull();
+    expect(staleAbsent.contentSha256).toMatch(/^[a-f0-9]{64}$/u);
+
+    rotateReadProjectionAuthIncarnation("linkedin-main", state.value);
+    rotateReadProjectionAuthIncarnation("linkedin-main", state.value);
+
+    expect(writeSessionSecretIfUnchanged(
+      "linkedin",
+      "linkedin-main",
+      authHash,
+      { generation: 2, cookies: ["late-stale-cookie"] },
+      stale.contentSha256,
+      state.value,
+    )).toEqual({ written: false });
+    expect(writeSessionSecretIfUnchanged(
+      "future-plugin",
+      "linkedin-main",
+      authHash,
+      { generation: 1, cookies: ["late-first-write"] },
+      staleAbsent.contentSha256,
+      state.value,
+    )).toEqual({ written: false });
+    expect(readSessionSecret(
+      "linkedin",
+      "linkedin-main",
+      authHash,
+      state.value,
+    )).toBeNull();
+  });
+
+  test("rejects authenticated-ciphertext tampering", () => {
+    const state = environment();
+    const authHash = "c".repeat(64);
+    writeSessionSecret(
+      "bluesky",
+      "bluesky-main",
+      authHash,
+      { refreshJwt: "private-refresh-token" },
+      state.value,
+    );
+    const path = join(
+      state.root,
+      "session-secrets",
+      "bluesky--bluesky-main.json",
+    );
+    const encrypted = jsonRecord(
+      readFileSync(path, "utf8"),
+      "encrypted session secret",
+    );
+    if (typeof encrypted.ciphertext !== "string") {
+      throw new Error("encrypted session-secret fixture omitted ciphertext");
+    }
+    encrypted.ciphertext = `${
+      encrypted.ciphertext.startsWith("A") ? "B" : "A"
+    }${encrypted.ciphertext.slice(1)}`;
+    writeFileSync(path, `${JSON.stringify(encrypted)}\n`, { mode: 0o600 });
+    expect(() =>
+      readSessionSecret("bluesky", "bluesky-main", authHash, state.value)
+    ).toThrow("failed authentication");
+  });
+
+  test("removes every plugin namespace for one auth realm without touching another", () => {
+    const state = environment();
+    const authHash = "d".repeat(64);
+    writeSessionSecret("bluesky", "shared-main", authHash, { value: "one" }, state.value);
+    writeSessionSecret("future-plugin", "shared-main", authHash, { value: "two" }, state.value);
+    writeSessionSecret("future-plugin", "other-main", authHash, { value: "three" }, state.value);
+
+    expect(removeSessionSecretsForAuth("shared-main", state.value)).toBe(2);
+    expect(readSessionSecret("bluesky", "shared-main", authHash, state.value)).toBeNull();
+    expect(readSessionSecret("future-plugin", "shared-main", authHash, state.value)).toBeNull();
+    expect(readSessionSecret("future-plugin", "other-main", authHash, state.value))
+      .toEqual({ value: "three" });
+    expect(removeSessionSecretsForAuth("shared-main", state.value)).toBe(0);
+  });
+
+  test("does not create a replacement key beside ciphertext when the key is missing", () => {
+    const state = environment();
+    const authHash = "e".repeat(64);
+    writeSessionSecret(
+      "bluesky",
+      "bluesky-main",
+      authHash,
+      { refreshJwt: "private-refresh-token" },
+      state.value,
+    );
+    const key = join(state.root, ".session-encryption-key");
+    const ciphertext = join(
+      state.root,
+      "session-secrets",
+      "bluesky--bluesky-main.json",
+    );
+    const encryptedBefore = readFileSync(ciphertext, "utf8");
+    rmSync(key);
+
+    expect(() =>
+      readSessionSecret("bluesky", "bluesky-main", authHash, state.value)
+    ).toThrow(
+      "session encryption key is unavailable while encrypted session state exists",
+    );
+    expect(() =>
+      writeSessionSecret(
+        "bluesky",
+        "bluesky-main",
+        authHash,
+        { refreshJwt: "replacement-must-not-be-written" },
+        state.value,
+      )
+    ).toThrow(
+      "session encryption key is unavailable while encrypted session state exists",
+    );
+    expect(existsSync(key)).toBeFalse();
+    expect(readFileSync(ciphertext, "utf8")).toBe(encryptedBefore);
+  });
+
+  test("does not replace a malformed key or overwrite its ciphertext", () => {
+    const state = environment();
+    const authHash = "f".repeat(64);
+    writeSessionSecret(
+      "bluesky",
+      "bluesky-main",
+      authHash,
+      { refreshJwt: "private-refresh-token" },
+      state.value,
+    );
+    const key = join(state.root, ".session-encryption-key");
+    const ciphertext = join(
+      state.root,
+      "session-secrets",
+      "bluesky--bluesky-main.json",
+    );
+    const encryptedBefore = readFileSync(ciphertext, "utf8");
+    writeFileSync(key, '{"schemaVersion":2,"key":"not-a-key"}\n', {
+      mode: 0o600,
+    });
+    const malformedKey = readFileSync(key, "utf8");
+
+    expect(() =>
+      readSessionSecret("bluesky", "bluesky-main", authHash, state.value)
+    ).toThrow("session encryption key is malformed");
+    expect(() =>
+      writeSessionSecret(
+        "bluesky",
+        "bluesky-main",
+        authHash,
+        { refreshJwt: "replacement-must-not-be-written" },
+        state.value,
+      )
+    ).toThrow("session encryption key is malformed");
+    expect(readFileSync(key, "utf8")).toBe(malformedKey);
+    expect(readFileSync(ciphertext, "utf8")).toBe(encryptedBefore);
+  });
+
+  test("detects a valid but replaced key before reading or overwriting ciphertext", () => {
+    const state = environment();
+    const authHash = "1".repeat(64);
+    writeSessionSecret(
+      "bluesky",
+      "bluesky-main",
+      authHash,
+      { refreshJwt: "private-refresh-token" },
+      state.value,
+    );
+    const keyPath = join(state.root, ".session-encryption-key");
+    const ciphertextPath = join(
+      state.root,
+      "session-secrets",
+      "bluesky--bluesky-main.json",
+    );
+    const encryptedBefore = readFileSync(ciphertextPath, "utf8");
+    const replacementKey = randomBytes(32);
+    const replacementKeyId = createHash("sha256")
+      .update("io-session-key-id-v1\0", "utf8")
+      .update(replacementKey)
+      .digest("hex");
+    writeFileSync(
+      keyPath,
+      `${canonicalJson({
+        schemaVersion: 2,
+        keyId: replacementKeyId,
+        key: replacementKey.toString("hex"),
+      })}\n`,
+      { mode: 0o600 },
+    );
+
+    expect(() =>
+      readSessionSecret("bluesky", "bluesky-main", authHash, state.value)
+    ).toThrow("belongs to a different encryption key");
+    expect(() =>
+      writeSessionSecret(
+        "bluesky",
+        "bluesky-main",
+        authHash,
+        { refreshJwt: "replacement-must-not-be-written" },
+        state.value,
+      )
+    ).toThrow("belongs to a different encryption key");
+    expect(readFileSync(ciphertextPath, "utf8")).toBe(encryptedBefore);
+  });
+
+  test("uses compare-and-swap revisions so a stale writer cannot roll state backward", () => {
+    const state = environment();
+    const authHash = "2".repeat(64);
+    writeSessionSecret(
+      "linkedin",
+      "linkedin-main",
+      authHash,
+      { generation: 1, tombstones: [] },
+      state.value,
+    );
+    const slower = readSessionSecretSnapshot(
+      "linkedin",
+      "linkedin-main",
+      authHash,
+      state.value,
+    );
+    const faster = readSessionSecretSnapshot(
+      "linkedin",
+      "linkedin-main",
+      authHash,
+      state.value,
+    );
+    expect(slower.contentSha256).toBe(faster.contentSha256);
+
+    const accepted = writeSessionSecretIfUnchanged(
+      "linkedin",
+      "linkedin-main",
+      authHash,
+      { generation: 2, tombstones: ["li_at"] },
+      faster.contentSha256,
+      state.value,
+    );
+    expect(accepted.written).toBeTrue();
+    if (!accepted.written) throw new Error("fixture CAS unexpectedly failed");
+    expect(accepted.contentSha256).toMatch(/^[a-f0-9]{64}$/u);
+
+    const stale = writeSessionSecretIfUnchanged(
+      "linkedin",
+      "linkedin-main",
+      authHash,
+      { generation: 1, cookies: ["li_at"] },
+      slower.contentSha256,
+      state.value,
+    );
+    expect(stale).toEqual({ written: false });
+    expect(readSessionSecret(
+      "linkedin",
+      "linkedin-main",
+      authHash,
+      state.value,
+    )).toEqual({ generation: 2, tombstones: ["li_at"] });
+
+    const next = writeSessionSecretIfUnchanged(
+      "linkedin",
+      "linkedin-main",
+      authHash,
+      { generation: 3, tombstones: ["li_at"] },
+      accepted.contentSha256,
+      state.value,
+    );
+    expect(next.written).toBeTrue();
+  });
+
+  test("serializes the same stale revision across separate processes", async () => {
+    const state = environment();
+    const authHash = "5".repeat(64);
+    writeSessionSecret(
+      "linkedin",
+      "linkedin-main",
+      authHash,
+      { generation: 1, tombstones: [] },
+      state.value,
+    );
+    const workerModule = new URL("./session-secrets.ts", import.meta.url).href;
+    const workerSource = `
+      import { existsSync, writeFileSync } from "node:fs";
+      const {
+        readSessionSecretSnapshot,
+        writeSessionSecretIfUnchanged,
+      } = await import(${JSON.stringify(workerModule)});
+      const required = (name) => {
+        const value = process.env[name];
+        if (value === undefined) throw new Error("missing worker setting");
+        return value;
+      };
+      const environment = { ...process.env, GHOSTGET_STATE_HOME: required("GHOSTGET_TEST_HOME") };
+      while (!existsSync(required("GHOSTGET_TEST_START"))) await Bun.sleep(5);
+      const snapshot = readSessionSecretSnapshot(
+        "linkedin",
+        "linkedin-main",
+        ${JSON.stringify(authHash)},
+        environment,
+      );
+      writeFileSync(required("GHOSTGET_TEST_READY"), "ready\\n");
+      while (!existsSync(required("GHOSTGET_TEST_GATE"))) await Bun.sleep(5);
+      const result = writeSessionSecretIfUnchanged(
+        "linkedin",
+        "linkedin-main",
+        ${JSON.stringify(authHash)},
+        {
+          generation: Number(required("GHOSTGET_TEST_GENERATION")),
+          tombstones: [required("GHOSTGET_TEST_TOMBSTONE")],
+        },
+        snapshot.contentSha256,
+        environment,
+      );
+      writeFileSync(
+        required("GHOSTGET_TEST_RESULT"),
+        JSON.stringify(result) + "\\n",
+      );
+    `;
+    const worker = (
+      name: string,
+      generation: number,
+      tombstone: string,
+    ) => {
+      const ready = join(state.root, `${name}.ready`);
+      const start = join(state.root, `${name}.start`);
+      const gate = join(state.root, `${name}.gate`);
+      const result = join(state.root, `${name}.result`);
+      return {
+        ready,
+        start,
+        gate,
+        result,
+        child: Bun.spawn(
+          [process.execPath, "--no-env-file", "--eval", workerSource],
+          {
+            env: {
+              ...process.env,
+              GHOSTGET_TEST_HOME: state.root,
+              GHOSTGET_TEST_START: start,
+              GHOSTGET_TEST_READY: ready,
+              GHOSTGET_TEST_GATE: gate,
+              GHOSTGET_TEST_RESULT: result,
+              GHOSTGET_TEST_GENERATION: String(generation),
+              GHOSTGET_TEST_TOMBSTONE: tombstone,
+            },
+            stdout: "pipe",
+            stderr: "pipe",
+          },
+        ),
+      };
+    };
+    const slower = worker("slower", 2, "stale-cookie");
+    const faster = worker("faster", 3, "deleted-cookie");
+    try {
+      writeFileSync(slower.start, "start\n");
+      await waitForFile(slower.ready);
+      writeFileSync(faster.start, "start\n");
+      await waitForFile(faster.ready);
+
+      writeFileSync(faster.gate, "go\n");
+      await waitForFile(faster.result);
+      writeFileSync(slower.gate, "go\n");
+      await waitForFile(slower.result);
+      const [fasterExit, slowerExit] = await Promise.all([
+        faster.child.exited,
+        slower.child.exited,
+      ]);
+      if (fasterExit !== 0 || slowerExit !== 0) {
+        const [fasterError, slowerError] = await Promise.all([
+          new Response(faster.child.stderr).text(),
+          new Response(slower.child.stderr).text(),
+        ]);
+        throw new Error(
+          `CAS worker failed: ${fasterError.slice(0, 256)} ${slowerError.slice(0, 256)}`,
+        );
+      }
+
+      expect(jsonRecord(
+        readFileSync(faster.result, "utf8"),
+        "faster CAS result",
+      ).written).toBeTrue();
+      expect(jsonRecord(
+        readFileSync(slower.result, "utf8"),
+        "slower CAS result",
+      )).toEqual({ written: false });
+      expect(readSessionSecret(
+        "linkedin",
+        "linkedin-main",
+        authHash,
+        state.value,
+      )).toEqual({ generation: 3, tombstones: ["deleted-cookie"] });
+    } finally {
+      faster.child.kill("SIGKILL");
+      slower.child.kill("SIGKILL");
+      await Promise.all([
+        faster.child.exited,
+        slower.child.exited,
+      ]);
+    }
+  });
+
+  test("creates an absent coordinate exclusively and never resurrects a removed file", () => {
+    const state = environment();
+    const authHash = "3".repeat(64);
+    const absent = readSessionSecretSnapshot(
+      "linkedin",
+      "linkedin-main",
+      authHash,
+      state.value,
+    );
+    expect(absent.value).toBeNull();
+    expect(absent.contentSha256).toMatch(/^[a-f0-9]{64}$/u);
+
+    const winner = writeSessionSecretIfUnchanged(
+      "linkedin",
+      "linkedin-main",
+      authHash,
+      { generation: 2, tombstones: ["li_at"] },
+      absent.contentSha256,
+      state.value,
+    );
+    expect(winner.written).toBeTrue();
+    const losingFirstWriter = writeSessionSecretIfUnchanged(
+      "linkedin",
+      "linkedin-main",
+      authHash,
+      { generation: 1, cookies: ["li_at"] },
+      absent.contentSha256,
+      state.value,
+    );
+    expect(losingFirstWriter).toEqual({ written: false });
+
+    const current = readSessionSecretSnapshot(
+      "linkedin",
+      "linkedin-main",
+      authHash,
+      state.value,
+    );
+    expect(removeSessionSecret(
+      "linkedin",
+      "linkedin-main",
+      state.value,
+    )).toBeTrue();
+    const staleAfterRemoval = writeSessionSecretIfUnchanged(
+      "linkedin",
+      "linkedin-main",
+      authHash,
+      { generation: 2, cookies: ["li_at"] },
+      current.contentSha256,
+      state.value,
+    );
+    expect(staleAfterRemoval).toEqual({ written: false });
+    const staleOriginalAbsentAfterRemoval = writeSessionSecretIfUnchanged(
+      "linkedin",
+      "linkedin-main",
+      authHash,
+      { generation: 1, cookies: ["original-absent-writer"] },
+      absent.contentSha256,
+      state.value,
+    );
+    expect(staleOriginalAbsentAfterRemoval).toEqual({ written: false });
+    const absentAfterRemoval = readSessionSecretSnapshot(
+      "linkedin",
+      "linkedin-main",
+      authHash,
+      state.value,
+    );
+    expect(absentAfterRemoval.value).toBeNull();
+    expect(absentAfterRemoval.contentSha256).not.toBe(absent.contentSha256);
+  });
+
+  test("reclaims ciphertext left behind after a generation-first removal", () => {
+    const state = environment();
+    const authHash = "8".repeat(64);
+    writeSessionSecret(
+      "linkedin",
+      "linkedin-main",
+      authHash,
+      { generation: 1, cookies: ["pre-removal-cookie"] },
+      state.value,
+    );
+    const present = readSessionSecretSnapshot(
+      "linkedin",
+      "linkedin-main",
+      authHash,
+      state.value,
+    );
+    const ciphertextPath = join(
+      state.root,
+      "session-secrets",
+      "linkedin--linkedin-main.json",
+    );
+    const coordinatePath = join(
+      state.root,
+      "session-secrets",
+      "coordinates",
+      "linkedin--linkedin-main.json",
+    );
+    const coordinate = jsonRecord(
+      readFileSync(coordinatePath, "utf8"),
+      "session-secret coordinate state",
+    );
+    if (typeof coordinate.generation !== "string") {
+      throw new Error("coordinate fixture omitted its generation");
+    }
+    const interruptedRemovalGeneration = coordinate.generation === "9".repeat(64)
+      ? "8".repeat(64)
+      : "9".repeat(64);
+    writeFileSync(
+      coordinatePath,
+      `${canonicalJson({
+        ...coordinate,
+        generation: interruptedRemovalGeneration,
+      })}\n`,
+      { mode: 0o600 },
+    );
+    rotateReadProjectionAuthIncarnation("linkedin-main", state.value);
+
+    expect(writeSessionSecretIfUnchanged(
+      "linkedin",
+      "linkedin-main",
+      authHash,
+      { generation: 2, cookies: ["must-not-revive"] },
+      present.contentSha256,
+      state.value,
+    )).toEqual({ written: false });
+    expect(existsSync(ciphertextPath)).toBeFalse();
+    const recovered = readSessionSecretSnapshot(
+      "linkedin",
+      "linkedin-main",
+      authHash,
+      state.value,
+    );
+    expect(recovered.value).toBeNull();
+    expect(recovered.contentSha256).toMatch(/^[a-f0-9]{64}$/u);
+  });
+
+  test("reclaims historical envelopes without exposing their secret", () => {
+    const state = environment();
+    const authHash = "4".repeat(64);
+    const secret = { refreshJwt: "historical-private-refresh-token" };
+    writeSessionSecret(
+      "bluesky",
+      "bluesky-main",
+      authHash,
+      { temporary: true },
+      state.value,
+    );
+    const keyPath = join(state.root, ".session-encryption-key");
+    const keyRecord = jsonRecord(
+      readFileSync(keyPath, "utf8"),
+      "session encryption key",
+    );
+    if (
+      typeof keyRecord.key !== "string"
+      || !/^[a-f0-9]{64}$/u.test(keyRecord.key)
+    ) throw new Error("session encryption-key fixture is malformed");
+    writeFileSync(
+      keyPath,
+      `${canonicalJson({ schemaVersion: 1, key: keyRecord.key })}\n`,
+      { mode: 0o600 },
+    );
+
+    const iv = Buffer.alloc(12, 7);
+    const cipher = createCipheriv(
+      "aes-256-gcm",
+      Buffer.from(keyRecord.key, "hex"),
+      iv,
+    );
+    cipher.setAAD(Buffer.from(
+      `io-session-secret-v1\0bluesky\0bluesky-main\0${authHash}`,
+      "utf8",
+    ));
+    const ciphertext = Buffer.concat([
+      cipher.update(Buffer.from(canonicalJson(secret), "utf8")),
+      cipher.final(),
+    ]);
+    const secretPath = join(
+      state.root,
+      "session-secrets",
+      "bluesky--bluesky-main.json",
+    );
+    writeFileSync(
+      secretPath,
+      `${canonicalJson({
+        schemaVersion: 1,
+        encryption: "aes-256-gcm",
+        namespace: "bluesky",
+        authId: "bluesky-main",
+        authHash,
+        iv: iv.toString("base64"),
+        ciphertext: ciphertext.toString("base64"),
+        tag: cipher.getAuthTag().toString("base64"),
+      })}\n`,
+      { mode: 0o600 },
+    );
+
+    const historical = readSessionSecretSnapshot(
+      "bluesky",
+      "bluesky-main",
+      authHash,
+      state.value,
+    );
+    expect(historical.value).toBeNull();
+    expect(historical.contentSha256).not.toBeNull();
+    expect(existsSync(secretPath)).toBeFalse();
+    const replacement = writeSessionSecretIfUnchanged(
+      "bluesky",
+      "bluesky-main",
+      authHash,
+      { refreshJwt: "new-private-refresh-token" },
+      historical.contentSha256,
+      state.value,
+    );
+    expect(replacement.written).toBeTrue();
+    const migratedEnvelope = jsonRecord(
+      readFileSync(secretPath, "utf8"),
+      "migrated encrypted session secret",
+    );
+    expect(migratedEnvelope.schemaVersion).toBe(3);
+    expect(migratedEnvelope.keyId).toMatch(/^[a-f0-9]{64}$/u);
+    expect(migratedEnvelope.authIdentityHash).toMatch(/^[a-f0-9]{64}$/u);
+    expect(migratedEnvelope.generation).toMatch(/^[a-f0-9]{64}$/u);
+    expect(readSessionSecret(
+      "bluesky",
+      "bluesky-main",
+      authHash,
+      state.value,
+    )).toEqual({ refreshJwt: "new-private-refresh-token" });
+  });
+});
+
+// Both the namespace and auth-ID grammars admit "--", so these segments make
+// the historical `${namespace}--${authId}` stems collide as often as possible.
+const collisionProneName = fc
+  .array(fc.constantFrom("a", "b", "a-b", "b-"), { minLength: 1, maxLength: 3 })
+  .map((segments) => segments.join("--"));
+const coordinateName = fc.oneof(
+  collisionProneName,
+  fc.stringMatching(/^[a-z][a-z0-9-]{0,47}$/u),
+);
+const coordinate = fc.record({
+  namespace: coordinateName,
+  authId: coordinateName,
+});
+const coordinates = fc.uniqueArray(coordinate, {
+  minLength: 1,
+  maxLength: 8,
+  selector: ({ namespace, authId }) => `${namespace}\0${authId}`,
+});
+
+function writtenSecretNames(root: string): readonly string[] {
+  return readdirSync(join(root, "session-secrets"))
+    .filter((name) => name !== "coordinates")
+    .sort();
+}
+
+type LegacyAmbiguousFiles = {
+  readonly path: string;
+  readonly text: string;
+  readonly coordinatePath: string;
+  readonly coordinateText: string;
+};
+
+/**
+ * Recreate the secret and coordinate files exactly as a writer before
+ * injective names left them for account `old--work`: the same bytes, under the
+ * historical name `bluesky--old--work.json` that `bluesky--old`/`work` shares.
+ */
+function legacyAmbiguousSecret(
+  state: ReturnType<typeof environment>,
+  authHash: string,
+): LegacyAmbiguousFiles {
+  writeSessionSecret(
+    "bluesky",
+    "old--work",
+    authHash,
+    { refreshJwt: "old-work-private-refresh-token" },
+    state.value,
+  );
+  const directory = join(state.root, "session-secrets");
+  const injective = sessionSecretFileName("bluesky", "old--work");
+  const historical = "bluesky--old--work.json";
+  if (writtenSecretNames(state.root).join(",") !== injective) {
+    throw new Error("legacy fixture wrote an unexpected secret");
+  }
+  const path = join(directory, historical);
+  const coordinatePath = join(directory, "coordinates", historical);
+  renameSync(join(directory, injective), path);
+  renameSync(join(directory, "coordinates", injective), coordinatePath);
+  return {
+    path,
+    text: readFileSync(path, "utf8"),
+    coordinatePath,
+    coordinateText: readFileSync(coordinatePath, "utf8"),
+  };
+}
+
+function coordinateNames(root: string): readonly string[] {
+  return readdirSync(join(root, "session-secrets", "coordinates")).sort();
+}
+
+describe("session-secret file ownership", () => {
+  test("keeps coordinates whose historical names collide on `--` separate", () => {
+    const state = environment();
+    const authHash = "5".repeat(64);
+    writeSessionSecret("a--b", "c", authHash, { owner: "a--b/c" }, state.value);
+    writeSessionSecret("a", "b--c", authHash, { owner: "a/b--c" }, state.value);
+
+    expect(readSessionSecret("a--b", "c", authHash, state.value))
+      .toEqual({ owner: "a--b/c" });
+    expect(readSessionSecret("a", "b--c", authHash, state.value))
+      .toEqual({ owner: "a/b--c" });
+    expect(writtenSecretNames(state.root)).toHaveLength(2);
+  });
+
+  test("removing an auth realm never touches an auth ID that ends in `--` plus its name", () => {
+    const state = environment();
+    const authHash = "6".repeat(64);
+    writeSessionSecret("bluesky", "old--work", authHash, { owner: "old--work" }, state.value);
+    writeSessionSecret("bluesky", "work", authHash, { owner: "work" }, state.value);
+
+    expect(removeSessionSecretsForAuth("work", state.value)).toBe(1);
+    expect(readSessionSecret("bluesky", "work", authHash, state.value)).toBeNull();
+    expect(readSessionSecret("bluesky", "old--work", authHash, state.value))
+      .toEqual({ owner: "old--work" });
+    expect(removeSessionSecretsForAuth("old--work", state.value)).toBe(1);
+    expect(readSessionSecret("bluesky", "old--work", authHash, state.value)).toBeNull();
+  });
+
+  test("leaves an ambiguous historical file in place unless its envelope names the removed realm", () => {
+    const state = environment();
+    const legacy = legacyAmbiguousSecret(state, "7".repeat(64));
+
+    expect(removeSessionSecretsForAuth("work", state.value)).toBe(0);
+    expect(readFileSync(legacy.path, "utf8")).toBe(legacy.text);
+    expect(removeSessionSecretsForAuth("old--work", state.value)).toBe(1);
+    expect(existsSync(legacy.path)).toBeFalse();
+  });
+
+  test("adopts a legacy ambiguous session its envelope names and keeps it rotating", () => {
+    const state = environment();
+    const authHash = "b".repeat(64);
+    const legacy = legacyAmbiguousSecret(state, authHash);
+    const injective = sessionSecretFileName("bluesky", "old--work");
+
+    const snapshot = readSessionSecretSnapshot("bluesky", "old--work", authHash, state.value);
+    expect(snapshot.value).toEqual({ refreshJwt: "old-work-private-refresh-token" });
+    expect(existsSync(legacy.path)).toBeFalse();
+    expect(existsSync(legacy.coordinatePath)).toBeFalse();
+    expect(writtenSecretNames(state.root)).toEqual([injective]);
+    expect(coordinateNames(state.root)).toEqual([injective]);
+    expect(readFileSync(join(state.root, "session-secrets", injective), "utf8"))
+      .toBe(legacy.text);
+    expect(readFileSync(join(state.root, "session-secrets", "coordinates", injective), "utf8"))
+      .toBe(legacy.coordinateText);
+
+    expect(writeSessionSecretIfUnchanged(
+      "bluesky",
+      "old--work",
+      authHash,
+      { refreshJwt: "rotated-private-refresh-token" },
+      snapshot.contentSha256,
+      state.value,
+    ).written).toBeTrue();
+    expect(readSessionSecret("bluesky", "old--work", authHash, state.value))
+      .toEqual({ refreshJwt: "rotated-private-refresh-token" });
+  });
+
+  test("resumes an interrupted adoption after only the coordinate moved", () => {
+    const state = environment();
+    const authHash = "c".repeat(64);
+    const legacy = legacyAmbiguousSecret(state, authHash);
+    renameSync(
+      legacy.coordinatePath,
+      join(state.root, "session-secrets", "coordinates", sessionSecretFileName("bluesky", "old--work")),
+    );
+
+    expect(readSessionSecret("bluesky", "old--work", authHash, state.value))
+      .toEqual({ refreshJwt: "old-work-private-refresh-token" });
+    expect(existsSync(legacy.path)).toBeFalse();
+  });
+
+  test("never adopts a legacy ambiguous file for the other candidate coordinate", () => {
+    const state = environment();
+    const authHash = "d".repeat(64);
+    const legacy = legacyAmbiguousSecret(state, authHash);
+
+    expect(readSessionSecret("bluesky--old", "work", authHash, state.value)).toBeNull();
+    expect(writeSessionSecret("bluesky--old", "work", authHash, { owner: "work" }, state.value))
+      .toBeUndefined();
+    expect(readFileSync(legacy.path, "utf8")).toBe(legacy.text);
+    expect(readFileSync(legacy.coordinatePath, "utf8")).toBe(legacy.coordinateText);
+    expect(readSessionSecret("bluesky", "old--work", authHash, state.value))
+      .toEqual({ refreshJwt: "old-work-private-refresh-token" });
+    expect(readSessionSecret("bluesky--old", "work", authHash, state.value))
+      .toEqual({ owner: "work" });
+  });
+
+  test("leaves a legacy file in place when its envelope fails authentication for the named coordinate", () => {
+    const state = environment();
+    const authHash = "e".repeat(64);
+    writeSessionSecret("bluesky--old", "work", authHash, { owner: "work" }, state.value);
+    const directory = join(state.root, "session-secrets");
+    const written = jsonRecord(
+      readFileSync(join(directory, sessionSecretFileName("bluesky--old", "work")), "utf8"),
+      "encrypted session secret",
+    );
+    const path = join(directory, "bluesky--old--work.json");
+    const forged = `${canonicalJson({ ...written, namespace: "bluesky", authId: "old--work" })}\n`;
+    writeFileSync(path, forged, { mode: 0o600 });
+
+    expect(() => readSessionSecret("bluesky", "old--work", authHash, state.value))
+      .toThrow("encrypted session secret failed authentication");
+    expect(readFileSync(path, "utf8")).toBe(forged);
+    expect(existsSync(join(directory, sessionSecretFileName("bluesky", "old--work"))))
+      .toBeFalse();
+  });
+
+  test("auth removal adopts and advances the realm's historical coordinate", () => {
+    const state = environment();
+    const authHash = "f".repeat(64);
+    const legacy = legacyAmbiguousSecret(state, authHash);
+    const injective = sessionSecretFileName("bluesky", "old--work");
+
+    expect(removeSessionSecretsForAuth("work", state.value)).toBe(0);
+    expect(readFileSync(legacy.coordinatePath, "utf8")).toBe(legacy.coordinateText);
+    expect(removeSessionSecretsForAuth("old--work", state.value)).toBe(1);
+    expect(existsSync(legacy.path)).toBeFalse();
+    expect(coordinateNames(state.root)).toEqual([injective]);
+    const advanced = jsonRecord(
+      readFileSync(join(state.root, "session-secrets", "coordinates", injective), "utf8"),
+      "session-secret coordinate state",
+    );
+    expect(advanced.generation)
+      .not.toBe(jsonRecord(legacy.coordinateText, "legacy coordinate").generation);
+    expect(readSessionSecret("bluesky", "old--work", authHash, state.value)).toBeNull();
+  });
+
+  test("single-coordinate removal clears a legacy ambiguous session without the key", () => {
+    const state = environment();
+    const authHash = "1".repeat(64);
+    const legacy = legacyAmbiguousSecret(state, authHash);
+    rmSync(join(state.root, ".session-encryption-key"));
+
+    expect(removeSessionSecret("bluesky", "old--work", state.value)).toBeTrue();
+    expect(existsSync(legacy.path)).toBeFalse();
+    expect(coordinateNames(state.root))
+      .toEqual([sessionSecretFileName("bluesky", "old--work")]);
+  });
+
+  test("single-coordinate removal clears a legacy ambiguous file whose body names it", () => {
+    const state = environment();
+    const legacy = legacyAmbiguousSecret(state, "2".repeat(64));
+    // A body that names its coordinate but is no longer a readable envelope,
+    // as a writer interrupted mid-format or a later schema would leave it.
+    const named = `${canonicalJson({
+      ...jsonRecord(legacy.text, "legacy envelope"),
+      schemaVersion: 9,
+    })}\n`;
+    writeFileSync(legacy.path, named, { mode: 0o600 });
+
+    expect(removeSessionSecret("bluesky--old", "work", state.value)).toBeFalse();
+    expect(readFileSync(legacy.path, "utf8")).toBe(named);
+    expect(removeSessionSecret("bluesky", "old--work", state.value)).toBeTrue();
+    expect(existsSync(legacy.path)).toBeFalse();
+  });
+
+  test("single-coordinate removal fails closed on an ambiguous file with no verifiable owner", () => {
+    const state = environment();
+    writeSessionSecret("bluesky", "old--work", "3".repeat(64), { owner: "old--work" }, state.value);
+    const path = join(state.root, "session-secrets", "bluesky--old--work.json");
+    writeFileSync(path, "not an envelope\n", { mode: 0o600 });
+
+    expect(() => removeSessionSecret("bluesky", "old--work", state.value))
+      .toThrow("ambiguous historical session secret has no verifiable owner");
+    expect(readFileSync(path, "utf8")).toBe("not an envelope\n");
+    expect(writtenSecretNames(state.root)).toEqual(["bluesky--old--work.json"]);
+  });
+
+  test("auth removal clears a legacy ambiguous file whose body names the realm", () => {
+    const state = environment();
+    const legacy = legacyAmbiguousSecret(state, "4".repeat(64));
+    const named = `${canonicalJson({
+      ...jsonRecord(legacy.text, "legacy envelope"),
+      schemaVersion: 9,
+    })}\n`;
+    writeFileSync(legacy.path, named, { mode: 0o600 });
+
+    expect(removeSessionSecretsForAuth("work", state.value)).toBe(0);
+    expect(readFileSync(legacy.path, "utf8")).toBe(named);
+    expect(removeSessionSecretsForAuth("old--work", state.value)).toBe(1);
+    expect(existsSync(legacy.path)).toBeFalse();
+  });
+
+  test("removal takes an ambiguous historical file only for the coordinate its body names", () => {
+    // Every writer, body shape, target, and removal path: 24 cases. One state
+    // root and one envelope per writer serve them all, because claiming a
+    // root and encrypting are the slow steps.
+    const writers = [
+      { namespace: "bluesky", authId: "old--work" },
+      { namespace: "bluesky--old", authId: "work" },
+    ] as const;
+    const state = environment();
+    const directory = join(state.root, "session-secrets");
+    const path = join(directory, "bluesky--old--work.json");
+    const envelopes = writers.map((owner) => {
+      writeSessionSecret(owner.namespace, owner.authId, "8".repeat(64), { owner }, state.value);
+      const injective = join(directory, sessionSecretFileName(owner.namespace, owner.authId));
+      const envelope = readFileSync(injective, "utf8");
+      rmSync(injective);
+      return envelope;
+    });
+    for (const [index, owner] of writers.entries()) {
+      const envelope = envelopes[index]!;
+      const bodies = {
+        envelope,
+        "named-malformed": `${canonicalJson({ ...jsonRecord(envelope, "envelope"), schemaVersion: 9 })}\n`,
+        unnamed: "{}\n",
+      };
+      for (const [shape, text] of Object.entries(bodies)) {
+        for (const target of writers) {
+          for (const kind of ["coordinate", "auth"] as const) {
+            writeFileSync(path, text, { mode: 0o600 });
+            const remove = () => kind === "coordinate"
+              ? removeSessionSecret(target.namespace, target.authId, state.value)
+              : removeSessionSecretsForAuth(target.authId, state.value);
+            try {
+              if (shape === "unnamed") {
+                expect(remove).toThrow("ambiguous historical session secret has no verifiable owner");
+                expect(readFileSync(path, "utf8")).toBe(text);
+              } else if (owner === target) {
+                expect(remove()).toBe(kind === "coordinate" ? true : 1);
+                expect(existsSync(path)).toBeFalse();
+              } else {
+                expect(remove()).toBe(kind === "coordinate" ? false : 0);
+                expect(readFileSync(path, "utf8")).toBe(text);
+              }
+            } finally {
+              rmSync(path, { force: true });
+            }
+          }
+        }
+      }
+    }
+  });
+
+  test("property: a historical secret's owner is only the coordinate its header names under that file name", () => {
+    const header = fc.record({
+      namespace: fc.oneof(coordinateName, fc.string(), fc.integer()),
+      authId: fc.oneof(coordinateName, fc.string(), fc.constant(null)),
+      extra: fc.jsonValue(),
+    }, { requiredKeys: [] });
+    const body = fc.oneof(
+      header.map((value) => JSON.stringify(value)),
+      fc.jsonValue().map((value) => JSON.stringify(value)),
+      fc.string(),
+    );
+    const name = fc.oneof(
+      coordinate.map(({ namespace, authId }) => `${namespace}--${authId}.json`),
+      fc.string(),
+    );
+    assertProperty(fc.property(body, name, (text, fileName) => {
+      const owner = historicalSessionSecretOwner(text, fileName);
+      if (owner === null) return;
+      const parsed = jsonRecord(text, "owned body");
+      expect(owner as unknown).toEqual({ namespace: parsed.namespace, authId: parsed.authId });
+      expect(`${owner.namespace}--${owner.authId}.json`).toBe(fileName);
+      expect(parseSessionSecretFileName(sessionSecretFileName(owner.namespace, owner.authId)))
+        .toEqual({ kind: "coordinate", ...owner });
+    }));
+    assertProperty(fc.property(coordinate, fc.jsonValue(), (value, extra) => {
+      const text = JSON.stringify({ extra, ...value });
+      expect(historicalSessionSecretOwner(text, `${value.namespace}--${value.authId}.json`))
+        .toEqual(value);
+    }));
+  });
+
+  test("fails closed on an ambiguous historical file with no verifiable owner", () => {
+    const state = environment();
+    writeSessionSecret("linkedin", "unrelated", "9".repeat(64), { owner: "unrelated" }, state.value);
+    const path = join(state.root, "session-secrets", "bluesky--old--work.json");
+    writeFileSync(path, "not an envelope\n", { mode: 0o600 });
+
+    expect(() => removeSessionSecretsForAuth("work", state.value))
+      .toThrow("ambiguous historical session secret has no verifiable owner");
+    expect(readFileSync(path, "utf8")).toBe("not an envelope\n");
+    expect(removeSessionSecretsForAuth("unrelated", state.value)).toBe(1);
+  });
+
+  test("keeps unambiguous historical names byte-identical so existing files still load", () => {
+    const state = environment();
+    const authHash = "a".repeat(64);
+    const coordinates = [
+      ["linkedin", "linkedin-main"],
+      ["a-", "b-c"],
+    ] as const;
+    for (const [namespace, authId] of coordinates) {
+      writeSessionSecret(namespace, authId, authHash, { namespace, authId }, state.value);
+    }
+    const names = coordinates.map(([namespace, authId]) => `${namespace}--${authId}.json`).sort();
+    expect(writtenSecretNames(state.root)).toEqual(names);
+    expect(readdirSync(join(state.root, "session-secrets", "coordinates")).sort())
+      .toEqual(names);
+    for (const [namespace, authId] of coordinates) {
+      expect(readSessionSecret(namespace, authId, authHash, state.value))
+        .toEqual({ namespace, authId });
+    }
+  });
+
+  test("property: file names are injective and parse back to their coordinate", () => {
+    assertProperty(fc.property(coordinates, (values) => {
+      const names = values.map(({ namespace, authId }) =>
+        sessionSecretFileName(namespace, authId));
+      expect(new Set(names).size).toBe(values.length);
+      values.forEach(({ namespace, authId }, index) => {
+        expect(parseSessionSecretFileName(names[index]!))
+          .toEqual({ kind: "coordinate", namespace, authId });
+      });
+    }));
+  });
+
+  test("property: removal selects only the removed realm's names", () => {
+    assertProperty(fc.property(coordinates, fc.nat(), (values, choice) => {
+      const target = values[choice % values.length]!.authId;
+      const canonical = values.map(({ namespace, authId }) =>
+        sessionSecretFileName(namespace, authId));
+      const historical = values
+        .map(({ namespace, authId }) => `${namespace}--${authId}.json`)
+        .filter((name) => !canonical.includes(name));
+      const plan = planSessionSecretRemoval(
+        [...canonical, ...historical, "coordinates"],
+        target,
+      );
+
+      expect([...plan.owned].sort()).toEqual(values
+        .filter(({ authId }) => authId === target)
+        .map(({ namespace, authId }) => sessionSecretFileName(namespace, authId))
+        .sort());
+      for (const name of plan.ambiguous) {
+        expect(canonical).not.toContain(name);
+        const parsed = parseSessionSecretFileName(name);
+        if (parsed?.kind !== "ambiguous-historical") {
+          throw new Error("removal inspected a name with one owner");
+        }
+        expect(parsed.candidates.map(({ authId }) => authId)).toContain(target);
+      }
+    }));
+  });
+
+  test("rejects a dotted name for a coordinate whose canonical name is historical", () => {
+    expect(sessionSecretFileName("a--b", "c")).toBe("a--b.c.json");
+    expect(sessionSecretFileName("a", "b--c")).toBe("a.b--c.json");
+    expect(sessionSecretFileName("a", "b")).toBe("a--b.json");
+    expect(sessionSecretFileName("a-", "b-c")).toBe("a---b-c.json");
+    expect(sessionSecretFileName("a-", "b---c")).toBe("a-.b---c.json");
+    expect(parseSessionSecretFileName("a.b.json")).toBeNull();
+    expect(parseSessionSecretFileName("a--b--c.json")).toEqual({
+      kind: "ambiguous-historical",
+      candidates: [
+        { namespace: "a", authId: "b--c" },
+        { namespace: "a--b", authId: "c" },
+      ],
+    });
+    expect(planSessionSecretRemoval(["bluesky--old--work.json"], "work"))
+      .toEqual({ owned: [], ambiguous: ["bluesky--old--work.json"] });
+  });
+});

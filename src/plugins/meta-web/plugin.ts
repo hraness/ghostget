@@ -1,0 +1,333 @@
+import {
+  defineProviderPlugin,
+  lazyWebSessionRuntime,
+} from "../../provider-plugin";
+import {
+  browserSessionAuthKinds,
+  webSessionContractOperations,
+  webImplementationSources,
+} from "../../provider-plugin-builtins";
+import archivedInstagramWebManifestV1_3 from "../../assets/adapters/instagram/wrench-web-adapter.v1.3.0.json";
+import archivedInstagramWebManifestV1_5 from "../../assets/adapters/instagram/wrench-web-adapter.v1.5.0.json";
+import archivedThreadsWebManifestV1_9 from "../../assets/adapters/threads/wrench-web-adapter.v1.9.0.json";
+import type { OperationInput } from "../../model";
+import {
+  planWebSessionContractDispatches,
+  reviewedArchivedWebSessionContract,
+  webSessionContractDefinitions,
+} from "../../web-session-contract-definitions";
+import {
+  isCanonicalMetaNumericId,
+  type MetaWebSite,
+} from "../../providers/meta-web";
+import { materializeInstagramMessagingList } from "../../providers/meta-omni";
+
+function metaOmniDefinitions(site: MetaWebSite) {
+  if (site === "facebook-group") return Object.freeze({});
+  return Object.freeze({
+    "messaging.list": Object.freeze({
+      ...(site === "instagram"
+        ? {
+            state: "supported" as const,
+            schemaVersion: 1 as const,
+            materializerId: "instagram-messaging-list",
+            materializerVersion: 2,
+            materialize: materializeInstagramMessagingList,
+          }
+        : {
+            state: "unsupported" as const,
+            reason: `${site} messaging list semantics remain capture-required`,
+          }),
+    }),
+    "messaging.read": Object.freeze({
+      state: "unsupported" as const,
+      reason: `${site} message reads remain capture-required`,
+    }),
+  });
+}
+
+const metaWebSites = Object.freeze([
+  "instagram",
+  "threads",
+  "facebook",
+  "facebook-page",
+  "facebook-group",
+  "facebook-marketplace",
+] as const satisfies readonly MetaWebSite[]);
+
+const origins = {
+  instagram: "https://www.instagram.com",
+  threads: "https://www.threads.com",
+  facebook: "https://www.facebook.com",
+  "facebook-page": "https://www.facebook.com",
+  "facebook-group": "https://www.facebook.com",
+  "facebook-marketplace": "https://www.facebook.com",
+} as const satisfies Readonly<Record<MetaWebSite, `https://${string}`>>;
+
+const protectedHostnameFamilies = {
+  instagram: ["instagram.com"],
+  threads: ["threads.com"],
+  facebook: ["facebook.com"],
+  "facebook-page": ["facebook.com"],
+  "facebook-group": ["facebook.com"],
+  "facebook-marketplace": ["facebook.com"],
+} as const satisfies Readonly<Record<MetaWebSite, readonly string[]>>;
+
+const subjectFormats = {
+  instagram: "instagram:<numeric-id>",
+  threads: "threads:<numeric-id>",
+  facebook: "facebook:user:<numeric-id>",
+  "facebook-page": "facebook:user:<numeric-id>",
+  "facebook-group": "facebook:user:<numeric-id>",
+  "facebook-marketplace": "facebook:user:<numeric-id>",
+} as const satisfies Readonly<Record<MetaWebSite, string>>;
+
+function subjectMatches(site: MetaWebSite, value: string): boolean {
+  const prefix = site === "instagram"
+    ? "instagram:"
+    : site === "threads"
+      ? "threads:"
+      : "facebook:user:";
+  return value.startsWith(prefix)
+    && isCanonicalMetaNumericId(value.slice(prefix.length));
+}
+
+const historicalVersions = Object.freeze({
+  instagram: Object.freeze({
+    "comments.read": Object.freeze([1]),
+    "feeds.read": Object.freeze([1]),
+    "messaging.list": Object.freeze([1]),
+  }),
+  threads: Object.freeze({
+    "feeds.read": Object.freeze([1]),
+    "posts.publish": Object.freeze([1, 2, 3, 4]),
+  }),
+  facebook: Object.freeze({
+    "feeds.read": Object.freeze([1]),
+    "messaging.list": Object.freeze([1]),
+  }),
+  "facebook-page": Object.freeze({}),
+  "facebook-group": Object.freeze({
+    "feeds.read": Object.freeze([1]),
+  }),
+  "facebook-marketplace": Object.freeze({
+    "feeds.read": Object.freeze([1]),
+    "listings.read": Object.freeze([1]),
+  }),
+} satisfies Readonly<
+  Record<MetaWebSite, Readonly<Record<string, readonly number[]>>>
+>);
+
+const contractSemanticIdentities = Object.freeze({
+  instagram: "3d2aac4e12ce927b14f45070df5844cace039bf039dfeee9fcb67061c45ce30e",
+  threads: "d930dad8215876ff012e01d472f032890cf0f842f4a76bbc240cc703429a7b1f",
+  facebook: "f4724c9619794070da784d03fdaef5889cc4f3d237f9f402e9d5a53f7c156184",
+  "facebook-page": "0a13cbe416286efe003ecf9c28fefcbd45c5d1f3b62a94936d9278ad8e488ada",
+  "facebook-group": "30717a546b60658ecc2e199a14babb4fa2b46afd1e8d9113044a1b7afda3d376",
+  "facebook-marketplace": "396567380895c017c3385048b4c6971e68be82f446fab052f1605d52934ee4cd",
+} as const satisfies Readonly<Record<MetaWebSite, string>>);
+
+function archivedInstagramOperation(
+  contract: ReturnType<typeof reviewedArchivedWebSessionContract>,
+) {
+  return Object.freeze({
+    name: contract.operation,
+    contractVersion: contract.contractVersion,
+    risk: contract.risk,
+    input: contract.input,
+    sideEffect: contract.sideEffect,
+    idempotency: contract.idempotency,
+    dedupeWindowMs: contract.dedupeWindowMs,
+    state: contract.state,
+    dispatch: contract.dispatch,
+    implementation: contract.implementation,
+    planDispatches: (input: OperationInput) =>
+      planWebSessionContractDispatches(contract, input),
+    validateInput: () => Object.freeze([]),
+  });
+}
+
+const archivedInstagramMediaPublishV1 = reviewedArchivedWebSessionContract(
+  archivedInstagramWebManifestV1_3,
+  {
+    adapterId: "instagram-web",
+    adapterVersion: "1.3.0",
+    site: "instagram",
+    operation: "media.publish",
+    contractVersion: 1,
+    risk: "R3",
+    state: "capture-required",
+    implementation:
+      "instagram media.publish requires a fresh reviewed authenticated first-party contract before execution",
+  },
+);
+const archivedInstagramMediaPublishV2 = reviewedArchivedWebSessionContract(
+  archivedInstagramWebManifestV1_5,
+  {
+    adapterId: "instagram-web",
+    adapterVersion: "1.5.0",
+    site: "instagram",
+    operation: "media.publish",
+    contractVersion: 2,
+    risk: "R3",
+    state: "capture-required",
+    implementation:
+      "instagram media.publish requires a fresh reviewed authenticated first-party contract before execution",
+  },
+);
+const archivedInstagramMediaPublishOperations = Object.freeze([
+  archivedInstagramOperation(archivedInstagramMediaPublishV1),
+  archivedInstagramOperation(archivedInstagramMediaPublishV2),
+]);
+
+const archivedInstagramContentDeleteV1 = reviewedArchivedWebSessionContract(
+  archivedInstagramWebManifestV1_5,
+  {
+    adapterId: "instagram-web",
+    adapterVersion: "1.5.0",
+    site: "instagram",
+    operation: "content.delete",
+    contractVersion: 1,
+    risk: "R3",
+    state: "capture-required",
+    implementation:
+      "exact authored-video pre-read, actor/caption/kind binding, deletion response, and independent exact-target absence require an authorized fixture",
+  },
+);
+const archivedThreadsRepliesCreateV1 = reviewedArchivedWebSessionContract(
+  archivedThreadsWebManifestV1_9,
+  {
+    adapterId: "threads-web",
+    adapterVersion: "1.9.0",
+    site: "threads",
+    operation: "replies.create",
+    contractVersion: 1,
+    risk: "R3",
+    state: "capture-required",
+    implementation:
+      "Capture-required contract reservation: the exact actor, audience, attachment transport, dispatch response, and independent publication readback require an authorized fixture.",
+  },
+);
+const archivedInstagramOperations = Object.freeze([
+  ...archivedInstagramMediaPublishOperations,
+  archivedInstagramOperation(archivedInstagramContentDeleteV1),
+]);
+
+export const metaWebPlugin = defineProviderPlugin({
+  apiVersion: 1,
+  id: "meta-web",
+  version: "1.5.0",
+  displayName: "Meta Authenticated Web",
+  sourceKind: "built-in",
+  implementationSources: webImplementationSources(import.meta.url, [
+    ["providers/read-failure.ts", "../../providers/read-failure.ts"],
+    ["kernel/cursor-token.ts", "../../cursor-token.ts"],
+    ["kernel/storage.ts", "../../storage.ts"],
+    ["kernel/state-helper.ts", "../../state-helper.ts"],
+    ["kernel/state-helper.bunfig.toml", "../../state-helper.bunfig.toml"],
+    ["kernel/path-helper.ts", "../../path-helper.ts"],
+    ["providers/iso-bmff.ts", "../../providers/iso-bmff.ts"],
+    ["providers/instagram-web-profile-browser.ts", "../../providers/instagram-web-profile-browser.ts"],
+    ["providers/instagram-video-foundations.ts", "../../providers/instagram-video-foundations.ts"],
+    ["providers/meta-web.ts", "../../providers/meta-web.ts"],
+    ["providers/meta-web-runtime.ts", "../../providers/meta-web-runtime.ts"],
+    ["providers/meta-bootstrap.ts", "../../providers/meta-bootstrap.ts"],
+    ["providers/meta-facebook-group.ts", "../../providers/meta-facebook-group.ts"],
+    ["providers/meta-marketplace-relay.ts", "../../providers/meta-marketplace-relay.ts"],
+    ["providers/meta-relay-bundle.ts", "../../providers/meta-relay-bundle.ts"],
+    ["providers/meta-web-descriptors.ts", "../../providers/meta-web-descriptors.ts"],
+    ["providers/contact-projection.ts", "../../providers/contact-projection.ts"],
+    ["providers/meta-omni.ts", "../../providers/meta-omni.ts"],
+  ]),
+  bindings: metaWebSites.map((site) => ({
+    transport: "web-session-api" as const,
+    surfaceId: site,
+    origin: origins[site],
+    protectedHostnameFamilies: protectedHostnameFamilies[site],
+    authKinds: browserSessionAuthKinds,
+    operations: Object.freeze([
+      ...webSessionContractOperations(
+        Object.values(webSessionContractDefinitions[site]),
+        contractSemanticIdentities[site],
+        historicalVersions[site],
+        metaOmniDefinitions(site),
+      ).map((operation) => {
+      if (
+        site === "threads"
+        && (operation.name === "posts.publish" || operation.name === "media.publish")
+      ) {
+        return Object.freeze({
+          ...operation,
+          reconciliation: Object.freeze({
+            kind: "provider-accepted-target-presence" as const,
+          }),
+        });
+      }
+      if (site === "instagram" && operation.name === "content.delete") {
+        return Object.freeze({
+          ...operation,
+          reconciliation: Object.freeze({
+            kind: "provider-bound-target-desired-state" as const,
+            desiredState: false as const,
+          }),
+        });
+      }
+        return operation;
+      }),
+      ...(site === "instagram" ? archivedInstagramOperations : []),
+      ...(site === "threads" ? [archivedInstagramOperation(archivedThreadsRepliesCreateV1)] : []),
+    ]),
+    subject: {
+      format: subjectFormats[site],
+      matches: (value: string) => subjectMatches(site, value),
+    },
+    runtime: lazyWebSessionRuntime(async () => {
+      const runtime = await import("../../providers/meta-web-runtime");
+      return {
+        probe: (auth, options) =>
+          runtime.probeMetaWebSubject(site, auth, options),
+        execute: (_manifest, recipe, input, auth, options) =>
+          runtime.executeMetaWebOperation(recipe, input, auth, options),
+        reconcile: async (operation, input, auth, context) => {
+          if (
+            site === "instagram"
+            && operation === "content.delete"
+            && context?.kind === "provider-bound-target-desired-state"
+          ) {
+            const readback = await runtime.readInstagramVideoAcceptedMutationTargetPresence({
+              site: "instagram",
+              action: operation,
+              contractVersion: 2,
+              timeoutMs: 60_000,
+              maxOutputBytes: 8 * 1024 * 1024,
+            }, input, auth, context.target.identifier);
+            return {
+              actualState: readback.present,
+              reason: "exact-target-readback",
+            };
+          }
+          if (
+            site !== "threads"
+            || (operation !== "posts.publish" && operation !== "media.publish")
+            || context?.kind !== "provider-accepted-target-presence"
+          ) {
+            throw new Error(`${site} ${operation} has no reconciliation hook`);
+          }
+          const readback = await runtime.readThreadsWebPublishedMutationTarget({
+            site: "threads",
+            action: operation,
+            contractVersion: operation === "posts.publish" ? 5 : 1,
+            timeoutMs: 60_000,
+            maxOutputBytes: 2 * 1024 * 1024,
+          }, input, auth, context.target.identifier);
+          return {
+            actualState: readback.present,
+            reason: "exact-target-readback",
+          };
+        },
+      };
+    }),
+  })),
+});
+
+export default metaWebPlugin;

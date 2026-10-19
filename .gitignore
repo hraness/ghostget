@@ -1,0 +1,11 @@
+node_modules/
+.next/
+next-env.d.ts
+*.tsbuildinfo
+website/dist/
+.DS_Store
+.vercel
+.env*
+artifacts/
+verification/lean/.lake/
+verification/oracles/target/

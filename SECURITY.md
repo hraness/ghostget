@@ -1,0 +1,169 @@
+# Security
+
+Please report suspected vulnerabilities through GitHub private vulnerability
+reporting for the Ghostget repository. Do not open a public issue containing
+credentials, authenticated traffic, private content, browser profiles, state
+directories, or provider account identifiers.
+
+If GitHub reporting is unavailable, email [hraness@pm.me](mailto:hraness@pm.me).
+
+Ghostget treats CLI input, URLs, manifests, packages, plugin messages, provider
+responses, browser output, files, durable state, and subprocess diagnostics as
+untrusted. Foreign values are strictly parsed and bounded. Sensitive values are
+redacted from terminal output, receipts, and diagnostics.
+
+The menu-bar companion has a private administrative stdio channel to its
+owned helper. Its owner-only agent socket accepts bounded web requests and
+approval requests, checks, and cancellation; it cannot grant approval, change
+permissions, or import credentials. Enabling operation permissions establishes
+a persistent managed marker: missing or corrupt policy then denies access.
+Grants bind the exact account incarnation, manifest, contract, and executable
+closure. A changed account, interface, implementation, or approval invalidates
+the prior grant. Existing saved write plans and confirmation remain required.
+The only exception is the connected X account's own post deletion: the owner
+can grant it once, per account, in a fixed native dialog. Callers cannot supply
+that grant. It is the capability's Allow when operation permissions are on.
+When they are off, it is a separate owner record bound to the same capability
+digest; it never turns permissions on or covers another operation. A permission
+set to Ask or Deny always wins over it. Dispatch rechecks the grant, and
+turning it off restores confirmation.
+
+The public web gateway accepts only bounded HTTPS GET and HEAD requests under
+explicit domain, path, and query-key rules. It pins public DNS answers, rechecks
+policy after DNS and before dispatch, and rejects redirects, authentication,
+request bodies, and private addresses. Its local SQLite log records request
+metadata, never response bodies, query strings, credentials, or a URL digest.
+Gateway-only mode restricts Ghostget command routing; it is not an operating
+system network sandbox. A process with the same user's filesystem or network
+authority can bypass application policy. Restrict the agent's other tools at
+the harness or operating system boundary when that guarantee is needed.
+
+OpenAPI imports are inert semantic drafts until explicitly activated. They
+cannot create an arbitrary authenticated HTTP executor. Raw secrets do not enter
+the agent protocol or diagnostics.
+Browser password and passkey login stays in the system browser. Ghostget is
+distributed as a CLI with an unbundled macOS menu-bar companion; there is no
+Ghostget desktop app bundle or native installer. Publishing the CLI does not
+qualify third-party providers. Direct scenarios are development-only and are
+excluded from the production companion graph. Public marketing pages are
+inert documentation and contain no executable control surface.
+
+Source plugins are trusted in-process code. Portable plugins require an
+explicit trust decision for one verified content-addressed bundle and execute
+through a denied-by-default child-process protocol. The protocol limits the
+host services a well-behaved plugin can request and contains ordinary crashes;
+it is not a hostile native-code sandbox. Plugin code still runs with the
+ambient operating-system authority of the current account. Review code before
+trusting it and keep Ghostget state on a local filesystem protected for that
+account.
+
+Authenticated operations bind one locator to one provider account and exact
+transport. Ghostget does not silently switch between official API, browser
+session, linked-device, or portable transports. Mutations require durable
+dispatch evidence and do not retry after a partial or indeterminate result.
+
+Agentic messaging adds capability-sensitive route, context, reply, and provider
+references plus private conversation prose. These values enter through stdin
+or checked owner-only files and leave only through explicit atomic mode-`0600`
+artifacts. Ordinary terminal output, receipts, diagnostics, and durable public
+projections contain only contract identities, hashes, categorical states,
+counts, and timestamps. Ghostget encrypts route, context, preview, and execution
+state at rest with authenticated reference binding. Authentication failure,
+expiry, restored-state generation drift, or implementation drift makes those
+records unusable; it never falls back to plaintext or an approximate route.
+Explicit messaging output paths must be distinct and outside the Ghostget state
+root, so a plaintext export cannot replace an encryption key, plan, run,
+receipt, or other recovery record.
+
+A messaging turn is one composite confirmation and one ordered, prefix-durable
+run. Ghostget checks current provider state before every remaining part and stops
+on foreign activity, edit, retraction, participant drift, provider drift,
+permanent failure, partial work, or possible completion. Accepted or submitted
+does not mean delivered or read. A same-turn human authorization requirement is
+normative Agent Skill policy because the same calling process can invoke
+`ghostget confirm`; the digest itself is not a technical proof that a human saw
+the private preview.
+
+Ghostget caps locally owned browser acquisition at two across processes sharing
+one state home for fresh and profile-backed page capture. Admission claims use
+atomic create and conditional removal, bind a random token to an exact
+operating-system process-start identity, and are held through upstream browser,
+proxy, process, and isolation cleanup settlement. PID reuse alone cannot
+reclaim a claim. Automatic reclamation requires a verified prior
+operating-system boot; a same-boot claim stays occupied after its Ghostget owner
+dies because its owned browser processes may survive. A malformed claim, an
+unverifiable owner, or an unsafe state path reduces available capture capacity
+and never creates an extra slot. Admission polling consumes the capture timeout
+and has a budget equal to the lesser of its remaining time and 30 seconds. An
+in-flight bounded state-helper operation may settle after that budget, but
+deadline revalidation and conditional rollback prevent a browser launch after
+expiry. Explicit CDP and browser-live attachment are outside this ownership cap
+because Ghostget does not own the attached browser process. Managed
+provider/bootstrap and derivation browser sessions remain outside this first
+cap and retain their existing containment.
+
+Claim a new state home serially with `ghostget runs list --json` before launching
+parallel captures. For blocked capacity, use `ghostget doctor --json` to locate
+`ghostget.home` and its `captures/browser-admissions` directory. Reboot before
+retrying when possible. Same-boot manual repair is safe only after the exact
+orphaned agent-browser and Chromium process group has been terminated; remove
+only the matching `slot-N.json`, never a claim inferred stale from a dead PID
+alone.
+
+Ghostget archives one accessible, finite, non-DRM media item at a time. It
+rejects playlists, live streams, affirmative DRM, and unsupported
+authentication, and it never supplies decryption keys or access-control bypass
+flags. Completed items remain inspectable directories with versioned manifests
+and SHA-256 records that `ghostget verify` recomputes.
+
+Media URLs, provider metadata, captions, manifests, tool output, and archive
+paths are untrusted. Ghostget invokes media tools without a shell, ignores
+ambient yt-dlp configuration unless the user explicitly selects that mode, and
+does not persist cookies, request headers, signed media URLs, raw yt-dlp
+metadata, or transport fragments. Authorization-context names separate
+declared access realms, but they cannot detect that the account behind a reused
+name has changed. Use a new context name when the intended account changes.
+
+`ghostget pdf <url>` with a browser sign-in option (`--cookie-source`,
+`--browser-profile`, `--cookie-profile`, `--auth`, or `--cookies-file`)
+downloads the PDF itself instead of passing the link on anonymously. It uses
+only HTTPS and DNS-pinned public addresses, follows at most five redirects,
+and refuses credential-bearing links, plain HTTP, private IP literals, and
+local names such as `.local` or single-label hosts before any cookie is read
+for that host. A public name that resolves to a private address is refused
+before any request is sent. It reads cookies separately for each host it visits
+through the same cookie filter as `read`, so a site receives only the cookies
+that belong to it, never another host's. When a redirect leaves the link's own
+site (any host other than the link's host or a parent or subdomain of it), the
+new site does not receive its `SameSite=Strict` cookies, as a browser would
+hold them back after a redirect started elsewhere. It does not launch the
+browser profile, so no profile egress consent applies, and
+`--trust-profile-egress` or `--mode` copied from `read` are ignored. The whole
+download, including every cookie read, is bounded by `--timeout-ms`; the
+response is bounded by `--max-pdf-bytes`, must start with a PDF signature, and
+is streamed into an owner-only file in an owner-only temporary folder that is
+removed after the import. If the site refuses and none of the selected
+browser's cookies went to it, the error says no sign-in was found rather than
+that the sign-in lacks access. Cookie values are not printed, logged, or
+stored.
+
+The unauthenticated direct-media adapter intentionally permits loopback and
+private-network HTTP(S) targets because its URL is supplied by the local user.
+It is not an SSRF boundary for remotely supplied URLs. It reads a bounded
+range, identifies media from bytes, and stores fixed role names instead of URL
+basenames.
+
+Local transcription setup does not download whisper.cpp, its model, or its
+libraries. Ghostget records and rechecks the selected executable, model, and
+observable non-platform runtime closure, but those checks establish continuity,
+not provenance or safety. Obtain them from trusted sources. whisper.cpp remains
+user-selected native code running with the current account's filesystem and
+network authority.
+
+Media locks coordinate Ghostget processes, and final publication uses an atomic
+same-volume rename. The archive root and transcriber configuration are not
+security boundaries against another process running as the same user. Keep
+them on a trusted local filesystem with permissions limited to that account,
+and use `ghostget verify` to detect later archive changes.
+
+Use Ghostget only with material and accounts you are authorized to access.

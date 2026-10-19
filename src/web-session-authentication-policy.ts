@@ -1,0 +1,174 @@
+import type { GhostgetAuth } from "./auth";
+import { canonicalJson, sha256 } from "./canonical-json";
+import type { WebSessionRecipe } from "./model";
+import type { ProviderPluginOperationResolutionV1 } from "./provider-plugin-registry";
+
+export const PUBLIC_WEB_SESSION_AUTHORITY_KIND = "public-web-session";
+
+/**
+ * Kernel-owned authority for a reviewed operation that is deliberately public.
+ * It is an invocation/cache coordinate, never an auth locator or credential.
+ */
+export type PublicWebSessionInvocationAuthority = {
+  readonly schemaVersion: 1;
+  readonly id: string;
+  readonly kind: typeof PUBLIC_WEB_SESSION_AUTHORITY_KIND;
+  readonly subject: string;
+};
+
+export type InvocationAuthority = GhostgetAuth | PublicWebSessionInvocationAuthority;
+
+export type WebSessionAuthenticationPolicy =
+  | { readonly kind: "required" }
+  | {
+      readonly kind: "public";
+      readonly authority: PublicWebSessionInvocationAuthority;
+    };
+
+export type WebSessionAuthenticationPolicyContext = {
+  readonly adapterId: string;
+  readonly access?: "public";
+  readonly operationId: string;
+  readonly recipe: WebSessionRecipe;
+  readonly pluginSourceKind: "built-in" | "source" | "portable";
+  readonly portable: boolean;
+  readonly risk: "R1" | "R2" | "R3" | "R4";
+  readonly state: "observed" | "capture-required";
+  readonly dispatch: "none" | "single" | "thread-items" | "bounded-items";
+};
+
+const requiredPolicy = Object.freeze({ kind: "required" as const });
+
+export function publicWebSessionInvocationAuthority(
+  adapterId: string,
+  operationId: string,
+): PublicWebSessionInvocationAuthority {
+  const coordinate = Object.freeze({
+    adapter: adapterId,
+    operation: operationId,
+  });
+  return Object.freeze({
+    schemaVersion: 1,
+    id: `public-${sha256(canonicalJson(coordinate)).slice(0, 32)}`,
+    kind: PUBLIC_WEB_SESSION_AUTHORITY_KIND,
+    subject: `public:${adapterId}:${operationId}`,
+  });
+}
+
+/**
+ * Authentication policy is code-owned. Manifests and portable plugins cannot
+ * opt into public execution by declaring data that resembles this route.
+ */
+export function webSessionAuthenticationPolicy(
+  context: WebSessionAuthenticationPolicyContext,
+): WebSessionAuthenticationPolicy {
+  if (context.access === "public") {
+    if (
+      context.pluginSourceKind !== "built-in"
+      || context.portable
+      || context.risk !== "R1"
+      || context.state !== "observed"
+      || context.dispatch !== "none"
+    ) {
+      throw new Error(
+        "public web-session access requires an observed dispatch-free built-in R1 operation",
+      );
+    }
+    return Object.freeze({
+      kind: "public" as const,
+      authority: publicWebSessionInvocationAuthority(
+        context.adapterId,
+        context.operationId,
+      ),
+    });
+  }
+  return requiredPolicy;
+}
+
+/**
+ * Resolve the authentication policy of one installed web-session operation
+ * from its registry resolution. The invoke path and the contract catalog share
+ * this function so `authority: "public"` in a catalog means exactly "this
+ * operation runs without an auth locator".
+ */
+export function resolvedWebSessionOperationAuthenticationPolicy(
+  adapterId: string,
+  operationId: string,
+  recipe: WebSessionRecipe,
+  resolution: ProviderPluginOperationResolutionV1,
+): WebSessionAuthenticationPolicy {
+  if (
+    resolution.binding.transport === "provider-api"
+    || resolution.binding.transport === "local-cli"
+  ) {
+    throw new Error("authenticated session operation resolved to the wrong plugin transport");
+  }
+  return webSessionAuthenticationPolicy({
+    adapterId,
+    // Access policy belongs only to the descriptor's active contract. A
+    // historical routing alias remains readable for archive compatibility,
+    // but cannot inherit a newer public-authority/cache coordinate.
+    ...(resolution.contractVersion !== resolution.operation.contractVersion
+      || resolution.operation.access === undefined
+      ? {}
+      : { access: resolution.operation.access }),
+    operationId,
+    recipe,
+    pluginSourceKind: resolution.plugin.sourceKind,
+    portable: resolution.portableIdentity !== null,
+    risk: resolution.operation.risk,
+    state: resolution.operation.state,
+    dispatch: resolution.operation.dispatch,
+  });
+}
+
+export function isPublicWebSessionInvocationAuthority(
+  value: InvocationAuthority,
+): value is PublicWebSessionInvocationAuthority {
+  return value.kind === PUBLIC_WEB_SESSION_AUTHORITY_KIND;
+}
+
+export function parsePublicWebSessionInvocationAuthority(
+  value: unknown,
+  expected: PublicWebSessionInvocationAuthority,
+): PublicWebSessionInvocationAuthority {
+  if (
+    typeof value !== "object"
+    || value === null
+    || Array.isArray(value)
+  ) throw new Error("public web-session invocation authority must be an object");
+  const record = value as Record<string, unknown>;
+  const keys = Object.keys(record).sort();
+  if (
+    keys.length !== 4
+    || keys[0] !== "id"
+    || keys[1] !== "kind"
+    || keys[2] !== "schemaVersion"
+    || keys[3] !== "subject"
+    || record.schemaVersion !== 1
+    || record.id !== expected.id
+    || record.kind !== expected.kind
+    || record.subject !== expected.subject
+  ) {
+    throw new Error("public web-session invocation authority is malformed");
+  }
+  return expected;
+}
+
+export function publicWebSessionAuthorityIdentityHash(
+  authority: PublicWebSessionInvocationAuthority,
+): string {
+  return sha256(
+    `wrench-public-web-session-authority-v1\0${canonicalJson(authority)}`,
+  );
+}
+
+export function persistedAuthAuthority(
+  authority: InvocationAuthority,
+  message = "operation requires a persisted auth locator",
+): GhostgetAuth {
+  if (isPublicWebSessionInvocationAuthority(authority)) {
+    throw new Error(message);
+  }
+  return authority;
+}

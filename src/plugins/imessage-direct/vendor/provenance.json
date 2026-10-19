@@ -1,0 +1,168 @@
+{
+  "schemaVersion": 1,
+  "upstream": {
+    "repository": "https://github.com/openclaw/imsg",
+    "version": "0.14.1",
+    "baseCommit": "25beb76c902b0acf2dd7ae392f1b0792f6813240"
+  },
+  "reviewedPatchStack": {
+    "tipCommit": "533789195c48480aef2cdc3a2377038301d5b861",
+    "sourceTree": "ac999492b328f3e95b0d8e306648a21e9aebb42d",
+    "patches": [
+      {
+        "file": "0001-fix-keep-AppleScript-send-payloads-out-of-child-argv.patch",
+        "commit": "292db82d89293867ef847a2875667fea0fdd5dc1",
+        "sha256": "99cf18953470e85a62a226f207e6a5c0452d3997675c99eabf4d5cb73c6411fd",
+        "purpose": "Keep every private AppleScript send value out of child argv and preserve typed delivery uncertainty.",
+        "changedFiles": [
+          "CHANGELOG.md",
+          "Sources/IMsgCore/AppleScriptPrivatePayload.swift",
+          "Sources/IMsgCore/AppleScriptSendTransport.swift",
+          "Sources/IMsgCore/MessageSender.swift",
+          "Tests/IMsgCoreTests/AppleScriptPrivatePayloadTestSupport.swift",
+          "Tests/IMsgCoreTests/AppleScriptPrivatePayloadTests.swift",
+          "docs/private-applescript-transport.md",
+          "docs/rpc.md",
+          "docs/send.md"
+        ]
+      },
+      {
+        "file": "0002-feat-rpc-add-exact-chat-lookup.patch",
+        "commit": "c5994f00d17969fd7772fd2772e7b3591089513a",
+        "sha256": "b05aa92a078930f96fda611c674436638843f7b148d7bfa3b65ed1ccb0885c13",
+        "purpose": "Expose one read-only exact chat row lookup for live route revalidation without a bounded recency scan.",
+        "changedFiles": [
+          "Sources/IMsgCore/MessageStore+Chats.swift",
+          "Sources/imsg/RPCMethodDescriptors.swift",
+          "Sources/imsg/RPCServer+Handlers.swift",
+          "Sources/imsg/RPCServer.swift",
+          "Tests/imsgTests/RPCServerTests.swift"
+        ]
+      },
+      {
+        "file": "0003-feat-rpc-add-no-fetch-rich-cards.patch",
+        "commit": "520b82ab025c1d4d57333b552aa65c9ae3fdb5fd",
+        "sha256": "c2346afca4dd0f9721c235db4f692d6a2d6dece36481e074d94b5ce78f2e019b",
+        "purpose": "Native URL cards without helper metadata/image fetching, safe exact-chat fixtures, and release-only adjacent resource lookup without a build-path fallback.",
+        "changedFiles": [
+          "Sources/imsg/RPCServer+BridgeMessageHandlers.swift",
+          "Sources/imsg/RichLinkPreparer.swift",
+          "Tests/imsgTests/RPCBridgeMessageHandlersTests.swift",
+          "Tests/imsgTests/RPCSendRichLinkValidationTests.swift",
+          "Tests/imsgTests/RPCServerTests.swift",
+          "Tests/imsgTests/RichLinkPreparerTests.swift",
+          "docs/rpc.md",
+          "scripts/patch-deps.sh"
+        ]
+      },
+      {
+        "file": "0004-fix-enforce-exact-chat-service-before-dispatch.patch",
+        "commit": "533789195c48480aef2cdc3a2377038301d5b861",
+        "sha256": "381ca328c396268cf074975b687344c12156007faba43914e3092699201c1e78",
+        "purpose": "Require the selected iMessage or SMS chat service immediately before each text and attachment dispatch, while preserving uncertain-delivery outcomes.",
+        "changedFiles": [
+          "Sources/IMsgCore/MessageSender.swift",
+          "Tests/IMsgCoreTests/MessageSenderServiceGuardTests.swift"
+        ]
+      }
+    ]
+  },
+  "artifact": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "executableSha256": "60201a816f33acc4d1926680badbf1e3c01f772aa4e8d3e2957bbe82cb06f073",
+    "reportedVersion": "0.14.1",
+    "build": {
+      "swift": "Apple Swift 6.2.3 (swiftlang-6.2.3.2.1 clang-1700.6.3.2)",
+      "sdk": "MacOSX26.2.sdk",
+      "command": [
+        "swift",
+        "build",
+        "--jobs",
+        "4",
+        "--disable-sandbox",
+        "--cache-path",
+        ".swiftpm-cache",
+        "--config-path",
+        ".swiftpm-config",
+        "--security-path",
+        ".swiftpm-security",
+        "--disable-automatic-resolution",
+        "-c",
+        "release",
+        "--product",
+        "imsg",
+        "-Xlinker",
+        "-S"
+      ],
+      "preparation": [
+        "scripts/generate-version.sh",
+        "swift package --force-resolved-versions resolve",
+        "scripts/patch-deps.sh"
+      ],
+      "linking": "Apple linker omits STABS/DWARF at link time before its default content-derived UUID and ad-hoc signature; no post-link byte rewriting.",
+      "dependencyPatches": [
+        "Pinned upstream patch-deps.sh retains PhoneNumberKit command-line/symlink bundle lookup and SQLite resource preparation.",
+        "Third reviewed patch keeps the generated Bundle.module fallback only in DEBUG; release builds require the adjacent shipped bundle and otherwise fail explicitly.",
+        "Fourth reviewed patch checks the exact selected Messages chat service immediately before each text or attachment dispatch and adds native guard tests."
+      ]
+    },
+    "executableBytes": 5430872,
+    "compression": "gzip",
+    "validation": {
+      "targetedSwiftTests": 679,
+      "signedBytesIdentical": false,
+      "strictAdHocSignatureVerification": true,
+      "userAndWorkspacePathsAbsent": true,
+      "installedLayoutVersion": "0.14.1",
+      "installedReleasePhoneNumberKitResourceParse": true,
+      "liveAccountOrSendQualification": false,
+      "releaseBuilds": 1,
+      "cleanRebuilds": 0,
+      "nativeServiceGuardTests": true
+    },
+    "compressedSha256": "a8b2026eeaf5bd2041b3266cca4b7ce6f711ecd25a78d3da7fa5de1163e7149f",
+    "compressedBytes": 1680150
+  },
+  "reviewBoundary": {
+    "liveSendPerformed": false,
+    "githubRepositoryCreated": false,
+    "externalMutationPerformed": false,
+    "appleScriptReturnsMessageGuid": false,
+    "acceptedEvidence": "A successful send is accepted only when imsg independently observes one matching outgoing chat.db row and returns its exact GUID.",
+    "unobservedEvidence": "An AppleScript call without an independently observed matching row remains may_have_completed and is not retryable.",
+    "accountSelection": "device-default",
+    "selectableAppleAccount": false,
+    "service": "iMessage",
+    "transport": "applescript",
+    "smsFallback": false,
+    "exactRouteLookup": "chats.get(chat_id) returns one exact current chat projection and rejects an unknown row",
+    "noFetchNativeCards": "Owner automation requests send.rich fetch_metadata=false; helper metadata/image loading is bypassed while native rich-card dispatch remains. Messages/recipient network behavior is outside this helper claim.",
+    "nativeRichBridge": "Requires an already-working compatible injected bridge; upstream setup requires disabled SIP. Installation and tests change no security setting or Messages process.",
+    "exactChatServiceGuard": "Before dispatch, AppleScript re-reads the target chat service and rejects mismatches; delivery remains may_have_completed when dispatch uncertainty is reported."
+  },
+  "bundledResources": {
+    "repository": "https://github.com/marmelroy/PhoneNumberKit",
+    "version": "5.0.6",
+    "commit": "e18a029dbada1d8eb32e3f81a4eb72eba539ff75",
+    "files": [
+      {
+        "source": "Sources/PhoneNumberKit/Resources/PhoneNumberMetadata.json",
+        "installed": "PhoneNumberKit_PhoneNumberKit.bundle/Contents/Resources/PhoneNumberMetadata.json",
+        "sha256": "cbfe80ee5ee9901f46893a4d2c353d5eb513a21e62529ee5dfaa4e94b4460d83"
+      },
+      {
+        "source": "Sources/PhoneNumberKit/PrivacyInfo.xcprivacy",
+        "installed": "PhoneNumberKit_PhoneNumberKit.bundle/Contents/Resources/PrivacyInfo.xcprivacy",
+        "sha256": "561040f7a52952f75d02d4b6758382ff48c563d6f25c84a09f1a655f6dc60ff8"
+      },
+      {
+        "source": "Ghostget-generated macOS resource bundle metadata",
+        "installed": "PhoneNumberKit_PhoneNumberKit.bundle/Contents/Info.plist",
+        "sha256": "161f6c4a3ceaee9ab2ce30e33c80e605a11e196c53e9791f87341e01bf80d7e9"
+      }
+    ],
+    "notices": "src/assets/messaging-runtime/NOTICE.txt",
+    "installActivatesProvider": false
+  }
+}

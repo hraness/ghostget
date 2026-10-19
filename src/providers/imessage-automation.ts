@@ -1,0 +1,357 @@
+import { createHash } from "node:crypto";
+import { constants } from "node:fs";
+import { open } from "node:fs/promises";
+import { join } from "node:path";
+import type { GhostgetAuth } from "../auth";
+import {
+  canonicalJson,
+  canonicalJsonSha256Variants,
+} from "../canonical-json";
+import type { LocalCliExecutionOptions } from "../local-cli-execution";
+import { OperationDeadline } from "../operation-deadline";
+import { discoveryDiagnostic, nativeDiagnostic, type DiscoveryDiagnosticPhase } from "../messaging-automation-diagnostics";
+import type { AutomationAction, AutomationConversation, AutomationCoordinate, AutomationIdentity, AutomationMessage, AutomationProviderStatus, AutomationProviderSendResult, AutomationScopedPage, MessagingAutomationProvider } from "../messaging-automation-types";
+import { AutomationGroupBindingChangedError } from "../messaging-automation-types";
+import { AUTOMATION_ACTION_KINDS, AUTOMATION_BINDING_CHANGED_REASON, automationArray, automationDigest, automationInteger, automationRecord, automationText, parseAutomationAction, parseAutomationConversation, parseAutomationCoordinate, parseAutomationIdentity, automationInstant } from "../messaging-automation-validation";
+import { IMSG_NO_FETCH_RICH_CARDS_AVAILABLE, type ImsgChatCoordinate, type ImsgRpcRequest } from "./imessage-direct";
+import { createImsgAutomationSessions, imsgAutomationProjection as project, type ImsgAutomationSessionContext, type ImsgChatProjection, type ImsgDirectRuntimeDependencies } from "./imessage-direct-runtime";
+
+export type ImsgAutomationOperation = "inspect" | "conversations" | "resolve" | "history" | "events" | AutomationAction["kind"];
+/** The Ghostget host supplies existing permission admission, auth lifetime and
+ * exact plugin closure. A contact grant only narrows this authority. */
+export type ImsgAutomationAdmission = Readonly<{ auth: GhostgetAuth; accountIdentity: string; implementationIdentity: string }>;
+export type ImsgAutomationOptions = Readonly<{
+  authorize(operation: ImsgAutomationOperation, signal?: AbortSignal): Promise<ImsgAutomationAdmission>;
+  execution: Pick<LocalCliExecutionOptions, "registerCleanupBarrier" | "environment"> & Readonly<{
+    /** Balanced custody accounting for the long-lived helper; see createImsgAutomationSessions. */
+    retainCustody?: (held: boolean) => void;
+  }>;
+  resolveAsset(assetId: string, signal?: AbortSignal): Promise<Readonly<{ bytes: Uint8Array; sha256: string }>>;
+  dependencies?: ImsgDirectRuntimeDependencies;
+  /** Test seam: how long an unused helper stays open. */
+  sessionIdleMs?: number;
+}>;
+type Session = ImsgAutomationSessionContext;
+const sha = (value: unknown): string => createHash("sha256").update(canonicalJson(value)).digest("hex");
+function request(method: string, params: Readonly<Record<string, unknown>> = {}, id = "operation"): ImsgRpcRequest { return { jsonrpc: "2.0", id, method, params }; }
+function coordinate(value: unknown): Extract<AutomationCoordinate, { provider: "imessage" }> {
+  const result = parseAutomationCoordinate(value);
+  if (result.provider !== "imessage") throw new Error("iMessage cannot operate another messaging network");
+  return result;
+}
+function target(value: AutomationCoordinate): ImsgChatCoordinate {
+  const item = coordinate(value); return { chatGuid: item.chatGuid, service: "iMessage", observedChatRowId: item.observedChatRowId };
+}
+function conversation(chat: ImsgChatProjection): AutomationConversation {
+  return { coordinate: coordinate({ provider: "imessage", chatGuid: chat.guid, service: "iMessage", observedChatRowId: chat.id }), title: chat.title, kind: chat.kind, participants: chat.participants };
+}
+function supportedDiscoveryCoordinate(chat: ImsgChatProjection): boolean {
+  // The native parser has already required observed service=iMessage. Modern
+  // any; GUIDs remain literal route identities, not permission to use SMS.
+  // Parse the whole page before omitting unsupported prefixes or larger GUIDs.
+  return (chat.guid.startsWith("iMessage;") || chat.guid.startsWith("any;")) && Buffer.byteLength(chat.guid) <= 1024;
+}
+function discoverableConversation(value: AutomationConversation): boolean {
+  // Native chat metadata can be valid without meeting the owner's bounded
+  // conversation contract. Omit those rows from this incomplete
+  // discovery page; exact resolution, enrollment and dispatch stay strict.
+  return value.participants.length >= 1 && value.participants.length <= (value.kind === "group" ? 500 : 2)
+    && new Set(value.participants).size === value.participants.length
+    && value.participants.every(participant => Buffer.byteLength(participant) <= 512)
+    && (value.title === null || Buffer.byteLength(value.title) <= 512);
+}
+async function exactConversation(session: Session, value: AutomationCoordinate, identity?: AutomationIdentity): Promise<AutomationConversation> {
+  const selected = target(value);
+  const output = await session.run([request("chats.get", { chat_id: selected.observedChatRowId })]);
+  const raw = output.get("operation"), projected = conversation(project.exactChat(raw, selected));
+  // The pinned helper's complete chat_handle_join query has no row limit.
+  // An absent field remains unavailable; only explicit [] proves this change.
+  const native = (raw as { chat: Record<string, unknown> }).chat;
+  if (identity && projected.kind === "group" && Array.isArray(native.participants) && native.participants.length === 0) throw new AutomationGroupBindingChangedError(identity, projected.coordinate);
+  return projected;
+}
+function methods(session: Session): ReadonlySet<string> {
+  const status = session.status as Record<string, unknown>; // already parsed by the pinned runtime
+  return new Set(automationArray(status.methods, 256).map(value => automationText(value, 128)));
+}
+function providerStatus(session: Session, identity: AutomationIdentity): AutomationProviderStatus {
+  const available = methods(session);
+  const rpc: Partial<Record<AutomationAction["kind"], string>> = { text: "send", attachment: "send", reaction: "tapback", sticker: "send.sticker", link: "send.rich", poll: "poll.send" };
+  const actions = Object.fromEntries(AUTOMATION_ACTION_KINDS.map(kind => {
+    if (kind === "link" && !IMSG_NO_FETCH_RICH_CARDS_AVAILABLE) return [kind, { available: false, reason: "The installed iMessage artifact predates no-fetch rich cards. The replacement native build has not been admitted." }];
+    const method = rpc[kind]; const ready = method !== undefined && available.has(method);
+    return [kind, { available: ready, reason: ready ? null : !method ? "The pinned iMessage helper has no reviewed operation for this action." : method === "send" ? "The native iMessage send operation is unavailable. Check Messages permissions in Ghostget." : `The private Messages bridge does not currently advertise ${method}. Its injection design requires owner-configured system support, including disabled SIP. Ghostget installation never changes SIP.` }];
+  })) as AutomationProviderStatus["actions"];
+  return { identity, connected: true, events: { available: available.has("messages.after"), reason: available.has("messages.after") ? null : "The pinned database cursor operation is unavailable." }, actions };
+}
+function message(value: unknown, selected: AutomationCoordinate, attachmentMetadata = false): AutomationMessage {
+  const projected = project.parseMessage(value, "automation message", target(selected), { attachmentMetadata });
+  const raw = value as Record<string, unknown>;
+  if (raw.is_reaction !== undefined && typeof raw.is_reaction !== "boolean") throw new Error("Invalid reaction marker");
+  const related = raw.is_reaction === true ? automationText(raw.reacted_to_guid, 256) : projected.replyToGuid;
+  if (Buffer.byteLength(projected.text) > 65_536) throw new Error("Automation message exceeds its text bound");
+  return { id: automationText(projected.guid, 256), coordinate: selected, direction: projected.isFromMe ? "outgoing" : "incoming", occurredAt: projected.createdAt, text: projected.text, kind: raw.is_reaction === true ? "reaction" : "message", relatedMessageId: related, attachments: projected.attachments };
+}
+async function historyMessages(session: Session, selected: AutomationCoordinate, limit: number): Promise<readonly AutomationMessage[]> {
+  await exactConversation(session, selected);
+  const response = await session.run([request("messages.history", { chat_id: target(selected).observedChatRowId, limit, attachments: false })]);
+  const row = automationRecord(response.get("operation"), ["messages"]);
+  const messages = automationArray(row.messages, limit).map(raw => message(raw, selected));
+  if (new Set(messages.map(item => item.id)).size !== messages.length) throw new Error("Repeated message identity");
+  return messages;
+}
+type Cursor = { version: 1; identity: string; coordinates: string; rows: number[]; anchors: ({ row: number; id: string } | null)[] };
+function cursor(value: string | null, identity: AutomationIdentity, coordinates: readonly AutomationCoordinate[]): Cursor {
+  if (value === null) return { version: 1, identity: sha(identity), coordinates: sha(coordinates), rows: coordinates.map(() => 0), anchors: coordinates.map(() => null) };
+  automationText(value, 16_384);
+  const decoded = Buffer.from(value, "base64url");
+  if (decoded.toString("base64url") !== value) throw new Error("Noncanonical iMessage cursor");
+  const parsed = automationRecord(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(decoded)), ["version", "identity", "coordinates", "rows", "anchors"]);
+  if (
+    parsed.version !== 1
+    || !canonicalJsonSha256Variants(identity).includes(parsed.identity as string)
+    || !canonicalJsonSha256Variants(coordinates).includes(parsed.coordinates as string)
+  ) throw new Error("iMessage cursor generation or scope changed");
+  const rows = automationArray(parsed.rows, 50).map(value => automationInteger(value, 0, Number.MAX_SAFE_INTEGER));
+  if (rows.length !== coordinates.length) throw new Error("iMessage cursor scope changed");
+  const anchors = automationArray(parsed.anchors, 50).map((value, index) => {
+    if (value === null) return null;
+    const anchor = automationRecord(value, ["row", "id"]);
+    return { row: automationInteger(anchor.row, 1, rows[index] ?? 0), id: automationText(anchor.id, 256) };
+  });
+  if (anchors.length !== rows.length) throw new Error("iMessage cursor anchor scope changed");
+  return { version: 1, identity: parsed.identity as string, coordinates: parsed.coordinates as string, rows, anchors };
+}
+
+/** One event scope inside a helper session: cursor decode, anchor proofs and
+ * `messages.after` pages for every coordinate, then the scope's own encoded
+ * nextCursor. Shared by `events` and `eventsScoped`. */
+async function eventsScope(session: Session, identity: AutomationIdentity, coordinates: readonly Extract<AutomationCoordinate, { provider: "imessage" }>[], cursorValue: string | null, limit: number): Promise<Readonly<{ messages: readonly AutomationMessage[]; nextCursor: string; caughtUp: boolean; gap: boolean }>> {
+  if (!methods(session).has("messages.after")) throw new Error("Database event cursor is unavailable");
+  const next = cursor(cursorValue, identity, coordinates);
+  const messages: AutomationMessage[] = []; let caughtUp = true;
+  for (const [index, selected] of coordinates.entries()) {
+    if (messages.length === limit) { caughtUp = false; break; }
+    await exactConversation(session, selected);
+    const anchor = next.anchors[index];
+    if (anchor) {
+      const proof = await session.run([request("messages.after", { chat_id: selected.observedChatRowId, since_rowid: anchor.row - 1, limit: 1, attachments: false, convert_attachments: false, include_reactions: true })]);
+      const proofPage = automationRecord(proof.get("operation"), ["messages", "next_rowid", "has_more"]);
+      const first = automationArray(proofPage.messages, 1)[0];
+      if (!first || (first as Record<string, unknown>).id !== anchor.row || message(first, selected).id !== anchor.id) throw new Error("iMessage cursor anchor changed; re-enrollment is required");
+    }
+    const remaining = limit - messages.length;
+    const result = await session.run([request("messages.after", { chat_id: selected.observedChatRowId, since_rowid: next.rows[index], limit: remaining, attachments: false, convert_attachments: false, include_reactions: true })]);
+    const page = automationRecord(result.get("operation"), ["messages", "next_rowid", "has_more"]);
+    const nextRow = automationInteger(page.next_rowid, next.rows[index]!, Number.MAX_SAFE_INTEGER);
+    if (typeof page.has_more !== "boolean" || page.has_more && nextRow === next.rows[index]) throw new Error("Nonprogressing iMessage cursor");
+    const rawMessages = automationArray(page.messages, remaining);
+    let previous = next.rows[index]!;
+    for (const raw of rawMessages) {
+      const parsed = message(raw, selected);
+      const rowId = automationInteger((raw as Record<string, unknown>).id, previous + 1, nextRow);
+      previous = rowId; messages.push(parsed); next.anchors[index] = { row: rowId, id: parsed.id };
+    }
+    next.rows[index] = nextRow;
+    if (page.has_more) caughtUp = false;
+  }
+  if (new Set(messages.map(item => item.id)).size !== messages.length) throw new Error("Repeated event identity");
+  return { messages, nextCursor: Buffer.from(canonicalJson(next)).toString("base64url"), caughtUp, gap: false };
+}
+
+/** Concrete pinned imsg implementation. It never starts the private Messages
+ * bridge, changes OS permissions, or falls back to SMS or another transport. */
+export function createImsgAutomationProvider(options: ImsgAutomationOptions): MessagingAutomationProvider {
+  let closed = false; let inFlight: Promise<unknown> | undefined;
+  // One verified helper serves the serialized operations below instead of a
+  // fresh materialized process per operation.
+  const sessions = createImsgAutomationSessions({
+    ...options.execution,
+    ...(options.dependencies ? { dependencies: options.dependencies } : {}),
+    ...(options.sessionIdleMs === undefined ? {} : { idleMs: options.sessionIdleMs }),
+  });
+  async function run<T>(operation: ImsgAutomationOperation, signal: AbortSignal | undefined, work: (session: Session, identity: AutomationIdentity, reauthorize: () => Promise<void>, phase: (phase: DiscoveryDiagnosticPhase) => void) => Promise<T>, budgetMs = 30_000): Promise<T> {
+    if (closed) throw new Error("iMessage provider is closed");
+    // Provider operations stay serialized — helper sessions and session
+    // custody are not reentrant — but a concurrent caller now queues instead
+    // of failing, so a busy provider is an ordinary wait, not a fence.
+    const previous = inFlight ?? Promise.resolve();
+    let diagnosticPhase: DiscoveryDiagnosticPhase = "admission";
+    const phase = (value: DiscoveryDiagnosticPhase): void => { diagnosticPhase = value; };
+    const pending = previous.then(async () => {
+      if (closed) throw new Error("iMessage provider is closed");
+      signal?.throwIfAborted();
+      const admission = await options.authorize(operation, signal);
+      if (admission.auth.kind !== "linked-device-store" || admission.auth.provider !== "imessage") throw new Error("iMessage account required");
+      const deadline = new OperationDeadline(budgetMs, signal ? { signal } : {});
+      try {
+        phase("native-preflight");
+        return await sessions.withSession(admission.auth, { operationDeadline: deadline, ...(operation === "conversations" ? { discoveryPhase: phase } : {}) }, async session => {
+          const identity = parseAutomationIdentity({ provider: "imessage", authId: admission.auth.id, accountIdentity: admission.accountIdentity, accountSubject: session.subject, implementationIdentity: admission.implementationIdentity, sourceGeneration: session.sourceGeneration });
+          const reauthorize = async () => { signal?.throwIfAborted(); const after = await options.authorize(operation, signal); if (sha(after) !== sha(admission)) throw nativeDiagnostic(new Error("iMessage account or permission changed during the operation"), "identity-changed"); };
+          let result;
+          try { result = await work(session, identity, reauthorize, phase); }
+          catch (error) { if (error instanceof AutomationGroupBindingChangedError) await reauthorize(); throw error; }
+          phase("reauthorization");
+          await reauthorize();
+          return result;
+        });
+      } catch (error) {
+        if (operation === "conversations" && !signal?.aborted && deadline.remainingTimeMs() === 0) throw discoveryDiagnostic(error, diagnosticPhase, "deadline");
+        throw error;
+      } finally { deadline.dispose(); }
+    });
+    // The chain tail never rejects: close() drains it, and one failed
+    // operation must not poison the operations queued behind it.
+    inFlight = pending.then(() => undefined, () => undefined);
+    try { return await pending; }
+    catch (error) { throw operation === "conversations" ? discoveryDiagnostic(error, diagnosticPhase, signal?.aborted ? "cancelled" : "failed") : error; }
+  }
+  return {
+    provider: "imessage",
+    groupConversations: { version: 1 },
+    inspect(signal) { return run("inspect", signal, async (session, identity) => providerStatus(session, identity)); },
+    conversations(input, signal) {
+      const limit = automationInteger(input.limit, 1, 200);
+      return run("conversations", signal, async (session, identity, _reauthorize, phase) => {
+        phase("native-chats");
+        const result = await session.run([request("chats.list", { limit })]);
+        // Parse every native row and duplicate coordinate before selecting only
+        // coordinates supported by the owner's exact route contract.
+        phase("native-projection");
+        let conversations: AutomationConversation[];
+        try { conversations = project.parseChats(result.get("operation")).filter(supportedDiscoveryCoordinate).map(chat => {
+          try { return conversation(chat); }
+          catch (error) { throw error instanceof Error ? nativeDiagnostic(error, "coordinate-invalid") : error; }
+        }).filter(discoverableConversation); }
+        catch (error) { throw discoveryDiagnostic(error, "native-projection", "schema-invalid"); }
+        return { identity, conversations, complete: false };
+      });
+    },
+    resolve(value, signal) { const selected = coordinate(value); return run("resolve", signal, async (session, identity) => ({ identity, conversation: await exactConversation(session, selected, identity) })); },
+    history(input, signal) {
+      const selected = coordinate(input.coordinate), limit = automationInteger(input.limit, 1, 200);
+      const window = { ...(input.before === undefined ? {} : { end: automationInstant(input.before) }), ...(input.after === undefined ? {} : { start: automationInstant(input.after) }) };
+      return run("history", signal, async (session, identity) => {
+        await exactConversation(session, selected);
+        const response = await session.run([request("messages.history", { chat_id: selected.observedChatRowId, limit, attachments: true, convert_attachments: false, ...window })]);
+        const raw = automationArray(automationRecord(response.get("operation"), ["messages"]).messages, limit);
+        const messages = raw.map(value => message(value, selected, true));
+        if (new Set(messages.map(item => item.id)).size !== messages.length) throw new Error("Repeated history identity");
+        const next = cursor(null, identity, [selected]);
+        for (const [index, value] of raw.entries()) {
+          const row = automationInteger((value as Record<string, unknown>).id, 1, Number.MAX_SAFE_INTEGER);
+          if (row > next.rows[0]!) { next.rows[0] = row; next.anchors[0] = { row, id: messages[index]!.id }; }
+        }
+        // Start after the newest verified history row, then silently drain any
+        // remaining rows to establish the initial live boundary.
+        return { identity, messages, nextCursor: Buffer.from(canonicalJson(next)).toString("base64url"), caughtUp: false, gap: false };
+      });
+    },
+    events(input, signal) {
+      const coordinates = automationArray(input.coordinates, 50).map(coordinate).sort((a, b) => canonicalJson(a).localeCompare(canonicalJson(b)));
+      if (coordinates.length === 0 || new Set(coordinates.map(sha)).size !== coordinates.length) throw new Error("Distinct iMessage event scopes required");
+      const limit = automationInteger(input.limit, 1, 500);
+      return run("events", signal, async (session, identity) => ({ identity, ...(await eventsScope(session, identity, coordinates, input.cursor, limit)) }));
+    },
+    /** All scopes share one helper session; each keeps its own cursor and
+     * yields its own page. A scope-level failure (a stale anchor, a rejected
+     * cursor) is isolated to that scope instead of failing the set. */
+    eventsScoped(input, signal) {
+      const scopes = automationArray(input.scopes, 50).map(value => {
+        const scope = automationRecord(value, ["coordinates", "cursor"]);
+        const coordinates = automationArray(scope.coordinates, 50).map(coordinate).sort((a, b) => canonicalJson(a).localeCompare(canonicalJson(b)));
+        if (coordinates.length === 0 || new Set(coordinates.map(sha)).size !== coordinates.length) throw new Error("Distinct iMessage event scopes required");
+        return { coordinates, cursor: scope.cursor === null ? null : automationText(scope.cursor, 4096) };
+      });
+      if (scopes.length === 0) throw new Error("iMessage event scopes are required");
+      const limit = automationInteger(input.limit, 1, 500);
+      // A scoped call covers up to 50 scopes in one session; the deadline
+      // scales per scope (capped) so a deep backlog degrades per scope rather
+      // than wedging every tick on the shared 30s default.
+      return run("events", signal, async (session, identity) => {
+        const results: AutomationScopedPage[] = [];
+        for (const scope of scopes) {
+          signal?.throwIfAborted();
+          try { results.push(await eventsScope(session, identity, scope.coordinates, scope.cursor, limit)); }
+          catch (error) { results.push({ error: error instanceof Error ? error.message : "iMessage event scope failed" }); }
+        }
+        return { identity, results };
+      }, Math.min(30_000 + (scopes.length - 1) * 15_000, 300_000));
+    },
+    async send(input, signal): Promise<AutomationProviderSendResult> {
+      const selected = coordinate(input.coordinate), action = parseAutomationAction(input.action), expected = parseAutomationIdentity(input.identity);
+      let dispatched = false, bindingChanged = false;
+      try {
+        return await run(action.kind, signal, async (session, identity, reauthorize) => {
+          if (sha(identity) !== sha(expected)) throw new Error("iMessage account or source changed before dispatch");
+          const live = await exactConversation(session, selected, identity);
+          const bound = input.conversation === undefined ? null : parseAutomationConversation(input.conversation);
+          const fingerprint = (value: AutomationConversation) => sha({ ...parseAutomationConversation(value), title: null });
+          if (live.kind === "group") {
+            if (bound === null || bound.kind !== "group") throw new Error("Group sends require an exact participant binding");
+            if (fingerprint(live) !== fingerprint(bound)) { bindingChanged = true; throw new Error("iMessage group binding changed"); }
+          } else if (live.kind !== "single" || live.participants.length !== 1 || bound?.kind === "group") {
+            bindingChanged = bound?.kind === "group"; throw new Error("The iMessage participant binding changed");
+          }
+          if (!providerStatus(session, identity).actions[action.kind].available) throw new Error("Requested action is unavailable");
+          let method: string; const params: Record<string, unknown> = { chat_guid: selected.chatGuid };
+          if (action.kind === "text") { method = "send"; Object.assign(params, { text: action.text, service: "imessage", transport: "applescript", allow_sms_fallback: false }); }
+          else if (action.kind === "link") { method = "send.rich"; params.url = action.url; params.fetch_metadata = false; }
+          else if (action.kind === "poll") { if (action.maximumSelections !== null) throw new Error("Native iMessage polls use provider selection behavior"); method = "poll.send"; Object.assign(params, { question: action.question, options: action.options, suppress_comment: true }); }
+          else if (action.kind === "reaction" || action.kind === "sticker" || action.kind === "attachment") {
+            if ((action.kind === "reaction" || action.kind === "sticker") && action.messageId !== null) {
+              const current = await historyMessages(session, selected, 200);
+              if (!current.some(message => message.id === action.messageId && message.kind === "message")) throw new Error("Reaction or sticker target must belong to current conversation history");
+            }
+            if (action.kind === "reaction") {
+              if (!["❤️", "👍", "👎", "😂", "‼️", "❓"].includes(action.emoji)) throw new Error("This iMessage contract admits the six standard reactions");
+              method = "tapback"; Object.assign(params, { message_guid: action.messageId, emoji: action.emoji, remove: action.remove });
+            } else {
+              const asset = await options.resolveAsset(action.assetId, signal);
+              const maximum = action.kind === "sticker" ? 500 * 1024 : 16 * 1024 * 1024;
+              if (!(asset.bytes instanceof Uint8Array) || asset.bytes.byteLength < 1 || asset.bytes.byteLength > maximum) throw new Error("Attachment byte admission failed");
+              const bytes = Buffer.from(asset.bytes);
+              if (createHash("sha256").update(bytes).digest("hex") !== automationDigest(asset.sha256)) throw new Error("Attachment byte admission failed");
+              const path = join(await session.operationDirectory(), action.kind === "attachment" ? action.name : "sticker");
+              const file = await open(path, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
+              try { await file.writeFile(bytes); await file.sync(); } finally { await file.close(); }
+              params.file = path;
+              if (action.kind === "sticker") { method = "send.sticker"; if (action.messageId !== null) params.attach_to = action.messageId; }
+              else { method = "send"; Object.assign(params, { service: "imessage", transport: "applescript", allow_sms_fallback: false }); }
+            }
+          } else throw new Error("No reviewed iMessage implementation exists for this experience");
+          signal?.throwIfAborted();
+          const response = await session.run([request(method, params)], async () => {
+            await reauthorize();
+            if (fingerprint(await exactConversation(session, selected, identity)) !== fingerprint(live)) { bindingChanged = live.kind === "group"; throw new Error("iMessage participants changed before dispatch"); }
+            await reauthorize();
+            dispatched = true;
+          });
+          const raw = response.get("operation");
+          if (raw === null || typeof raw !== "object" || Array.isArray(raw)) throw new Error("Invalid iMessage acceptance");
+          const result = raw as Record<string, unknown>;
+          if (action.kind === "text" || action.kind === "attachment") {
+            const accepted = project.parseSendAccepted(result, target(selected));
+            return { state: "accepted", messageId: automationText(accepted.messageGuid, 256), providerReceiptId: null, delivery: "unknown" };
+          }
+          const allowed = action.kind === "reaction" ? ["ok", "reaction"] : action.kind === "poll" ? ["ok", "event", "guid", "message_id", "poll"] : action.kind === "link" ? ["ok", "id", "guid", "message_id", "messageGuid", "chat_guid", "chatGuid", "queued", "service", "richLinkImageUsed"] : ["ok", "transfer_guid"];
+          if (result.ok !== true || Object.keys(result).some(key => !allowed.includes(key)) || result.chat_guid !== undefined && result.chat_guid !== selected.chatGuid || result.transport !== undefined && result.transport !== "applescript") throw new Error("iMessage acceptance changed");
+          const ids = [result.guid, result.message_id, result.messageGuid].filter(value => value !== undefined).map(value => automationText(value, 256));
+          const messageId = ids[0] ?? null;
+          if (ids.some(value => value !== messageId)) throw new Error("Ambiguous iMessage result identity");
+          if (result.chatGuid !== undefined && result.chatGuid !== selected.chatGuid || result.queued !== undefined && typeof result.queued !== "boolean") throw new Error("iMessage rich-link receipt changed");
+          if (action.kind === "link" && (result.service !== undefined && result.service !== "iMessage" || result.richLinkImageUsed !== undefined && result.richLinkImageUsed !== false)) throw new Error("iMessage rich-link transport or metadata mode changed");
+          if (result.id !== undefined) automationInteger(result.id, 1, Number.MAX_SAFE_INTEGER);
+          if (action.kind === "link" && messageId === null) throw new Error("Rich-link acceptance has no reconciled message identity");
+          const providerReceiptId = result.transfer_guid === undefined ? null : automationText(result.transfer_guid, 256);
+          if (action.kind === "reaction") { automationRecord(result, ["ok", "reaction"]); automationInteger(result.reaction, action.remove ? 3000 : 2000, action.remove ? 3005 : 2005); }
+          if (action.kind === "sticker") { automationRecord(result, ["ok", "transfer_guid"]); if (providerReceiptId === null) throw new Error("Sticker transfer receipt is missing"); }
+          if (action.kind === "poll" && (result.event !== "imessage.poll.created" || messageId === null)) throw new Error("Poll creation receipt is missing");
+          return { state: "accepted", messageId, providerReceiptId, delivery: "unknown" };
+        });
+      } catch (error) { return { state: dispatched ? "indeterminate" : "not-started", reason: dispatched ? "iMessage dispatch or process cleanup could not be reconciled. Do not retry." : bindingChanged || error instanceof AutomationGroupBindingChangedError && input.conversation?.kind === "group" ? AUTOMATION_BINDING_CHANGED_REASON : "iMessage admission failed before any send." }; }
+    },
+    async close() { closed = true; await inFlight; await sessions.close(); },
+  };
+}

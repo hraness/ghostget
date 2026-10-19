@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en" data-hraness-theme="paper" data-palette="gruvbox">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#fbf1c7" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="description" content="This page doesn’t exist on ghostget.com. Install GhostGet or start from the getting started guide.">
+    <title>Page not found · GhostGet</title>
+    <link rel="icon" href="/icon.png" type="image/png" sizes="32x32">
+    <link rel="icon" href="/icon-96.png" type="image/png" sizes="96x96">
+    <link rel="apple-touch-icon" href="/apple-icon.png" sizes="180x180">
+    <link rel="stylesheet" href="{{CSS_ASSET}}">
+    <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
+    <meta name="ghostget-posthog-key" content="{{POSTHOG_KEY}}">
+    <script type="module" src="{{ANALYTICS_ASSET}}"></script>
+    <script type="module" src="{{FOIL_ASSET}}"></script>
+    <script type="module" src="{{STATUS_PAGE_ASSET}}"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="topbar guide-topbar">
+      <a aria-label="{{PORTFOLIO_NAME}} home" class="wordmark hraness-foil-text" data-foil="" href="/"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span> {{PORTFOLIO_NAME}}</a>
+      <nav aria-label="Primary">
+        <a href="/docs/tutorials/getting-started/">Install</a>
+        <a href="/docs/reference/provider-capabilities/">Providers</a>
+        <a href="/docs/">Docs</a>
+        <a href="https://github.com/hraness/ghostget">GitHub <span aria-hidden="true">↗</span></a>
+        <a href="https://account.hraness.com/">Account</a>
+      </nav>
+    </header>
+    <main class="status-main" id="main" tabindex="-1">
+      {{STATUS_PAGE}}
+    </main>
+    {{HRANESS_SITE_FOOTER}}
+  </body>
+</html>

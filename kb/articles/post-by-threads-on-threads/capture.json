@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 4,
+  "document": {
+    "path": "post-by-threads-on-threads.md",
+    "bytes": 1757,
+    "sha256": "ab30f3617004c8c33698c05920886951d5ca6116d6cbb7501964db3baa25feae"
+  },
+  "sourceUrl": "https://www.threads.com/@hraness",
+  "canonicalUrl": "https://www.threads.com/@hraness",
+  "capturedAt": "2026-10-05T14:10:16.833Z",
+  "platform": "threads",
+  "status": "complete",
+  "scope": "page",
+  "acquisition": {
+    "method": "browser-fresh",
+    "finalUrl": "https://www.threads.com/@hraness",
+    "contentType": "text/html; charset=utf-8"
+  },
+  "extraction": {
+    "extractor": "defuddle:threads",
+    "score": 9548,
+    "wordCount": 223,
+    "capturedItems": 1,
+    "expectedItems": null
+  },
+  "attempts": [
+    {
+      "method": "public-api",
+      "outcome": "skipped",
+      "message": "no stable public structured adapter"
+    },
+    {
+      "method": "http",
+      "outcome": "succeeded",
+      "message": "complete; 0 words; 1 items"
+    },
+    {
+      "method": "cookie-http",
+      "outcome": "succeeded",
+      "message": "complete; 0 words; 1 items"
+    },
+    {
+      "method": "browser-fresh",
+      "outcome": "succeeded",
+      "message": "complete; 147 words; 1 items"
+    }
+  ],
+  "assets": [
+    {
+      "source": "https://scontent-mia5-1.cdninstagram.com/v/t51.82787-15/834318489_17986965720099423_793010400322550474_n.jpg",
+      "url": "https://scontent-mia5-1.cdninstagram.com/v/t51.82787-15/834318489_17986965720099423_793010400322550474_n.jpg",
+      "path": "assets/69f72f037fb9b5a96b109cf295826bc693f68be9c429aaffb23b61e927a22b26.jpg",
+      "mimeType": "image/jpeg",
+      "bytes": 83198,
+      "sha256": "69f72f037fb9b5a96b109cf295826bc693f68be9c429aaffb23b61e927a22b26"
+    },
+    {
+      "source": "https://scontent-mia3-1.cdninstagram.com/v/t51.82787-19/779787970_17980344444099423_5647745513502034641_n.jpg",
+      "url": "https://scontent-mia3-1.cdninstagram.com/v/t51.82787-19/779787970_17980344444099423_5647745513502034641_n.jpg",
+      "path": "assets/9f4dead02f45b686580db309380f29969e0f448818662d81a5be8cba3346da25.jpg",
+      "mimeType": "image/jpeg",
+      "bytes": 64820,
+      "sha256": "9f4dead02f45b686580db309380f29969e0f448818662d81a5be8cba3346da25"
+    },
+    {
+      "source": "https://scontent-mia3-1.cdninstagram.com/v/t51.71878-15/830324728_1611951653761384_8875728722481838194_n.jpg",
+      "url": "https://scontent-mia3-1.cdninstagram.com/v/t51.71878-15/830324728_1611951653761384_8875728722481838194_n.jpg",
+      "path": "assets/b056d369885d5dceb4c000cd67ec76eb7450da2222994ecbe048489abc08e22c.jpg",
+      "mimeType": "image/jpeg",
+      "bytes": 12869,
+      "sha256": "b056d369885d5dceb4c000cd67ec76eb7450da2222994ecbe048489abc08e22c"
+    }
+  ],
+  "artifacts": {
+    "images": {
+      "requested": true,
+      "status": "captured",
+      "files": 3
+    },
+    "media": {
+      "requested": false,
+      "status": "not-requested",
+      "files": 0
+    },
+    "videoContext": {
+      "requested": false,
+      "status": "not-requested",
+      "thumbnailPath": null,
+      "transcriptLanguage": null,
+      "transcriptCueCount": 0,
+      "transcriptTruncated": false,
+      "metadata": null
+    }
+  },
+  "evidence": {
+    "requested": "none",
+    "screenshotPath": null,
+    "screenshotStatus": "not-requested",
+    "sourceHtmlStatus": "not-requested",
+    "sourceHtmlPath": null
+  },
+  "warnings": [
+    "Seeded explicitly selected cookies into the owned browser without broadening their domain, path, Secure, HttpOnly, SameSite, or expiry attributes."
+  ]
+}

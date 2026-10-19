@@ -1,0 +1,23 @@
+== Ghostget ==
+Ghostget controls are paused
+Another Ghostget control owner holds this state home, or none answered
+Account: none (public scope)
+
+== Approvals ==
+No approvals waiting
+
+== Accounts ==
+No accounts connected
+Connect: browser sign-in unavailable here
+
+== Permissions ==
+Managed: off · revision 0
+allow 0 · ask 0 · deny 0
+
+== Outputs ==
+x-timeline-2026-09-26.md · 18.0 KB · 5 min ago
+example-com.pdf · 392.7 KB · 3 h ago
+
+== Next ==
+ghostget control status
+ghostget status

@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en" data-hraness-theme="paper" data-palette="gruvbox">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#fbf1c7" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">
+    <title>Contact GhostGet maintainers and report security issues</title>
+    <meta name="description" content="Contact GhostGet through public GitHub issues or private vulnerability reporting. No telephone, postal address, or support inbox is published.">
+    <meta name="robots" content="max-image-preview:large">
+    <link rel="canonical" href="https://ghostget.com/contact/">
+    <link rel="icon" href="/icon.png" type="image/png" sizes="32x32">
+    <link rel="icon" href="/icon-96.png" type="image/png" sizes="96x96">
+    <link rel="apple-touch-icon" href="/apple-icon.png" sizes="180x180">
+    <link rel="stylesheet" href="{{CSS_ASSET}}">
+    <link rel="sitemap" type="application/xml" href="/sitemap.xml">
+    {{MARKDOWN_ALTERNATE}}
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="GhostGet">
+    <meta property="og:title" content="Contact GhostGet maintainers and report security issues">
+    <meta property="og:description" content="Contact GhostGet through public GitHub issues or private vulnerability reporting. No telephone, postal address, or support inbox is published.">
+    <meta property="og:url" content="https://ghostget.com/contact/">
+    <meta property="og:image" content="https://ghostget.com/og.png">
+    <meta property="og:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Contact GhostGet maintainers and report security issues">
+    <meta name="twitter:description" content="Contact GhostGet through public GitHub issues or private vulnerability reporting. No telephone, postal address, or support inbox is published.">
+    <meta name="twitter:image" content="https://ghostget.com/og.png">
+    <meta name="twitter:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
+    <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
+    <meta name="ghostget-posthog-key" content="{{POSTHOG_KEY}}">
+    <script type="application/ld+json">{{JSON_LD}}</script>
+    <script type="module" src="{{ANALYTICS_ASSET}}"></script>
+    <script type="module" src="{{FOIL_ASSET}}"></script>
+  </head>
+  <body data-hraness-landscape="page">
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="topbar guide-topbar">
+      <a aria-label="{{PORTFOLIO_NAME}} home" class="wordmark hraness-foil-text" data-foil="" href="/"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span> {{PORTFOLIO_NAME}}</a>
+      <nav aria-label="Primary">
+        <a href="/docs/tutorials/getting-started/">Install</a>
+        <a href="/docs/reference/provider-capabilities/">Providers</a>
+        <a href="/docs/">Docs</a>
+        <a href="https://github.com/hraness/ghostget">GitHub <span aria-hidden="true">↗</span></a>
+        <a href="https://account.hraness.com/">Account</a>
+      </nav>
+    </header>
+    <main class="guide-main" id="main" tabindex="-1">
+      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">GhostGet</a></li><li aria-current="page">Contact</li></ol></nav>
+      <article class="guide-article">
+        <header class="guide-hero">
+          <p class="eyebrow">Contact · GhostGet {{GHOSTGET_VERSION}}</p>
+          <h1>Use GitHub for product questions and private security reports.</h1>
+          <p class="answer-lede">GhostGet is maintained in public by the <a href="https://github.com/hraness">Hraness GitHub organization</a>. It has two contact channels: public GitHub issues and GitHub private vulnerability reporting. There is no phone number, postal address, or support inbox.</p>
+          <p class="review-note">These channels match the repository’s security policy for GhostGet {{GHOSTGET_RELEASE}}.</p>
+        </header>
+
+        <section aria-labelledby="public-issues">
+          <h2 id="public-issues">Public product questions</h2>
+          <p>Open a public issue on <a href="{{GHOSTGET_REPOSITORY}}/issues">github.com/hraness/ghostget/issues</a> for defects, documentation gaps, or questions that do not include secrets. Do not paste credentials, authenticated traffic, private content, browser profiles, state directories, or provider account identifiers into a public issue.</p>
+        </section>
+
+        <section aria-labelledby="unpublished-channels">
+          <h2 id="unpublished-channels">Unofficial channels</h2>
+          <p>Unofficial mirrors, social replies, and guessed email addresses aren’t maintainer contact channels. If a report includes secrets, use private vulnerability reporting.</p>
+        </section>
+
+        <section aria-labelledby="security-reports">
+          <h2 id="security-reports">Security reports</h2>
+          <p>Report suspected vulnerabilities through <a href="{{GHOSTGET_REPOSITORY}}/security/advisories/new">GitHub private vulnerability reporting</a> for the GhostGet repository. That is the path named by the public security policy. Do not open a public issue containing credentials, cookies, tokens, private content, or local paths.</p>
+          <p>The <a href="/docs/explanation/security-model/">security guide</a> explains how GhostGet stores sign-ins and what happens when a service changes. Read it before you connect an account. Source-side policy lives in the repository <code>SECURITY.md</code> for {{GHOSTGET_RELEASE}}.</p>
+        </section>
+
+        <aside class="guide-callout" aria-labelledby="contact-next">
+          <h2 id="contact-next">Read before you file</h2>
+          <p>Confirm current behavior in the <a href="/docs/tutorials/getting-started/">getting started guide</a> and <a href="/llms.txt">llms.txt</a> before opening an issue.</p>
+        </aside>
+      </article>
+    </main>
+    {{HRANESS_SITE_FOOTER}}
+  </body>
+</html>

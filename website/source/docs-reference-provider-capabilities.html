@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en" data-hraness-theme="paper" data-palette="gruvbox">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#fbf1c7" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">
+    <title>Provider support in GhostGet</title>
+    <meta name="description" content="See which services and actions GhostGet supports in the current release, how each service connects, and how to check what your installation can run.">
+    <meta name="robots" content="max-image-preview:large">
+    <link rel="canonical" href="https://ghostget.com/docs/reference/provider-capabilities/">
+    <link rel="icon" href="/icon.png" type="image/png" sizes="32x32">
+    <link rel="icon" href="/icon-96.png" type="image/png" sizes="96x96">
+    <link rel="apple-touch-icon" href="/apple-icon.png" sizes="180x180">
+    <link rel="stylesheet" href="{{CSS_ASSET}}">
+    <link rel="sitemap" type="application/xml" href="/sitemap.xml">
+    {{MARKDOWN_ALTERNATE}}
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="GhostGet">
+    <meta property="og:title" content="Provider support in GhostGet">
+    <meta property="og:description" content="See which services and actions GhostGet supports in the current release, how each service connects, and how to check what your installation can run.">
+    <meta property="og:url" content="https://ghostget.com/docs/reference/provider-capabilities/">
+    <meta property="og:image" content="https://ghostget.com/og.png">
+    <meta property="og:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Provider support in GhostGet">
+    <meta name="twitter:description" content="See which services and actions GhostGet supports in the current release, how each service connects, and how to check what your installation can run.">
+    <meta name="twitter:image" content="https://ghostget.com/og.png">
+    <meta name="twitter:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
+    <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
+    <meta name="ghostget-posthog-key" content="{{POSTHOG_KEY}}">
+    <script type="application/ld+json">{{JSON_LD}}</script>
+    <script type="module" src="{{ANALYTICS_ASSET}}"></script>
+    <script type="module" src="{{FOIL_ASSET}}"></script>
+  </head>
+  <body data-hraness-landscape="page">
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="topbar guide-topbar">
+      <a aria-label="{{PORTFOLIO_NAME}} home" class="wordmark hraness-foil-text" data-foil="" href="/"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span> {{PORTFOLIO_NAME}}</a>
+      <nav aria-label="Primary">
+        <a href="/docs/tutorials/getting-started/">Install</a>
+        <a aria-current="page" href="/docs/reference/provider-capabilities/">Providers</a>
+        <a href="/docs/">Docs</a>
+        <a href="https://github.com/hraness/ghostget">GitHub <span aria-hidden="true">↗</span></a>
+        <a href="https://account.hraness.com/">Account</a>
+      </nav>
+    </header>
+    <main class="guide-main" id="main" tabindex="-1">
+      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">GhostGet</a></li><li><a href="/docs/">Docs</a></li><li aria-current="page">Provider support</li></ol></nav>
+      <article class="guide-article">
+        <header class="guide-hero">
+          <p class="eyebrow">Reference · provider support · GhostGet {{GHOSTGET_VERSION}}</p>
+          <h1>What GhostGet can do in each service</h1>
+          <p class="answer-lede">This directory lists the current release's generic actions and, separately, owner-only messaging permissions. Each service names its access method. A listed contract still needs the required account, permissions, and runtime capabilities; an absent action is unavailable.</p>
+          <p class="review-note">Run <code>ghostget capabilities --json</code> to see what is installed on your machine, then check that the account and local setup you plan to use are ready.</p>
+        </header>
+
+        <section aria-labelledby="directory">
+          <h2 id="directory">{{PROVIDER_SURFACE_COUNT}} services</h2>
+          <div class="provider-directory provider-directory-guide">
+            {{PROVIDER_OVERVIEW_CARDS}}
+          </div>
+          <p class="provider-status-note">Provider names identify compatible services and do not imply endorsement. GhostGet does not claim support for services or actions that are absent from this page.</p>
+        </section>
+
+        <section aria-labelledby="actions">
+          <h2 id="actions">Supported actions by service</h2>
+          <p>Generic action names identify the command surface your agent uses. The access label names an official API, signed-in session, linked device, or local app. The separate <code>messaging.automation.*</code> entries authorize the trusted owner host only; they cannot run through generic <code>invoke</code> or <code>confirm</code>. An owner grant and current runtime support are required before that host can send.</p>
+          <div class="provider-attestation-groups">
+            {{PROVIDER_ATTESTATION_GROUPS}}
+          </div>
+        </section>
+
+        <section aria-labelledby="local-source-exports">
+          <h2 id="local-source-exports">Local source exports</h2>
+          <p><code>ghostget apple-photos export-contact-evidence</code> reads bounded, transient full copies of the current macOS account's private Photos and Contacts SQLite databases. Those copies can include unselected columns and raw blobs. It returns exact person-to-contact identifiers, biometric-derived cluster counts, distinct <code>ZASSET</code>-row counts, linked-asset date bounds, component capture intervals, privacy declarations, and integrity evidence. The listed exclusions apply only to the returned JSON: names, paths, images, locations, raw blobs, faceprint templates, face crops, and unmatched people are excluded. The workflow performs no authentication, network request, synchronization, or mutation, and it does not open, copy, or ask Photos to materialize referenced photo or video asset files.</p>
+          <p>This workflow stays outside the provider-action table above because it does not connect to a service or enter the action catalog. Each local database is consistent within its recorded capture interval; no atomic instant across databases is claimed. Remote iCloud and Contacts synchronization are not asserted.</p>
+        </section>
+
+        <aside class="guide-callout" aria-labelledby="provider-next">
+          <h2 id="provider-next">Set up only the service you need</h2>
+          <p>Follow the <a href="/docs/tutorials/getting-started/">installation guide</a>, inspect <code>ghostget capabilities PROVIDER --json</code>, then read the <a href="/docs/explanation/security-model/">security model</a> before connecting an account. The <a href="/docs/how-to/connect-beeper/">Beeper guide</a> documents its local app integration in detail.</p>
+        </aside>
+      </article>
+    </main>
+    {{HRANESS_SITE_FOOTER}}
+  </body>
+</html>

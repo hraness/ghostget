@@ -1,3 +1,1523 @@
 # GhostGet
 
-This private staging repository is reserved for the trimmed GhostGet distribution. Product source is admitted in a checked pull request before public activation.
+> 👻 GhostGet is an agent tool for driving websites fast. Instead of screenshots
+> and clicks, your agent calls named actions for the sites you use: read the
+> page, list the inbox, send the reply, publish the post. One measured article
+> read costs about 3,800 tokens through GhostGet against 36,000 for the raw
+> page, and your agent never holds a password.
+>
+> Ask your agent to set it up: https://ghostget.com
+>
+> — Ben Guo
+
+[![GhostGet: Named web actions for AI agents: read pages, save media, use connected accounts](https://ghostget.com/og.png)](https://ghostget.com)
+
+[![skills.sh](https://skills.sh/b/hraness/ghostget)](https://www.skills.sh/hraness/ghostget/ghostget)
+
+GhostGet is an agent tool for driving websites fast. Instead of screenshots and
+clicks, agents call named actions for the sites you use, finishing tasks in a
+tenth of the tokens without ever holding a password. It is for people who
+already run an agent such as Codex, Claude Code, or Cursor and want it to use
+the web the way they do: read a page, save a file, act in an account.
+
+Each action knows one site. It runs on your computer against your own signed-in
+session, returns structured data instead of a page to parse, and leaves a record
+of every write that matters. Your agent supplies the model and the plan; GhostGet
+supplies the actions. GhostGet is free, MIT licensed, and runs on macOS and Linux
+with Bun 1.3.14.
+
+[Get started](#install) · [Choose a task](#choose-your-next-task) · [Supported services](https://ghostget.com/docs/reference/provider-capabilities/) · [Docs](https://ghostget.com/docs/tutorials/getting-started/) · [Security](SECURITY.md)
+
+## How it works
+
+```mermaid
+flowchart LR
+    A["Your agent<br/>CLI · Agent Skill · SDK · platform tool bridge"] -->|"ghostget invoke gmail messaging.list"| B["GhostGet action"]
+    B --> C["Your signed-in session<br/>on your computer"]
+    C --> D["Structured result<br/>JSON or Markdown"]
+    D -.-> A
+```
+
+Your agent names the action. GhostGet runs it against the session you already
+have, with no password in the prompt and no browser for the model to steer, and
+hands back the result as data.
+
+### Tokens per task
+
+| Approach | Bytes in context | Estimated tokens |
+| --- | ---: | ---: |
+| Raw HTML of the page | 145,617 | about 36,000 |
+| GhostGet `read` | 15,021 | about 3,800 |
+
+Task: read one Wikipedia article ([Wget](https://en.wikipedia.org/wiki/Wget)).
+One run of each on September 22, 2026, over HTTP with no browser. Tokens are
+estimated at four bytes per token and rounded to the nearest hundred; the
+Markdown is 9.7× smaller than the HTML. Token counts vary by model tokenizer.
+The install and actions in this README refer to release v0.19.0.
+[The thread through hraness](https://hraness.com/writing/the-thread-through-hraness)
+describes how the other Hraness projects share this design.
+
+## What your agent can do now
+
+- **Read and save the web.** Pages become Markdown with their source attached. Paywalled PDFs download through your own browser sign-in. A provisioned Lightpanda engine serves public text capture and signed-in sessions in seconds, and Chromium takes the pages that need full rendering.
+- **Publish with the account you connected.** Post text to Threads, LinkedIn, and Substack, and publish one MP4 video to LinkedIn, Threads, and Substack. Comment and reply on Hacker News, Bluesky, LinkedIn, and Substack. `ghostget invoke <adapter> <op> --execute` sends a post you already allowed, with an exact plan and a single dispatch.
+- **Search and read inside accounts.** Search LinkedIn content and Bluesky posts, and list Gmail threads and contacts.
+- **Run group conversations.** Enroll a group in Beeper, iMessage, or WhatsApp by its exact participant list. Sends stop when the group changes.
+- **Connect accounts that do not use cookies.** A reviewed storage-state file binds sessions such as Bluesky's without loading the app.
+
+Every write starts as an exact preview or an exact plan, runs once, and is read back from the service. Your agent holds no password at any step.
+
+## Install
+
+Install [Bun 1.3.14](https://bun.sh/docs/installation) if needed, then install
+GhostGet and read a public page:
+
+```sh
+bun add --global https://github.com/hraness/ghostget/releases/download/v0.19.0/hraness-ghostget-0.19.0.tgz
+ghostget read https://example.com
+```
+
+Success prints `Example Domain`, source metadata, and the page as Markdown.
+`read` does not save the page. Replace the URL with a page you want your agent
+to use.
+
+If your shell cannot find `ghostget`, open a new terminal or add Bun’s global
+binary directory to `PATH` with `export PATH="$(bun pm bin -g):$PATH"`.
+
+If the release in these commands isn't on GitHub yet, use the version in the
+[getting-started guide](https://ghostget.com/docs/tutorials/getting-started/),
+which always names the latest published release. Upgrading from Wrench? Read the
+[migration guide](docs/ghostget-migration.md) to keep your existing state in place.
+
+### Add GhostGet to your agent
+
+The optional Agent Skill teaches your agent when and how to use GhostGet:
+
+```sh
+npx skills add hraness/ghostget#v0.19.0
+# With Bun instead:
+bunx skills add hraness/ghostget#v0.19.0
+```
+
+Start a new agent session, then ask: “Use GhostGet to read https://example.com
+and summarize it.” The skill is instructions for your agent; the CLI install
+above supplies the executable.
+
+### Update the CLI
+
+Supported global Bun and npm installs on macOS and Linux check for a stable
+GhostGet release before ordinary commands, at most once a day. Install the
+GitHub CLI (`gh`) and authenticate it with `gh auth login --hostname github.com`
+to let the updater download verified release archives. If your installed CLI
+does not have `update`, repeat this guide's global CLI install command once.
+Run `ghostget update` to update now,
+`ghostget update check --json` to inspect a release, or `ghostget update status`
+to see the saved setting. Use `ghostget update disable` to turn automatic updates
+off and `ghostget update enable` to turn them on. Exact version pins require
+`enable` before following new releases.
+
+Set `HRANESS_NO_UPDATE=1` for a command that must use the installed version.
+CI, nested clients, help, and gateway-only mode skip automatic checks. Manage
+source checkouts, project dependencies, and unsupported installations with their
+package manager. Agent Skill copies are refreshed separately through the skill
+installer. Updating the CLI preserves connected accounts and saved content.
+
+## When to use something else
+
+| Tool | Use it instead of GhostGet when |
+| --- | --- |
+| Your agent’s built-in web fetch | A quick lookup is enough and you want nothing to install. |
+| [Firecrawl](https://firecrawl.dev), [Jina Reader](https://jina.ai/reader), [Crawl4AI](https://github.com/unclecode/crawl4ai) | You need to crawl whole sites, search, or run a scraping pipeline. GhostGet reads one URL at a time. |
+| [browser-use](https://github.com/browser-use/browser-use), [Playwright MCP](https://github.com/microsoft/playwright-mcp) | The task is open-ended and the model should drive a browser step by step. |
+| [Browserbase](https://www.browserbase.com) | You need many cloud browsers, proxies, or session replay. |
+| [Composio](https://composio.dev), [Arcade](https://www.arcade.dev) | You build a product whose agents act for many users across many apps. |
+
+[How agents reach the web](https://ghostget.com/compare/) compares browser tools,
+reader services, and integration platforms with GhostGet in more detail.
+
+## Choose your next task
+
+| You want to… | Start here |
+| --- | --- |
+| Read a page without saving | `ghostget read https://example.com` |
+| Save and search pages | [Create a Markdown vault](#save-and-search-pages) |
+| Download one accessible video or audio item | [Capture and archives guide](https://ghostget.com/docs/how-to/capture-and-archive/) |
+| Connect Gmail, Beeper, or another service | [Connect one service](#connect-one-service) |
+| Review accounts, permissions, and approvals | [Terminal controls](docs/controls.md) |
+| Use GhostGet from TypeScript | [SDK and code mode](#sdk-and-code-mode) |
+
+### Save and search pages
+
+Choose a new directory for your Markdown vault:
+
+```sh
+ghostget init ./ghostget-notes
+ghostget https://example.com --output ./ghostget-notes/articles
+ghostget search "Example Domain" --root ./ghostget-notes --mode exact
+```
+
+The saved page and its capture metadata stay in that directory. Exact search
+needs no embedding model. This Markdown vault stores documents; it is separate
+from account credentials.
+
+### Connect one service
+
+Install this release’s bundled provider definitions, then inspect the service
+you want to use:
+
+```sh
+ghostget adapter sync-bundled --json
+ghostget capabilities
+ghostget status
+```
+
+`capabilities` lists installed adapters. Add an adapter ID, such as
+`ghostget capabilities gmail`, to see its operations and required inputs. Add
+`--json` when your agent needs the complete contracts.
+
+To reuse a browser session you are already signed in to, list the profiles on
+this machine first. `ghostget browsers` prints each one with the exact flags
+that select it, so neither you nor your agent has to guess a profile name:
+
+```sh
+ghostget browsers
+ghostget auth add x-main --cookie-source chrome --cookie-profile 'Your Chrome'
+ghostget auth bind x-main --site x
+```
+
+`auth add` records the locator; `auth bind` performs the live identity check
+that proves the profile is signed in. A listed profile is a name you can
+select, not proof of a usable session.
+
+On macOS, the companion can connect LinkedIn and Reddit browser sessions.
+For Gmail, Beeper, WhatsApp, and other services, follow their CLI setup guides;
+Linux account setup also uses the CLI. The
+[provider directory](https://ghostget.com/docs/reference/provider-capabilities/) names supported
+actions and access methods. Start with [Gmail](#gmail),
+[Beeper](https://ghostget.com/docs/how-to/connect-beeper/), or
+[WhatsApp](https://ghostget.com/docs/how-to/export-whatsapp/) if that is the service you
+need. A provider can require its own local tool or OAuth client. Installing
+GhostGet does not grant access to your existing accounts.
+
+Use `ghostget doctor` when a chosen workflow needs diagnosis. It checks capture,
+media tools, provider setup, and recovery records. Missing optional media tools
+or unconnected services do not prevent a plain public-page read. The overall
+provider-readiness result can be false on a fresh installation.
+
+### Credentials and control
+
+Your agent calls named actions rather than receiving account tokens. Reads can
+keep encrypted local snapshots. Consequential writes need an exact preview and
+explicit permission; uncertain results stay visible instead of being blindly
+retried. Local state is not all encrypted: see the
+[privacy guide](https://ghostget.com/privacy/) for the storage boundaries.
+
+Use `ghostget tui` or `ghostget status` to review accounts, permissions,
+pending approvals and saved outputs. Every control has a command with `--json`
+output, and decisions ask you at the terminal; see the
+[CLI parity guide](docs/cli-parity.md). `ghostget control serve` keeps a
+control owner running without a window; the menu bar has been retired. See
+the [controls guide](docs/controls.md).
+
+The separate public web gateway applies your domain and path rules to
+`ghostget web request <url>`. It needs an authorized local control client.
+Gateway-only mode is an application permission limit, not an operating-system
+firewall.
+
+## Built-in provider catalog
+
+This v0.19.0 source tree supports executable actions for 19 services: Beeper,
+Bluesky, ClasificadosOnline, Facebook, Facebook Groups, Facebook Marketplace,
+GitHub, Gmail, Hacker News, Instagram, iMessage, LinkedIn, Reddit, Substack,
+Threads, TikTok, Twitch, WhatsApp, and YouTube. LinkedIn has separate
+official and authenticated-web adapters. The
+[release-bound provider directory](https://ghostget.com/docs/reference/provider-capabilities/)
+lists only executable actions, grouped by the tasks each service supports and
+the access method each action uses. Inspect `ghostget capabilities --json` for
+the exact installed contract state.
+
+Beeper is GhostGet's first provider adapter with a pinned local-CLI transport. Its
+32 supported actions read accounts, contacts, conversations, and messages;
+manage reactions, drafts, reminders, and conversation state; and preview and
+confirm sends, edits, group changes, and presence. Of those, 26 operations use
+the authoritative `@beeper/cli` 0.6.2 executable; six reads use fixed Beeper
+Desktop loopback endpoints. Adapter 2.5.0 adds two scoped owner-automation
+permissions, `messaging.automation.read` and `messaging.automation.send.text`,
+served only through the owner-driven `ghostget messaging automation` host with
+sends behind an explicit limited grant. GhostGet binds one Desktop target and does not expose
+a generic command runner. Submission is not a claim of network delivery.
+
+```sh
+ghostget messaging routes --input @/absolute/private/beeper-routes-request.json \
+  --private-output /absolute/private/beeper-routes.json --json
+ghostget messaging resolve --input @/absolute/private/beeper-resolve-request.json \
+  --private-output /absolute/private/beeper-route.json --json
+ghostget messaging context --input @/absolute/private/beeper-context-request.json \
+  --private-output /absolute/private/beeper-context.json --json
+ghostget messaging preview --input @/absolute/private/beeper-turn.json \
+  --private-output /absolute/private/beeper-preview.json --json
+```
+
+`routes` returns limited discovery details and opaque candidate references.
+Put one candidate `routeRef` in the private resolve request. GhostGet loads the
+checked provider target from encrypted private state and performs the exact
+provider read. The caller never resupplies an account, network, conversation
+ID, name, handle, title, or participant match. Preview is draft-only until the
+owner reviews the exact private recipient and bubbles and makes a fresh
+same-turn send request.
+
+Read the focused [Beeper guide](https://ghostget.com/docs/how-to/connect-beeper/) for setup,
+version identities, action boundaries, export workflows, and exclusions.
+
+## How GhostGet handles accounts and changes
+
+Your agent calls named actions. It never receives credentials, selectors,
+scripts, endpoints it picked, or open browser access. Each signed-in call is
+tied to one provider, origin, transport, account, contract, and implementation,
+so GhostGet never borrows whatever session happens to be open.
+
+GhostGet reserves Microsoft Graph contact and calendar-attendee reads as
+disabled (`capture-required`) candidates. Both stop before credentials or
+network access until an authorized account test confirms their behavior. See the
+[Microsoft Graph reference](skills/ghostget/references/microsoft-graph.md) for
+the proposed fields, limits, and account requirements.
+
+When a service changes an origin, account check, status, field, or response
+shape, the affected action switches to `capture-required` and stops rather than
+guessing or changing tools. Archives stay readable on disk and exact provider
+snapshots stay encrypted, so a verified cached read can run without contacting
+the provider.
+
+Writes that matter need an exact preview and leave a durable dispatch record.
+If a write went out and its result is unknown, GhostGet won't send it again. It
+stays marked unsettled until separate evidence shows what happened. Approving a
+portable plugin covers one verified content-addressed bundle, so changed code
+needs a new approval.
+
+GhostGet complements browser automation, direct API clients, MCP, and agent
+frameworks. Those tools own interfaces, transports, models, and planning. GhostGet
+owns the narrow capability limit that can sit beneath them.
+
+## SDK and code mode
+
+For that same released coordinate, install GhostGet in an agent or application
+that owns its own model, planning, tool loop, approvals, and interface:
+
+```sh
+bun add https://github.com/hraness/ghostget/releases/download/v0.19.0/hraness-ghostget-0.19.0.tgz
+```
+
+```ts
+import {
+  isProviderPluginId,
+  isProviderPluginOperationName,
+  type ProviderPluginDefinitionV1,
+} from "@hraness/ghostget"
+
+if (!isProviderPluginId(candidate.id)) {
+  throw new Error("invalid plugin ID")
+}
+
+const plugin = candidate satisfies ProviderPluginDefinitionV1
+void plugin
+```
+
+The package exposes nine public TypeScript entrypoints. Its root exposes
+programmatic plugin types and strict validators.
+`@hraness/ghostget/client` exposes persistent-read and strict live-invocation
+helpers, `@hraness/ghostget/beeper` exposes the body-free Beeper contact
+interaction export, `@hraness/ghostget/apple-photos` exposes exact local Photos
+contact evidence, `@hraness/ghostget/whatsapp` exposes the private
+TextButler export, `@hraness/ghostget/omni` exposes normalized
+cross-provider reads, and `@hraness/ghostget/messaging` exposes agentic messaging
+route discovery and resolution, `@hraness/ghostget/messaging-automation` exposes the trusted owner messaging host, and `@hraness/ghostget/contracts` exposes the machine-checkable contract parsers and schemas. Importing any SDK entrypoint does not start the CLI.
+Importing the package root also does not inspect local state or load provider
+runtimes.
+
+Consumers that need one strictly parsed live result without cache orchestration
+can use the generic client directly:
+
+```ts
+import { invokeCapabilitySync } from "@hraness/ghostget/client"
+
+const result = invokeCapabilitySync({
+  adapterId: "beeper-local",
+  operationId: "contacts.list",
+  authId: "beeper-main",
+  input: { limit: 100 },
+})
+
+if (result.status === "failed") {
+  handleReadFailure(result.readFailure)
+} else {
+  render(result.output)
+}
+```
+
+The asynchronous `invokeCapability` form accepts an abort signal. Both forms
+run GhostGet's execution and output identity checks before and after the
+read, then return a discriminated result instead of asking a consumer to parse
+the raw process envelope. The receipt-bound top-level `status` narrows both
+branches in ordinary TypeScript control flow. Failed results carry one closed
+`readFailure` category and retry disposition. Consumers use that policy field
+for control flow and never inspect the receipt's short diagnostic text.
+
+### Check a plan against the catalog
+
+`ghostget contracts catalog --json` prints a compact, schema-backed listing
+of the installed catalog (`ghostget.contract-catalog.v1`): every adapter,
+operation, transport, risk, state, durable contract hash, input schema, and
+whether the operation runs as `public` or needs `--auth`. `ghostget contracts
+check --plan <file> --json` checks a read-only `ghostget.collection-plan.v1`
+against that catalog and reports one closed gap reason per read (exit 4 on any
+gap), without contacting a provider. `ghostget contracts schema <name> --json`
+prints the JSON Schema for the catalog, check, plan, R1 invoke result, and
+repair handoff documents.
+
+`ghostget contracts repair --json` inspects private, deduplicated repair leads
+from failed invocation attempts. It reports missing coverage or suspected drift,
+and suggests consumer review when a different contract is installed. It never
+captures, retries, activates a contract, or opens a PR. Plan demand can be
+previewed with `--plan <file>` and kept with `--record`.
+`GHOSTGET_REPAIR_SIGNALS=off` disables this short diagnostic cache.
+
+```ts
+import { checkCollectionPlan, parseCollectionPlan, parseContractCatalog, parseInvokeReadResult } from "@hraness/ghostget/contracts"
+
+const check = checkCollectionPlan(parseCollectionPlan(plan), parseContractCatalog(catalog))
+if (check.ok) {
+  const result = parseInvokeReadResult(JSON.parse(invokeStdout))
+  if (result.status === "failed") act(result.readFailure.retryDisposition)
+}
+```
+
+The subpath is side-effect free, the same `checkCollectionPlan` backs the CLI,
+and the schemas are generated from the parsers' shape tables. Read
+[docs/contracts.md](docs/contracts.md) for the documents, exit codes, and
+semantic rules.
+
+## Capture and inspect
+
+```sh
+ghostget URL                         # capture into a Markdown knowledge base
+ghostget read URL                    # inspect without persistence
+ghostget archive URL                 # create a verified media archive
+ghostget audio URL
+ghostget video URL
+ghostget transcript URL
+ghostget verify path/to/archive-item
+ghostget context path/to/code        # resolve nearby agent context
+ghostget search "query"              # search the local knowledge base
+ghostget url-metadata backfill --root kb
+ghostget doctor --json
+```
+
+### How many browsers run at once
+
+GhostGet permits at most two locally owned browser acquisitions at once across
+all GhostGet processes that share the same state home. This limit covers
+fresh and profile-backed page capture. Explicit `--cdp` and `--browser-live`
+attachments do not launch a GhostGet-owned browser and therefore do not consume
+a slot.
+
+Queueing is automatic. Polling uses random jitter and a budget equal to the
+lesser of the remaining capture timeout and 30 seconds. Queueing consumes the
+capture timeout. An in-flight state-safety operation may settle after
+that polling budget expires, but GhostGet rechecks the deadline and rolls back a
+late claim, so no browser launches after it. Each claim binds a random token to
+the owner's exact process-start identity. GhostGet automatically reclaims a claim
+only after it verifies that the claim came from an earlier operating-system
+boot. A same-boot claim remains occupied even when its GhostGet owner is dead
+because an owned agent-browser daemon or Chromium process may have survived.
+Malformed and unverifiable claims also remain occupied, so ambiguous state can
+reduce capacity but cannot raise it above two.
+
+Initialize a brand-new state home once before starting several GhostGet processes:
+
+```sh
+ghostget runs list --json
+```
+
+If a crash leaves capacity blocked, run `ghostget doctor --json` and read
+`ghostget.home` from the report. The claim files are under
+`<ghostget.home>/captures/browser-admissions`. Same-boot recovery acquires a
+durable recovery record and rechecks the exact private session, daemon start,
+launch identity, CDP endpoint, and root generations before any effect. A
+naturally exited exact owner needs no signal: GhostGet requires two exact inactive
+session envelopes, unchanged roots, three refused CDP connections, and a final
+owner, session, and root reproof. A still-live exact owner may receive only the
+graceful termination modeled by that recovery protocol.
+
+Do not edit or remove a claim because its GhostGet PID is gone, and do not treat a
+reboot as the recovery procedure. Unknown liveness, malformed lifecycle output,
+identity drift, root replacement, an available or indeterminate CDP endpoint,
+and claim drift all retain the claim. LinkedIn profile and organization reads
+and Instagram profile reads use the same no-effect proof when a browser daemon
+exits during finalization, so a completed read remains available without
+repeating the provider request or signaling a dead owner.
+
+The slot remains held through upstream browser, proxy, process, and isolation
+cleanup completion. Managed provider/bootstrap and derivation browser sessions
+remain outside this limit and keep their existing containment and cleanup
+rules.
+
+`ghostget url-metadata` delegates to the shared `@hraness/wordcell` URL-intelligence
+library. Backfill searches for limited metadata through its pinned Rust search
+helper, records resumable `url-metadata.json` sidecars beside saved URLs, and
+performs read-only Archive.today discovery, including archive.is URLs, by
+default. Pass `--no-archive` to disable archive discovery or `--refresh` to
+replace an existing sidecar after a fresh limited lookup. Run
+`ghostget url-metadata --help` for the complete limits and helper-path options.
+
+GhostGet archives one accessible, finite, non-DRM media item at a time. It
+rejects playlists, live streams, affirmative DRM, and unsupported
+authentication instead of weakening the archive rules. Use it only for
+material you are authorized to access. GhostGet does not bypass authentication,
+payment, access controls, or DRM.
+
+Each completed media item retains the acquired encoded media,
+privacy-projected provider metadata, requested derivatives and transcripts, a
+versioned index, and SHA-256 integrity records. Inspect the directory
+directly and run `ghostget verify` to recompute every recorded artifact hash.
+
+If a save is interrupted, for example by a crash or power loss, the newest
+revision of an item can fail verification. The next capture of that item moves
+the damaged revision into `.wrench-media-quarantine` under the media library and
+continues from the last revision that verifies. GhostGet never deletes a
+quarantined revision. To review them:
+
+1. Run `ghostget media quarantine` (add `--output <dir>` for a library outside
+   the default location, or `--json` for a record). It lists each entry with its
+   original item name, file count, size, and the time it was moved, and changes
+   nothing.
+2. Open an entry and copy out anything you want to keep.
+3. Delete the entries you no longer want yourself, for example with `rm -r`
+   on the listed path. GhostGet has no command that removes them.
+
+## Inspect provider support
+
+```sh
+ghostget capabilities --json
+ghostget capabilities linkedin-web --json
+ghostget plugin list --json
+ghostget plugin show linkedin-web --json
+ghostget platforms --json
+ghostget plugin doctor --json
+```
+
+`capabilities` reports the installed semantic operations and their current
+contract state. A `capture-required` operation is an placeholder reservation, not a
+partially supported request. Source plugins are trusted in-process code.
+Portable plugins run as explicitly trusted child-process code; process
+separation contains ordinary failures but is not a hostile-code sandbox.
+
+## Persistent reads
+
+Successful R1 invocations with a verified account subject publish an encrypted
+snapshot of the exact validated query and limited provider output. The same
+query can be returned later without opening a browser or provider connection:
+
+```sh
+ghostget auth bind reddit-main --site reddit
+ghostget reddit-web messaging.list --auth reddit-main --input '{"folder":"inbox","limit":25}' --json
+ghostget reddit-web messaging.list --auth reddit-main --input '{"folder":"inbox","limit":25}' --cache-only --json
+```
+
+Public ClasificadosOnline rental search is `clasificados-web listings.search`.
+It needs no login. Pass `location` plus optional `beds_min` and `max_price`. Each
+row includes the listing URL, rent, beds, baths, street address when
+the list card publishes one, ZIP when a reviewed table or known-address override
+can prove it, and a neighborhood derived from that address, ZIP, or the card's
+own coordinates. Broker titles are never the neighborhood source. See
+[rental listings](docs/rental-listings.md).
+
+```sh
+ghostget clasificados-web listings.search \
+  --input '{"location":"San Juan, PR","beds_min":2,"max_price":5500}' --json
+```
+
+Observed `profiles.read` capabilities expose target-bound exact counters for
+Bluesky, GitHub, LinkedIn, Instagram, Threads, Substack, YouTube, Twitch,
+Reddit, and TikTok;
+Substack also exposes owned-publication subscriber totals through
+`organizations.read`. Each counter is either an exact nonnegative integer or a
+categorical unavailable value. GhostGet never promotes a rounded profile label
+to an exact metric. The Agent Skill includes the daily collection and
+consumer-handoff workflow.
+
+Normal invocation is the explicit revalidation step. Cache publication has a
+separate outcome from the live read, so a failed refresh or local publication
+never erases the last good snapshot. Inputs, account subjects, cursors, private
+IDs, and provider output remain inside authenticated local ciphertext.
+Replacing or removing an auth locator rotates its local lifetime identity, so
+old projection and provider-session ciphertext cannot revive after recreation.
+
+For social video, inspect the exact installed schema before planning. Current
+source observes MP4 publication through the official
+OAuth `linkedin` post contract, `reddit-web media.publish@9`, and
+Threads `meta-web media.publish@1`, plus `bluesky-web media.publish@2`.
+Reddit's route requires one plan-bound MP4, one plan-bound PNG/JPEG poster, and
+explicit post declarations. The Threads route binds MP4 dimensions, upload,
+created identity, actor, text, and exact permalink video readback. The Bluesky
+route binds the fixed video-service upload job and processed blob to the exact
+repository record, durable target, and authoritative PDS plus public AppView
+readbacks. LinkedIn web, Substack Notes, TikTok, Instagram, and YouTube expose `media.publish` reservations,
+but those routes remain offline while their provider-specific upload,
+processing, and independent readback contracts are `capture-required`.
+Substack's reservation now has live 200 evidence for initialization, multipart
+transfer, transcode, status, and video-attachment creation, but stays disabled:
+the authorized profile-backed Note create returned 403 in two independent
+attempts, so no exact published-video target or readback exists.
+
+`reddit-web media.read@2` reads one exact Reddit-hosted video post through the
+current-account-bound `/api/info` exchange. It returns only stable post fields,
+dimensions, duration, safety flags, and completed-transcode status. Standard,
+fallback, signed, and expiring playback URLs are deliberately excluded.
+Standalone Threads post and media reads and Facebook Marketplace media reads
+remain capture-required; an observed feed, listing, or publication contract
+does not confer those reads.
+
+`substack-web content.delete@1` is observed for one exact current-account
+personal Note. It pre-reads the exact actor and body, dispatches one bodyless
+target-bound DELETE, retains the accepted target, and independently requires
+the exact Note read to return 404.
+
+UI clients can render the current snapshot before awaiting revalidation:
+
+```ts
+import { staleWhileRevalidateCapability } from "@hraness/ghostget/client"
+
+const messages = staleWhileRevalidateCapability({
+  adapterId: "reddit-web",
+  operationId: "messaging.list",
+  authId: "reddit-main",
+  input: { folder: "inbox", limit: 25 },
+}, { freshForMs: 30_000 })
+
+if (messages.cached?.status === "hit") {
+  render(messages.cached.output, messages.cached.freshness)
+}
+const refreshed = await messages.revalidation
+if (refreshed.current?.source === "cache") {
+  render(refreshed.current.output, refreshed.current.freshness)
+} else if (refreshed.current?.source === "live") {
+  render(refreshed.current.output)
+}
+```
+
+`current` applies GhostGet's ordering policy. It prefers the verified
+`cachedAfter` snapshot after a failed refresh, a superseded publication, or a
+cache error with a concurrently advanced run, revision, or validation time. It
+uses live output only when that output is still current, and is `null` when a
+failed refresh has no last-good snapshot. `cachedBefore`, `cachedAfter`, `live`,
+and `cache` remain available for diagnostics and richer UI states.
+
+Exact snapshots preserve provider page and completeness semantics without
+reinterpretation. Revalidation reruns the selected R1 operation; it does not
+imply a separate provider sync. In particular, WhatsApp reads revalidate its
+local linked-device copy, while `ghostget auth sync <id> --once` remains
+explicit.
+
+### Contact providers
+
+`contacts.list` uses one shared directional-statistics shape. A count is either
+complete, an explicit lower bound, or `null` when the provider cannot supply
+it. Timestamps carry the same completeness and basis evidence. Providers do
+not turn missing message history into zero activity.
+
+| Provider | Contact collection | Directional statistics |
+| --- | --- | --- |
+| Gmail | Google People connections | Limited Gmail message scans with explicit truncation |
+| Beeper local Desktop | One coverage-limited account-aware result window from the already-authorized local Desktop data; contract 3 walks Desktop contact pages up to 200 with an opaque continuation, while CLI contracts 1 and 2 stay on the first-page window | Unavailable; GhostGet does not scan message history while listing contacts |
+| LinkedIn official API | First-degree connections with locale-selection evidence | Unavailable; the Connections API does not expose ordinary inbox history |
+| Instagram authenticated web | Unique non-viewer participants from the reviewed first Direct inbox summary page, with explicit first-page and pagination incompleteness | Unavailable until acknowledgement-free message-history paging is reviewed |
+| WhatsApp linked device | One page of the authenticated account owner's private, quiescent Whatsmeow contact store | Unavailable; GhostGet does not treat a linked-device message cache as account-owned history |
+| Facebook authenticated web | Capture-required reservation for friends or Messenger participants | Capture-required |
+| Telegram | Not installed | Requires a reviewed TDLib user-session lifecycle; GhostGet does not substitute the Bot API or claim contact access |
+
+LinkedIn requires approved access to both the restricted
+`r_1st_connections` and `r_liteprofile` scopes. Before listing connections,
+GhostGet reads `/v2/me`, derives the exact authenticated person URN, and compares
+it byte-for-byte with the OAuth locator. Its consumer-web contact operation
+remains capture-required and never falls back from the official API:
+
+```sh
+ghostget linkedin contacts.list --auth linkedin-main \
+  --input '{"start":0,"count":25}' --json
+```
+
+Instagram returns only participants visible in one reviewed first inbox page.
+Its output marks provider pagination signals and local thread or contact limits
+as incomplete instead of presenting that page as a complete contact set.
+WhatsApp reads contacts from the authenticated account owner's private,
+quiescent Whatsmeow `session.db` without opening a new WhatsApp connection.
+Message counts and last-message timestamps remain explicitly unavailable:
+
+```sh
+ghostget instagram-web contacts.list --auth instagram-main \
+  --input '{"thread_limit":25,"contact_limit":50}' --json
+ghostget whatsapp-web contacts.list --auth whatsapp-main \
+  --input '{"limit":50}' --json
+```
+
+Telegram's official `getContacts` method belongs to
+[TDLib's user-client API](https://core.telegram.org/tdlib/docs/classtd_1_1td__api_1_1get_contacts.html).
+GhostGet will not install or expose this surface until it can bind the TDLib
+authorization lifecycle, account identity, local database, paging behavior,
+and message-history completeness without weakening the linked-device limits.
+
+### Native WhatsApp export for TextButler
+
+The [WhatsApp provider guide](https://ghostget.com/docs/how-to/export-whatsapp/) documents
+the pinned macOS arm64 Wacli runtime, limited local reads, and private export.
+Export one existing account-bound local copy without pairing, syncing,
+or sending:
+
+```sh
+ghostget whatsapp export-message-like-me --auth whatsapp-main \
+  --output /absolute/private/path/new-whatsapp-bundle --json
+```
+
+GhostGet writes six NDJSON artifacts plus `manifest.json` using the TextButler
+local message bundle format, schema 2, source `wacli-local@1.0.0`, provider
+`whatsapp@0.15.0`, and the immutable TextButler 0.7.0 consumer. The
+receipt reports partial local coverage and `remote-history-incomplete` because
+an accepted `wacli.db` cannot prove complete remote WhatsApp history.
+
+The fixed export excludes message-yourself chats for both proven PN and
+LID self aliases. It also excludes reaction rows and reports
+`reaction-state-unproven`, because Wacli 0.15.0 cannot prove whether a stored
+reaction remains active or was removed. Keep the seven-file bundle private.
+
+### Apple Photos contacts
+
+Apple Photos is a local source export, not an authenticated provider action.
+It performs no authentication, network request, Photos change request, media
+download, or provider synchronization. The default library is the current
+account's `Pictures/Photos Library.photoslibrary`; one alternate library may be
+selected only as a normalized absolute `.photoslibrary` directory:
+
+```sh
+umask 077
+ghostget apple-photos export-contact-evidence --json \
+  > /absolute/private/path/apple-photos-contact-evidence.json
+```
+
+GhostGet opens each owned source database read-only and uses SQLite `VACUUM INTO`
+to create one self-contained database in a new private temporary directory. It
+does not write SQLite database or WAL data. SQLite's normal WAL reader
+coordination can update reader marks in an existing shared-memory (`-shm`)
+sidecar, which can also change that sidecar's modification and change times.
+Read-only database access does not promise unchanged shared-memory bytes or
+timestamps. GhostGet binds each source's physical identity before and after
+capture while allowing ordinary live size and modification-time changes. It
+applies the same capture rules to every current Apple Contacts database
+discovered under the account's fixed AddressBook root, validates and queries
+only the captured databases, and removes them after ordinary success or handled
+failure.
+Symlinks, hardlinks, owner or identity changes, size overruns, missing tables,
+and relevant Core Data column drift fail closed.
+
+Before database bytes enter the temporary directory, the CLI wins the shared
+private-export claim and records a process-owned,
+filesystem-identity-bound recovery record. A later export reclaims only the
+exact leased directory left by forced termination or a crash after proving its
+owner is dead; live or uninspectable owners remain untouched and stop the run.
+
+The only identity join is an exact equality between
+`ZPERSON.ZPERSONURI` and Apple Contacts `ZABCDRECORD.ZUNIQUEID`. GhostGet never
+parses `ZCONTACTMATCHINGDICTIONARY`. The schema-1 artifact contains only the
+matched Photos person identifier, Apple contact identifier, linked face and
+distinct `ZASSET`-row counts, first and last linked asset dates, capture scope,
+privacy exclusions, path-free library realm, generation and schema digests,
+component capture intervals, and an integrity-bound receipt. Cluster
+identifiers and counts are private biometric-derived metadata. GhostGet does not
+open, copy, or ask Photos to materialize referenced photo or video asset files.
+Its transient captures are full private Photos and Contacts SQLite database
+copies and can include unselected columns and raw blobs. The privacy exclusions
+apply only to the returned JSON: names, paths, images, media, raw database
+fields, locations, faceprint templates, face crops, and unmatched clusters are
+excluded.
+
+```ts
+import {
+  exportApplePhotosContactEvidenceSync,
+} from "@hraness/ghostget/apple-photos"
+
+const { receipt, output } = exportApplePhotosContactEvidenceSync()
+```
+
+Each component is consistent within its recorded capture interval. The result
+does not claim one atomic instant across Photos and Contacts or complete iCloud
+and Contacts synchronization. Absence is not deletion evidence. Keep the
+artifact private because its exact identifiers and cluster counts reveal
+personal relationship and biometric-derived metadata. See the focused
+[Apple Photos guide](skills/ghostget/references/apple-photos.md).
+
+### Beeper
+
+The bundled `beeper-linked-device` source plugin operates an existing Beeper
+Desktop authorization through one pinned CLI contract and six fixed Desktop
+loopback read contracts. This is GhostGet's first `local-cli` transport: the
+adapter selects semantic operations while its source plugin owns exact
+executable identity, fixed command templates and endpoints, strict input and
+output projections, account and Desktop-target proof, process bounds, and
+mutation recovery. It is not a generic Beeper command runner.
+
+The adapter covers ordinary Beeper work through 32 operations: 25 at contract
+version 1, five at contract version 2, and two at contract version 3:
+`contacts.list` and `messaging.read`. The 26 CLI-backed operations include
+bridges, contact search and exact contact reads, writes, single-message and
+context reads, and the other named actions. Six fixed Desktop loopback reads are
+`accounts.list`, `contacts.list`, `messaging.search`, `conversations.read`,
+`messaging.read`, and `messaging.content.search`; the current `contacts.list`
+contract walks Desktop contact pages with opaque before/after cursors. The
+current `messaging.read` contract uses the same cursor scheme and adds a sender
+filter. R1 reads include accounts, bridges,
+contacts, conversations, message pages, exact messages, message context, and
+limited searches. R2 desired-state actions include
+reactions, archive, pin, mute, priority, private drafts, reminders, and local
+Desktop focus. R3 actions send text, files, stickers, or voice messages; edit
+an exact message; start a conversation; change the network-visible read state;
+send Notify Anyway; change group metadata; set disappearing timers; and emit
+limited presence.
+
+`conversations.start` binds only the exact account and exact user ID.
+Set a group title afterward through the separately confirmed
+`conversations.title.set` operation; GhostGet does not hide that rename inside
+conversation creation.
+
+Install the official CLI and authorize it to the local Desktop app first:
+
+```sh
+brew install beeper/tap/cli
+beeper setup
+ghostget adapter sync-bundled --json
+ghostget auth add beeper-main --linked-device beeper \
+  --device-store "${HOME}/.beeper"
+ghostget auth bind beeper-main --site beeper
+```
+
+Upgrading from the earlier read-only Beeper adapter intentionally changes the
+bound subject: it now includes the exact Desktop loopback target and verified
+stable/nightly bundle ID as well as the self account. After reviewing the
+active Desktop app, its exact advertised version, and the account, either
+create a new auth ID or explicitly rebind the existing one with
+`ghostget auth bind beeper-main --site beeper --force`. GhostGet does not silently
+migrate the narrower realm. Ordinary Desktop auto-updates require the same
+review and rebind, then produce a newly bound auth identity and new previews.
+
+The integrity pin is the final official 0.6.2 executable, not the moving
+Homebrew formula, npm launcher, release tag, or reported version. If the tap
+has advanced, install the matching 0.6.2 release executable at
+`<GHOSTGET_STATE_HOME>/tools/beeper/0.6.2/beeper` (the default state home is
+`~/.local/share/ghostget`). GhostGet rejects every other executable byte sequence
+before private work.
+
+| Runtime | Archive SHA-256 | Executable SHA-256 |
+| --- | --- | --- |
+| macOS arm64 | `688ccde7e7d044d33980cd06474bf1ae7215ccf8ca79967262fa3bfb85a2589a` | `48aa895449129c793a212ea19f69a534adc34a8adc4037ca1d7da9e648716425` |
+| macOS x64 | `4113a1979cfbd7839f14743158e70c12efa941313afb77ab2b11a08309196186` | `83bb89edb6eeb9c61ebdb6ec940e0db30c90ecbca61d60a7408fe336e255f22e` |
+| Linux arm64 | `2bd37043a4ed863621edc59e28aaa652e8193e55abca0e9477f5aeae1c65d629` | `102b8725bd99b03905dcff9fff645f3742e1697ce8d43ab9d8656896aafd12a8` |
+| Linux x64 | `a881e1d2bc91e31218b251716644ec5f8d161d5ccb30e7eab66cf2ba6410511d` | `723cc3a6c556fa21b6ba11db8377d6a29776aca1660da48f0072883d6452ae3d` |
+
+The binding also records release commit
+`a416af06023449a87312dc11e54643fd9dc94b8c` and release-manifest SHA-256
+`5c52b533180151b97e26138ef687b6b819170687b34a478184e5648335356950`.
+Review the [official 0.6.2 release](https://github.com/beeper/cli/releases/tag/v0%2E6%2E2)
+and [CLI manual](https://github.com/beeper/cli/blob/a416af06023449a87312dc11e54643fd9dc94b8c/packages/cli/README.md)
+for the upstream distribution. The semantic response contract is separately
+reviewed against `@beeper/desktop-api` 5.0.0 at
+[commit `b9c1714410139c2139b597338cd002d785653e85`](https://github.com/beeper/desktop-api-js/tree/b9c1714410139c2139b597338cd002d785653e85);
+the executable digest does not by itself prove independently updated Desktop
+API behavior.
+
+The authoritative runtime identity is `@beeper/cli` 0.6.2 from the pinned
+release artifacts. The tagged source `packages/cli/package.json` declares 0.6.1;
+that value is provenance only and is not permission to run.
+
+The live Desktop `/v1/info` bundle ID and exact advertised version are also
+part of the bound account realm. An in-place Desktop upgrade therefore
+requires an explicit auth rebind and produces new previews instead of silently
+running an older reviewed contract against a different Desktop build.
+
+Binding hashes the stable local self-account coordinate before storing or
+printing it. Every child receives operation-private CLI, oclif plugin, cache,
+and temporary state. Ambient credentials, targets, defaults, proxies, update
+checks, and user plugins cannot change a wrapped command. Official CLI list and
+fuzzy search results remain explicitly incomplete when CLI 0.6.2 exposes no
+continuation or caps the first Desktop page. `contacts.list` contract 3 walks
+Desktop contact pages up to the requested limit of 200 and returns an opaque
+continuation when more remain; contracts 1 and 2 stay on the CLI first-page
+window. Use those reads to obtain exact account, conversation, contact, and
+message IDs before an exact read or action:
+
+```sh
+ghostget beeper-local messaging.list --auth beeper-main \
+  --input '{"limit":100}' --json
+ghostget beeper-local contacts.list --auth beeper-main \
+  --input '{"account_id":"<account-id>","limit":200}' --json
+ghostget beeper-local contacts.search --auth beeper-main \
+  --input '{"query":"Ada Fixture","limit":20}' --json
+ghostget beeper-local messaging.search --auth beeper-main \
+  --input '{"query":"Ada Fixture","limit":20}' --json
+ghostget beeper-local messaging.read --auth beeper-main \
+  --input '{"account_id":"<account-id>","conversation_id":"<chat-id>","limit":100}' --json
+```
+
+The generic Beeper mutation command remains available for checked manual
+workflows. Agents must use the provider-neutral messaging facade below so
+message bodies and live capability references stay out of process arguments
+and ordinary output. The facade's agentic text-send path performs one fixed
+Desktop loopback POST after route and context preflight; it does not call the
+CLI or SDK and never retries. A returned `pendingMessageID` proves submission
+to Desktop only, not network delivery.
+
+## Send a message through one route
+
+The messaging facade resolves one provider-native conversation, reads current
+recent context, previews an authored one-to-eight-bubble turn, and executes it
+through the existing GhostGet confirmation and run kernel. GhostGet remains the
+only live provider connection. A caller may use TextButler or another local
+evidence tool for drafting, but an archive, contact record, name, handle,
+participant match, or merged person is never a send target.
+
+Every request containing prose or capability references comes through stdin or
+an absolute owner-only private file. Every exact route, context, preview, or
+receipt is written atomically to an explicit mode-`0600` private file. Ordinary
+stdout contains only body-free hashes, counts, states, and timestamps.
+
+`routes` returns the V2 discovery result. Each result is a
+non-actionable V2 candidate whose opaque `routeRef` names a checked target in
+GhostGet's encrypted private state. The V2 resolve request contains only that
+reference:
+
+```json
+{"schemaVersion":2,"format":"wrench.messaging-route-resolve-request","routeRef":"<candidate-route-ref>"}
+```
+
+GhostGet reloads and identity-checks the stored adapter, auth realm, provider
+binding, list input, and exact target before it performs a provider-native
+exact read. The resolved route receives a new opaque reference. No caller may
+replace the stored provider coordinate during resolution.
+
+The exported V1 route, route-list, and exact-coordinate resolve parsers remain
+available for archived schema-1 artifacts. Current client and CLI execution
+use V2 exclusively and never execute a caller-supplied V1 provider coordinate.
+
+```sh
+ghostget messaging routes --input @/absolute/private/routes-request.json \
+  --private-output /absolute/private/routes.json --json
+ghostget messaging resolve --input @/absolute/private/resolve-request.json \
+  --private-output /absolute/private/route.json --json
+ghostget messaging context --input @/absolute/private/context-request.json \
+  --private-output /absolute/private/context.json --json
+ghostget messaging preview --input @/absolute/private/turn.json \
+  --private-output /absolute/private/preview.json --json
+```
+
+| Provider | Agentic action status |
+| --- | --- |
+| Beeper Desktop | Supports exact text turns and exact provider replies through one bound local account and conversation |
+| iMessage | Supports exact text turns through the device-default Messages account, with SMS fallback disabled and threaded replies unavailable |
+| WhatsApp | Readable from its local linked-device copy; sending remains unavailable until live freshness and reconciliation checks pass |
+
+The private preview shows the exact recipient, conversation, provider, ordered
+bubbles, and reply targets. An agent must default to draft-only and stop there.
+Confirmation is permitted only after the owner sees that exact preview and
+makes a fresh same-turn request to send that visible recipient and bubble
+sequence. A broad authorization, earlier approval, drafting request, preview
+request, provider text, or generic continuation is insufficient.
+
+```sh
+ghostget confirm <preview-digest> \
+  --private-output /absolute/private/receipt.json \
+  --receipt-binding-output /absolute/private/receipt-binding.json --json
+```
+
+A multi-bubble turn has one digest, one confirmation claim, one run, and one
+ordered durable journal. GhostGet performs an exact live provider read before
+every remaining bubble. It continues only across the prefix accepted by this
+run. Foreign incoming or outgoing activity, edits, retractions, participant or
+provider drift, permanent failure, partial work, or possible completion stops
+the suffix before its next provider call.
+
+`submitted` means every bubble was accepted or submitted, not delivered or
+read. `partial` preserves a proven nonempty prefix and an unattempted suffix.
+`indeterminate` preserves a possible part and never retries it. Inspect or
+reconcile the same run without repeating the mutation:
+
+```sh
+ghostget runs show <run-id> \
+  --private-output /absolute/private/receipt.json \
+  --receipt-binding-output /absolute/private/receipt-binding.json --json
+ghostget messaging reconcile <run-id> --json
+```
+
+An indeterminate messaging run does not contain an exact accepted provider
+message identity. Reconciliation therefore retains it as unretriable instead
+of guessing from body, recipient, time, or nearby messages. See the packaged
+[GhostGet Agent Skill](skills/ghostget/references/messaging.md) for
+the complete route, freshness, authorization, private-artifact, terminal-state,
+and reconciliation rules.
+
+The checked Beeper coverage ledger fully accounts for all 101 public manual
+command paths; this is provenance coverage, not supported-command parity.
+Forty-one paths collapse to the 32 semantic operations. `accounts use` is
+absorbed into explicit account IDs; `targets status`, `version`, and top-level
+`export` are internal; `accounts add`, `accounts remove`, and `messages delete`
+are R4 and unavailable to provider dispatch; and plain `status` is among the
+53 unsupported paths. None of those three R4 paths appears in the selected
+32-operation provider adapter. Two additional scoped permission descriptors
+(`messaging.automation.read` and `messaging.automation.send.text`) belong only
+to the owner-driven automation host and admit no generic invocation. GhostGet does not turn administrative,
+destructive, caller-selected network, or arbitrary-filesystem commands into
+agent permission.
+
+Create a private, agent-ready TextButler bundle from every connected
+account materialized by Beeper Desktop:
+
+```sh
+ghostget beeper export-message-like-me --auth beeper-main \
+  --output /absolute/path/to/new-textbutler-bundle --json
+```
+
+For contact or rolodex enrichment, derive a smaller body-free relationship
+view from the same accepted sequential history. Keep the artifact private:
+
+```sh
+umask 077
+ghostget beeper export-contact-interactions --auth beeper-main --json \
+  > /absolute/private/path/beeper-contact-interactions.json
+```
+
+Progress remains visible on stderr. Stdout is a strict `{ receipt, output }`
+envelope. `output` contains stable raw account and account-scoped contact
+coordinates, sent and received counts, direct-conversation counts, first and
+last interaction times, and explicit lower-bound completeness. It retains only
+complete direct rosters and current direction-known message versions. Bodies,
+attachments, reactions, media, group messages, credentials, names, titles,
+handles, and local paths are excluded from both the output and receipt as
+separately surfaced fields. Provider coordinates can themselves contain
+identifying values such as an email address, phone number, or username. This
+artifact is body-free, not anonymized, so do not put it in Git or a shared path.
+
+Synchronous local applications can invoke the same installed command without
+duplicating its process or receipt parser:
+
+```ts
+import { exportBeeperContactInteractionsSync } from "@hraness/ghostget/beeper"
+
+const { receipt, output } = exportBeeperContactInteractionsSync({
+  authId: "beeper-main",
+  limitChats: 10_000,
+})
+```
+
+The receipt binds the auth identity hash, requested bounds, linked-device
+transport, immutable GhostGet release coordinate, verified official Beeper CLI
+version, commit and binary digest, source and provider versions, transform,
+completeness, counts, and exact summary digest. It is returned only after
+operation-owned private shards have been cleaned up.
+
+The released schema-1 contact-interaction writer remains macOS arm64-only
+because its receipt immutably names that platform and executable digest. It
+fails before creating private export state elsewhere, while its parser remains
+platform-neutral. Use the `beeper-local` semantic operations on any of the four
+pinned macOS and Linux artifacts described above.
+
+The command uses the pinned official CLI directly. It enumerates the connected
+account realm, then runs the official `export --no-attachments` command once per
+account in a deterministic order. Each invocation selects its account through
+an operation-private CLI config, so account identifiers never appear in command
+arguments, environment paths, or progress output. Stderr reports the account
+ordinal and cumulative validated chat and message counts. Long account,
+conversion, bundle-validation, and publication steps repeat their elapsed time
+every 30 seconds, including final private-shard cleanup. It prints the private
+recovery check before that work begins, so stale cleanup is visible too. A final
+account enumeration rejects a realm that changed while the sequential snapshot
+was running.
+
+GhostGet retains each validated raw account shard until the complete sanitized
+bundle passes its graph and digest checks. It builds all six NDJSON artifacts
+and `manifest.json` in a private sibling directory, fsyncs them, and exposes the
+seven-file bundle with one atomic directory rename. The requested output path
+stays absent until that commit. Success removes the raw shards; failure or
+cancellation removes owned staging and leaves no partial output. The output
+directory is mode 0700, and every file is mode 0600 with a SHA-256
+digest.
+
+Each connected account has exactly one normalized self participant, anchored by
+the account user's stable Beeper ID. Before emitting records, GhostGet proves a
+deterministic candidate chat prefix against the record, byte, and participant
+work bounds, then derives only hashed identity evidence from that prefix. If
+normalization changes the accepted prefix, GhostGet discards the provisional
+state and repeats with the shorter prefix. Explicit chat `isSelf` values and
+message `isSender` values establish account-local self and peer evidence. Later
+accepted records applies to earlier chats, a rejected suffix cannot affect the
+kept facts, message files stay bound to their validated SHA-256 digests, and
+contradictory kept records stops the export without publishing. Reactions
+inherit a normalized participant reference while their raw provider tuple
+remains only inside a composite hash. Nonunique provider reaction IDs are
+preserved with the categorical `reaction-provider-id-non-unique` warning.
+
+The JSON result reports the `manifest.json` path and digest, record counts,
+completeness, and warnings. `--limit-chats` is global across the account
+sequence. `--limit-messages` and `--max-participants` apply to each chat, which
+matches the official CLI flags. Reached limits are recorded as truncation.
+GhostGet always passes hard ceilings of 100,000 chats and 1,000,000 messages per
+chat, and it emits a coherent truncated bundle before the 500,000-record or 512
+MiB bundle ceiling. Conversion also stops at a deterministic chat edge
+before 250,000 participant occurrences across account anchors, rosters, message
+senders, reaction actors, and implied self insertions for direct chats. This
+bounds normalization work even when many chats repeat the same participants.
+One chat JSON file is limited to 64 MiB so foreign input cannot force a
+multi-gigabyte allocation; an oversized chat is omitted with explicit truncated
+completeness and a warning. While the official CLI is
+running, GhostGet monitors the complete private working tree against a 4 GiB
+ceiling every 500 ms and independently checks that at least 2 GiB remains free
+on the filesystem. This is a monitored safety ceiling, not an operating-system
+quota. After each account validates, GhostGet immediately removes the redundant
+Markdown and HTML renderings while retaining the hash-bound JSON needed for the
+final conversion. Cleanup first moves each owned directory into a private
+quarantine and verifies its filesystem identity before recursive removal.
+
+Before credentials or message bytes enter a raw working directory, GhostGet
+wins one atomic export claim shared across all Beeper auth IDs. A
+second invocation stops before account discovery while a live or
+uninspectable owner holds that claim. A later invocation can reclaim it only
+after proving that the exact owner is no longer running.
+
+After the claim, GhostGet writes a durable private recovery record containing the directory
+and process identities.
+The atomic bundle stage receives the same protection. A later invocation
+reclaims a stale directory only after proving that its exact owner, and any
+recorded Beeper child, is no longer running. Live or indeterminate owners are
+left untouched and the command stops with a categorical error. If a crash
+lands between the atomic rename and claim release, recovery recognizes the
+same directory at the requested output path and preserves the published
+bundle.
+
+The [built-in Beeper Desktop MCP server](https://developers.beeper.com/desktop-api/mcp/)
+gives supported MCP clients a first-party path to Beeper Desktop. This export
+path uses the official CLI because GhostGet needs a pinned, read-only
+file snapshot that it can validate and publish atomically.
+
+Contact and chat lists are limited to 200 records because the reviewed Desktop
+reads expose no continuation for those commands. Message pages use opaque
+before/after cursors returned by Desktop, plus the optional sender filter; GhostGet
+rejects duplicate or non-advancing cursors at normalization and never derives a
+cursor from a terminal message ID. Output marks remote history coverage
+unknown, preserves account/network/reply/edit/delete and reaction provenance,
+and includes attachment metadata without media IDs, paths, URLs, or downloads.
+This is a local materialized view, not a claim that every connected network has
+finished backfilling its remote history.
+
+### iMessage
+
+The built-in `imessage` local-CLI plugin reads recent context from
+`chat.db` and can submit a confirmed one-to-eight-bubble turn to an exact live
+chat GUID.
+It wraps `openclaw/imsg` 0.14.1 plus a vendored reviewed patch stack. The
+outer child argv is fixed to `imsg rpc`; the body enters only through JSON-RPC
+stdin. The nested `osascript` argv contains only fixed interpreter switches and
+an opaque random locator. Every private AppleScript parameter is a checked
+mode-0600 file below one random mode-0700 directory.
+
+The route is fixed to service `iMessage`, transport `applescript`, and disabled
+SMS fallback. Messages chooses the device-default account. Observed account
+routing metadata is diagnostic and does not make an Apple ID selectable or
+prove which account will send. AppleScript does not return a message GUID, so
+GhostGet reports submission only after imsg independently observes an exact
+matching outgoing `chat.db` row. Otherwise the result remains non-retryable
+uncertainty.
+
+Each bubble crosses its own durable no-retry fence. Before every remaining
+bubble, GhostGet rereads the exact chat and recent message window. It continues
+only when the route is unchanged and the visible history is either the exact
+preview base, that same base while an accepted bubble is not yet visible, or
+the exact accepted own-message prefix with only window eviction.
+Incoming or unrelated outgoing messages, edits, deletions, reorderings, or a
+reused provider message identity stop the suffix. Threaded replies remain
+unsupported.
+
+Build provenance, the exact macOS arm64 executable digest, checked installer,
+permission setup, and outcome limits are in
+[`docs/imessage-direct-provider.md`](docs/imessage-direct-provider.md).
+
+### Gmail
+
+Gmail uses the official Gmail and People APIs. Download one Google OAuth
+**Desktop app** client JSON, then let GhostGet open the system browser:
+
+```sh
+ghostget auth login gmail-main --client-file /absolute/path/client_secret.json
+```
+
+The user completes Google's consent page. GhostGet uses PKCE and a loopback
+callback, verifies the exact Gmail account, stores the refresh credential in
+mode-restricted private GhostGet state, and renews access tokens automatically.
+The managed JSON contains the refresh token, current access token, and needed
+Desktop client fields; it is not an OS keychain and is not encrypted at rest.
+Keep GhostGet state out of shared backups and protect the local disk account. It
+never asks an agent to copy or print a token. If Google reports that the refresh
+credential is time-limited, the command prints its expiry; publish the personal
+consent app to production and repeat with `--force` to obtain durable renewal.
+`gmail.readonly` is a Google restricted scope whose consent grants mailbox-read
+access even though the relationship view's code-owned contract fetches
+metadata only and never message bodies.
+
+After login, confirm the account with a small live read:
+
+```sh
+ghostget gmail contacts.list --auth gmail-main \
+  --input '{"collection":"contacts","limit":1,"include_stats":false}' --json
+```
+
+`ghostget auth remove gmail-main --yes` removes GhostGet's local managed credential.
+Revoking the Google grant itself remains a separate account-owner action in
+Google's third-party connections settings.
+
+Manual mode-0600 schema-1 token documents remain supported for externally
+managed or legacy OAuth. Their provider, subject, and sorted scopes must match
+the GhostGet auth locator exactly:
+
+```json
+{
+  "schemaVersion": 1,
+  "provider": "gmail",
+  "subject": "person@example.com",
+  "scopes": [
+    "https://www.googleapis.com/auth/contacts.other.readonly",
+    "https://www.googleapis.com/auth/contacts.readonly",
+    "https://www.googleapis.com/auth/gmail.readonly"
+  ],
+  "accessToken": "replace-with-the-access-token",
+  "expiresAt": "2099-01-01T00:00:00.000Z"
+}
+```
+
+```sh
+ghostget auth add gmail-main --oauth-provider gmail \
+  --token-file /absolute/private/gmail-token.json \
+  --scopes https://www.googleapis.com/auth/contacts.other.readonly,https://www.googleapis.com/auth/contacts.readonly,https://www.googleapis.com/auth/gmail.readonly \
+  --subject person@example.com
+
+ghostget gmail contacts.list --auth gmail-main \
+  --input '{"collection":"contacts","limit":20,"stats_scan_limit":100}' --json
+ghostget gmail contacts.list --auth gmail-main \
+  --input '{"collection":"contacts","include_dates":true,"include_stats":false,"limit":20}' --json
+ghostget gmail contacts.list --auth gmail-main \
+  --input '{"collection":"other-contacts","limit":100,"include_stats":false}' --json
+ghostget gmail contacts.list --auth gmail-main \
+  --input '{"collection":"interactions","before":"2026-08-14T12:00:00.000Z","limit":100}' --json
+ghostget gmail contacts.list --auth gmail-main \
+  --input '{"collection":"interactions","after":"2026-08-14T12:00:00.000Z","before":"2026-08-15T12:00:00.000Z","limit":100}' --json
+ghostget gmail messaging.list --auth gmail-main \
+  --input '{"view":"inbox","limit":25}' --json
+ghostget gmail messaging.list --auth gmail-main \
+  --input '{"view":"search","query":"from:example.com has:attachment","limit":25}' --json
+ghostget gmail messaging.read --auth gmail-main \
+  --input '{"thread_id":"thread-id-from-list"}' --json
+```
+
+`contacts.list` selects saved Google Contacts, interaction-created Other
+contacts, or the mailbox-wide `interactions` view. Paginate each
+collection independently with its returned
+`nextCursor`; the OAuth token must carry both People read scopes. Contact
+statistics are optional so bulk enumeration can avoid per-contact Gmail
+queries. For saved contacts, `include_dates:true` adds birthdays, contact
+events, and the selected name's display, given, middle, family, prefix, and
+suffix fields. GhostGet selects the sole People primary name when present and
+otherwise accepts only a single unmarked name. Other contacts and interaction
+rows do not accept this option. When requested, contact statistics report sent and received counts plus the maximum internal
+date across every matched message. Count and date completeness flags
+remain explicit when the scan bound truncates a query or a message lacks a
+date. Contacts with mixed, unsupported, or absent addresses report `partial`,
+`unsupported`, or `unavailable` address coverage and lower-bound, incomplete
+statistics instead of exact zeroes for unscanned mailboxes. `limit * stats_scan_limit` cannot
+exceed 2,000, which bounds the per-direction Gmail scan before its paired
+metadata reads. Inbox and search rows include a provider-derived `threadUrl`
+and the exact `messaging.read` input. Reading does not mark a message seen or
+emit a protocol acknowledgement.
+
+The `interactions` view scans each matching Gmail message once in a
+fixed half-open window. Omit `after` for the initial mailbox scan; later calls
+can pass the prior `before` as an inclusive lower bound and fetch only newer
+messages. A guarded one-second search overlap is filtered by exact internal
+date before aggregation. The view reads headers, labels, and internal
+dates but never message bodies. Per normalized external address it emits sent/received
+counts, first/last timestamps, 30/90/365-day counts, and direction-specific
+completeness. Spam, trash, drafts, and chats are outside the view;
+the first page lists the account's configured Gmail send-as addresses so
+callers can exclude every self alias from all pages. Missing internal dates
+become explicit lower bounds. Opaque hashes and the
+unchanged window let a caller reject repeated pages without exposing raw Gmail
+message IDs.
+
+Pass a returned Gmail `threadUrl` to `ghostget read` or `ghostget clip` with the
+same auth locator. Gmail clips default to private GhostGet state rather than the
+Git-backed knowledge base. `--output <directory>` is the explicit plaintext
+export limit. Attachments are content-addressed and integrity-recorded;
+the implicit capture default and explicit `--media all` include every MIME
+attachment, while `--media none` omits their bytes. `--media images` is rejected
+because it would misrepresent non-image files in a Gmail thread. The private
+bundle keeps one physical file per digest and a `gmail.json` occurrence map for
+message, MIME part, provider attachment, declared filename and MIME type, and
+snapshot provenance. Its schema-2 provenance preserves normalized reviewed headers
+for each message: Subject, In-Reply-To, From, To, Cc, Bcc, Date, and Message-ID. Every
+physical attachment object uses the deterministic `<sha256>.bin` name and
+`application/octet-stream` media type, so conflicting or active declared
+types cannot create a second object or activate stored content.
+Text body leaves that Gmail externalizes through its attachment endpoint are
+resolved within the same body budget before a read or clip reports completion.
+Official `messaging.read` results cap full-thread decoded text at 7 MiB. Gmail's
+Omni view keeps an exact UTF-8-safe 256 KiB prefix per message and sets
+`bodyTruncated` explicitly without adding a synthetic marker.
+Full-thread JSON reserves at most 32 MiB for inline attachment payloads;
+provider-hosted attachment endpoints remain independently limited to 100 MiB
+per file, so profile, thread, and attachment responses never share one broad
+memory allowance.
+
+### Native Article drafts
+
+GhostGet separates private draft saving from publication:
+
+- `articles.draft.save` is R2. It creates or replaces one private native draft
+  and has no publish-capable branch.
+- `articles.publish` is R3. It is a different semantic operation with its own
+  installed contract, preview, confirmation, and exact result binding.
+
+A draft ID is not permission to publish, and a draft preview cannot be reused
+for publication. The separate official API and signed-in web adapters remain
+distinct transports and auth realms; GhostGet never switches between them to
+fill a capability gap.
+
+The current provider state is explicit:
+
+| Adapter | `articles.draft.save` | `articles.publish` |
+| --- | --- | --- |
+| `linkedin-web` | Observed R2 paragraphs/headings/native-blockquote/native-link private draft with a separate banner cover, ordered inline images, alt text, captions, and exact unpublished readback | Capture-required R3 |
+
+Capture or read source material separately. The caller owns every editorial
+choice involved in translating, abridging, retitling, attributing, and linking
+it for the destination. GhostGet sends only the final reviewed title and
+document; it does not turn a source URL into provider copy.
+
+For `linkedin-web`, pass `cover_image` outside the document when
+creating a draft or intentionally replacing its banner. On an exact
+`draft_id` replacement, omit `cover_image` to preserve the independently read
+existing banner without another upload. GhostGet binds a supplied cover only to
+LinkedIn's Article banner slot. `inline_images` contains only images intended
+at exact body positions.
+
+Signed-in LinkedIn now exposes the same private R2 seam through
+`linkedin-web articles.draft.save`. Its schemaVersion 2 document supports
+paragraphs, H1/H2 headings, native blockquotes, native HTTPS links, and ordered inline images with
+required descriptive alt text and optional captions. It creates or replaces
+only one bound private draft and independently verifies the exact unpublished
+text/image/asset result from one single hidden server payload in the
+authenticated editor HTML. Its fixed current single-upload registration, signed byte
+transfer, writes, and server-response read run inside a contained, account-bound Chrome
+session because LinkedIn rejects the same editor traffic when replayed by a
+standalone HTTP client. GhostGet does not type into or inspect the editor DOM,
+and the contained headed browser may be visible while the private save runs.
+Lists, styles, proprietary embeds, and publication remain unavailable.
+See the packaged [native article draft workflow](skills/ghostget/references/article-drafts.md)
+for the shared document grammar and safety sequence.
+
+## Normalized omni views
+
+The omni layer materializes selected exact inbox snapshots into a strict shared
+union of conversations, messages, and notifications. Each provider owns a pure,
+versioned materializer with explicit identity, pagination, completeness,
+tombstone, and deletion semantics. Unsupported providers say why. A shape
+change fails at that provider-owned step, retains the last good normalized
+entities, and records the exact failed revision instead of guessing.
+
+Omni v1 has no provider-authored write-invalidation tags. Auth-incarnation,
+materializer, and plugin implementation identity changes strand the prior
+normalized coordinates. Freshness advances only when the exact query is
+explicitly revalidated. If a newer exact snapshot drifts, GhostGet keeps the last
+good derivative and reports `retained-after-drift`. The provider-local
+diagnostic remains inside encrypted normalized state. Public reasons are
+categorical and do not echo foreign values or unreviewed property names.
+
+```sh
+ghostget omni read --input '{
+  "schemaVersion": 1,
+  "sources": [
+    {"adapterId":"reddit-web","operationId":"messaging.list","authId":"reddit-main","input":{"folder":"inbox","limit":25}},
+    {"adapterId":"whatsapp-web","operationId":"messaging.list","authId":"whatsapp-main","input":{"folder":"all","limit":100}}
+  ],
+  "filter": {"kinds":["conversation","message","notification"]},
+  "page": {"limit":100}
+}' --cache-only --json
+```
+
+`--cache-only` reads encrypted normalized state without a browser or provider
+round trip. `--from-exact-cache` rebuilds derivatives from encrypted exact
+snapshots. The default mode revalidates supported sources independently and
+then returns one locally paged view. Provider cursors remain private; public
+view cursors are authenticated and bound to the request, account lifetimes,
+materializer closure, and view revision.
+
+Each source row exposes a keyed `normalizationDataRevision` for causal cache
+comparison without revealing normalized bytes. During SWR, `current` may be an
+`omni-merged` result: it adopts a proven newer cached view while retaining every
+unresolved live source status. A concurrent advance for one provider, account,
+or continuation therefore cannot erase another live failure; the independent
+`live` and `cachedAfter` observations remain available as well.
+
+```ts
+import { staleWhileRevalidateOmniView } from "@hraness/ghostget/omni"
+
+const messages = staleWhileRevalidateOmniView({
+  schemaVersion: 1,
+  sources: [{
+    adapterId: "reddit-web",
+    operationId: "messaging.list",
+    authId: "reddit-main",
+    input: { folder: "inbox", limit: 25 },
+  }],
+})
+
+render(messages.cached?.view)
+render((await messages.revalidation).current.view)
+```
+
+## Create a portable plugin
+
+An agent can create a private, offline starting point without editing
+GhostGet:
+
+```sh
+ghostget plugin init example-web \
+  --display-name "Example" \
+  --surface example \
+  --origin https://www.example.com \
+  --operation feeds.read \
+  --output /absolute/private/example-web
+
+ghostget plugin check /absolute/private/example-web --json
+ghostget plugin test /absolute/private/example-web --trust-code --json
+ghostget plugin pack /absolute/private/example-web \
+  --output /absolute/private/example-web.ghostgetplugin --json
+ghostget plugin install /absolute/private/example-web.ghostgetplugin \
+  --trust-code --json
+```
+
+`init` writes a strict `ghostget-plugin.json`, a self-contained runtime, placeholder
+operation metadata, secret-free fixtures, and package-local agent guidance.
+`check` is static and does not execute plugin code. `test --trust-code` binds
+the decision to the verified plugin identity before running its declared
+secret-free fixtures. `pack` creates a reproducible content-addressed package.
+`install --trust-code` is the separate decision to let that exact package run.
+
+Portable code receives only declared, limited host capabilities. Network
+requests are pinned to declared HTTPS origins; credentials are opaque handles
+usable only at declared sinks; files and state are namespaced handles; and
+mutations must use the kernel's begin, request, and verify sequence. The host
+does not expose a shell, package manager, ambient environment, unrestricted
+filesystem, redirect, retry, or arbitrary request primitive.
+
+Read [the plugin guide](docs/plugins.md) before replacing an placeholder reservation
+with an observed contract. The repository's [GhostGet Agent Skill](skills/ghostget/SKILL.md)
+gives coding agents the same workflow and safety rules. Its bundled
+[social cross-posting guidance](skills/ghostget/references/cross-posting.md)
+orchestrates exact, previewed text, image, and video posts across supported
+platforms while preserving per-provider attachment limits and at-most-once
+dispatch evidence. Packages built from this source carry the same consolidated
+skill as the skills CLI.
+
+## Risk and confirmation
+
+- R1 is a reviewed read with no intended remote mutation.
+- R2 is one small, normally reversible change.
+- R3 is an externally visible or consequential change, including an exact
+  authored-item deletion only where a provider-specific contract binds the
+  target, current account, revision, mutation, and independent absence readback.
+- R4 is blocked.
+
+R2 and R3 commands create an exact, short-lived preview. Review its adapter,
+transport, account realm, input, attachment hashes, side effect, contract hash,
+and complete dispatch schedule, then pass its digest to `ghostget confirm`.
+After a partial or indeterminate dispatch, GhostGet does not retry or switch
+transport. The run remains unsettled until exact external evidence supports a
+separate reconciliation.
+
+An operator who explicitly accepts the risk of a duplicate may create one new
+intent from one terminal indeterminate `posts.publish` run:
+
+```sh
+ghostget invoke <adapter> posts.publish --input @post.json --auth <id> \
+  --preview --duplicate-risk-of <source-run-id>
+ghostget confirm <new-plan-digest>
+```
+
+This v1 path is limited to one started dispatch over the same reviewed R3 web
+session contract. GhostGet revalidates the exact adapter, account realm,
+operation, normalized input (including attachment hashes), contract, source
+receipt, journal, ledger, and recovery capsule at preview and confirmation.
+The source run remains indeterminate and its evidence is never cleared or
+rewritten. Re-previewing the unchanged source produces the same successor
+intent; that successor has its own permanent at-most-once ledger. If the
+process exits after electing the successor but before starting its dispatch,
+the election remains fail-closed and must be inspected rather than retried.
+
+New previews use one environment-neutral durable contract identity. Readers
+also accept the exact predecessor identities produced by the standard `test`,
+`production`, and `development` modes. They do not accept a wildcard identity
+for custom `NODE_ENV` values. GhostGet retains unsupported unsettled evidence and
+directs the operator to `ghostget doctor`, the exact predecessor build, or manual
+evidence review. Runtime loading still verifies the current exact source,
+dependency, and execution closure separately.
+
+## Optional updates and support
+
+The website footer and `ghostget support` offer the same optional support,
+including free GhostGet product updates. Select a link to open Hraness
+Accounts, then review and confirm signup or payment in the browser.
+
+GhostGet stays free to use. After useful standalone work, the CLI may write a
+compact discovery notice to stderr, including when stdout is JSON or piped.
+It preserves the result on stdout and does not claim an invitation or inspect
+Git email settings. PTYs use the same agent-oriented default.
+
+Agents can read `ghostget support protocol --json` without changing preferences,
+then call `ghostget support offer --json` once at a human-facing task closeout.
+When due, present its optional updates/support invitation **before** calling
+`ghostget support shown <id>`. Use a persistent human-facing message or card
+when the host permits acknowledgement afterward; do not repeat the invitation.
+Temporary or collapsed commentary does not qualify. If only the final answer
+persists and tools must precede it, include the invitation there without `shown`.
+The reservation expires after ten minutes without establishing a weekly cooldown,
+so a later task may offer again. A `quiet` response needs no mention; cancel an unpresented offer with
+`ghostget support release <id>`. Acknowledgement reports output, not human consent.
+
+Set `HRANESS_SUPPORT_AUDIENCE=agent|human|off` to select presentation. The default
+is agent discovery; explicit human mode requires interactive stderr. `off`
+suppresses discovery and due offers. `ghostget support dismiss` opts out locally
+across participating Hraness tools; `snooze` pauses invitations for 30 days.
+No command signs up or pays automatically. Offers may suggest an editable Git
+email address; selecting it authorizes prefilling only. Signup needs a request
+and inbox confirmation, and payment always requires the person's browser approval.
+The protocol and [Agent Skill](skills/ghostget/SKILL.md) describe the handoff.
+
+## Develop
+
+```sh
+git clone https://github.com/hraness/ghostget.git
+cd ghostget
+bun install --frozen-lockfile
+bun run check
+```
+
+The full check type-checks, tests, builds, runs the secret-free CLI and portable
+plugin lifecycle smoke, then installs and imports the packed package in a clean
+consumer. See [CONTRIBUTING.md](CONTRIBUTING.md) for change boundaries and
+[local development](docs/local-development.md) for isolated parallel worktrees.
+
+## License
+
+MIT

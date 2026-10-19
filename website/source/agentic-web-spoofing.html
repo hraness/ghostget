@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en" data-hraness-theme="paper" data-palette="gruvbox">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#fbf1c7" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">
+    <title>How to verify a web agent’s identity</title>
+    <meta name="description" content="A bot name in an HTTP request is a claim. Learn how identity checks work and why authentication and permission answer separate questions.">
+    <meta name="robots" content="noindex, follow">
+    <link rel="canonical" href="https://ghostget.com/agentic-web-spoofing/">
+    <link rel="icon" href="/icon.png" type="image/png" sizes="32x32">
+    <link rel="icon" href="/icon-96.png" type="image/png" sizes="96x96">
+    <link rel="apple-touch-icon" href="/apple-icon.png" sizes="180x180">
+    <link rel="stylesheet" href="{{CSS_ASSET}}">
+    <link rel="sitemap" type="application/xml" href="/sitemap.xml">
+    {{MARKDOWN_ALTERNATE}}
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="GhostGet">
+    <meta property="og:title" content="How to verify a web agent’s identity">
+    <meta property="og:description" content="A bot name in an HTTP request is a claim. Learn how identity checks work and why authentication and permission answer separate questions.">
+    <meta property="og:url" content="https://ghostget.com/agentic-web-spoofing/">
+    <meta property="og:image" content="{{EDITORIAL_IMAGE_URL}}">
+    <meta property="og:image:alt" content="{{EDITORIAL_IMAGE_ALT}}">
+    <meta property="og:image:width" content="{{EDITORIAL_IMAGE_WIDTH}}">
+    <meta property="og:image:height" content="{{EDITORIAL_IMAGE_HEIGHT}}">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="How to verify a web agent’s identity">
+    <meta name="twitter:description" content="A bot name in an HTTP request is a claim. Learn how identity checks work and why authentication and permission answer separate questions.">
+    <meta name="twitter:image" content="{{EDITORIAL_IMAGE_URL}}">
+    <meta name="twitter:image:alt" content="{{EDITORIAL_IMAGE_ALT}}">
+    <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
+    <meta name="ghostget-posthog-key" content="{{POSTHOG_KEY}}">
+    <script type="application/ld+json">{{JSON_LD}}</script>
+    <script type="module" src="{{ANALYTICS_ASSET}}"></script>
+    <script type="module" src="{{FOIL_ASSET}}"></script>
+  </head>
+  <body data-hraness-landscape="page">
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="topbar guide-topbar">
+      <a aria-label="{{PORTFOLIO_NAME}} home" class="wordmark hraness-foil-text" data-foil="" href="/"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span> {{PORTFOLIO_NAME}}</a>
+      <nav aria-label="Primary">
+        <a href="/docs/tutorials/getting-started/">Install</a>
+        <a href="/docs/reference/provider-capabilities/">Providers</a>
+        <a href="/docs/">Docs</a>
+        <a href="https://github.com/hraness/ghostget">GitHub <span aria-hidden="true">↗</span></a>
+        <a href="https://account.hraness.com/">Account</a>
+      </nav>
+    </header>
+    <main class="guide-main" id="main" tabindex="-1">
+      <nav aria-label="More articles" class="breadcrumbs"><a href="/blog/">Blog</a></nav>
+      <article class="guide-article">
+<header class="guide-hero">
+<h1>How to verify a web agent’s identity</h1>
+<p class="answer-lede">A request can call itself a familiar crawler without coming from that crawler. To make decisions based on an agent’s identity, a website needs a check tied to the sender, such as a verified network origin or a signed request.</p>
+{{EDITORIAL_FIGURE}}
+{{ESSAY_PROVENANCE}}
+</header>
+<section aria-labelledby="a-name-is-a-claim"><h2 id="a-name-is-a-claim">A user-agent name is supplied by the caller</h2>
+<p>The HTTP <code>User-Agent</code> header describes the client making a request. The caller supplies that text. A crawler name can help classify traffic, but copying the name does not require control of the crawler’s infrastructure or signing keys.</p>
+<p>Imagine a request for a private endpoint that carries the name of a search engine’s bot. Granting access because the string looks familiar would let any caller make the same claim. The access decision needs evidence beyond the label.</p></section>
+<section aria-labelledby="check-the-sender"><h2 id="check-the-sender">Check the sender using its supported method</h2>
+<p>Some crawlers document the network addresses or DNS checks a site can use to verify them. Signed-request systems instead let a receiver validate a signature and the identity associated with its key. Use the method the claimed sender publishes, and apply the complete check.</p>
+<p><a href="https://knownagents.com/insights">Known Agents’ Agentic Web Index</a> distinguishes a claimed identity from its supported authentication. It counts a request as spoofed when that identity claim fails the relevant check. The failed check does not identify the actual software or person behind the request.</p>
+<p>For a concrete example of a published verification method, <a href="https://developers.google.com/search/docs/crawling-indexing/verifying-googlebot">Google’s crawler documentation</a> describes IP-list and DNS verification. <a href="https://www.rfc-editor.org/rfc/rfc9421">HTTP Message Signatures</a> defines a mechanism for signing selected parts of an HTTP message.</p></section>
+<section aria-labelledby="identity-and-permission"><h2 id="identity-and-permission">Decide what that identity may do</h2>
+<p>Authentication answers who is making a request. Authorization answers whether that caller may perform the requested action. A verified bot may be allowed to read public pages while having no access to account data or publishing controls.</p>
+<p>The same distinction matters when you give your own agent tools. Selecting an account establishes which account a request uses. It does not make every possible action on that account appropriate. A tool should define its actions and require the relevant permission for each one.</p>
+<p>GhostGet applies that distinction through named account actions and previews for consequential writes. Its <a href="/docs/explanation/security-model/">security guide</a> describes those controls. Website owners still need to enforce their own authentication and access rules on incoming traffic.</p></section>
+      </article>
+    </main>
+    {{HRANESS_SITE_FOOTER}}
+  </body>
+</html>

@@ -1,0 +1,83 @@
+# Social video platform routing
+
+Use this as routing guidance only. Always inspect
+`ghostget capabilities <adapter> --json`; installed adapter state and schemas
+are authoritative and may change.
+
+| Surface | Candidate adapter | Video operation | Meaning |
+| --- | --- | --- | --- |
+| LinkedIn | `linkedin` | video-capable `posts.publish` | Observed official OAuth member or explicitly bound organization post. |
+| LinkedIn | `linkedin-web` | `media.publish` | Observed consumer-web member video post; image `posts.publish` remains a separate observed contract. |
+| Bluesky | `bluesky-web` | `media.publish` | Observed AT Protocol video feed post; image `posts.publish` remains a separate observed contract. |
+| Substack | `substack-web` | `media.publish` when observed | Public Substack Note, not an article or newsletter. |
+| TikTok | `tiktok-web` | `media.publish` when observed | Native TikTok video |
+| Instagram | `meta-web` on the Instagram surface | `media.publish` when observed | Instagram video or Reel only when the schema says so. |
+| Threads | `meta-web` on the Threads surface | `media.publish` | Observed single-MP4 Threads video post; text/image `posts.publish` remains a separate contract. |
+| YouTube Shorts | `youtube-web` | `media.publish` when observed | Studio video upload. Community `posts.publish` is not a Short. |
+| Reddit | `reddit-web` | `media.publish` when observed | One video post in one exact confirmed subreddit. |
+
+Official `linkedin` supports MP4 post contracts. `reddit-web`
+`media.publish@9` observes one plan-bound MP4 plus a required plan-bound
+PNG/JPEG poster and explicit NSFW, spoiler, and reply declarations. Threads
+`media.publish@1` observes one plan-bound ISO BMFF MP4, exact dimensions, its
+single-request video upload, durable created-post identity, and independent
+permalink actor/text/video readback. Bluesky `media.publish@2` observes one
+plan-bound ISO BMFF MP4, the fixed first-party legacy upload and response-bound
+processing job, processed blob, exact repository record, durable accepted
+target, and authoritative PDS plus public AppView readbacks. LinkedIn web
+`media.publish@1` observes one plan-bound MP4, the member video upload
+registration and byte transfer, the normalized create response, and an exact
+permalink readback. Substack `media.publish@1` observes one plan-bound MP4,
+authenticated upload initialization, ordered S3 multipart transfer, transcode
+and status polling, attachment binding, exact Note create, and independent
+readback of the bound `media_upload_id` and transcoded `mediaUpload` state.
+TikTok, Instagram, and YouTube expose bounded video `media.publish`
+reservations. Those routes stay `capture-required` until their exact upload,
+processing, request, response, actor/target, and independent readback contracts
+are implemented and proven. Treat them as unavailable until the installed
+capability independently says `observed`.
+
+## Selection rules
+
+- Use exactly one adapter and one stable bound account realm per surface.
+- Prefer the transport the user named or already configured. Do not fall
+  back from browser-session to OAuth, or vice versa, because one operation
+  is unavailable.
+- Require the chosen video operation's `state == "observed"`. An invalid
+  adapter or `capture-required` operation must produce no request.
+- A text or image `posts.publish` is not a substitute for video.
+- Re-check capabilities before every new preview.
+- Tags are an explicit platform-specific variant only for TikTok,
+  Instagram, and YouTube Shorts. Leave LinkedIn, Substack, Bluesky,
+  Threads, and Reddit tag-free.
+- Set each supported synthetic-media or AI declaration explicitly and
+  truthfully from the actual video's provenance; caption authorship does not
+  determine the media declaration. Do not invent a disclosure
+  field on an adapter whose installed schema does not expose one.
+
+## Common invocation shape
+
+Write exact input JSON to a private task file when shell quoting would be
+fragile, then invoke:
+
+```sh
+ghostget invoke <adapter> media.publish \
+  --input @/absolute/private/video-input.json \
+  --auth <bound-auth-id> \
+  --preview --json [--headed]
+```
+
+Use `posts.publish` instead only when the installed schema for that
+adapter accepts `video/mp4` on that operation.
+
+Review the returned digest and confirm it within five minutes:
+
+```sh
+ghostget confirm <plan-digest> --json [--headed]
+```
+
+Follow the preview's returned `confirmCommand` exactly so headed mode is
+preserved.
+
+Do not place credentials in the input file. Delete task input files after
+planning.

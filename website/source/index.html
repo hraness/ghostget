@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en" data-hraness-theme="paper" data-palette="gruvbox" data-hraness-marketing-preset="editorial" data-hraness-pattern="none">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#fbf1c7" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">
+    <title>{{PORTFOLIO_TITLE}}</title>
+    <meta name="description" content="{{PORTFOLIO_META}}">
+    <meta name="application-name" content="{{PORTFOLIO_NAME}}">
+    <meta name="generator" content="Bun 1.3.14">
+    <meta name="robots" content="max-image-preview:large">
+    <link rel="canonical" href="https://ghostget.com/">
+    <link rel="icon" href="/icon.png" type="image/png" sizes="32x32">
+    <link rel="icon" href="/icon-96.png" type="image/png" sizes="96x96">
+    <link rel="apple-touch-icon" href="/apple-icon.png" sizes="180x180">
+    <link rel="stylesheet" href="{{CSS_ASSET}}">
+    <link rel="sitemap" type="application/xml" href="/sitemap.xml">
+    {{MARKDOWN_ALTERNATE}}
+
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="{{PORTFOLIO_NAME}}">
+    <meta property="og:title" content="{{PORTFOLIO_TITLE}}">
+    <meta property="og:description" content="{{PORTFOLIO_META}}">
+    <meta property="og:url" content="https://ghostget.com/">
+    <meta property="og:image" content="https://ghostget.com/og.png">
+    <meta property="og:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{PORTFOLIO_TITLE}}">
+    <meta name="twitter:description" content="{{PORTFOLIO_META}}">
+    <meta name="twitter:image" content="https://ghostget.com/og.png">
+    <meta name="twitter:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
+
+    <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
+    <meta name="ghostget-posthog-key" content="{{POSTHOG_KEY}}">
+    <script type="application/ld+json">{{JSON_LD}}</script>
+    <script type="module" src="{{ANALYTICS_ASSET}}"></script>
+    <script type="module" src="{{FOIL_ASSET}}"></script>
+    <script type="module" src="{{GHOSTGET_SKILL_INSTALL_ASSET}}"></script>
+    <script type="module" src="{{GHOSTGET_PLATFORM_INSTALL_ASSET}}"></script>
+  </head>
+  <body data-hraness-landscape="page">
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="hraness-marketing-header" data-hraness-marketing="header">
+      <div class="hraness-marketing-header__inner">
+        <a aria-label="{{PORTFOLIO_NAME}} home" class="hraness-marketing-header__brand" data-foil="" href="/"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span> {{PORTFOLIO_NAME}}</a>
+        <nav aria-label="Primary" class="hraness-marketing-header__nav">
+          <a href="#how-it-works">How it works</a>
+          <a href="#providers">Providers</a>
+          <a href="/compare/">Compare</a>
+          <a href="/docs/">Docs</a>
+          <a href="https://github.com/hraness/ghostget"
+          >GitHub <span aria-hidden="true">↗</span></a>
+          <a href="https://account.hraness.com/">Account</a>
+        </nav>
+        <div class="hraness-marketing-header__actions">
+          <a class="hraness-marketing-action" data-analytics-cta="header-install" data-emphasis="primary" href="#start">Install</a>
+        </div>
+      </div>
+    </header>
+
+    <main id="main" tabindex="-1">
+      <div class="hraness-marketing-page">
+        <header aria-labelledby="brand-name" class="hraness-marketing-hero ghostget-product-hero" data-align="start" data-hraness-marketing="hero" data-layout="split" data-tone="paper">
+          <div class="hraness-marketing-hero__copy">
+            <p class="home-eyebrow">Websites as named actions</p>
+            <h1 class="hraness-marketing-hero__heading" id="brand-name">{{PORTFOLIO_HERO_START}} <span class="hero-heading-accent">{{PORTFOLIO_HERO_END}}</span></h1>
+            <p class="hraness-marketing-hero__summary hero-explainer">{{PORTFOLIO_HERO_SUMMARY}}</p>
+            <div class="hraness-marketing-hero__actions">
+              <a class="hraness-marketing-action" data-analytics-cta="hero-install" data-emphasis="primary" href="#start">{{PORTFOLIO_PRIMARY_ACTION}}</a>
+              <a class="home-text-link" data-analytics-cta="hero-see-it-work" href="#providers">{{PORTFOLIO_SECONDARY_ACTION}} <span aria-hidden="true">→</span></a>
+            </div>
+            <p class="hraness-marketing-hero__boundary ghostget-hero-facts">Free and MIT licensed · macOS and Linux · Bun 1.3.14</p>
+          </div>
+          <div class="hraness-marketing-hero__frame" data-hraness-signature="page-to-markdown">
+            {{LAUNCH_MOCKUP:page-to-markdown}}
+          </div>
+        </header>
+
+        <section aria-label="A note from the author" class="founder-note">
+          <span aria-hidden="true" class="founder-note__emoji">👻</span>
+          <div class="founder-note__body">
+            <p>GhostGet lets an agent drive a website the way it would call an API. Instead of screenshots and clicks, it runs a named action for the site: list the inbox, send the message, pull the statement. A task that costs 36,000 tokens of browsing takes about 3,800, and the agent never holds a password.</p>
+            <p class="founder-note__signature">Ben Guo</p>
+            <p class="founder-note__action">Ask your agent to set it up: <a href="https://ghostget.com">ghostget.com</a></p>
+          </div>
+        </section>
+
+        <section aria-labelledby="how-it-works-heading" class="hraness-marketing-section" data-hraness-marketing="section" data-layout="stack" id="how-it-works">
+          <div class="hraness-marketing-section__heading-group">
+            <p class="home-eyebrow">How it works</p>
+            <h2 class="hraness-marketing-section__heading" id="how-it-works-heading">{{PORTFOLIO_HEADING:how-it-works-heading}}</h2>
+            <p class="hraness-marketing-section__summary">Your agent names the task; GhostGet runs one action in your signed-in session.</p>
+          </div>
+          <div class="hraness-marketing-section__body">
+            <ol aria-label="One GhostGet request" class="hraness-marketing-flow" data-hraness-marketing="flow">
+              <li class="hraness-marketing-flow__step"><span aria-hidden="true" class="hraness-marketing-flow__number">01</span><div class="hraness-marketing-flow__body"><strong class="hraness-marketing-flow__label">Name the job</strong><p class="hraness-marketing-flow__detail">Read a page, check an inbox, or save a video.</p></div></li>
+              <li class="hraness-marketing-flow__step"><span aria-hidden="true" class="hraness-marketing-flow__number">02</span><div class="hraness-marketing-flow__body"><strong class="hraness-marketing-flow__label">Match one action</strong><p class="hraness-marketing-flow__detail">Such as <code>gmail messaging.list</code>.</p></div></li>
+              <li class="hraness-marketing-flow__step"><span aria-hidden="true" class="hraness-marketing-flow__number">03</span><div class="hraness-marketing-flow__body"><strong class="hraness-marketing-flow__label">Run it on your machine</strong><p class="hraness-marketing-flow__detail">Account changes wait for you.</p></div></li>
+              <li class="hraness-marketing-flow__step"><span aria-hidden="true" class="hraness-marketing-flow__number">04</span><div class="hraness-marketing-flow__body"><strong class="hraness-marketing-flow__label">Return the result</strong><p class="hraness-marketing-flow__detail">JSON or Markdown.</p></div></li>
+            </ol>
+          </div>
+        </section>
+
+        <section aria-labelledby="measured-heading" class="hraness-marketing-section" data-hraness-marketing="section" data-layout="stack" id="measured">
+          <div class="hraness-marketing-section__heading-group">
+            <p class="home-eyebrow">Measured</p>
+            <h2 class="hraness-marketing-section__heading" id="measured-heading">{{PORTFOLIO_HEADING:measured-heading}}</h2>
+            <p class="hraness-marketing-section__summary">The same pages, fetched as raw HTML and read with <code>ghostget read</code>.</p>
+          </div>
+          <div class="hraness-marketing-section__body">
+            <dl aria-label="The Wikipedia article on Wget, measured September 22, 2026" class="hraness-marketing-stats__list ghostget-stats">
+              <div><dt>Raw page HTML</dt><dd><strong>36,000</strong><span>tokens, from 145,617 bytes</span></dd></div>
+              <div><dt>GhostGet Markdown</dt><dd><strong>3,800</strong><span>tokens, from 15,021 bytes</span></dd></div>
+              <div><dt>Smaller by</dt><dd><strong>9.7×</strong><span>the same article, the same day</span></dd></div>
+            </dl>
+            <div class="table-scroll" role="region" aria-labelledby="measured-heading" tabindex="0">
+              <table>
+                <thead><tr><th scope="col">Page read</th><th scope="col">ghostget returns</th><th scope="col">Raw HTML</th><th scope="col">Smaller by</th></tr></thead>
+                <tbody>
+                  <tr><th scope="row">Wikipedia article</th><td>15,021 bytes</td><td>145,617 bytes</td><td>9.7×</td></tr>
+                  <tr><th scope="row">GitHub repository page</th><td>79,955 bytes</td><td>647,690 bytes</td><td>8.1×</td></tr>
+                  <tr><th scope="row">This site’s security guide</th><td>7,220 bytes</td><td>41,295 bytes</td><td>5.7×</td></tr>
+                  <tr><th scope="row">Hacker News front page</th><td>7,311 bytes</td><td>34,791 bytes</td><td>4.8×</td></tr>
+                  <tr><th scope="row">example.com</th><td>345 bytes</td><td>559 bytes</td><td>1.6×</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="ghostget-stats__source">Measured September 22, 2026 over HTTP with no browser, at four bytes per token.</p>
+          </div>
+        </section>
+
+        <section aria-labelledby="providers-title" class="hraness-marketing-section provider-section" data-hraness-marketing="section" data-layout="stack" id="providers">
+          <div class="hraness-marketing-section__heading-group">
+            <p class="home-eyebrow">Providers</p>
+            <h2 id="providers-title">{{PORTFOLIO_HEADING:home-providers}}</h2>
+            <p class="hraness-marketing-section__summary">Each service comes with named actions and its connection steps.</p>
+          </div>
+          <div class="hraness-marketing-section__body">
+            {{PROVIDER_MARQUEE}}
+          </div>
+        </section>
+
+        <section aria-labelledby="start-heading" class="start-section hraness-marketing-install" data-hraness-marketing="install" id="start">
+          <div class="hraness-marketing-install__heading-group">
+            <p class="home-eyebrow">Get started</p>
+            <h2 class="hraness-marketing-install__heading" id="start-heading">{{PORTFOLIO_HEADING:start-heading}}</h2>
+            <p class="install-summary">Install the <a href="{{GHOSTGET_PACKAGE_ARTIFACT}}"><code>@hraness/ghostget</code> release archive</a> with <a href="https://bun.sh/docs/installation">Bun 1.3.14</a>; no account needed.</p>
+            {{GHOSTGET_PLATFORM_BADGES}}
+          </div>
+          <div class="hraness-marketing-install__commands">
+            <aside class="prompt-card">
+              <p class="prompt-label">Tell your agent</p>
+              <p>“Install GhostGet {{GHOSTGET_RELEASE}}, then use it to read https://example.com and summarize it.”</p>
+            </aside>
+            <div class="hraness-marketing-hero__install ghostget-install-commands">{{GHOSTGET_PLATFORM_INSTALL}}</div>
+            <div class="skill-install" data-skill-install data-install-command="agent_skill">
+              <p class="skill-install-label" id="hero-skill-install-label">Optional: add the Agent Skill</p>
+              <div class="skill-install-control">
+                <span aria-hidden="true" class="skill-install-prompt">$</span>
+                <code aria-describedby="hero-skill-install-note hero-skill-install-status" aria-labelledby="hero-skill-install-label" class="skill-install-command" data-skill-install-command id="hero-skill-install-command" tabindex="0">{{GHOSTGET_SKILL_INSTALL_COMMAND}}</code>
+                <button aria-controls="hero-skill-install-command" aria-label="Copy Agent Skill install command" class="skill-install-copy" data-skill-install-copy hidden type="button">
+                  <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M8 8.75A2.75 2.75 0 0 1 10.75 6h6.5A2.75 2.75 0 0 1 20 8.75v6.5A2.75 2.75 0 0 1 17.25 18h-6.5A2.75 2.75 0 0 1 8 15.25z"></path><path d="M15.75 6v-1.25A2.75 2.75 0 0 0 13 2H6.75A2.75 2.75 0 0 0 4 4.75V11a2.75 2.75 0 0 0 2.75 2.75H8"></path></svg>
+                  <span data-skill-install-copy-label>Copy</span>
+                </button>
+              </div>
+              <p class="skill-install-note" id="hero-skill-install-note">With Bun, run <code>{{GHOSTGET_SKILL_INSTALL_COMMAND_BUNX}}</code> instead. <a href="{{GHOSTGET_SKILLS}}">View the GhostGet Agent Skill on skills.sh.</a></p>
+              <p aria-live="polite" class="visually-hidden" data-skill-install-status id="hero-skill-install-status" role="status"></p>
+            </div>
+          </div>
+        </section>
+
+        <section aria-labelledby="local-by-design-title" class="hraness-marketing-trust" data-hraness-marketing="trust" id="local-by-design">
+          <header class="hraness-marketing-trust__header">
+            <p class="home-eyebrow">Safety</p>
+            <h2 class="hraness-marketing-trust__heading" id="local-by-design-title">{{PORTFOLIO_HEADING:local-by-design-title}}</h2>
+            <p>Sign-ins and saved results stay on your machine.</p>
+          </header>
+          <dl class="hraness-marketing-trust-grid ghostget-trust">
+            <div class="hraness-marketing-trust-item"><svg aria-hidden="true" class="ghostget-trust__icon" fill="none" focusable="false" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewBox="0 0 24 24" width="24"><rect height="10" rx="2" width="14" x="5" y="11"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg><dt>Keep sign-ins local</dt><dd>Your agent receives results, never the password.</dd></div>
+            <div class="hraness-marketing-trust-item"><svg aria-hidden="true" class="ghostget-trust__icon" fill="none" focusable="false" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewBox="0 0 24 24" width="24"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg><dt>Preview account changes</dt><dd>Sends and edits run after you confirm.</dd></div>
+            <div class="hraness-marketing-trust-item"><svg aria-hidden="true" class="ghostget-trust__icon" fill="none" focusable="false" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewBox="0 0 24 24" width="24"><path d="M4 7h16v13H4z"></path><path d="M3 4h18v3H3z"></path><path d="M10 11h4"></path></svg><dt>Keep earlier reads</dt><dd>Saved reads stay encrypted on your machine.</dd></div>
+            <div class="hraness-marketing-trust-item"><svg aria-hidden="true" class="ghostget-trust__icon" fill="none" focusable="false" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewBox="0 0 24 24" width="24"><path d="M8.5 3h7l5 5v7l-5 5h-7l-5-5V8z"></path><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg><dt>Stop when a service changes</dt><dd>An action stops instead of guessing.</dd></div>
+          </dl>
+        </section>
+
+        <section aria-labelledby="comparison-title" class="hraness-marketing-section" data-hraness-marketing="section" data-layout="stack" id="how-it-fits">
+          <div class="hraness-marketing-section__heading-group">
+            <p class="home-eyebrow">Compare</p>
+            <h2 class="hraness-marketing-section__heading" id="comparison-title">{{PORTFOLIO_HEADING:comparison-title}}</h2>
+            <p class="hraness-marketing-section__summary">GhostGet runs named actions on your machine, against your own sessions.</p>
+          </div>
+          <div class="hraness-marketing-section__body">
+            <div class="table-scroll ghostget-compare" role="region" aria-labelledby="comparison-title" tabindex="0">
+              <table>
+                <thead><tr><th scope="col">Tool</th><th scope="col">Where it runs</th><th scope="col">Best for</th></tr></thead>
+                <tbody>
+                  <tr><th scope="row">GhostGet</th><td>Your machine</td><td>Named page and account actions</td></tr>
+                  <tr><th scope="row">Your agent’s web fetch</th><td>Your agent</td><td>Quick lookups</td></tr>
+                  <tr><th scope="row"><a href="/compare/firecrawl/">Firecrawl</a> / <a href="/compare/jina-reader/">Jina Reader</a></th><td>Hosted service</td><td>Reading, crawling and search</td></tr>
+                  <tr><th scope="row"><a href="/compare/browser-use/">browser-use</a></th><td>Agent-driven browser</td><td>Flexible, multi-step tasks</td></tr>
+                  <tr><th scope="row"><a href="/compare/playwright-mcp/">Playwright MCP</a></th><td>Local browser</td><td>Live browser controls</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="ghostget-stats__source"><a href="/compare/">Read the detailed comparisons</a>.</p>
+          </div>
+        </section>
+
+        <section aria-labelledby="faq-title" class="hraness-marketing-questions" data-hraness-marketing="questions" id="questions">
+          <header class="hraness-marketing-questions__header">
+            <p class="home-eyebrow">Questions</p>
+            <h2 class="hraness-marketing-questions__heading" id="faq-title">{{PORTFOLIO_HEADING:faq-title}}</h2>
+          </header>
+          <div class="hraness-marketing-question-list">
+            <details class="hraness-marketing-question"><summary>Which agents does it work with?</summary><div class="hraness-marketing-question__answer"><p>Any agent that can run commands: Claude Code, Codex, Cursor, Gemini CLI, or your own.</p></div></details>
+            <details class="hraness-marketing-question"><summary>Does GhostGet need an account?</summary><div class="hraness-marketing-question__answer"><p>Public-page reads need none. Connect a service when you want its actions.</p></div></details>
+            <details class="hraness-marketing-question"><summary>Does it use my credentials?</summary><div class="hraness-marketing-question__answer"><p>Yes, for connected services. Sign-ins stay in a local store and never appear in GhostGet’s output.</p></div></details>
+            <details class="hraness-marketing-question"><summary>What does it cost?</summary><div class="hraness-marketing-question__answer"><p>Nothing. GhostGet is free and MIT licensed.</p></div></details>
+            <details class="hraness-marketing-question"><summary>Which platforms does it run on?</summary><div class="hraness-marketing-question__answer"><p>macOS and Linux with Bun 1.3.14. Actions that read iMessage or Apple Photos need macOS.</p></div></details>
+            <details class="hraness-marketing-question"><summary>Why does GhostGet refuse to retry some writes?</summary><div class="hraness-marketing-question__answer"><p>If a write went out and its result is unknown, GhostGet won’t send it again. It stays marked unsettled until separate evidence shows what happened.</p></div></details>
+          </div>
+        </section>
+
+        <section aria-labelledby="maker-title" class="hraness-marketing-maker" data-hraness-marketing="maker" id="maker">
+          <header class="hraness-marketing-maker__header">
+            <p class="home-eyebrow">Made by</p>
+            <h2 class="hraness-marketing-maker__heading" id="maker-title">{{PORTFOLIO_HEADING:maker-title}}</h2>
+          </header>
+          <div class="hraness-marketing-maker__body">
+            <p>GhostGet is built by Hraness, a software studio in Puerto Rico.</p>
+            <ul class="hraness-marketing-maker__links">
+              <li><a href="https://hraness.com">hraness.com</a></li>
+              <li><a href="https://x.com/hraness">@hraness</a></li>
+              <li><a href="https://github.com/hraness/ghostget">GitHub <span aria-hidden="true">↗</span></a></li>
+            </ul>
+          </div>
+        </section>
+
+        <section aria-labelledby="related-title" class="hraness-marketing-related" data-hraness-marketing="related" id="related">
+          <header class="hraness-marketing-related__header">
+            <h2 class="hraness-marketing-related__heading" id="related-title">Other tools from our studio</h2>
+          </header>
+          <div class="hraness-marketing-related__groups">{{RELATED_GROUPS}}</div>
+        </section>
+
+        <section aria-labelledby="final-title" class="hraness-marketing-cta" data-hraness-marketing="cta" data-tone="paper" id="closing">
+          <h2 class="hraness-marketing-cta__heading" id="final-title">{{PORTFOLIO_HEADING:final-title}}</h2>
+          <p class="hraness-marketing-cta__summary">One public page, no account or API key.</p>
+          <div class="hraness-marketing-cta__actions">
+            <a class="hraness-marketing-action" data-analytics-cta="final-install" data-emphasis="primary" href="#start">{{PORTFOLIO_PRIMARY_ACTION}}</a>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    {{HRANESS_SITE_FOOTER}}
+  </body>
+</html>

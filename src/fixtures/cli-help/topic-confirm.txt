@@ -1,0 +1,11 @@
+Usage: ghostget confirm <digest> [--headed] [--json]
+
+Make a previewed change once. Previews expire after five minutes.
+
+Related
+  ghostget plans list                List previews waiting for confirmation
+  ghostget plans cancel <digest> --yes
+                                     Drop a preview
+  ghostget runs list                 List finished runs
+  ghostget runs show <run-id>        Show one run
+  ghostget runs reconcile <run-id>   Settle a run whose result was unclear

@@ -1,0 +1,1265 @@
+/**
+ * ITF trace replay for `verification/quint/fence.qnt`, the confirmed-write
+ * intent fence with duplicate-risk successors.
+ *
+ * Traces drive production one recorded action at a time, in two worlds:
+ *
+ * 1. Every seeded trace through the pure fence cores over an in-memory store:
+ *    - run journals through `initialRunJournal` and `transitionRunJournal`,
+ *      including the `duplicate-successor-claimed` election;
+ *    - the journal scan through `intentFenceBlocker` and `journalFencesIntent`;
+ *    - the intent ledger's name through `intentLedgerPath`;
+ *    - a blocked confirm's outcome through `priorRunDisposition`, the decision
+ *      the confirmed-write program makes;
+ *    - an applied reconciliation through `reconciledRecoveryRelease`.
+ *    The ledger is a map from `intentLedgerPath` to its holder with the
+ *    exclusive-create rule of `acquireLedger`. This world also hosts the
+ *    seeded pre-fix defects.
+ * 2. Through the file-backed state layer on a real state home, where every
+ *    effect goes through the state helper and `node:fs`, the production
+ *    `StatePort`. Every state operation spawns the bound state helper, so this
+ *    world replays a greedy cover of the seeded traces that takes every action
+ *    result they take, not every trace:
+ *    - journals through `createRunJournal`, `updateRunJournal`, and
+ *      `listRunJournalSnapshots`;
+ *    - the claim through `acquireConfirmedWriteLedgers`, the intent fence and
+ *      hash-keyed ledger claim the confirmed-write platform makes;
+ *    - a lost outcome as an owner crash that `repairInterruptedRunJournals`
+ *      settles, and every terminal journal's receipt and ledgers through the
+ *      same repair pass;
+ *    - an applied reconciliation through `releaseReconciledRunRecovery`.
+ *
+ * A not-applied claim changes no journal in either world, as
+ * `recordNotAppliedClaim` changes none. What neither world drives is listed in
+ * the claims register's not-verified entries for this model.
+ */
+import { afterAll, describe, expect, test } from "bun:test";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, relative, sep } from "node:path";
+
+import { canonicalJson, sha256 } from "../src/canonical-json.js";
+import type { ConfirmedWriteIntent, LedgerEntry } from "../src/confirmed-write-model.js";
+import { priorRunDisposition } from "../src/confirmed-write-program.js";
+import { currentProcessStartIdentity } from "../src/process-identity.js";
+import {
+  createRunJournal,
+  initialRunJournal,
+  listRunJournalSnapshots,
+  readRunJournal,
+  transitionRunJournal,
+  updateRunJournal,
+  type RunJournal,
+  type RunJournalEvent,
+} from "../src/run-journal.js";
+import {
+  acquireConfirmedWriteLedgers,
+  confirmedWriteLedgerPath,
+  duplicateSourceSupersession,
+  intentFenceBlocker,
+  intentLedgerPath,
+  readRunReceipt,
+  recheckConfirmedWriteSubjectFence,
+  reconciledRecoveryRelease,
+  releaseReconciledRunRecovery,
+  repairInterruptedRunJournals,
+  runJournalLedgerEntry,
+  subjectFenceBlocker,
+} from "../src/runtime.js";
+import { ghostgetStateHome, writePrivateJsonIfUnchanged } from "../src/storage.js";
+import {
+  itfOption,
+  itfRecord,
+  itfString,
+  itfStringSet,
+  itfVariable,
+  parseItfTrace,
+  type ItfState,
+  type ItfTrace,
+  type ItfValue,
+} from "./verification-itf.js";
+import { itfInt, itfStringMap, quintModel, quintTraceCache } from "./verification-replay.js";
+
+const MODEL_FILE = "fence.qnt";
+const RUNS = ["r1", "r2", "r3"] as const;
+const OUTCOMES = ["succeeded", "applied", "lost"] as const;
+const TRACE_VARIABLES = [
+  "applied", "authGen", "claimed", "dispatched", "elected", "ledger", "ledgerState", "mbt::actionTaken",
+  "mbt::nondetPicks", "phase", "reconciled", "result", "rev", "runAuth", "runLoc", "runRev", "runSubj", "scanned",
+  "source", "status",
+].sort();
+const LOCATORS = ["a", "b"] as const;
+// "" is a run whose auth record named no provider subject.
+const SUBJECTS = ["", "s"] as const;
+const ACTIONS = [
+  "scan", "scanSuccessor", "claim", "dispatch", "finish", "reconnect", "upgrade", "reconcile", "claimNotApplied",
+] as const;
+type Action = (typeof ACTIONS)[number];
+const MUTANT_STEPS = ["stepHashKeyed", "stepCallerRelease", "stepUnelected", "stepElectInFlight", "stepSubjectBlind"] as const;
+
+const RUN_IDS: Readonly<Record<string, string>> = Object.freeze({
+  r1: "11111111-1111-4111-8111-111111111111",
+  r2: "22222222-2222-4222-8222-222222222222",
+  r3: "33333333-3333-4333-8333-333333333333",
+});
+const RUN_LABELS: ReadonlyMap<string, string> = new Map(Object.entries(RUN_IDS).map(([label, id]) => [id, label]));
+const ADAPTER_ID = "fence-provider";
+// Each model locator is one auth locator ID; both may record one subject.
+const AUTH_IDS: Readonly<Record<string, string>> = Object.freeze({ a: "fence-main", b: "fence-second" });
+const SUBJECT_IDS: Readonly<Record<string, string>> = Object.freeze({ s: "1234567890" });
+// Duplicate-risk successors exist only for one-dispatch authenticated-session
+// posts.publish writes, so every replayed run is one.
+const OPERATION = "posts.publish";
+const INPUT_HASH = sha256("fence-replay-input");
+const STARTED_AT = Date.parse("2026-09-23T00:00:00.000Z");
+const FAR_FUTURE = "2100-01-01T00:00:00.000Z";
+const DEAD_OWNER = { pid: 2_147_483_647, bootId: "f".repeat(64), processStartId: "0".repeat(64) } as const;
+
+const scratch = mkdtempSync(join(tmpdir(), "ghostget-fence-replay-"));
+const memoryEnvironment = Object.freeze({ GHOSTGET_STATE_HOME: join(scratch, "memory") });
+afterAll(() => rmSync(scratch, { recursive: true, force: true }));
+
+/**
+ * Seeded defects in the in-memory world around the production cores:
+ * - `hash-keyed-intent` keys the intent by the auth and adapter bytes, as
+ *   the fence did before D1 was fixed;
+ * - `caller-release` releases the ledger on a caller's not-applied claim, as
+ *   the reconciler did before D2 was fixed.
+ */
+type Defect = "none" | "hash-keyed-intent" | "caller-release";
+
+type Snapshot = Readonly<{
+  phase: ReadonlyMap<string, string>;
+  status: ReadonlyMap<string, string>;
+  ledgerState: ReadonlyMap<string, string>;
+  runAuth: ReadonlyMap<string, number>;
+  runRev: ReadonlyMap<string, number>;
+  runLoc: ReadonlyMap<string, string>;
+  runSubj: ReadonlyMap<string, string>;
+  source: ReadonlyMap<string, string>;
+  elected: ReadonlyMap<string, string>;
+  authGen: number;
+  rev: number;
+  scanned: ReadonlySet<string>;
+  ledgerHolders: ReadonlySet<string>;
+  ledgerNames: number;
+  dispatched: ReadonlySet<string>;
+  applied: ReadonlySet<string>;
+  reconciled: ReadonlySet<string>;
+  claimed: ReadonlySet<string>;
+  result: string;
+}>;
+
+class ReplayDivergence extends Error {}
+
+/** The generation that a hash names, from `hashFor`. */
+function generationOf(hash: string, prefix: string): number {
+  for (let generation = 0; generation < 8; generation += 1) {
+    if (hashFor(prefix, generation) === hash) return generation;
+  }
+  throw new Error(`${prefix} hash names no known generation`);
+}
+
+function hashFor(prefix: string, generation: number): string {
+  return sha256(`${prefix}-${String(generation)}`);
+}
+
+function labelOf(runId: string): string {
+  const label = RUN_LABELS.get(runId);
+  if (label === undefined) throw new Error(`run ${runId} is not a replayed run`);
+  return label;
+}
+
+/** The model locator of a journal's auth locator ID, including the hash-keyed defect's per-generation IDs. */
+function locatorOf(journal: RunJournal): string {
+  for (const locator of LOCATORS) {
+    const id = AUTH_IDS[locator]!;
+    if (journal.auth.id === id || journal.auth.id.startsWith(`${id}-`)) return locator;
+  }
+  throw new Error(`auth locator ${journal.auth.id} is not a replayed locator`);
+}
+
+/** The model subject a journal recorded: "" for none. */
+function subjectOf(journal: RunJournal): string {
+  if (journal.authSubject === undefined) return "";
+  const found = Object.entries(SUBJECT_IDS).find(([, id]) => id === journal.authSubject);
+  if (found === undefined) throw new Error(`auth subject ${journal.authSubject} is not a replayed subject`);
+  return found[0];
+}
+
+const SUBJECT_REFUSAL = /^a prior attempt \([0-9a-f-]{36}\) may have reached the provider under auth locator '[a-z0-9-]+', which records the same provider subject as '[a-z0-9-]+';/u;
+
+/**
+ * Classify the confirmed-write program's decision for a blocked confirm. A
+ * refusal because another locator's unsettled run recorded the same subject
+ * counts as a refusal; the model does not tell the two apart before the
+ * claim.
+ */
+function blockedResult(disposition: ReturnType<typeof priorRunDisposition>): string {
+  if (disposition.kind === "replay") return "replayed";
+  if (/^a prior attempt \([0-9a-f-]{36}\) may have reached the provider;/u.test(disposition.message)) return "refused";
+  if (SUBJECT_REFUSAL.test(disposition.message)) return "refused";
+  if (/^a prior run \([0-9a-f-]{36}\) already fulfilled this intent under a different auth record/u.test(disposition.message)) {
+    return "withheld";
+  }
+  throw new Error(`the confirmed-write program refused for an unexpected reason: ${disposition.message}`);
+}
+
+/** Whether a source journal may elect a duplicate-risk successor, as `resolveInvocationDuplicateRisk` checks it. */
+function electable(journal: RunJournal | undefined): journal is RunJournal {
+  return journal !== undefined
+    && journal.operation === "posts.publish"
+    && journal.phase === "terminal"
+    && journal.status === "indeterminate"
+    && journal.dispatch.planned === 1
+    && journal.dispatch.started === 1
+    && journal.ledgerState === "indeterminate"
+    && journal.recoveryState === "retained"
+    && journal.duplicateSuccessor === undefined;
+}
+
+type Claim =
+  | Readonly<{ acquired: true; ledgerRelativePath: string }>
+  | Readonly<{ acquired: false; existing: LedgerEntry; viaSubject?: { readonly authId: string } }>;
+
+/** A subject-fence recheck's blocker, as `recheckConfirmedWriteSubjectFence` returns it. */
+type SubjectBlock = Readonly<{ existing: LedgerEntry; viaIntent: true; viaSubject: { readonly authId: string } }>;
+
+/** Where a world keeps its journals and ledgers. */
+interface FenceStore {
+  readonly environment: Readonly<Record<string, string | undefined>>;
+  readonly owner: RunJournal["owner"];
+  list(): readonly RunJournal[];
+  get(runId: string): RunJournal | undefined;
+  create(journal: RunJournal): void;
+  record(runId: string, event: RunJournalEvent): void;
+  claim(journal: RunJournal, intent: ConfirmedWriteIntent, entry: LedgerEntry, at: Date): Claim;
+  /** The provider-subject recheck a claimed run makes before its dispatch boundary. */
+  recheck(intent: ConfirmedWriteIntent, runId: string): SubjectBlock | null;
+  /** Project a run refused after its claim, which drops its intent ledger. */
+  project(runId: string): void;
+  /** A dispatch whose outcome never arrives. */
+  lose(runId: string, at: Date): void;
+  settle(runId: string, at: Date): void;
+  release(runId: string): void;
+  /** Intent ledger holders by run ID, and the number of intent ledger names. */
+  ledgers(): Readonly<{ holders: ReadonlySet<string>; names: number }>;
+  afterStep(at: Date): void;
+}
+
+/** The pure cores over maps. */
+class MemoryStore implements FenceStore {
+  readonly environment = memoryEnvironment;
+  readonly owner = {
+    pid: 4242,
+    token: "44444444-4444-4444-8444-444444444444",
+    bootId: "1".repeat(64),
+    processStartId: "2".repeat(64),
+    leaseUntil: FAR_FUTURE,
+  };
+  private readonly journals = new Map<string, RunJournal>();
+  private readonly ledger = new Map<string, string>();
+
+  list(): readonly RunJournal[] {
+    return [...this.journals.values()];
+  }
+
+  get(runId: string): RunJournal | undefined {
+    return this.journals.get(runId);
+  }
+
+  create(journal: RunJournal): void {
+    this.journals.set(journal.runId, journal);
+  }
+
+  record(runId: string, event: RunJournalEvent): void {
+    const journal = this.journals.get(runId);
+    if (journal === undefined) throw new Error(`${runId} has no journal`);
+    this.journals.set(runId, transitionRunJournal(journal, event));
+  }
+
+  claim(journal: RunJournal, intent: ConfirmedWriteIntent, _entry: LedgerEntry, _at: Date): Claim {
+    const path = intentLedgerPath(
+      intent.adapterId, intent.authId, intent.operationId, journal.inputHash, this.environment, intent.duplicateIntentHash,
+    );
+    const holder = this.ledger.get(path);
+    if (holder !== undefined) return { acquired: false, existing: runJournalLedgerEntry(this.journals.get(holder)!) };
+    this.ledger.set(path, journal.runId);
+    const bucket = sha256(`${journal.adapter.hash}\0${journal.auth.hash}\0${journal.inputHash}`);
+    return { acquired: true, ledgerRelativePath: `idempotency/${bucket.slice(0, 2)}/${bucket}.json` };
+  }
+
+  recheck(intent: ConfirmedWriteIntent, runId: string): SubjectBlock | null {
+    const blocker = subjectFenceBlocker(this.list(), intent, runId);
+    return blocker === null
+      ? null
+      : { existing: runJournalLedgerEntry(blocker), viaIntent: true, viaSubject: { authId: blocker.auth.id } };
+  }
+
+  project(runId: string): void {
+    // projectRunJournalIntent removes a released run's intent ledger.
+    if (this.get(runId)?.ledgerState === "released") this.release(runId);
+  }
+
+  lose(runId: string, at: Date): void {
+    this.record(runId, {
+      type: "finished", status: "indeterminate", finalOrigin: null,
+      error: "a dispatch crossed its durable start boundary; a missing final outcome requires reconciliation", at: at.toISOString(),
+    });
+  }
+
+  settle(runId: string, at: Date): void {
+    this.record(runId, reconciledRecoveryRelease(this.get(runId)!, at));
+  }
+
+  release(runId: string): void {
+    for (const [path, holder] of this.ledger) if (holder === runId) this.ledger.delete(path);
+  }
+
+  ledgers(): Readonly<{ holders: ReadonlySet<string>; names: number }> {
+    return { holders: new Set(this.ledger.values()), names: this.ledger.size };
+  }
+
+  afterStep(at: Date): void {
+    // The durable repair pass supersedes every duplicate-risk source whose
+    // elected successor settled after its dispatch; the in-memory world
+    // applies the same per-step projection through the same pure core.
+    for (const source of this.list()) {
+      if (source.duplicateSuccessor === undefined || source.supersededBy !== undefined) continue;
+      const event = duplicateSourceSupersession(source, this.get(source.duplicateSuccessor.runId), at);
+      if (event !== null) this.record(source.runId, event);
+    }
+  }
+}
+
+/** The file-backed state layer on a real state home. */
+class FileStore implements FenceStore {
+  readonly environment: Readonly<Record<string, string | undefined>>;
+  readonly owner: RunJournal["owner"];
+  private readonly home: string;
+
+  constructor() {
+    this.home = mkdtempSync(join(scratch, "state-"));
+    this.environment = Object.freeze({ GHOSTGET_STATE_HOME: this.home });
+    // The owner is this live process, so the repair pass after each step
+    // leaves every in-flight run alone until the trace loses its outcome.
+    this.owner = {
+      pid: process.pid,
+      token: "55555555-5555-4555-8555-555555555555",
+      ...currentProcessStartIdentity(),
+      leaseUntil: FAR_FUTURE,
+    };
+  }
+
+  list(): readonly RunJournal[] {
+    return listRunJournalSnapshots(this.environment).map((entry) => {
+      if ("invalid" in entry) throw new ReplayDivergence(`run journal ${entry.runId} is invalid on disk`);
+      return entry.journal;
+    });
+  }
+
+  get(runId: string): RunJournal | undefined {
+    return readRunJournal(runId, this.environment)?.journal;
+  }
+
+  create(journal: RunJournal): void {
+    createRunJournal(journal, this.environment);
+  }
+
+  record(runId: string, event: RunJournalEvent): void {
+    const snapshot = readRunJournal(runId, this.environment);
+    if (snapshot === null) throw new Error(`${runId} has no journal on disk`);
+    updateRunJournal(snapshot, event, this.environment);
+  }
+
+  claim(journal: RunJournal, intent: ConfirmedWriteIntent, entry: LedgerEntry, at: Date): Claim {
+    const path = confirmedWriteLedgerPath(
+      journal.adapter.hash, journal.auth.hash, journal.operation, journal.inputHash, this.environment, intent.duplicateIntentHash,
+    );
+    // The model's claim stands for a claim whose journal scan ran before
+    // another locator's run of the same subject recorded its own claim, so
+    // this world withholds the subject from the claim's scan. The scan before
+    // it and the recheck after it keep theirs.
+    const { authSubject: _raced, ...withheld } = intent;
+    const claimed = acquireConfirmedWriteLedgers({ path, entry, intent: withheld }, this.environment, at);
+    if (!claimed.acquired) {
+      if (!("viaIntent" in claimed)) {
+        throw new ReplayDivergence(`the hash-keyed ledger refused ${labelOf(journal.runId)} after its intent claim`);
+      }
+      return { acquired: false, existing: claimed.existing };
+    }
+    // relativeStatePath: the ledger path is relative to the canonical state home.
+    return { acquired: true, ledgerRelativePath: relative(ghostgetStateHome(this.environment), claimed.snapshot.path).split(sep).join("/") };
+  }
+
+  recheck(intent: ConfirmedWriteIntent, runId: string): SubjectBlock | null {
+    return recheckConfirmedWriteSubjectFence(intent, runId, this.environment);
+  }
+
+  /** The repair pass after each step projects every terminal journal, as finalizePreDispatchFailure does. */
+  project(): void {}
+
+  /** The owner dies inside its dispatch; the repair pass settles the journal. */
+  lose(runId: string, at: Date): void {
+    const snapshot = readRunJournal(runId, this.environment);
+    if (snapshot === null) throw new Error(`${runId} has no journal on disk`);
+    const written = writePrivateJsonIfUnchanged(
+      join(this.home, "run-journals", `${runId}.json`),
+      { ...snapshot.journal, owner: { ...snapshot.journal.owner, ...DEAD_OWNER } },
+      { expectedCurrentContentSha256: snapshot.contentSha256 },
+    );
+    if (!written) throw new Error(`${runId} changed while its owner crashed`);
+    const report = repairInterruptedRunJournals(this.environment, at);
+    if (report.repaired !== 1 || report.issues.length !== 0) {
+      throw new ReplayDivergence(`repair after ${labelOf(runId)} crashed reported ${JSON.stringify(report)}`);
+    }
+  }
+
+  settle(runId: string, at: Date): void {
+    const receipt = readRunReceipt(runId, this.environment);
+    const settled = releaseReconciledRunRecovery(runId, sha256(canonicalJson(receipt)), this.environment, at);
+    if (settled !== "journal-released") throw new ReplayDivergence(`reconciling ${labelOf(runId)} returned ${settled}`);
+  }
+
+  release(): void {
+    throw new Error("the file-backed world hosts no seeded defect");
+  }
+
+  ledgers(): Readonly<{ holders: ReadonlySet<string>; names: number }> {
+    const root = join(this.home, "idempotency", "intents");
+    const holders = new Set<string>();
+    let names = 0;
+    if (!existsSync(root)) return { holders, names };
+    const journals = new Map(this.list().map((journal) => [journal.runId, journal]));
+    for (const bucket of readdirSync(root)) {
+      for (const name of readdirSync(join(root, bucket))) {
+        const entry = JSON.parse(readFileSync(join(root, bucket, name), "utf8")) as { runId: string; status: string };
+        names += 1;
+        holders.add(entry.runId);
+        // Projection keeps each terminal run's intent ledger in step with its journal.
+        const journal = journals.get(entry.runId);
+        if (journal?.phase === "terminal" && journal.ledgerState !== entry.status) {
+          throw new ReplayDivergence(`${labelOf(entry.runId)}'s intent ledger says ${entry.status} and its journal ${journal.ledgerState}`);
+        }
+      }
+    }
+    return { holders, names };
+  }
+
+  /** Every step ends with the repair pass a later process would run. */
+  afterStep(at: Date): void {
+    const report = repairInterruptedRunJournals(this.environment, at);
+    if (report.repaired !== 0 || report.issues.length !== 0) {
+      throw new ReplayDivergence(`the repair pass reported ${JSON.stringify(report)}`);
+    }
+  }
+}
+
+class FenceWorld {
+  private readonly scanned = new Set<string>();
+  private readonly applied = new Set<string>();
+  private readonly claims = new Set<string>();
+  private readonly store: FenceStore;
+  private authGen = 0;
+  private rev = 0;
+  private clock = 0;
+  private result = "none";
+
+  constructor(private readonly defect: Defect = "none", store?: FenceStore) {
+    this.store = store ?? new MemoryStore();
+    if (defect !== "none" && !(this.store instanceof MemoryStore)) throw new Error("seeded defects live in the in-memory world");
+  }
+
+  private now(): Date {
+    this.clock += 1;
+    return new Date(STARTED_AT + this.clock * 1_000);
+  }
+
+  private at(): string {
+    return this.now().toISOString();
+  }
+
+  private adapterId(generation: number): string {
+    return this.defect === "hash-keyed-intent" ? `${ADAPTER_ID}-${String(generation)}` : ADAPTER_ID;
+  }
+
+  private authId(locator: string, generation: number): string {
+    const id = AUTH_IDS[locator]!;
+    return this.defect === "hash-keyed-intent" ? `${id}-${String(generation)}` : id;
+  }
+
+  private journal(run: string): RunJournal {
+    const journal = this.store.get(RUN_IDS[run]!);
+    if (journal === undefined) throw new Error(`${run} has no journal`);
+    return journal;
+  }
+
+  private record(run: string, event: RunJournalEvent): void {
+    this.store.record(RUN_IDS[run]!, event);
+  }
+
+  private bound(journal: RunJournal): boolean {
+    return journal.auth.hash === hashFor(`auth-${locatorOf(journal)}`, this.authGen)
+      && journal.adapter.hash === hashFor("manifest", this.rev);
+  }
+
+  /** The intent a journal belongs to, with the subject its auth record named. */
+  private intentOf(journal: RunJournal): ConfirmedWriteIntent {
+    return {
+      adapterId: journal.adapter.id, authId: journal.auth.id, operationId: journal.operation, inputHashes: [journal.inputHash],
+      ...(journal.duplicateIntent === undefined ? {} : { duplicateIntentHash: journal.duplicateIntent.intentHash }),
+      ...(journal.authSubject === undefined ? {} : { authSubject: journal.authSubject }),
+    };
+  }
+
+  private refuse(run: string, existing: LedgerEntry, viaSubject?: { readonly authId: string }): void {
+    const journal = this.journal(run);
+    const disposition = priorRunDisposition(
+      { existing, viaIntent: true, ...(viaSubject === undefined ? {} : { viaSubject }) },
+      { inputHash: journal.inputHash, adapterHash: journal.adapter.hash, authHash: journal.auth.hash, authId: journal.auth.id },
+    );
+    this.result = blockedResult(disposition);
+    this.scanned.delete(run);
+    this.record(run, { type: "finished", status: "failed", finalOrigin: null, error: "another run already owns this idempotency scope", at: this.at() });
+  }
+
+  /** Whether production may apply `action` to `run` (with successor source `source`) now; mutant replay skips the rest. */
+  admits(action: Action, run: string, source: string): boolean {
+    const journal = this.store.get(RUN_IDS[run]!);
+    switch (action) {
+      case "scan": return journal === undefined;
+      case "scanSuccessor": {
+        if (journal !== undefined || source === run) return false;
+        const origin = this.store.get(RUN_IDS[source]!);
+        return electable(origin) && this.bound(origin);
+      }
+      case "claim": return journal?.phase === "prepared" && this.scanned.has(run);
+      case "dispatch": {
+        if (journal?.phase !== "claimed") return false;
+        if (journal.duplicateIntent === undefined) return true;
+        // claimDuplicateRiskSource elects only an unchanged, unelected source.
+        const origin = this.store.get(journal.duplicateIntent.sourceRunId);
+        return origin !== undefined && origin.duplicateSuccessor === undefined && origin.recoveryState === "retained";
+      }
+      case "finish": return journal?.phase === "dispatching";
+      case "reconnect": case "upgrade": return true;
+      case "reconcile":
+        // releaseReconciledRunRecovery retains a source that elected a successor.
+        return journal?.status === "indeterminate" && journal.recoveryState !== "released" && this.bound(journal)
+          && journal.duplicateSuccessor === undefined;
+      case "claimNotApplied":
+        return journal?.status === "indeterminate" && journal.recoveryState !== "released" && this.bound(journal);
+    }
+  }
+
+  private start(run: string, source: string | null, pickedLocator: string, pickedSubject: string): void {
+    const started = this.now().toISOString();
+    // A successor binds its source's auth record, so it runs under the
+    // source's locator and subject.
+    const origin = source === null ? undefined : this.journal(source);
+    const locator = origin === undefined ? pickedLocator : locatorOf(origin);
+    const subject = origin === undefined ? pickedSubject : subjectOf(origin);
+    const authHash = hashFor(`auth-${locator}`, this.authGen);
+    const adapterHash = hashFor("manifest", this.rev);
+    const duplicateIntent = source === null ? undefined : {
+      schemaVersion: 1 as const,
+      intentHash: sha256(`fence-successor\0${RUN_IDS[source]!}\0${authHash}\0${adapterHash}`),
+      sourceRunId: RUN_IDS[source]!,
+    };
+    const journal = transitionRunJournal(initialRunJournal({
+      runId: RUN_IDS[run]!,
+      planDigest: sha256(`plan-${run}`),
+      adapter: { id: this.adapterId(this.rev), version: `1.${String(this.rev)}.0`, hash: adapterHash },
+      operation: OPERATION,
+      risk: "R3",
+      inputHash: INPUT_HASH,
+      auth: { id: this.authId(locator, this.authGen), hash: authHash, kind: "browser-profile" },
+      ...(subject === "" ? {} : { authSubject: SUBJECT_IDS[subject]! }),
+      contract: { transport: "web-session-api", hash: sha256("fence-contract") },
+      ...(duplicateIntent === undefined ? {} : { duplicateIntent }),
+      plannedDispatches: 1,
+      hasPlanAssets: false,
+      owner: this.store.owner,
+      startedAt: started,
+      dedupeExpiresAt: FAR_FUTURE,
+    }), { type: "confirmation-consumed", at: started });
+    this.store.create(journal);
+    const blocker = intentFenceBlocker(this.store.list(), this.intentOf(journal), journal.runId, this.now());
+    if (blocker !== null) {
+      // acquireIntentLedger names the other locator when the blocker ran under one.
+      this.refuse(run, runJournalLedgerEntry(blocker), blocker.auth.id === journal.auth.id ? undefined : { authId: blocker.auth.id });
+    } else {
+      this.scanned.add(run);
+      this.result = "clear";
+    }
+  }
+
+  apply(action: Action, run: string, outcome: string, source: string, locator: string, subject: string): void {
+    this.step(action, run, outcome, source, locator, subject);
+    this.store.afterStep(this.now());
+  }
+
+  private step(action: Action, run: string, outcome: string, source: string, locator: string, subject: string): void {
+    switch (action) {
+      case "scan":
+        this.start(run, null, locator, subject);
+        return;
+      case "scanSuccessor":
+        this.start(run, source, locator, subject);
+        return;
+      case "claim": {
+        const journal = this.journal(run);
+        const entry: LedgerEntry = {
+          ...runJournalLedgerEntry({ ...journal, ledgerState: "pending" }),
+          status: "pending",
+        };
+        const claimed = this.store.claim(journal, this.intentOf(journal), entry, this.now());
+        if (!claimed.acquired) {
+          this.refuse(run, claimed.existing, claimed.viaSubject);
+          return;
+        }
+        this.scanned.delete(run);
+        this.record(run, { type: "ledger-claimed", ledgerRelativePath: claimed.ledgerRelativePath, at: this.at() });
+        this.result = "claimed";
+        return;
+      }
+      case "dispatch": {
+        const journal = this.journal(run);
+        // The confirmed-write program rechecks the subject fence once its
+        // claim is on record, before anything else at the dispatch boundary.
+        const blocked = this.store.recheck(this.intentOf(journal), journal.runId);
+        if (blocked !== null) {
+          const disposition = priorRunDisposition(blocked, {
+            inputHash: journal.inputHash, adapterHash: journal.adapter.hash, authHash: journal.auth.hash, authId: journal.auth.id,
+          });
+          if (disposition.kind !== "refuse" || !SUBJECT_REFUSAL.test(disposition.message)) {
+            throw new ReplayDivergence(`the subject recheck for ${run} did not refuse as a subject fence`);
+          }
+          this.record(run, { type: "finished", status: "failed", finalOrigin: null, error: "another run already owns this idempotency scope", at: this.at() });
+          this.store.project(journal.runId);
+          this.result = "subject-refused";
+          return;
+        }
+        this.record(run, { type: "recovery-stored", at: this.at() });
+        if (journal.duplicateIntent !== undefined) {
+          // claimDuplicateRiskSource elects the source before the successor's dispatch boundary.
+          this.store.record(journal.duplicateIntent.sourceRunId, {
+            type: "duplicate-successor-claimed", intentHash: journal.duplicateIntent.intentHash, runId: journal.runId, at: this.at(),
+          });
+        }
+        this.record(run, { type: "dispatch-started", index: 1, at: this.at() });
+        this.result = journal.duplicateIntent === undefined ? "dispatched" : "elected";
+        return;
+      }
+      case "finish":
+        if (outcome === "succeeded") {
+          this.record(run, { type: "dispatch-verified", index: 1, at: this.at() });
+          this.record(run, { type: "finished", status: "succeeded", finalOrigin: null, error: null, at: this.at() });
+        } else if (outcome === "lost") {
+          this.store.lose(RUN_IDS[run]!, this.now());
+        } else {
+          this.record(run, {
+            type: "finished", status: "indeterminate", finalOrigin: null,
+            error: "a dispatch crossed its durable start boundary; a missing final outcome requires reconciliation", at: this.at(),
+          });
+        }
+        if (outcome !== "lost") this.applied.add(run);
+        this.result = outcome;
+        return;
+      case "reconnect":
+        this.authGen += 1;
+        this.result = "reconnected";
+        return;
+      case "upgrade":
+        this.rev += 1;
+        this.result = "upgraded";
+        return;
+      case "reconcile": {
+        const journal = this.journal(run);
+        if (!this.bound(journal)) throw new ReplayDivergence(`reconciliation refused ${run}: it is no longer bound to its auth record and manifest`);
+        this.store.settle(journal.runId, this.now());
+        this.result = "settled";
+        return;
+      }
+      case "claimNotApplied": {
+        const journal = this.journal(run);
+        // recordNotAppliedClaim refuses a claim after a verified dispatch or a resolution.
+        if (journal.dispatch.verified !== 0 || journal.recoveryState === "released" || !this.bound(journal)) {
+          throw new ReplayDivergence(`the reconciler refused a not-applied claim for ${run}`);
+        }
+        this.claims.add(run);
+        if (this.defect === "caller-release") {
+          // The pre-fix reconciler released the journal too, except where the
+          // journal itself refuses: a source that elected a successor.
+          if (journal.duplicateSuccessor === undefined) {
+            this.record(run, { type: "recovery-released", outcome: "not-applied", at: this.at() });
+          }
+          this.store.release(journal.runId);
+          this.result = "released";
+        } else {
+          this.result = "fence-retained";
+        }
+        return;
+      }
+    }
+  }
+
+  snapshot(): Snapshot {
+    const phase = new Map<string, string>();
+    const status = new Map<string, string>();
+    const ledgerState = new Map<string, string>();
+    const runAuth = new Map<string, number>();
+    const runRev = new Map<string, number>();
+    const runLoc = new Map<string, string>();
+    const runSubj = new Map<string, string>();
+    const source = new Map<string, string>();
+    const elected = new Map<string, string>();
+    const dispatched = new Set<string>();
+    const reconciled = new Set<string>();
+    const journals = new Map(this.store.list().map((journal) => [journal.runId, journal]));
+    for (const run of RUNS) {
+      const journal = journals.get(RUN_IDS[run]!);
+      phase.set(run, journal?.phase ?? "none");
+      status.set(run, journal?.status ?? "none");
+      ledgerState.set(run, journal?.ledgerState ?? "none");
+      elected.set(run, journal?.duplicateSuccessor === undefined ? "" : labelOf(journal.duplicateSuccessor.runId));
+      if (journal === undefined) continue;
+      runLoc.set(run, locatorOf(journal));
+      runSubj.set(run, subjectOf(journal));
+      runAuth.set(run, generationOf(journal.auth.hash, `auth-${locatorOf(journal)}`));
+      runRev.set(run, generationOf(journal.adapter.hash, "manifest"));
+      source.set(run, journal.duplicateIntent === undefined ? "" : labelOf(journal.duplicateIntent.sourceRunId));
+      if (journal.dispatch.started > 0) dispatched.add(run);
+      if (journal.status === "indeterminate" && journal.recoveryState === "released") reconciled.add(run);
+    }
+    const ledgers = this.store.ledgers();
+    return {
+      phase, status, ledgerState, runAuth, runRev, runLoc, runSubj, source, elected,
+      authGen: this.authGen,
+      rev: this.rev,
+      scanned: new Set(this.scanned),
+      ledgerHolders: new Set([...ledgers.holders].map(labelOf)),
+      ledgerNames: ledgers.names,
+      dispatched,
+      applied: new Set(this.applied),
+      reconciled,
+      claimed: new Set(this.claims),
+      result: this.result,
+    };
+  }
+
+  phaseOf(run: string): string {
+    return this.store.get(RUN_IDS[run]!)?.phase ?? "none";
+  }
+}
+
+function modelState(state: ItfState): Snapshot {
+  const ledger = itfVariable(state, "ledger");
+  if (ledger.kind !== "set") throw new Error("ITF ledger must be a set");
+  const entries = ledger.items.map((item) => {
+    if (item.kind !== "tuple" || item.items.length !== 5) throw new Error("ITF ledger entries must be 5-tuples");
+    const [auth, revision, locator, source, holder] = item.items as readonly [ItfValue, ItfValue, ItfValue, ItfValue, ItfValue];
+    return {
+      key: `${String(itfInt(auth, "ledger auth key"))}/${String(itfInt(revision, "ledger revision key"))}/${itfString(locator, "ledger locator key")}/${itfString(source, "ledger source key")}`,
+      holder: itfString(holder, "ledger holder"),
+    };
+  });
+  const phase = itfStringMap(itfVariable(state, "phase"), "phase", itfString);
+  // A run without a journal has no binding or source to compare.
+  const journaled = <T>(all: ReadonlyMap<string, T>): ReadonlyMap<string, T> =>
+    new Map([...all].filter(([run]) => phase.get(run) !== "none"));
+  return {
+    phase,
+    status: itfStringMap(itfVariable(state, "status"), "status", itfString),
+    ledgerState: itfStringMap(itfVariable(state, "ledgerState"), "ledgerState", itfString),
+    runAuth: journaled(itfStringMap(itfVariable(state, "runAuth"), "runAuth", itfInt)),
+    runRev: journaled(itfStringMap(itfVariable(state, "runRev"), "runRev", itfInt)),
+    runLoc: journaled(itfStringMap(itfVariable(state, "runLoc"), "runLoc", itfString)),
+    runSubj: journaled(itfStringMap(itfVariable(state, "runSubj"), "runSubj", itfString)),
+    source: journaled(itfStringMap(itfVariable(state, "source"), "source", itfString)),
+    elected: itfStringMap(itfVariable(state, "elected"), "elected", itfString),
+    authGen: itfInt(itfVariable(state, "authGen"), "authGen"),
+    rev: itfInt(itfVariable(state, "rev"), "rev"),
+    scanned: itfStringSet(itfVariable(state, "scanned"), "scanned"),
+    ledgerHolders: new Set(entries.map((entry) => entry.holder)),
+    ledgerNames: new Set(entries.map((entry) => entry.key)).size,
+    dispatched: itfStringSet(itfVariable(state, "dispatched"), "dispatched"),
+    applied: itfStringSet(itfVariable(state, "applied"), "applied"),
+    reconciled: itfStringSet(itfVariable(state, "reconciled"), "reconciled"),
+    claimed: itfStringSet(itfVariable(state, "claimed"), "claimed"),
+    result: itfString(itfVariable(state, "result"), "result"),
+  };
+}
+
+/**
+ * The first clause of the model's `fenceSafety` that `state` breaks, or null:
+ * each locator's effects stay within one plus its elected successors, each
+ * intent dispatches at most once under a locator, one recorded subject never
+ * dispatches one intent under two locators unless one of them succeeded, only
+ * an indeterminate run elects a successor, and an indeterminate run keeps its
+ * ledger.
+ */
+function safetyViolation(state: Snapshot): string | null {
+  const locatorOfRun = (run: string): string => state.runLoc.get(run) ?? "";
+  for (const locator of LOCATORS) {
+    const dispatches = [...state.dispatched].filter((run) => locatorOfRun(run) === locator).length;
+    const elected = [...state.elected].filter(([run, successor]) => successor !== "" && locatorOfRun(run) === locator).length;
+    if (dispatches > 1 + elected) return `${String(dispatches)} dispatches with ${String(elected)} elected successors under ${locator}`;
+  }
+  for (const run of state.applied) if (!state.dispatched.has(run)) return `${run} applied without a dispatch`;
+  for (const key of ["", ...RUNS]) {
+    for (const locator of LOCATORS) {
+      const runs = [...state.dispatched].filter((run) => (state.source.get(run) ?? "") === key && locatorOfRun(run) === locator);
+      if (runs.length > 1) return `the intent ${key === "" ? "base" : `successor of ${key}`} dispatched ${runs.sort().join(", ")} under ${locator}`;
+    }
+  }
+  for (const run of state.dispatched) {
+    for (const other of state.dispatched) {
+      const subject = state.runSubj.get(run) ?? "";
+      if (
+        run < other && subject !== "" && subject === (state.runSubj.get(other) ?? "")
+        && (state.source.get(run) ?? "") === (state.source.get(other) ?? "") && locatorOfRun(run) !== locatorOfRun(other)
+        && state.status.get(run) !== "succeeded" && state.status.get(other) !== "succeeded"
+      ) return `subject ${subject} dispatched ${run} and ${other} under two locators`;
+    }
+  }
+  for (const [run, successor] of state.elected) {
+    if (successor !== "" && state.status.get(run) !== "indeterminate") return `${run} elected ${successor} while ${String(state.status.get(run))}`;
+  }
+  for (const [run, status] of state.status) {
+    if (status === "indeterminate" && state.ledgerState.get(run) !== "indeterminate") return `${run} is indeterminate without its ledger`;
+  }
+  return null;
+}
+
+function describeValue(value: unknown): string {
+  if (value instanceof Map) return `{${[...value].sort(([left], [right]) => String(left).localeCompare(String(right))).map(([key, entry]) => `${String(key)}: ${String(entry)}`).join(", ")}}`;
+  if (value instanceof Set) return `{${[...value].map(String).sort().join(", ")}}`;
+  return JSON.stringify(value);
+}
+
+/** The first field where the production snapshot differs from the model, or null. */
+function difference(actual: Snapshot, expected: Snapshot): string | null {
+  for (const field of Object.keys(expected) as (keyof Snapshot)[]) {
+    const left = describeValue(actual[field]);
+    const right = describeValue(expected[field]);
+    if (left !== right) return `${field} is ${left} in production and ${right} in the model`;
+  }
+  return null;
+}
+
+type RecordedStep = Readonly<{
+  action: string;
+  run: string | null;
+  outcome: string | null;
+  source: string | null;
+  locator: string | null;
+  subject: string | null;
+}>;
+
+function recordedStep(state: ItfState): RecordedStep {
+  const action = itfString(itfVariable(state, "mbt::actionTaken"), "mbt::actionTaken");
+  const picks = itfRecord(itfVariable(state, "mbt::nondetPicks"), ["r", "o", "s", "l", "j"], "mbt::nondetPicks");
+  const pick = (name: string): string | null => {
+    const value = itfOption(picks.get(name)!, `mbt::nondetPicks.${name}`);
+    return value === null ? null : itfString(value, `mbt::nondetPicks.${name}`);
+  };
+  return { action, run: pick("r"), outcome: pick("o"), source: pick("s"), locator: pick("l"), subject: pick("j") };
+}
+
+type Operation = Readonly<{ action: Action; run: string; outcome: string; source: string; locator: string; subject: string }>;
+
+function operation(state: ItfState): Operation {
+  const { action, run, outcome, source, locator, subject } = recordedStep(state);
+  if (
+    !(ACTIONS as readonly string[]).includes(action)
+    || run === null || outcome === null || source === null || locator === null || subject === null
+  ) {
+    throw new Error(`state ${String(state.index)} records an unknown action or a missing pick`);
+  }
+  if (
+    ![run, source].every((name) => (RUNS as readonly string[]).includes(name))
+    || !(OUTCOMES as readonly string[]).includes(outcome)
+    || !(LOCATORS as readonly string[]).includes(locator)
+    || !(SUBJECTS as readonly string[]).includes(subject)
+  ) {
+    throw new Error(`state ${String(state.index)} picks an unknown run, outcome, locator, or subject`);
+  }
+  return { action: action as Action, run, outcome, source, locator, subject };
+}
+
+function label({ action, run, outcome, source, locator, subject }: Operation): string {
+  if (action === "reconnect" || action === "upgrade") return action;
+  if (action === "finish") return `finish(${run}, ${outcome})`;
+  if (action === "scanSuccessor") return `scanSuccessor(${run} of ${source})`;
+  if (action === "scan") return `scan(${run} under ${locator}${subject === "" ? "" : ` as ${subject}`})`;
+  return `${action}(${run})`;
+}
+
+/** Drive production through every recorded action of `trace`, failing at the first divergence. */
+function replay(trace: ItfTrace, world: FenceWorld): void {
+  const [initial, ...steps] = trace.states;
+  if (initial === undefined) throw new Error("A trace needs its initial state");
+  if (recordedStep(initial).action !== "init") throw new Error("A trace must start with the init action");
+  const start = difference(world.snapshot(), modelState(initial));
+  if (start !== null) throw new ReplayDivergence(`state 0: ${start}`);
+  for (const state of steps) {
+    const picked = operation(state);
+    const { action, run, outcome, source, locator, subject } = picked;
+    const step = label(picked);
+    if (!world.admits(action, run, source)) {
+      throw new ReplayDivergence(`state ${String(state.index)}: production does not admit ${step}`);
+    }
+    try {
+      world.apply(action, run, outcome, source, locator, subject);
+    } catch (error) {
+      if (error instanceof ReplayDivergence) throw new ReplayDivergence(`state ${String(state.index)}: ${step}: ${error.message}`);
+      throw error;
+    }
+    const found = difference(world.snapshot(), modelState(state));
+    if (found !== null) {
+      throw new ReplayDivergence(`state ${String(state.index)}: after ${step} ${found}`);
+    }
+  }
+}
+
+function divergence(trace: ItfTrace, world: FenceWorld): string | null {
+  try {
+    replay(trace, world);
+    return null;
+  } catch (error) {
+    if (error instanceof ReplayDivergence) return error.message;
+    throw error;
+  }
+}
+
+/**
+ * Drive production through a mutant's trace. Production keeps its own state
+ * and applies each action it admits, so it may refuse a run the mutant lets
+ * through. Returns every action the mutant takes that production refuses,
+ * including a dispatch that production's subject recheck refuses, and fails
+ * if production's own state ever breaks the model's safety clauses.
+ */
+function refusedActions(trace: ItfTrace): readonly string[] {
+  const world = new FenceWorld();
+  const refused: string[] = [];
+  for (const state of trace.states.slice(1)) {
+    const picked = operation(state);
+    const { action, run, outcome, source, locator, subject } = picked;
+    if (world.admits(action, run, source)) {
+      world.apply(action, run, outcome, source, locator, subject);
+      if (action === "dispatch" && world.phaseOf(run) !== "dispatching") {
+        refused.push(`state ${String(state.index)}: the mutant takes ${label(picked)}, which production refuses at its subject recheck`);
+      }
+    } else if (action === "dispatch" || action === "scanSuccessor") {
+      refused.push(`state ${String(state.index)}: the mutant takes ${label(picked)}, which production refuses with ${run} ${world.phaseOf(run)}`);
+    }
+    const broken = safetyViolation(world.snapshot());
+    if (broken !== null) throw new Error(`state ${String(state.index)}: production broke fence safety: ${broken}`);
+  }
+  return refused;
+}
+
+const lockedModel = () => quintModel(MODEL_FILE);
+const traces = quintTraceCache(MODEL_FILE);
+
+/**
+ * A restriction of `step` whose transitions are all `step` transitions. Its
+ * traces reach duplicate-risk successors that fence each other, which
+ * uniform sampling of `step` almost never does.
+ */
+const SUCCESSOR_STEP = "stepSuccessors";
+
+/**
+ * A restriction of `step` whose transitions are all `step` transitions. Every
+ * base intent records the one subject, so runs under the two locators race
+ * through the subject fence and its recheck, which uniform sampling of `step`
+ * seldom reaches.
+ */
+const SUBJECT_STEP = "stepSubjects";
+
+/** Every seeded trace set the fixed model is replayed from. */
+const seededTraces = async (step: string): Promise<readonly ItfTrace[]> =>
+  [...await traces(step), ...await traces(SUCCESSOR_STEP), ...await traces(SUBJECT_STEP)];
+
+/**
+ * Whether the scan `state` records was refused by another locator's unsettled
+ * run of the same subject in the state before it.
+ */
+function subjectRefusedScan(before: Snapshot, picked: Operation, after: Snapshot): boolean {
+  return picked.action === "scan" && after.result === "refused" && picked.subject !== ""
+    && RUNS.some((run) => run !== picked.run
+      && before.runSubj.get(run) === picked.subject && before.runLoc.get(run) !== picked.locator
+      && (before.source.get(run) ?? "") === ""
+      && (before.ledgerState.get(run) === "pending" || before.ledgerState.get(run) === "indeterminate"));
+}
+
+/** How many seeded traces the file-backed world replays: a cover of every action result. */
+const FILE_BACKED_TRACES = 7;
+
+/** Each action a trace takes with the result the model records for it (a finish records its outcome). */
+function coverageLabels(trace: ItfTrace): ReadonlySet<string> {
+  return new Set(trace.states.slice(1).map((state) => `${operation(state).action} -> ${modelState(state).result}`));
+}
+
+/**
+ * Every state operation of the file-backed world spawns the bound state
+ * helper, so it replays a greedy cover of the seeded traces instead of all of
+ * them: repeatedly the trace that adds the most unseen action results, the
+ * shorter first, until no trace adds one or the cap is reached.
+ */
+function fileBackedCover(all: readonly ItfTrace[], cap: number): readonly ItfTrace[] {
+  const candidates = all.map((trace, index) => ({ trace, index, labels: coverageLabels(trace) }));
+  const seen = new Set<string>();
+  const chosen: ItfTrace[] = [];
+  while (chosen.length < cap) {
+    let best: (typeof candidates)[number] | null = null;
+    let bestGain = 0;
+    for (const candidate of candidates) {
+      const gain = [...candidate.labels].filter((entry) => !seen.has(entry)).length;
+      if (gain > bestGain || (gain === bestGain && gain > 0 && best !== null
+        && (candidate.trace.states.length < best.trace.states.length
+          || (candidate.trace.states.length === best.trace.states.length && candidate.index < best.index)))) {
+        best = candidate;
+        bestGain = gain;
+      }
+    }
+    if (best === null) break;
+    for (const entry of best.labels) seen.add(entry);
+    chosen.push(best.trace);
+  }
+  return chosen;
+}
+
+describe("fence.qnt ITF replay", () => {
+  test("replays every seeded model trace through the production fence cores", async () => {
+    const model = await lockedModel();
+    expect(model.replay.target).toBe("production");
+    expect(model.replay.test).toBe("scripts/verification-fence-replay.test.ts");
+    expect(model.mutants.map((mutant) => mutant.step).sort()).toEqual([...MUTANT_STEPS].sort());
+    const all = await seededTraces(model.step);
+    expect(all).toHaveLength(3 * model.replay.traces);
+    const covered = new Set<string>();
+    for (const trace of all) {
+      expect(trace.source).toBe(MODEL_FILE);
+      expect([...trace.vars].sort()).toEqual(TRACE_VARIABLES);
+      expect(trace.states.length).toBeGreaterThan(1);
+      expect(trace.states.length).toBeLessThanOrEqual(model.replay.maxSteps + 1);
+      expect(divergence(trace, new FenceWorld())).toBeNull();
+      for (const [index, state] of trace.states.entries()) {
+        if (index === 0) continue;
+        const picked = operation(state);
+        const { action, run, outcome, locator, subject } = picked;
+        const after = modelState(state);
+        covered.add(action === "finish" ? `finish(${run}, ${outcome})` : action === "reconnect" || action === "upgrade" ? action : `${action}(${run})`);
+        covered.add(`${action} -> ${after.result}`);
+        if (action === "scan") covered.add(`scan under ${locator}${subject === "" ? "" : ` as ${subject}`} -> ${after.result}`);
+        if (subjectRefusedScan(modelState(trace.states[index - 1]!), picked, after)) covered.add("scan -> refused by subject");
+        expect(safetyViolation(after)).toBeNull();
+      }
+    }
+    const expected = [
+      ...RUNS.flatMap((run) => [
+        `scan(${run})`, `scanSuccessor(${run})`, `claim(${run})`, `dispatch(${run})`, `reconcile(${run})`, `claimNotApplied(${run})`,
+        ...OUTCOMES.map((outcome) => `finish(${run}, ${outcome})`),
+      ]),
+      "reconnect", "upgrade",
+      "scan -> clear", "scan -> refused", "scan -> replayed", "scan -> withheld",
+      "scanSuccessor -> clear", "scanSuccessor -> refused",
+      "claim -> claimed", "claim -> refused", "claim -> replayed",
+      "dispatch -> dispatched", "dispatch -> elected", "dispatch -> subject-refused",
+      ...LOCATORS.flatMap((locator) => SUBJECTS.map((subject) => `scan under ${locator}${subject === "" ? "" : ` as ${subject}`} -> clear`)),
+      "scan -> refused by subject",
+    ];
+    expect(expected.filter((entry) => !covered.has(entry))).toEqual([]);
+  });
+
+  // The file-backed world replays a greedy cover of the seeded traces, one
+  // test each, since every state operation spawns the bound state helper.
+  const fileBackedCoverOf = async (): Promise<readonly ItfTrace[]> => {
+    const model = await lockedModel();
+    return fileBackedCover(await seededTraces(model.step), FILE_BACKED_TRACES);
+  };
+
+  test("the file-backed cover takes every action result the seeded traces take", async () => {
+    const model = await lockedModel();
+    const all = await seededTraces(model.step);
+    const everything = new Set(all.flatMap((trace) => [...coverageLabels(trace)]));
+    const cover = await fileBackedCoverOf();
+    // The cap bounds replay cost; the greedy cover may finish earlier when
+    // the model's state space covers every result in fewer traces.
+    expect(cover.length).toBeGreaterThan(0);
+    expect(cover.length).toBeLessThanOrEqual(FILE_BACKED_TRACES);
+    const covered = new Set(cover.flatMap((trace) => [...coverageLabels(trace)]));
+    expect([...everything].filter((entry) => !covered.has(entry)).sort()).toEqual([]);
+    for (const entry of [
+      "dispatch -> elected", "dispatch -> subject-refused", "finish -> lost", "reconcile -> settled", "claim -> refused",
+      "scanSuccessor -> refused",
+    ]) {
+      expect(covered).toContain(entry);
+    }
+  });
+
+  for (let index = 0; index < FILE_BACKED_TRACES; index += 1) {
+    test(`replays covering trace ${String(index + 1)} of ${String(FILE_BACKED_TRACES)} through the file-backed state layer`, async () => {
+      const trace = (await fileBackedCoverOf())[index];
+      if (trace === undefined) return;
+      expect(divergence(trace, new FenceWorld("none", new FileStore()))).toBeNull();
+    });
+  }
+
+  test("a fence keyed by auth and adapter bytes diverges from the model traces", async () => {
+    const model = await lockedModel();
+    const all = await traces(model.step);
+    const first = all.map((trace) => divergence(trace, new FenceWorld("hash-keyed-intent"))).find((message) => message !== null);
+    expect(first).toMatch(/^state \d+: after (scan|scanSuccessor|claim)\(r[123]( of r[123]| under [ab]( as s)?)?\) /u);
+  });
+
+  test("a reconciler that releases on a caller's claim diverges from the model traces", async () => {
+    const model = await lockedModel();
+    const all = await traces(model.step);
+    const first = all.map((trace) => divergence(trace, new FenceWorld("caller-release"))).find((message) => message !== null);
+    expect(first).toMatch(/^state \d+: after claimNotApplied\(r[123]\) (ledgerState|ledgerHolders) is \{.*\} in production and \{.*\} in the model$/u);
+  });
+
+  for (const step of MUTANT_STEPS) {
+    test(`production keeps fence safety through every ${step} trace, including those that break it`, async () => {
+      const model = await lockedModel();
+      expect(model.mutants).toContainEqual({ step, invariant: "fenceSafety" });
+      const all = await traces(step);
+      let violating = 0;
+      for (const trace of all) {
+        const refused = refusedActions(trace);
+        const breaks = trace.states.some((state) => safetyViolation(modelState(state)) !== null);
+        if (!breaks) continue;
+        violating += 1;
+        // A mutant that dispatches beyond the bound takes an action production
+        // refuses, except an unelected successor: production elects its
+        // source at the dispatch boundary. A breach of the ledger clause alone
+        // needs no refusal, since production's own state keeps its ledger.
+        const dispatchBreach = trace.states.some((state) => {
+          const breach = safetyViolation(modelState(state));
+          return breach !== null && !breach.endsWith("without its ledger");
+        });
+        if (dispatchBreach && step !== "stepUnelected") expect(refused.length).toBeGreaterThan(0);
+        for (const message of refused) {
+          expect(message).toMatch(/^state \d+: the mutant takes (dispatch\(r[123]\)|scanSuccessor\(r[123] of r[123]\)), which production refuses (with r[123] (none|terminal|prepared|claimed)|at its subject recheck)$/u);
+        }
+      }
+      expect(violating).toBeGreaterThan(0);
+    });
+  }
+
+  test("an unknown action or a missing pick fails closed instead of skipping a step", () => {
+    const none = { tag: "None", value: { "#tup": [] } };
+    const runs = (value: unknown) => ({ "#map": RUNS.map((run) => [run, value]) });
+    const initial = {
+      phase: runs("none"), status: runs("none"), ledgerState: runs("none"),
+      runAuth: runs({ "#bigint": "0" }), runRev: runs({ "#bigint": "0" }), runLoc: runs(""), runSubj: runs(""),
+      source: runs(""), elected: runs(""),
+      authGen: { "#bigint": "0" }, rev: { "#bigint": "0" },
+      scanned: { "#set": [] }, ledger: { "#set": [] }, dispatched: { "#set": [] }, applied: { "#set": [] },
+      reconciled: { "#set": [] }, claimed: { "#set": [] },
+    };
+    const some = (value: string) => ({ tag: "Some", value });
+    const trace = (action: string, r: unknown, o: unknown, s: unknown, l: unknown = some("a"), j: unknown = some("")): ItfTrace =>
+      parseItfTrace(JSON.stringify({
+        vars: TRACE_VARIABLES,
+        states: [
+          {
+            "#meta": { index: 0 }, ...initial, result: "none", "mbt::actionTaken": "init",
+            "mbt::nondetPicks": { r: none, o: none, s: none, l: none, j: none },
+          },
+          {
+            "#meta": { index: 1 }, ...initial, result: "reconnected", authGen: { "#bigint": "1" },
+            "mbt::actionTaken": action, "mbt::nondetPicks": { r, o, s, l, j },
+          },
+        ],
+      }));
+    expect(divergence(trace("reconnect", some("r1"), some("lost"), some("r2")), new FenceWorld())).toBeNull();
+    expect(divergence(trace("reconnect", some("r1"), some("lost"), some("r2")), new FenceWorld("none", new FileStore()))).toBeNull();
+    expect(() => divergence(trace("steal", some("r1"), some("lost"), some("r2")), new FenceWorld())).toThrow("unknown action");
+    expect(() => divergence(trace("reconnect", none, some("lost"), some("r2")), new FenceWorld())).toThrow("missing pick");
+    expect(() => divergence(trace("reconnect", some("r1"), some("lost"), none), new FenceWorld())).toThrow("missing pick");
+    expect(() => divergence(trace("reconnect", some("r9"), some("lost"), some("r2")), new FenceWorld())).toThrow("unknown run");
+    expect(() => divergence(trace("reconnect", some("r1"), some("lost"), some("r9")), new FenceWorld())).toThrow("unknown run");
+    expect(() => divergence(trace("reconnect", some("r1"), some("lost"), some("r2"), none), new FenceWorld())).toThrow("missing pick");
+    expect(() => divergence(trace("reconnect", some("r1"), some("lost"), some("r2"), some("a"), none), new FenceWorld())).toThrow("missing pick");
+    expect(() => divergence(trace("reconnect", some("r1"), some("lost"), some("r2"), some("c")), new FenceWorld())).toThrow("unknown run, outcome, locator, or subject");
+    expect(() => divergence(trace("reconnect", some("r1"), some("lost"), some("r2"), some("a"), some("t")), new FenceWorld())).toThrow("unknown run, outcome, locator, or subject");
+    expect(divergence(trace("upgrade", some("r1"), some("lost"), some("r2")), new FenceWorld()))
+      .toBe("state 1: after upgrade authGen is 0 in production and 1 in the model");
+  });
+
+  test("the safety clauses reject each seeded breach", () => {
+    const base = modelStateFor({});
+    expect(safetyViolation(base)).toBeNull();
+    expect(safetyViolation(modelStateFor({ dispatched: ["r1", "r2"], source: { r1: "", r2: "" }, status: { r1: "indeterminate", r2: "pending" }, ledgerState: { r1: "indeterminate", r2: "pending" } })))
+      .toBe("2 dispatches with 0 elected successors under a");
+    expect(safetyViolation(modelStateFor({
+      dispatched: ["r1", "r2", "r3"], source: { r1: "", r2: "r1", r3: "r1" }, elected: { r1: "r3" },
+      status: { r1: "indeterminate", r2: "pending", r3: "pending" }, ledgerState: { r1: "indeterminate", r2: "pending", r3: "pending" },
+    }))).toBe("3 dispatches with 1 elected successors under a");
+    expect(safetyViolation(modelStateFor({
+      dispatched: ["r1", "r2", "r3"], source: { r1: "", r2: "r1", r3: "r1" }, elected: { r1: "r3", r2: "r3" },
+      status: { r1: "indeterminate", r2: "indeterminate", r3: "pending" }, ledgerState: { r1: "indeterminate", r2: "indeterminate", r3: "pending" },
+    }))).toBe("the intent successor of r1 dispatched r2, r3 under a");
+    // One recorded subject under two locators: two dispatches of one intent.
+    const twoLocators = {
+      dispatched: ["r1", "r2"], source: { r1: "", r2: "" }, runLoc: { r1: "a", r2: "b" },
+      status: { r1: "indeterminate", r2: "pending" }, ledgerState: { r1: "indeterminate", r2: "pending" },
+    } as const;
+    expect(safetyViolation(modelStateFor({ ...twoLocators, runSubj: { r1: "s", r2: "s" } })))
+      .toBe("subject s dispatched r1 and r2 under two locators");
+    // No subject, or another subject, is another account's intent; a succeeded run no longer fences.
+    expect(safetyViolation(modelStateFor(twoLocators))).toBeNull();
+    expect(safetyViolation(modelStateFor({ ...twoLocators, runSubj: { r1: "s", r2: "" } }))).toBeNull();
+    expect(safetyViolation(modelStateFor({
+      ...twoLocators, runSubj: { r1: "s", r2: "s" }, status: { r1: "succeeded", r2: "pending" }, ledgerState: { r1: "succeeded", r2: "pending" },
+    }))).toBeNull();
+    expect(safetyViolation(modelStateFor({
+      dispatched: ["r1", "r2"], source: { r1: "", r2: "r1" }, elected: { r1: "r2" },
+      status: { r1: "pending", r2: "pending" }, ledgerState: { r1: "pending", r2: "pending" },
+    }))).toBe("r1 elected r2 while pending");
+    expect(safetyViolation(modelStateFor({ applied: ["r1"] }))).toBe("r1 applied without a dispatch");
+    expect(safetyViolation(modelStateFor({
+      dispatched: ["r1"], source: { r1: "" }, status: { r1: "indeterminate" }, ledgerState: { r1: "released" },
+    }))).toBe("r1 is indeterminate without its ledger");
+  });
+});
+
+function modelStateFor(values: Readonly<{
+  dispatched?: readonly string[];
+  applied?: readonly string[];
+  source?: Readonly<Record<string, string>>;
+  runLoc?: Readonly<Record<string, string>>;
+  runSubj?: Readonly<Record<string, string>>;
+  elected?: Readonly<Record<string, string>>;
+  status?: Readonly<Record<string, string>>;
+  ledgerState?: Readonly<Record<string, string>>;
+}>): Snapshot {
+  const perRun = (record: Readonly<Record<string, string>> | undefined, fallback: string) =>
+    new Map(RUNS.map((run) => [run, record?.[run] ?? fallback]));
+  return {
+    phase: perRun(undefined, "none"),
+    status: perRun(values.status, "none"),
+    ledgerState: perRun(values.ledgerState, "none"),
+    runAuth: new Map(),
+    runRev: new Map(),
+    // A run with a journal runs under locator a and records no subject unless given.
+    runLoc: new Map(Object.keys(values.source ?? {}).map((run) => [run, values.runLoc?.[run] ?? "a"])),
+    runSubj: new Map(Object.keys(values.source ?? {}).map((run) => [run, values.runSubj?.[run] ?? ""])),
+    source: new Map(Object.entries(values.source ?? {})),
+    elected: perRun(values.elected, ""),
+    authGen: 0,
+    rev: 0,
+    scanned: new Set(),
+    ledgerHolders: new Set(),
+    ledgerNames: 0,
+    dispatched: new Set(values.dispatched ?? []),
+    applied: new Set(values.applied ?? []),
+    reconciled: new Set(),
+    claimed: new Set(),
+    result: "none",
+  };
+}

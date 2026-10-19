@@ -1,0 +1,219 @@
+import { afterEach, describe, expect, test } from "bun:test";
+import { createHash } from "node:crypto";
+import { chmodSync, existsSync, lstatSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, relative } from "node:path";
+import { createAuth, saveAuth } from "./auth";
+import { rebuildOmniViewFromExactCache } from "./omni-runtime";
+import { main } from "./ghostget";
+import { describeOperationPermission, OperationPermissionError } from "./operation-permission";
+import { providerPluginRegistry } from "./provider-plugins";
+import { readCachedCapability } from "./read-client";
+import { createAndSaveInvocationPlan, prepareInvocation, prepareOperationApprovalInvocation } from "./runtime";
+import { installManifest } from "./storage";
+import type { GhostgetManifest } from "./model";
+
+const roots: string[] = [];
+afterEach(() => {
+  while (roots.length > 0) rmSync(roots.pop()!, { recursive: true, force: true });
+});
+
+function manifest(path: string): GhostgetManifest {
+  return JSON.parse(readFileSync(join(import.meta.dir, "assets", "adapters", path), "utf8")) as GhostgetManifest;
+}
+
+function incarnationPath(root: string, authId: string): string {
+  const coordinate = createHash("sha256").update(`wrench-read-projection-auth-coordinate-v1\0${authId}`).digest("hex");
+  return join(root, "read-projection-control", "incarnations", `${coordinate}.json`);
+}
+
+/**
+ * Names and bytes of every file in the state home, plus directory change
+ * times outside the admission-claim directory. Preparation takes a settled
+ * admission, so creating and releasing its own claim is not a change here.
+ */
+function fingerprint(root: string): readonly string[] {
+  const lines: string[] = [];
+  const walk = (directory: string): void => {
+    const name = relative(root, directory);
+    if (name !== join("read-projection-control", "admissions")) lines.push(`${name}/ ${lstatSync(directory, { bigint: true }).mtimeNs}`);
+    for (const entry of readdirSync(directory).sort()) {
+      const path = join(directory, entry);
+      if (lstatSync(path).isDirectory()) walk(path);
+      else lines.push(`${relative(root, path)} ${createHash("sha256").update(readFileSync(path)).digest("hex")}`);
+    }
+  };
+  walk(root);
+  return lines;
+}
+
+/** A state home with the selected LinkedIn or Reddit account, saved with its incarnation. */
+function accounts(selected: "linkedin" | "reddit" = "linkedin") {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "ghostget-read-path-preparation-"))); chmodSync(root, 0o700); roots.push(root);
+  const environment: Readonly<Record<string, string>> = { GHOSTGET_STATE_HOME: root };
+  if (selected === "linkedin") {
+    installManifest(manifest("linkedin/wrench-adapter.json"), { force: false, environment, registry: providerPluginRegistry });
+    saveAuth(createAuth("linkedin-main", {
+      oauthProvider: "linkedin",
+      tokenFile: join(root, "linkedin-token.json"),
+      scopes: ["r_member_social", "w_member_social"],
+      subject: "urn:li:person:12345",
+    }), environment);
+  } else {
+    installManifest(manifest("reddit/wrench-web-adapter.json"), { force: false, environment, registry: providerPluginRegistry });
+    saveAuth(createAuth("reddit-main", { source: "chrome", subject: "reddit:t2_account" }), environment);
+  }
+  return { root, environment };
+}
+
+const linkedinRead = { adapterId: "linkedin", operationId: "posts.read", input: { mode: "one", post_urn: "urn:li:share:2078889282404569267" }, authId: "linkedin-main" } as const;
+const redditSource = { adapterId: "reddit-web", operationId: "messaging.list", authId: "reddit-main", input: { folder: "inbox", limit: 25 } } as const;
+
+function omniRebuild(environment: Readonly<Record<string, string>>) {
+  return rebuildOmniViewFromExactCache({ schemaVersion: 1, sources: [redditSource], page: { limit: 1 } }, {
+    environment, registry: providerPluginRegistry, now: new Date("2026-09-24T12:00:00.000Z"),
+  });
+}
+
+function permissionCode(run: () => unknown): string | null {
+  try { run(); } catch (error) { return error instanceof OperationPermissionError ? error.code : `other: ${String(error)}`; }
+  return null;
+}
+
+describe("read-path preparation binds the current incarnation without creating one", () => {
+  test("a capability read on an account without an incarnation fails closed and writes nothing", () => {
+    const { root, environment } = accounts();
+    rmSync(incarnationPath(root, "linkedin-main"));
+    const before = fingerprint(root);
+    expect(() => readCachedCapability(linkedinRead, { environment, registry: providerPluginRegistry }))
+      .toThrow("auth locator linkedin-main has no lifetime identity yet");
+    expect(existsSync(incarnationPath(root, "linkedin-main"))).toBeFalse();
+    expect(fingerprint(root)).toEqual(before);
+  });
+
+  test("an omni source preparation on an account without an incarnation fails closed and creates none", () => {
+    const { root, environment } = accounts("reddit");
+    rmSync(incarnationPath(root, "reddit-main"));
+    expect(() => omniRebuild(environment)).toThrow("auth locator reddit-main has no lifetime identity yet");
+    expect(existsSync(incarnationPath(root, "reddit-main"))).toBeFalse();
+  });
+
+  test("invoke --cache-only on an account without an incarnation fails closed and writes nothing", async () => {
+    const { root, environment } = accounts();
+    rmSync(incarnationPath(root, "linkedin-main"));
+    const before = fingerprint(root);
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    let cacheReads = 0;
+    const code = await main(
+      ["invoke", "linkedin", "posts.read", "--input", JSON.stringify(linkedinRead.input), "--auth", "linkedin-main", "--cache-only", "--json"],
+      environment,
+      { stdout: (value) => stdout.push(value), stderr: (value) => stderr.push(value) },
+      {
+        providerPluginRegistry,
+        readCachedPreparedCapability: () => { cacheReads += 1; throw new Error("cache read must not run"); },
+      },
+    );
+    expect(code).not.toBe(0);
+    // --json routes the failure to stdout as a JSON envelope.
+    expect(stderr.join("")).toBe("");
+    expect(stdout.join("")).toContain('"ok":false');
+    expect(stdout.join("")).toContain("Auth locator linkedin-main has no lifetime identity yet");
+    expect(cacheReads).toBe(0);
+    expect(existsSync(incarnationPath(root, "linkedin-main"))).toBeFalse();
+    expect(fingerprint(root)).toEqual(before);
+  });
+
+  test("control inspection of an unplanned approval target creates no incarnation", () => {
+    const { root, environment } = accounts();
+    rmSync(incarnationPath(root, "linkedin-main"));
+    expect(() => prepareOperationApprovalInvocation(
+      { kind: "provider", adapterId: "linkedin", operationId: "posts.publish", authId: "linkedin-main", input: { author: "urn:li:person:12345", body: "hello" }, planDigest: null },
+      { environment, registry: providerPluginRegistry },
+    )).toThrow("auth locator linkedin-main has no lifetime identity yet");
+    expect(existsSync(incarnationPath(root, "linkedin-main"))).toBeFalse();
+  });
+
+  test("confirmation preparation of a saved plan whose incarnation disappeared fails as changed and creates none", () => {
+    const { root, environment } = accounts();
+    const stored = createAndSaveInvocationPlan(
+      prepareInvocation("linkedin", "posts.publish", { author: "urn:li:person:12345", body: "hello" }, "linkedin-main", environment, providerPluginRegistry),
+      environment, new Date(), providerPluginRegistry,
+    );
+    rmSync(incarnationPath(root, "linkedin-main"));
+    expect(() => prepareOperationApprovalInvocation(
+      { kind: "provider", adapterId: "linkedin", operationId: "posts.publish", authId: "linkedin-main", input: { author: "urn:li:person:12345", body: "hello" }, planDigest: stored.digest },
+      { environment, registry: providerPluginRegistry },
+    )).toThrow("authentication lifetime changed or predates managed permissions; preview the action again");
+    expect(existsSync(incarnationPath(root, "linkedin-main"))).toBeFalse();
+  });
+
+  test("an operation-permission description of an account without an incarnation reads as changed and creates none", () => {
+    const { root, environment } = accounts();
+    rmSync(incarnationPath(root, "linkedin-main"));
+    expect(permissionCode(() => describeOperationPermission("linkedin", "posts.publish", "linkedin-main", { environment, registry: providerPluginRegistry })))
+      .toBe("OPERATION_PERMISSION_CHANGED");
+    expect(existsSync(incarnationPath(root, "linkedin-main"))).toBeFalse();
+  });
+
+  test("an explicit invocation is the admitted execution path that creates a missing incarnation", () => {
+    const { root, environment } = accounts();
+    rmSync(incarnationPath(root, "linkedin-main"));
+    const invocation = prepareInvocation("linkedin", "posts.read", linkedinRead.input, "linkedin-main", environment, providerPluginRegistry);
+    expect(existsSync(incarnationPath(root, "linkedin-main"))).toBeTrue();
+    // The read path then binds the same identity and leaves it unchanged.
+    const created = readFileSync(incarnationPath(root, "linkedin-main"));
+    expect(readCachedCapability(linkedinRead, { environment, registry: providerPluginRegistry }).status).toBe("miss");
+    const description = describeOperationPermission("linkedin", "posts.read", "linkedin-main", { environment, registry: providerPluginRegistry });
+    expect(description.coordinate.authIncarnation).toBe(invocation.readProjectionAuthIdentityHash!);
+    expect(readFileSync(incarnationPath(root, "linkedin-main"))).toEqual(created);
+  });
+
+  // D14 decision: `invoke --projection-identity-only` is the SDK's identity
+  // preflight for a live invoke, so it is execution preparation and stays an
+  // admitted incarnation creator. The cache-only read beside it creates none.
+  test("invoke --projection-identity-only is execution preparation that creates a missing incarnation; --cache-only still creates none", async () => {
+    const { root, environment } = accounts();
+    rmSync(incarnationPath(root, "linkedin-main"));
+    const run = async (flag: "--cache-only" | "--projection-identity-only") => {
+      const stdout: string[] = [];
+      const stderr: string[] = [];
+      let cacheReads = 0;
+      const code = await main(
+        ["invoke", "linkedin", "posts.read", "--input", JSON.stringify(linkedinRead.input), "--auth", "linkedin-main", flag, "--json"],
+        environment,
+        { stdout: (value) => stdout.push(value), stderr: (value) => stderr.push(value) },
+        {
+          providerPluginRegistry,
+          readCachedPreparedCapability: () => { cacheReads += 1; throw new Error("stubbed cache read"); },
+        },
+      );
+      return { code, stdout: stdout.join(""), stderr: stderr.join(""), cacheReads };
+    };
+
+    const before = fingerprint(root);
+    const cacheOnly = await run("--cache-only");
+    expect(cacheOnly.code).not.toBe(0);
+    expect(cacheOnly.stderr).toBe("");
+    expect(cacheOnly.stdout).toContain('"ok":false');
+    expect(cacheOnly.stdout).toContain("Auth locator linkedin-main has no lifetime identity yet");
+    expect(existsSync(incarnationPath(root, "linkedin-main"))).toBeFalse();
+    expect(fingerprint(root)).toEqual(before);
+
+    const identity = await run("--projection-identity-only");
+    expect(identity.stderr).toBe("");
+    expect(identity.code).toBe(0);
+    expect(identity.cacheReads).toBe(0);
+    const view = JSON.parse(identity.stdout) as { readonly source: string; readonly authIdentity: string };
+    expect(view.source).toBe("projection-identity");
+    expect(existsSync(incarnationPath(root, "linkedin-main"))).toBeTrue();
+    const created = readFileSync(incarnationPath(root, "linkedin-main"));
+    // The read path then binds the identity the preflight created, without changing it.
+    const description = describeOperationPermission("linkedin", "posts.read", "linkedin-main", { environment, registry: providerPluginRegistry });
+    expect(description.coordinate.authIncarnation).toBe(view.authIdentity);
+    const retried = await run("--cache-only");
+    expect(retried.cacheReads).toBe(1);
+    expect(retried.stderr).not.toContain("no lifetime identity");
+    expect(readFileSync(incarnationPath(root, "linkedin-main"))).toEqual(created);
+  });
+});

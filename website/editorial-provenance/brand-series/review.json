@@ -1,0 +1,21 @@
+{
+  "generator": "SlopCamera",
+  "sourceCommit": "7a2de2fe1a67ae74baf52b574c07ea98c5e6cfce",
+  "cliSha256": "732e6afe087912e9c015b6bc3889733a5ecb74e4f5aeb9bd67940c1bd5962b5b",
+  "model": "openai/gpt-image-2",
+  "generated": 10,
+  "paidAttempts": 10,
+  "referencesUploaded": 0,
+  "palette": [
+    "#0e1113",
+    "#f0ede4",
+    "#e6ad63"
+  ],
+  "medium": "matte paper relief with fine grain and engraved contours",
+  "reference": "Sleepyland public/editorial/research/best-sleep-sounds.webp (visually inspected locally, not uploaded)",
+  "review": {
+    "fullSize": "Inspected every 1536\u00d7864 original for accidental lettering, distorted objects, palette drift, and framing.",
+    "thumbnails": "Inspected ten-image contact sheet at384px width per image.",
+    "independent": "Root Codex agent approved the full contact sheet: cohesive palette, distinct compositions, clear missing comparison image."
+  }
+}

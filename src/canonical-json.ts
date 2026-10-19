@@ -1,0 +1,440 @@
+import { createHash } from "node:crypto";
+
+type KeyCompare = (left: string, right: string) => number;
+
+/**
+ * UTF-16 code-unit ordering, the RFC 8785 JCS member ordering. Unlike
+ * locale-aware collation this order is total, deterministic, and identical in
+ * every runtime: collation can report distinct keys (for example the NFC and
+ * NFD spellings of "ä") as equal, which silently made the previous ordering
+ * depend on property insertion order.
+ */
+const compareUtf16CodeUnits: KeyCompare = (left, right) =>
+  left < right ? -1 : left > right ? 1 : 0;
+
+/**
+ * The historical locale-collation ordering. It is retained only so that data
+ * serialized before the RFC 8785 migration remains verifiable; new writes
+ * never use it.
+ */
+const compareLegacyLocale: KeyCompare = (left, right) =>
+  left.localeCompare(right);
+
+/**
+ * One way a value falls outside the strict JSON value domain that every
+ * canonical encoder in this module shares: null, booleans, strings, finite
+ * numbers, dense plain arrays, and plain or null-prototype objects whose
+ * string-keyed own members are enumerable data properties.
+ */
+export type JsonDomainViolation =
+  | "non-finite number"
+  | "non-JSON value"
+  | "non-plain array"
+  | "sparse or decorated array"
+  | "non-plain object"
+  | "symbol field"
+  | "accessor or non-enumerable member"
+  | "cycle";
+
+/**
+ * Report a violation. `member` names the array index or object key whose own
+ * property descriptor is at fault, when the violation belongs to one member.
+ */
+export type JsonDomainFailure = (
+  violation: JsonDomainViolation,
+  member?: string | number,
+) => never;
+
+function dataDescriptorValue(
+  descriptor: PropertyDescriptor,
+  member: string | number,
+  fail: JsonDomainFailure,
+): unknown {
+  if (descriptor.enumerable !== true || !("value" in descriptor)) {
+    return fail("accessor or non-enumerable member", member);
+  }
+  return descriptor.value as unknown;
+}
+
+/**
+ * The elements of a dense, undecorated array with the ordinary array
+ * prototype. Holes, extra own keys, and accessor elements are rejected, and no
+ * getter runs. Elements are returned without validating their own domain.
+ */
+export function plainJsonArrayItems(
+  value: readonly unknown[],
+  fail: JsonDomainFailure,
+): readonly unknown[] {
+  if ((Object.getPrototypeOf(value) as unknown) !== Array.prototype) {
+    return fail("non-plain array");
+  }
+  const length = value.length;
+  if (Reflect.ownKeys(value).length !== length + 1) {
+    return fail("sparse or decorated array");
+  }
+  const items: unknown[] = [];
+  for (let index = 0; index < length; index += 1) {
+    // One descriptor read per element answers both "is it own" and "is it
+    // data"; a separate hasOwn probe cost as much again on large arrays.
+    const descriptor = Object.getOwnPropertyDescriptor(value, index);
+    if (descriptor === undefined) return fail("sparse or decorated array");
+    items.push(dataDescriptorValue(descriptor, index, fail));
+  }
+  return items;
+}
+
+/**
+ * The members of a plain or null-prototype object, in own-key order. Symbol
+ * keys and enumerable accessors are rejected, and no getter runs. A
+ * non-enumerable member is rejected too unless `skipNonEnumerable` is set, in
+ * which case it is left out exactly as JSON.stringify leaves it out; some
+ * parsed projections hide a member that way on purpose. A literal
+ * "__proto__" own key is an ordinary member. Member values, including
+ * `undefined`, are returned without validating their own domain. The
+ * returned array is fresh, so a caller may sort it in place.
+ */
+export function plainJsonObjectMembers(
+  value: object,
+  fail: JsonDomainFailure,
+  options: { readonly skipNonEnumerable?: boolean } = {},
+): (readonly [string, unknown])[] {
+  const prototype: unknown = Object.getPrototypeOf(value) as unknown;
+  if (prototype !== Object.prototype && prototype !== null) {
+    return fail("non-plain object");
+  }
+  const skipNonEnumerable = options.skipNonEnumerable === true;
+  const members: (readonly [string, unknown])[] = [];
+  for (const key of Reflect.ownKeys(value)) {
+    if (typeof key !== "string") return fail("symbol field");
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (descriptor === undefined) {
+      return fail("accessor or non-enumerable member", key);
+    }
+    if (skipNonEnumerable && descriptor.enumerable !== true) continue;
+    members.push([key, dataDescriptorValue(descriptor, key, fail)]);
+  }
+  return members;
+}
+
+type JsonPath = readonly (string | number)[];
+
+type CanonicalEncoding = {
+  readonly compare: KeyCompare;
+  /**
+   * Leave out non-enumerable object members, as JSON.stringify does (true),
+   * or reject them (false).
+   */
+  readonly skipNonEnumerable: boolean;
+  /**
+   * Reject an `undefined` object member at `path`. When absent, the member is
+   * left out, as JSON.stringify leaves it out.
+   */
+  readonly rejectUndefinedMember?: (path: JsonPath) => never;
+  readonly fail: (violation: JsonDomainViolation, path: JsonPath) => never;
+};
+
+/**
+ * The state of one encoding. `path` is mutated in place as the walk descends,
+ * so `fail` always names the member being read, and `ancestors` holds the
+ * objects on that path for cycle detection. A violation throws out of the
+ * whole encoding, so neither is restored on failure. One `fail` serves the
+ * whole walk because allocating one per container cost measurable time on
+ * large inputs.
+ */
+type CanonicalWalk = {
+  readonly encoding: CanonicalEncoding;
+  readonly path: (string | number)[];
+  readonly ancestors: Set<object>;
+  readonly fail: JsonDomainFailure;
+};
+
+function encodeCanonicalRoot(
+  value: unknown,
+  encoding: CanonicalEncoding,
+): string {
+  const path: (string | number)[] = [];
+  return encodeCanonical(value, {
+    encoding,
+    path,
+    ancestors: new Set(),
+    fail: (violation, member) =>
+      encoding.fail(violation, member === undefined ? path : [...path, member]),
+  });
+}
+
+function encodeCanonical(value: unknown, walk: CanonicalWalk): string {
+  if (value === null || typeof value === "boolean" || typeof value === "string") {
+    return JSON.stringify(value);
+  }
+  const { encoding, path, ancestors, fail } = walk;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) return encoding.fail("non-finite number", path);
+    return JSON.stringify(value);
+  }
+  if (typeof value !== "object") return encoding.fail("non-JSON value", path);
+  const depth = ancestors.size;
+  ancestors.add(value);
+  if (ancestors.size === depth) return encoding.fail("cycle", path);
+  let text: string;
+  if (Array.isArray(value)) {
+    const items = plainJsonArrayItems(value, fail);
+    text = "[";
+    for (let index = 0; index < items.length; index += 1) {
+      if (index > 0) text += ",";
+      path.push(index);
+      text += encodeCanonical(items[index], walk);
+      path.pop();
+    }
+    text += "]";
+  } else {
+    const members = plainJsonObjectMembers(value, fail, {
+      skipNonEnumerable: encoding.skipNonEnumerable,
+    }).sort(([left], [right]) => encoding.compare(left, right));
+    text = "{";
+    let first = true;
+    for (const [key, item] of members) {
+      path.push(key);
+      if (item === undefined) {
+        if (encoding.rejectUndefinedMember !== undefined) {
+          return encoding.rejectUndefinedMember(path);
+        }
+        path.pop();
+        continue;
+      }
+      if (!first) text += ",";
+      first = false;
+      text += `${JSON.stringify(key)}:${encodeCanonical(item, walk)}`;
+      path.pop();
+    }
+    text += "}";
+  }
+  ancestors.delete(value);
+  return text;
+}
+
+function failCanonicalJson(violation: JsonDomainViolation): never {
+  // Member names can carry caller data, so this general-purpose encoder
+  // reports only the violation kind.
+  if (violation === "non-finite number") {
+    throw new Error("canonical JSON cannot represent a non-finite number");
+  }
+  throw new Error(
+    `canonical JSON supports only JSON-compatible values: ${violation}`,
+  );
+}
+
+function canonicalJsonWithOrder(value: unknown, compare: KeyCompare): string {
+  return encodeCanonicalRoot(
+    value,
+    { compare, skipNonEnumerable: true, fail: failCanonicalJson },
+  );
+}
+
+const strictViolationText: Readonly<Record<JsonDomainViolation, string>> = {
+  "non-finite number": "a non-finite number",
+  "non-JSON value": "a non-JSON value",
+  "non-plain array": "a non-plain array",
+  "sparse or decorated array": "a sparse or decorated array",
+  "non-plain object": "a non-plain object",
+  "symbol field": "a symbol field",
+  "accessor or non-enumerable member": "unsupported accessor state",
+  "cycle": "a cycle",
+};
+
+/**
+ * Canonical JSON over the same strict value domain and member ordering as
+ * {@link canonicalJson}, except that an `undefined` or non-enumerable member
+ * is rejected rather than dropped. Errors name the offending path under
+ * `label`, so use it only for reviewed descriptors whose member names are not
+ * private data. The output is byte-identical to canonicalJson for every value
+ * it accepts.
+ */
+export function strictCanonicalJson(value: unknown, label: string): string {
+  const fail = (violation: JsonDomainViolation, path: JsonPath): never => {
+    const location = path.map((segment) =>
+      typeof segment === "number" ? `[${segment}]` : `.${segment}`).join("");
+    throw new Error(`${label}${location} contains ${strictViolationText[violation]}`);
+  };
+  return encodeCanonicalRoot(
+    value,
+    {
+      compare: compareUtf16CodeUnits,
+      skipNonEnumerable: false,
+      rejectUndefinedMember: (path) => fail("non-JSON value", path),
+      fail,
+    },
+  );
+}
+
+/**
+ * Canonical JSON for plan binding, content addressing, and provider-owned
+ * semantic identities, with RFC 8785-compatible UTF-16 code-unit member
+ * ordering. This leaf has no catalog or runtime dependencies.
+ *
+ * Only the strict JSON value domain encodes. Like JSON.stringify, it drops
+ * `undefined` and non-enumerable object members. Sparse or decorated arrays,
+ * class instances such as Map, Date, and typed arrays, enumerable accessors,
+ * symbol-keyed members, cycles, and non-finite numbers are rejected, so
+ * distinct inputs cannot collapse onto one encoding and the output always
+ * parses as JSON.
+ */
+export function canonicalJson(value: unknown): string {
+  return canonicalJsonWithOrder(value, compareUtf16CodeUnits);
+}
+
+/**
+ * Canonical JSON requiring every nested object member to be defined.
+ * canonicalJson drops `undefined` members before serializing; a serializer
+ * whose preimage is a reviewed durable contract must instead reject them
+ * exactly as the retired sorted-key serializers did. It shares the strict
+ * value domain, ordering, and single getter-free pass of canonicalJson, and
+ * like it leaves out non-enumerable members. `context` names the contract
+ * vocabulary in the error raised for an `undefined` member.
+ */
+export function canonicalJsonWithDefinedMembers(
+  value: unknown,
+  context: string,
+): string {
+  return encodeCanonicalRoot(
+    value,
+    {
+      compare: compareUtf16CodeUnits,
+      skipNonEnumerable: true,
+      rejectUndefinedMember: () => {
+        throw new Error(`${context} contains an unsupported value`);
+      },
+      fail: failCanonicalJson,
+    },
+  );
+}
+
+/**
+ * The pre-migration canonical JSON encoding whose members are ordered by
+ * locale collation. Retained exclusively for verifying data persisted before
+ * the RFC 8785 ordering migration; it must never feed new writes.
+ *
+ * Its bytes are frozen as written: collation depends on the runtime's ICU
+ * data, and keys that collate as equal keep insertion order. Collation also
+ * differs from code-unit order on ordinary ASCII names (case, and
+ * punctuation such as "_" and "-"), so it cannot be replaced by the current
+ * ordering without breaking verification of that state. It shares the strict
+ * value domain of canonicalJson.
+ */
+export function legacyCanonicalJson(value: unknown): string {
+  return canonicalJsonWithOrder(value, compareLegacyLocale);
+}
+
+/**
+ * Every canonical serialization a value may legitimately have on disk: the
+ * current encoding first, then the legacy encoding when it differs. Most
+ * values have a single serialization because the two orderings agree on
+ * ordinary member names.
+ */
+export function canonicalJsonSerializations(value: unknown): readonly string[] {
+  const current = canonicalJson(value);
+  const legacy = legacyCanonicalJson(value);
+  return legacy === current ? [current] : [current, legacy];
+}
+
+/**
+ * The newline-terminated serializations used by private JSON state files.
+ */
+export function canonicalJsonFileSerializations(
+  value: unknown,
+): readonly string[] {
+  return canonicalJsonSerializations(value).map(
+    (serialization) => `${serialization}\n`,
+  );
+}
+
+/**
+ * Whether `content` is an accepted canonical serialization of `value`,
+ * tolerating either the current or the legacy member ordering.
+ */
+export function isCanonicalJsonText(text: string, value: unknown): boolean {
+  return canonicalJsonSerializations(value).includes(text);
+}
+
+/**
+ * Whether `content` is an accepted newline-terminated canonical state-file
+ * serialization of `value`, tolerating either member ordering.
+ */
+export function isCanonicalJsonFileText(
+  content: string,
+  value: unknown,
+): boolean {
+  return canonicalJsonFileSerializations(value).includes(content);
+}
+
+/**
+ * The SHA-256 digest of each accepted canonical serialization, current first.
+ */
+export function canonicalJsonSha256Variants(
+  value: unknown,
+): readonly string[] {
+  return canonicalJsonSerializations(value).map(
+    (serialization) => sha256(serialization),
+  );
+}
+
+/**
+ * The SHA-256 digest of each accepted newline-terminated canonical
+ * serialization, current first.
+ */
+export function canonicalJsonFileSha256Variants(
+  value: unknown,
+): readonly string[] {
+  return canonicalJsonFileSerializations(value).map(
+    (serialization) => sha256(serialization),
+  );
+}
+
+/**
+ * Whether `digest` authenticates `value` under any accepted canonical
+ * serialization.
+ */
+export function canonicalJsonSha256Matches(
+  digest: string,
+  value: unknown,
+): boolean {
+  return canonicalJsonSha256Variants(value).includes(digest);
+}
+
+/**
+ * Whether `digest` authenticates a canonical state-file serialization of
+ * `value` under any accepted member ordering.
+ */
+export function canonicalJsonFileSha256Matches(
+  digest: string,
+  value: unknown,
+): boolean {
+  return canonicalJsonFileSha256Variants(value).includes(digest);
+}
+
+/**
+ * Canonical JSON that is safe to embed as a JavaScript expression inside a
+ * generated page script. JSON permits raw U+2028, U+2029, and angle brackets
+ * inside strings; escaping them keeps the literal from terminating a script
+ * element or a JavaScript line. The escaped text parses to the same value.
+ */
+export function canonicalJsonScriptLiteral(value: unknown): string {
+  return escapeScriptLiteral(canonicalJson(value));
+}
+
+/**
+ * Plain JSON with the same script-embedding escapes, for generated page
+ * scripts whose bindings keep their insertion order rather than the
+ * canonical ordering.
+ */
+export function jsonScriptLiteral(value: unknown): string {
+  return escapeScriptLiteral(JSON.stringify(value));
+}
+
+function escapeScriptLiteral(json: string): string {
+  return json.replace(/[<>\u2028\u2029]/gu, (character) =>
+    `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`);
+}
+
+export function sha256(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}

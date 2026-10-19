@@ -1,0 +1,2090 @@
+import { describe, expect, test } from "bun:test";
+import { createHash } from "node:crypto";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
+
+import {
+  HRANESS_HOME_URL,
+  HRANESS_MAILING_SUBSCRIBE_URL,
+  hranessSocialLinks,
+  renderHranessSiteFooter,
+  type HranessMailingListConfig,
+} from "@hraness/site-footer";
+import { product, portfolioRelatedGroups } from "@hraness/design-kit/portfolio";
+import { marketing, portfolio } from "./portfolio-copy";
+import { HranessSiteFooter } from "@hraness/site-footer/react";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+
+import {
+  agentSkillInstallCommands,
+  buildWebsite,
+  BLOG_SITE,
+  compileUiStylesheet,
+  CONTENT_REVIEWED_RELEASE,
+  DEFAULT_POSTHOG_HOST,
+  DEMO_PUBLIC_FILES,
+  markdownSiblingPath,
+  GITHUB_RELEASES_URL,
+  HOME_TITLE,
+  HRANESS_LINKEDIN_URL,
+  HRANESS_LOGO_URL,
+  HRANESS_ORGANIZATION_ID,
+  HRANESS_URL,
+  INDEXABLE_EDITORIAL_IMAGES,
+  INDEXABLE_PUBLIC_PAGES,
+  NPM_PACKAGE_URL,
+  parsePackageIdentity,
+  PUBLIC_PAGES,
+  PUBLISHER_URL,
+  REPOSITORY_URL,
+  SITE_DESCRIPTION,
+  SITE_ORIGIN,
+  SKILLS_URL,
+  SOCIAL_IMAGE_ALT,
+  versionedPackageArtifactUrl,
+  ghostgetMailingListConfig,
+  type UiStylesheetImport,
+} from "./build";
+import {
+  createSocialImageCard,
+  socialImageAlt,
+  socialImageFit,
+  socialImageSiteDetails,
+} from "@hraness/web-discovery/social-image/card";
+import { SOCIAL_IMAGE_BRAND_MARK, SOCIAL_IMAGE_DESCRIPTION, SOCIAL_IMAGE_HOME_PAGE, socialSite } from "./social-image";
+import { BLOG_POSTS, blogPostPath, blogSitemapPaths, indexablePosts } from "./blog";
+import { essayReviews } from "./essay-reviews";
+import { handleDocumentNegotiation } from "../edge/negotiation";
+import {
+  isNoindexDocumentPath,
+  NOINDEX_ESSAY_PATHS,
+  NOINDEX_ROBOTS,
+} from "../edge/robots";
+import { ghostgetSupportProfile } from "../src/support-profile";
+import {
+  EDITORIAL_ARTICLE_IMAGE_SIZES,
+  EDITORIAL_CARD_IMAGE_SIZES,
+  editorialImageSrcSet,
+  editorialImageUrl,
+  editorialImages,
+} from "./editorial-images";
+import {
+  loadProviderCapabilityAttestation,
+} from "./provider-capability-attestation";
+import {
+  BEEPER_PRESENTATION_TRANSPORT_COUNTS,
+  createBeeperPresentationFacts,
+  createProviderDirectory,
+  createWhatsAppPresentationFacts,
+  renderProviderAttestationGroups,
+  renderProviderMarquee,
+  renderProviderOverviewCards,
+} from "./provider-presentation";
+import {
+  BEEPER_LOCAL_OPERATION_CONTRACT_VERSIONS,
+  BEEPER_LOCAL_OPERATION_NAMES,
+  BEEPER_LOCAL_OPERATION_RUNTIME_TRANSPORTS,
+} from "../src/providers/beeper-local";
+import { GOOGLE_GMAIL_READ_SCOPES } from "../src/oauth-google";
+import {
+  LAYER_LABELS,
+  LAYERS,
+  parseClaimsRegister,
+  type Status,
+} from "../scripts/verification-claims";
+
+const repositoryRoot = resolve(import.meta.dir, "..");
+const websiteRoot = import.meta.dir;
+
+function cssPropertyValues(css: string, selector: string, property: string): string[] {
+  const values: string[] = [];
+  for (const match of css.matchAll(/([^{}]+)\{([^{}]*)\}/gu)) {
+    const selectors = (match[1] ?? "").split(",").map((value) => value.trim());
+    if (!selectors.includes(selector)) continue;
+    const declarations = match[2] ?? "";
+    const value = new RegExp(`(?:^|;)\\s*${property}\\s*:\\s*([^;]+)`, "u")
+      .exec(declarations)?.[1]?.trim();
+    if (value !== undefined) values.push(value);
+  }
+  return values;
+}
+
+test("Ask AI preserves product typography while retaining shared line-height and wrapping atoms", async () => {
+  const css = await readFile(join(websiteRoot, "source/styles.css"), "utf8");
+  const label = '.ghostget-ask-ai [data-slot="ask-ai-about-this-label"]';
+  const link = '.ghostget-ask-ai [data-slot="ask-ai-about-this-link"]';
+  for (const [selector, property, value] of [
+    [label, "color", "inherit"], [label, "font-family", "inherit"],
+    [label, "letter-spacing", "normal"], [label, "text-transform", "none"],
+    [link, "font-family", "inherit"], [link, "background-color", "transparent"],
+    [`${link}:hover`, "background-color", "transparent"],
+    [`${link}:focus-visible`, "outline", "2px solid var(--focus)"],
+    [`${link}:focus-visible`, "outline-offset", "2px"],
+  ] as const) expect(cssPropertyValues(css, selector, property)).toEqual([value]);
+  expect(cssPropertyValues(css, label, "line-height")).toEqual([]);
+  for (const selector of [label, link]) expect(cssPropertyValues(css, selector, "white-space")).toEqual([]);
+});
+
+function lossyWebpDimensions(bytes: Uint8Array): Readonly<{ height: number; width: number }> {
+  const ascii = (start: number, end: number): string =>
+    String.fromCharCode(...bytes.subarray(start, end));
+  if (
+    bytes.byteLength < 30
+    || ascii(0, 4) !== "RIFF"
+    || ascii(8, 12) !== "WEBP"
+    || ascii(12, 16) !== "VP8 "
+    || bytes[23] !== 0x9d
+    || bytes[24] !== 0x01
+    || bytes[25] !== 0x2a
+  ) {
+    throw new Error("Editorial image must be a canonical lossy WebP frame.");
+  }
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  return {
+    height: view.getUint16(28, true) & 0x3fff,
+    width: view.getUint16(26, true) & 0x3fff,
+  };
+}
+
+describe("ghostget.com static site", () => {
+  test("sets the founder note directly below the home hero in the text face", async () => {
+    const [home, css] = await Promise.all([
+      readFile(join(websiteRoot, "source/index.html"), "utf8"),
+      readFile(join(websiteRoot, "source/styles.css"), "utf8"),
+    ]);
+    expect(home).toMatch(/<\/header>\s*<section aria-label="A note from the author" class="founder-note">/u);
+    // The note is the registry blurb, word for word, signed before it asks.
+    expect(home).toContain(`<p>${portfolio.messaging.blurb.text}</p>`);
+    expect(home.indexOf("founder-note__signature")).toBeLessThan(home.indexOf("founder-note__action"));
+    expect(home).toContain('<a href="https://ghostget.com">ghostget.com</a>');
+    // The note reads in the text face; no serif fallback remains in the site's own styles.
+    expect(css).not.toMatch(/Instrument Serif|Georgia/u);
+    const bodyRule = css.slice(css.indexOf(".founder-note__body p {"));
+    expect(bodyRule.slice(0, bodyRule.indexOf("}"))).toContain("var(--font-text");
+  });
+
+  test("inlines the complete UI stylesheet after its layer declarations", () => {
+    const imports = {
+      "./tokens.css": ":root { --ui-foreground: CanvasText; }",
+      "./reset.css": "@layer base { button { font: inherit; } }",
+      "./components.css": "@layer components.hraness-ui.legacy { .hook { color: inherit; } }",
+      "../dist/stylex.css": "@layer components.hraness-ui.priority1 { .compiled { display: flex; } }",
+    } satisfies Record<UiStylesheetImport, string>;
+    const prelude = "@layer base, components;\n@layer components.hraness-ui.legacy, components.hraness-ui.priority1;";
+    const facade = `${prelude}\n${Object.keys(imports).map((source) => `@import "${source}";`).join("\n")}\n`;
+
+    expect(compileUiStylesheet(facade, imports)).toBe(
+      `${prelude}\n${Object.values(imports).join("\n")}`,
+    );
+    expect(() => compileUiStylesheet(
+      `${facade}@import "./components.css";\n`,
+      imports,
+    )).toThrow("repeated UI stylesheet import");
+    expect(() => compileUiStylesheet(
+      facade.replace('@import "../dist/stylex.css";', ""),
+      imports,
+    )).toThrow("complete pinned public CSS exports");
+    expect(() => compileUiStylesheet(
+      facade.replace('@import "./tokens.css";', '@import "https://example.com/tokens.css";'),
+      imports,
+    )).toThrow("Unsupported");
+    expect(() => compileUiStylesheet(
+      facade.replace('@import "./tokens.css";', '@import "./tokens.css" screen;'),
+      imports,
+    )).toThrow("complete pinned public CSS exports");
+    expect(() => compileUiStylesheet(facade, {
+      ...imports,
+      "./components.css": '@import "./unbundled.css";',
+    })).toThrow("complete pinned public CSS exports");
+  });
+
+  test("derives the public release from strict root package identity", async () => {
+    const [manifest, lockfile]: [unknown, string] = await Promise.all([
+      Bun.file(join(repositoryRoot, "package.json")).json(),
+      Bun.file(join(repositoryRoot, "bun.lock")).text(),
+    ]);
+    const identity = parsePackageIdentity(manifest);
+    expect(identity).toMatchObject({
+      description: SITE_DESCRIPTION,
+      homepage: SITE_ORIGIN,
+      name: "@hraness/ghostget",
+      repositoryUrl: "git+https://github.com/hraness/ghostget.git",
+    });
+    expect(identity.version).toBe((manifest as { version: string }).version);
+    expect(identity.release).toBe(`v${identity.version}`);
+    expect(identity.release).toBe(CONTENT_REVIEWED_RELEASE);
+    const packageFiles = (manifest as { files?: unknown }).files;
+    expect(Array.isArray(packageFiles)).toBe(true);
+    expect(packageFiles).not.toContain("website");
+    expect(packageFiles).not.toContain("vercel.json");
+    expect(manifest).toMatchObject({
+      devDependencies: {
+        "@hraness/design-kit": "github:hraness/design-kit#v0.41.0",
+
+        "@hraness/site-footer": "https://github.com/hraness/site-footer/releases/download/v0.20.7/hraness-site-footer-0.20.7.tgz",
+        "@hraness/ui": "github:hraness/ui#v0.5.18",
+      },
+    });
+    expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.41.0"');
+    expect(lockfile).toContain('"@hraness/ui": "github:hraness/ui#v0.5.18"');
+
+    expect(lockfile).toContain('"@hraness/site-footer": "https://github.com/hraness/site-footer/releases/download/v0.20.7/hraness-site-footer-0.20.7.tgz"');
+    expect(lockfile).toContain(
+      '"@hraness/site-footer": ["@hraness/site-footer@https://github.com/hraness/site-footer/releases/download/v0.20.7/hraness-site-footer-0.20.7.tgz"',
+    );
+  });
+
+  test("keeps handwritten Beeper transport and contract counts bound to source", async () => {
+    const [readme, localCliGuide] = await Promise.all([
+      Bun.file(join(repositoryRoot, "README.md")).text(),
+      Bun.file(join(repositoryRoot, "docs/local-cli-providers.md")).text(),
+    ]);
+    const desktopLoopbackOperations = BEEPER_LOCAL_OPERATION_NAMES.filter(
+      (operation) => BEEPER_LOCAL_OPERATION_RUNTIME_TRANSPORTS[operation]
+        === "desktop-loopback",
+    );
+    const contractVersionCounts = ([1, 2, 3] as const).map(
+      (version) => BEEPER_LOCAL_OPERATION_NAMES.filter(
+        (operation) => BEEPER_LOCAL_OPERATION_CONTRACT_VERSIONS[operation] === version,
+      ).length,
+    );
+
+    expect(BEEPER_PRESENTATION_TRANSPORT_COUNTS).toEqual({
+      cliBackedOperationCount: 26,
+      desktopLoopbackOperationCount: 6,
+    });
+    expect(desktopLoopbackOperations).toEqual([
+      "accounts.list",
+      "contacts.list",
+      "messaging.search",
+      "conversations.read",
+      "messaging.read",
+      "messaging.content.search",
+    ]);
+    expect(contractVersionCounts).toEqual([25, 5, 2]);
+
+    const normalizedReadme = readme.replace(/\s+/gu, " ");
+    const normalizedLocalCliGuide = localCliGuide.replace(/\s+/gu, " ");
+    expect(normalizedReadme).toContain(
+      "Of those, 26 operations use the authoritative `@beeper/cli` 0.6.2 executable; six reads use fixed Beeper Desktop loopback endpoints.",
+    );
+    expect(normalizedReadme).toContain(
+      "25 at contract version 1, five at contract version 2, and two at contract version 3: `contacts.list` and `messaging.read`.",
+    );
+    expect(normalizedReadme).toContain(
+      "Six fixed Desktop loopback reads are `accounts.list`, `contacts.list`, `messaging.search`, `conversations.read`, `messaging.read`, and `messaging.content.search`",
+    );
+    expect(normalizedLocalCliGuide).toContain(
+      "pinned official `@beeper/cli` 0.6.2 executable into 26 CLI-backed operations and adds six fixed Beeper Desktop loopback reads, for 32 named operations in all.",
+    );
+    expect(normalizedLocalCliGuide).toContain(
+      "25 operations at contract version 1, five at version 2, and two at version 3: `contacts.list` and `messaging.read`.",
+    );
+    expect(normalizedLocalCliGuide).toContain(
+      "six direct loopback reads are `accounts.list`, `contacts.list`, `messaging.search`, `conversations.read`, `messaging.read`, and `messaging.content.search`",
+    );
+  });
+
+  test("rejects metadata drift and non-release versions", () => {
+    const base = {
+      description: SITE_DESCRIPTION,
+      homepage: SITE_ORIGIN,
+      name: "@hraness/ghostget",
+      repository: { url: "git+https://github.com/hraness/ghostget.git" },
+      version: "9.8.7",
+    };
+    expect(() => parsePackageIdentity({ ...base, homepage: "https://hraness.com/ghostget" }))
+      .toThrow("canonical GhostGet origin");
+    expect(() => parsePackageIdentity({ ...base, version: "9.8.7-beta.1" }))
+      .toThrow("stable semantic version");
+    expect(() => parsePackageIdentity({ ...base, description: "drift" }))
+      .toThrow("descriptions must stay identical");
+  });
+
+  test("binds signup to GhostGet in production only", () => {
+    expect(ghostgetMailingListConfig({
+      VERCEL_ENV: "production",
+    })).toEqual({
+      audience: "wrench",
+      kind: "signup",
+    });
+    expect(ghostgetMailingListConfig({})).toEqual({ kind: "none" });
+    expect(ghostgetMailingListConfig({ VERCEL_ENV: "preview" }))
+      .toEqual({ kind: "none" });
+    expect(ghostgetMailingListConfig({ VERCEL_ENV: "development" }))
+      .toEqual({ kind: "none" });
+  });
+
+  test("renders the shared Hraness attribution through the HranessSiteFooter contract in every mode", () => {
+    const mailingLists: ReadonlyArray<HranessMailingListConfig> = [
+      ghostgetMailingListConfig({ VERCEL_ENV: "production" }),
+      ghostgetMailingListConfig({ VERCEL_ENV: "preview" }),
+      ghostgetMailingListConfig({}),
+    ];
+    for (const mailingList of mailingLists) {
+      for (const support of [ghostgetSupportProfile, undefined]) {
+        for (const showBrand of [true, false]) {
+          const options = { mailingList, showBrand, ...(support === undefined ? {} : { support }) };
+          const staticHtml = renderHranessSiteFooter(options);
+          // The framework-neutral renderer the static build uses is the same
+          // contract as the React adapter once the client-only enrollment
+          // experiment is off; the React default instead ships an "arming"
+          // veil that only hydration lifts, which a React-free page must not emit.
+          expect(staticHtml).toBe(
+            renderToStaticMarkup(createElement(HranessSiteFooter, { ...options, experiment: false })),
+          );
+          expect(staticHtml).not.toContain("data-experiment=");
+          // The organization attribution folds into the canonical home lockup.
+          expect(staticHtml.match(/aria-label="Hraness home"/gu) ?? []).toHaveLength(showBrand ? 1 : 0);
+          expect(staticHtml.match(/>by Hraness</gu) ?? []).toHaveLength(showBrand ? 1 : 0);
+          expect(staticHtml.match(/data-slot="hraness-mark"/gu) ?? []).toHaveLength(showBrand ? 1 : 0);
+          expect(staticHtml).not.toContain('data-slot="hraness-attribution"');
+          expect(staticHtml).not.toMatch(/Ben Guo|Built by Ben/u);
+          expect(staticHtml.match(/<footer\b/gu)).toHaveLength(1);
+          expect(staticHtml.match(/class="hraness-site-footer__social-link[\s"]/gu)).toHaveLength(hranessSocialLinks.length);
+        }
+      }
+    }
+  });
+
+  test("builds canonical discovery, semantic content, and private-key-free analytics", async () => {
+    const packageIdentity = parsePackageIdentity(
+      await Bun.file(join(repositoryRoot, "package.json")).json(),
+    );
+    const npmPackageUrl = versionedPackageArtifactUrl(packageIdentity);
+    const skillInstallCommands = agentSkillInstallCommands(packageIdentity);
+    const beeperOperationCount =
+      BEEPER_PRESENTATION_TRANSPORT_COUNTS.cliBackedOperationCount
+      + BEEPER_PRESENTATION_TRANSPORT_COUNTS.desktopLoopbackOperationCount;
+    const stalePath = join(websiteRoot, "dist", "stale.txt");
+    await mkdir(join(websiteRoot, "dist"), { recursive: true });
+    await writeFile(stalePath, "stale output must not survive a rebuild\n");
+    await buildWebsite({
+      VERCEL_ENV: "production",
+      NEXT_PUBLIC_POSTHOG_HOST: DEFAULT_POSTHOG_HOST,
+      NEXT_PUBLIC_POSTHOG_KEY: "phc_public_project_token",
+    });
+    const [pages, preview, notFound, notFoundMarkdown, llms, robots, sitemap, indexNowKey, favicon, sourceCss, demoFiles, vercel, middleware] = await Promise.all([
+      Promise.all(PUBLIC_PAGES.map(async (page) => ({
+        definition: page,
+        html: await readFile(join(websiteRoot, "dist", page.outputFile), "utf8"),
+      }))),
+      readFile(join(websiteRoot, "dist/preview/index.html"), "utf8"),
+      readFile(join(websiteRoot, "dist/404.html"), "utf8"),
+      readFile(join(websiteRoot, "dist/404.md"), "utf8"),
+      readFile(join(websiteRoot, "dist/llms.txt"), "utf8"),
+      readFile(join(websiteRoot, "dist/robots.txt"), "utf8"),
+      readFile(join(websiteRoot, "dist/sitemap.xml"), "utf8"),
+      readFile(join(websiteRoot, "dist/dc84ee4863539f2fff50ef5f0a164168.txt"), "utf8"),
+      readFile(join(websiteRoot, "dist/icon.png")),
+      readFile(join(websiteRoot, "source/styles.css"), "utf8"),
+      Promise.all(DEMO_PUBLIC_FILES.map(async (file) => ({
+        file,
+        output: new Uint8Array(await Bun.file(join(websiteRoot, "dist", file)).arrayBuffer()),
+        source: new Uint8Array(await Bun.file(join(websiteRoot, "public", file)).arrayBuffer()),
+      }))),
+      Bun.file(join(repositoryRoot, "vercel.json")).json(),
+      readFile(join(repositoryRoot, "middleware.ts"), "utf8"),
+    ]);
+    const html = pages[0]!.html;
+    expect(await Bun.file(stalePath).exists()).toBe(false);
+    const readme = await readFile(join(repositoryRoot, "README.md"), "utf8");
+    const cssAsset = /<link rel="stylesheet" href="([^"?]+)">/u.exec(html)?.[1];
+    expect(cssAsset).toMatch(/^\/assets\/styles-[a-f0-9]{12}\.css$/u);
+    const builtCss = await readFile(join(websiteRoot, "dist", cssAsset!.slice(1)), "utf8");
+    const siteShellCss = await readFile(new URL(import.meta.resolve("@hraness/design-kit/site-shell.css")), "utf8");
+    expect(builtCss.split(siteShellCss.trim())).toHaveLength(2);
+    expect(builtCss).not.toContain('@import "./site-shell.css"');
+    for (const document of pages.map((page) => page.html)) {
+      expect(document).toContain('<body class="hraness-site-shell" data-hraness-landscape="page">');
+    }
+    expect(notFound).toContain('<body class="hraness-site-shell">');
+    expect(notFound).not.toContain("data-hraness-landscape");
+    expect(preview).not.toContain("hraness-site-shell");
+    expect(builtCss).not.toMatch(/@import\b/iu);
+    expect(builtCss.startsWith("@layer base, components;")).toBe(true);
+    const presetCss = await readFile(join(websiteRoot, "vendor/marketing-preset/product-marketing-preset.css"), "utf8");
+    const forcedColorsCss = await readFile(join(websiteRoot, "vendor/marketing-forced-colors/marketing-forced-colors.css"), "utf8");
+    const forcedColorsProvenance = JSON.parse(await readFile(join(websiteRoot, "vendor/marketing-forced-colors/provenance.json"), "utf8"));
+    expect(forcedColorsProvenance.source.commit).toBe("3d28bc3ceceecd98e5ec1ccff57b7da0ec17539c");
+    expect(forcedColorsProvenance.source.tag).toBe("v0.29.1");
+    for (const name of ["marketing-forced-colors.css", "LICENSE"]) {
+      const bytes = await readFile(join(websiteRoot, "vendor/marketing-forced-colors", name));
+      expect(createHash("sha256").update(bytes).digest("hex")).toBe(forcedColorsProvenance.files[name].sha256);
+    }
+    const launchMockupCss = await readFile(join(websiteRoot, "launch/mockups.css"), "utf8");
+    expect(builtCss.endsWith(`${sourceCss.trimEnd()}\n\n${launchMockupCss.trimEnd()}\n\n${presetCss}\n\n${forcedColorsCss.trim()}\n`)).toBe(true);
+    expect(html).toContain('data-hraness-marketing-preset="editorial" data-hraness-pattern="none"');
+    expect(builtCss).toContain('--hraness-marketing-display-font: var(--font-text)');
+    expect(html).toContain('<main id="main" tabindex="-1">');
+    for (const page of pages) {
+      expect(page.html).not.toContain("data-hraness-appearance-menu");
+      expect(page.html).not.toMatch(/appearance-[a-f0-9]+\.js/u);
+      expect(page.html).toMatch(/<main\b[^>]*\bid="main"[^>]*\btabindex="-1"/u);
+    }
+    expect(html).not.toContain('class="hraness-marketing-field"');
+    for (const page of pages) {
+      expect(page.html).not.toContain("data-hraness-material=");
+      expect(page.html).not.toContain("ghostget-field");
+    }
+    for (const path of ["fonts/instrument-serif/instrument-serif-latin-400.woff2", "fonts/instrument-serif/OFL.txt", "marketing-assets/grain.svg", "marketing-assets/cells.svg"]) {
+      expect(await readFile(join(websiteRoot, "dist/assets", path))).toEqual(await readFile(join(websiteRoot, "vendor/marketing-preset", path)));
+    }
+    for (const publicStylesheet of [
+      "@hraness/ui/tokens.css",
+      "@hraness/ui/reset.css",
+      "@hraness/ui/components.css",
+      "@hraness/ui/stylex.css",
+      "@hraness/design-kit/syntax-highlighting.css",
+      "@hraness/site-footer/stylex.css",
+    ]) {
+      const stylesheet = (await readFile(
+        new URL(import.meta.resolve(publicStylesheet)),
+        "utf8",
+      )).trim();
+      expect(builtCss.split(stylesheet)).toHaveLength(2);
+    }
+    const marketingGrammar = (await readFile(
+      new URL(import.meta.resolve("@hraness/design-kit/product-marketing.css")),
+      "utf8",
+    )).trim();
+    expect(marketingGrammar).toMatch(/^@import\b/iu);
+    expect([...marketingGrammar.matchAll(/^@import\s+["']([^"']+)["'];/gmu)].map(match => match[1]))
+      .toEqual(["./syntax-highlighting.css", "./site-shell.css"]);
+    const grammarWithoutImports = marketingGrammar.replace(/^@import[^\n]*\n/gmu, "").trim();
+    expect(builtCss.split(grammarWithoutImports)).toHaveLength(2);
+
+    expect(vercel.git).toBeUndefined();
+
+    expect(sourceCss).toContain('--font-sans: "Nebula Sans", ui-sans-serif, system-ui');
+    expect(sourceCss).not.toContain("--font-serif");
+    expect(sourceCss).toMatch(/body\s*\{[^}]*font-family:\s*var\(--font-sans\)/su);
+    expect(sourceCss).toMatch(/\.wordmark\s*\{[^}]*font-family:\s*var\(--font-sans\)/su);
+    expect(sourceCss).toMatch(/\.hero h1,[\s\S]*?\.preview-copy h1\s*\{[^}]*font-family:\s*var\(--hraness-type-h1-font\)/u);
+    expect(sourceCss).toMatch(/\.hero h1,[\s\S]*?\.preview-copy h1\s*\{[^}]*font-weight:\s*var\(--hraness-type-h1-weight\)/u);
+    expect(cssPropertyValues(sourceCss, ".guide-hero h1", "font-size").at(-1)).toBe("var(--hraness-type-h1-size)");
+    expect(sourceCss).not.toMatch(/--hraness-paper-(?:section-)?heading-size\s*:/u);
+    expect(builtCss).toContain("--hraness-type-h2-font:");
+    expect(sourceCss).toContain("--hraness-site-accent: var(--ghostget-action);");
+    expect(sourceCss).toContain("--hraness-site-accent-ink: var(--ghostget-action-ink);");
+    expect(sourceCss).toContain("--ghostget-action: var(--primary);");
+    expect(sourceCss).toContain("--ghostget-action-ink: var(--primary-foreground);");
+    expect(sourceCss).toContain("--ghostget-action-soft: var(--accent);");
+    expect(sourceCss).not.toMatch(/--accent\s*:/u);
+    expect(cssPropertyValues(sourceCss, ".registry-domain-strip a:hover", "color").at(-1))
+      .toBe("var(--ghostget-action)");
+    expect(cssPropertyValues(sourceCss, ".registry-domain-strip a:focus-visible", "outline").at(-1))
+      .toBe("2px solid var(--ghostget-action)");
+    expect(sourceCss).toMatch(/\.preview-copy > p:last-child\s*\{(?![^}]*font-family)[^}]*\}/su);
+    expect(sourceCss).toMatch(/\.preview-eyebrow\s*\{[^}]*font-family:\s*var\(--font-mono\)/su);
+    expect(sourceCss).toMatch(/\.preview-flow li\s*\{[^}]*font-family:\s*var\(--font-mono\)/su);
+    expect(cssPropertyValues(sourceCss, ".artifact-table table", "table-layout")).toEqual([
+      "fixed",
+    ]);
+    expect(cssPropertyValues(sourceCss, ".version-table table", "min-width")).toEqual([
+      "58rem",
+    ]);
+    expect(cssPropertyValues(sourceCss, ".guide-article", "max-width").at(-1)).toBe("58rem");
+    expect(cssPropertyValues(sourceCss, ".content", "max-width").at(-1)).toBe("80rem");
+    expect(cssPropertyValues(sourceCss, ".card-grid", "grid-template-columns")).toEqual([
+      "repeat(2, minmax(0, 1fr))",
+      "1fr",
+    ]);
+    expect(EDITORIAL_ARTICLE_IMAGE_SIZES).toBe(
+      "(max-width: 31.25rem) calc(100vw - 2.5rem), (max-width: 63rem) 92vw, 58rem",
+    );
+    expect(EDITORIAL_CARD_IMAGE_SIZES).toBe(
+      "(max-width: 31.25rem) calc(100vw - 2.5rem), (max-width: 45rem) 92vw, (max-width: 80rem) 46vw, (max-width: 100rem) calc(40rem - 4vw), 36rem",
+    );
+    expect(cssPropertyValues(
+      sourceCss,
+      ".artifact-table td:nth-child(4)",
+      "width",
+    )).toEqual(["33%"]);
+    expect(builtCss).toContain('font-family: "Nebula Sans";');
+    expect(builtCss).toContain('./fonts/nebula-sans/NebulaSans-Book.woff2');
+    expect((await readFile(
+      join(websiteRoot, "dist/assets/fonts/nebula-sans/NebulaSans-Book.woff2"),
+    )).byteLength).toBeGreaterThan(60_000);
+    expect(await readFile(
+      join(websiteRoot, "dist/assets/fonts/nebula-sans/PROVENANCE.md"),
+      "utf8",
+    )).toContain("https://www.nebulasans.com/download/NebulaSans-1.010.zip");
+    const fontsStylesheetUrl = new URL(import.meta.resolve("@hraness/design-kit/fonts.css"));
+    const fontsCss = await readFile(fontsStylesheetUrl, "utf8");
+    const fontReferences = [...fontsCss.matchAll(/url\("([^"\r\n]+)"\)/gu)];
+    expect(fontReferences.length).toBeGreaterThan(1);
+    for (const reference of fontReferences) {
+      const relativeFont = reference[1]!;
+      expect(relativeFont).toMatch(/^\.\/fonts\/.+\.woff2$/u);
+      expect(await readFile(join(websiteRoot, "dist/assets", relativeFont))).toEqual(
+        await readFile(new URL(relativeFont, fontsStylesheetUrl)),
+      );
+    }
+
+    expect(html).toContain(`<title>${HOME_TITLE}</title>`);
+    expect(html).toContain(`<meta property="og:title" content="${HOME_TITLE}">`);
+    expect(html).toContain(`<meta name="twitter:title" content="${HOME_TITLE}">`);
+    /* The shared brand lockup on every page: the pointer-tracked foil-text
+       name plus the foil-mark icon whose paint is masked by the product
+       mark's alpha — the same header convention across Hraness sites. */
+    expect(sourceCss).toContain('--hraness-foil-mask: url("/marks/wrench.svg")');
+    for (const page of pages) {
+      const brand = page.html.match(
+        /<a[^>]*aria-label="GhostGet home"[^>]*>[\s\S]*?<\/a>/u,
+      )?.[0];
+      expect(brand).toBeDefined();
+      expect(brand).toContain('data-foil=""');
+      expect(brand).toMatch(/hraness-foil-text|hraness-marketing-header__brand/u);
+      expect(brand).toContain('hraness-foil-mark');
+      expect(brand).toContain('hraness-foil-mark__image');
+      expect(brand).toContain('hraness-foil-mark__paint');
+      expect(brand).toContain('src="/marks/wrench.svg"');
+    }
+    for (const page of pages) {
+      expect(page.html.match(/data-slot="ask-ai-about-this"/gu)).toHaveLength(1);
+      const destination = new URL("https://chatgpt.com/");
+      destination.searchParams.set(
+        "q",
+        `Tell me about ${SITE_ORIGIN}${page.definition.canonicalPath}`,
+      );
+      expect(page.html).toContain(destination.href.replaceAll("&", "&amp;"));
+    }
+    expect(preview).not.toContain('data-slot="ask-ai-about-this"');
+    expect(notFound).not.toContain('data-slot="ask-ai-about-this"');
+    expect(html).toContain(`<meta name="description" content="${SITE_DESCRIPTION}">`);
+    expect(html).toContain('<link rel="canonical" href="https://ghostget.com/">');
+    expect(html).toContain('<link rel="icon" href="/icon.png" type="image/png" sizes="32x32">');
+    expect(html).toContain('<link rel="icon" href="/icon-96.png" type="image/png" sizes="96x96">');
+    for (const page of pages) expect(page.html).not.toContain('sizes="512x512"');
+    expect(html).toContain('<meta property="og:image" content="https://ghostget.com/og.png">');
+    expect(html).toContain('<meta property="og:image:width" content="1200">');
+    expect(html).toContain('<meta property="og:image:height" content="630">');
+    expect(html).toContain('<meta name="robots" content="max-image-preview:large">');
+    expect(html).not.toContain('<meta name="keywords"');
+    expect(html).toContain(`hraness-ghostget-${packageIdentity.version}.tgz`);
+    expect(html).toContain(`Install GhostGet ${packageIdentity.release}`);
+    expect(html).toContain(`>${skillInstallCommands.npx}</code>`);
+    expect(html).toContain(`<code>${skillInstallCommands.bunx}</code>`);
+    expect(html).toContain(
+      `<a href="${SKILLS_URL}">View the GhostGet Agent Skill on skills.sh.</a>`,
+    );
+    expect(html).toContain(
+      `<a href="${npmPackageUrl}"><code>@hraness/ghostget</code> release archive</a>`,
+    );
+    expect(html).not.toContain(`value="${skillInstallCommands.npx}"`);
+    expect(html).not.toContain(`href="${GITHUB_RELEASES_URL}"`);
+    expect(html).not.toContain("skills add hraness/ghostget</code>");
+    expect(html).toContain('class="skill-install" data-skill-install');
+    expect(html).toContain("data-skill-install-copy");
+    expect(html).toMatch(/data-skill-install-copy\s+hidden/gu);
+    expect(html).toContain('aria-label="Copy Agent Skill install command"');
+    expect(html).toContain('aria-live="polite"');
+    expect(html).toContain('role="status"');
+    expect(html).toContain('/assets/skill-install-');
+    expect(html.indexOf('class="hero-explainer"')).toBeLessThan(
+      html.indexOf('class="skill-install"'),
+    );
+    expect(html).not.toContain("{{");
+    expect(html).not.toContain("@jungle/");
+    expect(html).not.toContain("hraness.com/ghostget");
+    expect(html.match(/<h1\b/gu)).toHaveLength(1);
+    expect(html.match(/<details\b/gu)).toHaveLength(8);
+    expect(html.match(/<iframe\b/gu)).toBeNull();
+    // The hero is copy plus one real transcript: no decorative field, drifting
+    // cards, blur, or pointer-driven light behind the text.
+    for (const page of pages) {
+      expect(page.html).not.toContain("ghostget-field");
+      expect(page.html).not.toContain("/assets/field-");
+      expect(page.html).not.toContain("data-hraness-hero-item");
+    }
+    // The hero proof object: a page in a browser window becoming Markdown in a terminal.
+    expect(html).toContain('data-hraness-signature="page-to-markdown"');
+    expect(html).toContain('class="hkm-terminal-lines"');
+    expect(html).not.toContain("ghostget menubar");
+    expect(html).toContain('class="table-scroll" role="region" aria-labelledby="measured-heading" tabindex="0"');
+    expect(html).toContain("145,617 bytes");
+    expect(html).toContain("15,021 bytes");
+    expect(html).toContain("Measured September 22, 2026 over HTTP with no browser, at four bytes per token.");
+    expect(html).toContain('href="/docs/reference/provider-capabilities/">See every action</a>');
+    expect(html).toContain('<a class="skip-link" href="#main">');
+    // Outbound clicks are classified by destination host, so links carry no analytics tags.
+    expect(html).not.toContain("data-analytics-event");
+    // The navigation and maker GitHub links plus the content-footer link.
+    expect(html.match(new RegExp(`href="${REPOSITORY_URL}"`, "gu"))).toHaveLength(3);
+    expect(html).not.toContain("Privacy: cookieless PostHog analytics");
+    expect(html).toContain('href="/privacy/"');
+    expect(html).toContain('href="/compare/"');
+    for (const path of NOINDEX_ESSAY_PATHS) expect(html).not.toContain(`href="${path}"`);
+    let heroHeading = "";
+    new HTMLRewriter().on("h1#brand-name", { text(chunk) { heroHeading += chunk.text; } }).transform(html);
+    expect(heroHeading.replace(/\s+/gu, " ").trim()).toBe(portfolio.messaging.hero.heading);
+    // The limit on uncertain writes: never resent, and unsettled until
+    // separate evidence arrives. Home page and README state it in the same words.
+    const indeterminateWriteBoundary =
+      "If a write went out and its result is unknown, GhostGet won't send it again. It stays marked unsettled until separate evidence shows what happened.";
+    for (const surface of [html.replaceAll("’", "'"), readme]) {
+      expect(surface.replaceAll(/\s+/gu, " ")).toContain(indeterminateWriteBoundary);
+      expect(surface).not.toContain("An indeterminate write is reconciled");
+    }
+    expect(html).toContain('data-hraness-marketing="header"');
+    expect(html).toContain('data-hraness-marketing="hero"');
+    expect(html).toContain('data-hraness-marketing="maker"');
+    // The maker section is product-owned studio attribution in page content;
+    // network attribution belongs to the shared footer and is never repeated here.
+    const makerSection = /<section\b[^>]*data-hraness-marketing="maker"[\s\S]*?<\/section>/u.exec(html)?.[0];
+    expect(makerSection).toBeDefined();
+    expect(makerSection).toContain('<h2 class="hraness-marketing-maker__heading" id="maker-title">Hraness</h2>');
+    expect(makerSection).not.toContain("hraness-attribution");
+    expect(makerSection).not.toMatch(/Built by\b/u);
+    expect(html).toContain('<a href="https://hraness.com">hraness.com</a>');
+    expect(html).toContain('<a href="https://x.com/hraness">@hraness</a>');
+    expect(html).not.toMatch(/\bstyle="/u);
+    expect(html).toContain('data-hraness-marketing="install"');
+    expect(html).toContain('data-hraness-marketing="trust"');
+    expect(html).toContain('data-hraness-marketing="questions"');
+    expect(html).toContain('data-hraness-marketing="related"');
+    const relatedSection = /<section\b[^>]*data-hraness-marketing="related"[\s\S]*?<\/section>/u.exec(html)?.[0];
+    expect(relatedSection).toBeDefined();
+    expect(relatedSection).toContain('hraness-marketing-related__group-heading');
+    const groups = portfolioRelatedGroups(["gobstopper", "xcb", "aicharts", "peopleblade", "soulscrape", "message-like-me", "kb"]);
+    expect(relatedSection).toContain("Other tools from our studio");
+    for (const group of groups) {
+      expect(relatedSection).toContain(`data-tone="${group.tone}"`);
+      expect(relatedSection).toContain(`aria-labelledby="${group.headingId}"`);
+      for (const item of group.items) {
+        expect(relatedSection).toContain(`href="${item.href}"`);
+        expect(relatedSection).toContain(item.name);
+        expect(relatedSection).toContain(item.role);
+        expect(relatedSection).toContain(item.domain);
+        expect(relatedSection).toContain(item.mark.replaceAll("&", "&amp;").replaceAll('"', "&quot;"));
+      }
+    }
+    expect(relatedSection).not.toMatch(/hraness-marketing-card__(?:title|meta|body)/u);
+    expect(html.indexOf('data-hraness-marketing="related"')).toBeLessThan(html.indexOf('data-hraness-marketing="cta"'));
+    expect(html).toContain('data-hraness-marketing="cta"');
+    expect(html).not.toContain('class="hraness-marketing-hero__eyebrow"');
+    expect(html).toContain('data-align="start"');
+    expect(html).not.toContain('class="hraness-marketing-hero__example"');
+    expect(html).toContain('id="providers-title"');
+    expect(html).toContain('aria-label="GhostGet home" class="hraness-marketing-header__brand" data-foil="" href="/"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span> GhostGet</a>');
+    expect(html).not.toMatch(/hero-field|hero-orbit|hero-glyph/u);
+    expect(html).not.toMatch(/observed provider operations|capture-required|unavailable reservations/iu);
+    expect(html).not.toContain("🔧");
+    expect(html).toContain(`href="${PUBLISHER_URL}"`);
+    expect(html).toContain('aria-label="Hraness on GitHub"');
+    expect(preview).toContain("<title>GhostGet preview</title>");
+    expect(preview).toContain('<meta name="robots" content="noindex, nofollow">');
+    expect(preview).toContain('<link rel="canonical" href="https://ghostget.com/">');
+    expect(preview).toContain(`<link rel="stylesheet" href="${cssAsset}">`);
+    expect(preview).toContain('<body class="preview-body">');
+    expect(preview).toContain("wget for the ghost in the machine.");
+    expect(preview).not.toContain("Give your coding agent bounded access to the web.");
+    expect(preview).toContain('class="preview-wordmark">GhostGet</p>');
+    expect(preview).not.toMatch(/preview-field|preview-orbit|src="\/favicon\.svg"/u);
+    expect(preview.match(/<h1\b/gu)).toHaveLength(1);
+    expect(preview).not.toContain("{{");
+    expect(preview).not.toMatch(/<(?:a|button|form|input|script)\b/iu);
+    expect(preview).not.toContain("data-analytics");
+    expect(preview).not.toContain("PostHog");
+    expect(preview).not.toContain('type="application/ld+json"');
+    expect(preview).not.toContain('rel="alternate"');
+    expect(preview).not.toMatch(/\b(?:account|authentication|log in|sign in|user data)\b/iu);
+    expect(await Bun.file(join(websiteRoot, "dist/preview.md")).exists()).toBe(false);
+    expect(notFound).toContain('<meta name="robots" content="noindex, nofollow">');
+    expect(notFound).toContain(
+      '<meta name="theme-color" content="#fbf1c7" media="(prefers-color-scheme: light)">',
+    );
+    expect(notFound).toContain(
+      '<meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">',
+    );
+    expect(notFound).not.toContain("Privacy: cookieless PostHog analytics");
+    expect(notFound).toContain('href="/privacy/"');
+    // The shared design-kit status page: the homepage's primary action, three
+    // next links, one quiet agent line, and known pages for "Did you mean".
+    expect(notFound).toContain('<div class="hraness-status-page" data-hraness-status-routes="');
+    expect(notFound).toContain('<h1 class="hraness-status-page__title">We can’t find that page</h1>');
+    expect(notFound).toContain('data-emphasis="primary" data-foil="" href="/#start">Install GhostGet</a>');
+    expect(notFound.match(/class="hraness-status-page__next-link"/gu)).toHaveLength(3);
+    expect(notFound).toContain('<p class="hraness-status-page__agent">');
+    expect(notFound).toContain('href="/llms.txt"');
+    expect(notFound).toContain("[&quot;/docs/tutorials/getting-started/&quot;,&quot;Get started with GhostGet&quot;]");
+    expect(notFound).not.toContain('href="/sitemap.xml"');
+    expect(notFound).toMatch(/<script type="module" src="\/assets\/status-page-[a-f0-9]+\.js"><\/script>/u);
+    expect(notFound.match(/<header\b[^>]*class="topbar guide-topbar"/gu)).toHaveLength(1);
+    expect(notFound).not.toContain('type="application/ld+json"');
+    expect(notFoundMarkdown).toContain("# Page not found");
+    expect(notFound).not.toContain(`<meta name="description" content="${SITE_DESCRIPTION}">`);
+    expect(notFoundMarkdown).toContain("https://ghostget.com/llms.txt");
+    expect(notFoundMarkdown).toContain("https://ghostget.com/sitemap.xml");
+    expect(llms).toContain("# GhostGet");
+    expect(llms).toContain(`> ${SITE_DESCRIPTION}`);
+    expect(llms).not.toContain("—");
+    expect(llms).toContain("eleven public entrypoints");
+    expect(llms).toContain("`@hraness/ghostget/contracts`");
+    expect(llms).toContain("## When to use GhostGet");
+    expect(llms).toContain("## GhostGet developer resources");
+    expect(llms).toContain("Do not use GhostGet as an AI agent");
+    expect(llms).toContain(`${SITE_ORIGIN}/docs/tutorials/getting-started/`);
+    expect(llms).toContain(`${SITE_ORIGIN}/compare/personal-agents-browser-use/`);
+    for (const path of NOINDEX_ESSAY_PATHS) expect(llms).not.toContain(`${SITE_ORIGIN}${path}`);
+    expect(llms).toContain("[How agents reach the web](https://ghostget.com/compare/)");
+    expect(llms).toContain(`${SITE_ORIGIN}/docs/how-to/connect-beeper/`);
+    expect(llms).toContain(
+      `${String(beeperOperationCount)} supported actions. ${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.cliBackedOperationCount)} run through the pinned \`@beeper/cli\` 0.6.2 executable and ${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.desktopLoopbackOperationCount)} use fixed Desktop loopback reads.`,
+    );
+    expect(llms).toContain("Message mutations require preview and confirmation.");
+    expect(llms).not.toContain("Message actions are previewed and confirmed.");
+    expect(llms).not.toContain("actions\u201427");
+    expect(llms).toContain("pending message ID proves submission to Desktop only, not network delivery");
+    expect(llms).toContain("Tagged `packages/cli/package.json` declares 0.6.1 and is provenance-only");
+    expect(llms).toContain("exact executable runtime identity remains authoritative");
+    expect(llms).toContain(`${SITE_ORIGIN}/docs/how-to/export-whatsapp/`);
+    expect(llms).toContain("does not pair, sync, or send");
+    expect(llms).toContain("submission is not a delivery claim");
+    expect(llms.replaceAll(/https:\/\/ghostget\.com\/[a-z0-9-/]+/gu, "")).not.toMatch(
+      /observed|capture-required|reservation|attestation/iu,
+    );
+    expect(llms).toContain(skillInstallCommands.npx);
+    expect(llms).toContain(skillInstallCommands.bunx);
+    expect(llms).not.toContain("skills add hraness/ghostget`");
+    expect(llms).toContain("Accept: text/markdown");
+    expect(llms).not.toContain("{{");
+    expect(robots).toBe(`User-agent: *\nAllow: /\n\nSitemap: ${SITE_ORIGIN}/sitemap.xml\n`);
+    const blogPaths = blogSitemapPaths(BLOG_SITE);
+    expect(INDEXABLE_PUBLIC_PAGES).toHaveLength(PUBLIC_PAGES.length - NOINDEX_ESSAY_PATHS.length);
+    expect(sitemap.match(/<url>/gu)).toHaveLength(INDEXABLE_PUBLIC_PAGES.length + blogPaths.length);
+    expect(sitemap).toContain('xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"');
+    expect(sitemap.match(/<image:image>/gu)).toHaveLength(INDEXABLE_EDITORIAL_IMAGES.length + indexablePosts().length);
+    for (const page of INDEXABLE_PUBLIC_PAGES) {
+      expect(sitemap).toContain(`<loc>${SITE_ORIGIN}${page.canonicalPath}</loc>`);
+    }
+    expect(sitemap).toContain(`<loc>${SITE_ORIGIN}/providers/</loc>`);
+    expect(sitemap).not.toMatch(/<loc>https:\/\/ghostget\.com\/providers\/[^/<]+\/<\/loc>/u);
+    for (const path of NOINDEX_ESSAY_PATHS) {
+      expect(sitemap).not.toContain(`<loc>${SITE_ORIGIN}${path}</loc>`);
+    }
+    for (const image of editorialImages.filter(({ canonicalPath }) => isNoindexDocumentPath(canonicalPath))) {
+      expect(sitemap).not.toContain(`<image:loc>${editorialImageUrl(image)}</image:loc>`);
+    }
+    for (const image of INDEXABLE_EDITORIAL_IMAGES) {
+      expect(sitemap).toContain(`<image:loc>${editorialImageUrl(image)}</image:loc>`);
+      expect(sitemap).toContain(`<image:title>${image.title}</image:title>`);
+      expect(sitemap).toContain(`<image:caption>${image.caption}</image:caption>`);
+    }
+    expect(sitemap).not.toContain("paypal-grapheneos-attestation.webp");
+    expect(sitemap).not.toContain("rumour-is-the-exploit.webp");
+    expect(sitemap).not.toContain("omarchy-root-escalation.webp");
+    // Only blog rows carry lastmod; every other page keeps the undated form.
+    expect(sitemap.match(/<lastmod>/gu)).toHaveLength(blogPaths.length);
+    for (const entry of blogPaths) {
+      expect(sitemap).toContain(`<loc>${SITE_ORIGIN}${entry.path}</loc>\n    <lastmod>${String(entry.lastModified)}</lastmod>`);
+    }
+    expect(sitemap).not.toContain("<changefreq>");
+    const blogIndexHtml = await readFile(join(websiteRoot, "dist/blog/index.html"), "utf8");
+    const blogFeed = await readFile(join(websiteRoot, "dist/blog/feed.xml"), "utf8");
+    expect(blogIndexHtml).toContain(`<link rel="canonical" href="${SITE_ORIGIN}/blog/">`);
+    expect(blogIndexHtml).toContain('"@type":"Blog"');
+    expect(blogIndexHtml).toContain(`<link rel="alternate" type="text/markdown" title="Markdown" href="${SITE_ORIGIN}/blog.md">`);
+    expect(await Bun.file(join(websiteRoot, "dist/blog.md")).exists()).toBe(true);
+    expect(blogFeed).toContain('<feed xmlns="http://www.w3.org/2005/Atom"');
+    expect(llms).toContain(`${SITE_ORIGIN}/blog/`);
+    expect(vercel.redirects).toEqual(expect.arrayContaining([
+      { destination: "/blog/", permanent: true, source: "/blog" },
+      { destination: "/blog/", permanent: true, source: "/blog/index.html" },
+    ]));
+    expect(vercel.headers).toEqual(expect.arrayContaining([{
+      headers: [{ key: "Content-Type", value: "application/atom+xml; charset=utf-8" }],
+      source: "/blog/feed.xml",
+    }]));
+    for (const post of BLOG_POSTS) {
+      const path = blogPostPath(post.slug);
+      const postHtml = await readFile(join(websiteRoot, "dist", path.slice(1), "index.html"), "utf8");
+      expect(postHtml).toContain(`<link rel="canonical" href="${SITE_ORIGIN}${path}">`);
+      expect(postHtml).toContain('By <a href="https://hraness.com" rel="author">Hraness</a>');
+      const reviewerType = post.admission.review?.reviewerType;
+      const provenance = reviewerType === "human-editor"
+        ? `Drafted with AI and reviewed by ${post.admission.review?.reviewer}, a human editor.`
+        : `Drafted with AI and reviewed by ${post.admission.review?.reviewer}.`;
+      expect(postHtml).toContain(`<p class="plain-publication__provenance" data-drafting="ai" data-reviewer-type="${reviewerType}">${provenance}</p>`);
+      expect(postHtml).toContain('class="editorial-figure"');
+      expect(postHtml).toMatch(/Published <time/u);
+      expect(postHtml).not.toContain("{{");
+      const indexable = post.admission.lifecycle === "indexable";
+      expect(postHtml.includes('<meta name="robots" content="noindex">')).toBe(!indexable);
+      expect(postHtml.includes('"@type":"BlogPosting"')).toBe(indexable);
+      expect(blogIndexHtml.includes(`href="${path}"`)).toBe(indexable);
+      expect(blogFeed.includes(`<id>${SITE_ORIGIN}${path}</id>`)).toBe(indexable);
+      expect(sitemap.includes(`<loc>${SITE_ORIGIN}${path}</loc>`)).toBe(indexable);
+      expect(llms.includes(`${SITE_ORIGIN}${path}`)).toBe(indexable);
+      expect(await Bun.file(join(websiteRoot, "dist", markdownSiblingPath(path).slice(1))).exists()).toBe(indexable);
+      expect(vercel.redirects).toEqual(expect.arrayContaining([
+        { destination: path, permanent: true, source: path.slice(0, -1) },
+        { destination: path, permanent: true, source: `${path}index.html` },
+      ]));
+    }
+
+    expect(sitemap).not.toContain("<priority>");
+    expect(sitemap).not.toContain("hraness.com");
+    expect(sitemap).not.toContain("/preview/");
+    expect(llms).not.toContain("/preview/");
+    expect(indexNowKey).toBe("dc84ee4863539f2fff50ef5f0a164168\n");
+    expect(createHash("sha256").update(favicon).digest("hex")).toBe("a795c6c0a0728691fc8afebfa78ad729716154ef998d51160fc6ebbe14fdd64d");
+    expect(favicon).toEqual(await readFile(join(websiteRoot, "public/icon.png")));
+    const favicon96 = await readFile(join(websiteRoot, "dist/icon-96.png"));
+    expect(createHash("sha256").update(favicon96).digest("hex")).toBe("0f385d285a7490f8133b821db62c8225b17d7ed18a173e46f521048dd4ef7623");
+    expect(favicon96).toEqual(await readFile(join(websiteRoot, "public/icon-96.png")));
+    expect(await readFile(join(websiteRoot, "dist/apple-icon.png"))).toEqual(await readFile(join(websiteRoot, "public/apple-icon.png")));
+    expect(html).toContain('<link rel="apple-touch-icon" href="/apple-icon.png" sizes="180x180">');
+    expect(sourceCss).toContain("@media (prefers-reduced-motion: reduce)");
+    expect(sourceCss).toContain("@media (forced-colors: active)");
+    expect(sourceCss).toContain(
+      "code:not(pre code):not(.hraness-marketing-flow__code)",
+    );
+    expect(sourceCss).not.toContain(".footer {");
+    expect(builtCss).toContain("--hraness-site-footer-social-target");
+    expect(builtCss).not.toContain('@import "./dist/stylex.css"');
+    expect(builtCss).toContain(".hraness-marketing-hero {");
+    const marqueeCss = await readFile(new URL(import.meta.resolve("@hraness/design-kit/marketing-marquee.css")), "utf8");
+    expect(builtCss.split(marqueeCss.trim())).toHaveLength(2);
+    expect(sourceCss).toContain("grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr)");
+    expect(sourceCss).toContain("min-block-size: 2.75rem");
+    expect(builtCss).toContain("@media (pointer: coarse)");
+    expect(await Bun.file(join(websiteRoot, "source/ghostget-field.ts")).exists()).toBe(false);
+    for (const css of [sourceCss, builtCss]) {
+      expect(css).toMatch(
+        /\.ghostget-product-hero\s*\{[^{}]*\bgrid-column:\s*1\s*\/\s*-1\s*;/u,
+      );
+      for (const keyframes of [
+        "ghostget-card-drift",
+        "ghostget-blob-drift",
+        "ghostget-spirit-bob",
+        "ghostget-edge-flow",
+      ]) {
+        expect(css).not.toContain(`@keyframes ${keyframes}`);
+      }
+      // The shared kit still ships hero-light variables; this product uses none.
+      expect(css).not.toContain(".ghostget-field");
+      expect(sourceCss).not.toContain("--hraness-hero-proximity");
+      expect(sourceCss).not.toContain("--hraness-hero-drift-x");
+      // The Agent Skill command stays on one line and scrolls inside its own box, so the
+      // grid item that holds it must shrink below that line at phone widths instead of
+      // pushing the install commands past the viewport edge.
+      expect(cssPropertyValues(css, ".skill-install", "min-inline-size")).toContain("0");
+      for (const selector of [".ghostget-blob", ".ghostget-card", ".ghostget-spirit"]) {
+        expect(cssPropertyValues(css, selector, "filter")).toEqual([]);
+      }
+      expect(cssPropertyValues(css, ".ghostget-product-hero .hero-explainer", "color").at(-1))
+        .toBe("var(--muted)");
+      // The primary action is the portfolio ingot: paper text on an ink bar, and system
+      // button colors under forced colors.
+      expect(css).toContain("--ingot-metal:");
+      expect(css).toContain("--ingot-text:");
+      expect(cssPropertyValues(css, '.hraness-marketing-action[data-emphasis="primary"]', "color").at(-1)).toBe("ButtonText");
+      const providerMarkDisplay = cssPropertyValues(css, ".provider-mark", "display");
+      expect(providerMarkDisplay.length).toBeGreaterThan(0);
+      expect(providerMarkDisplay).not.toContain("none");
+      expect(providerMarkDisplay.at(-1)).toBe("inline-flex");
+      const providerFeatureDisplay = cssPropertyValues(css, ".provider-feature-copy", "display");
+      expect(providerFeatureDisplay.length).toBeGreaterThan(0);
+      expect(providerFeatureDisplay).not.toContain("none");
+      expect(providerFeatureDisplay.at(-1)).toBe("block");
+    }
+    const expectedFooterHrefs = [
+      HRANESS_HOME_URL,
+      "https://account.hraness.com/support?product=ghostget&amp;source=web#support",
+      ...hranessSocialLinks.map(({ href }) => href),
+      "https://hraness.com/privacy",
+    ];
+    const productionFooter = renderHranessSiteFooter({
+      mailingList: ghostgetMailingListConfig({ VERCEL_ENV: "production" }),
+      support: ghostgetSupportProfile,
+    });
+    for (const document of [...pages.map(({ html: pageHtml }) => pageHtml), notFound]) {
+      const footers = [...document.matchAll(/<footer\b[\s\S]*?<\/footer>/gu)]
+        .map((match) => match[0]);
+      expect(footers).toHaveLength(2);
+      const [contentFooter, footer] = footers;
+      expect(document).not.toContain('aria-label="GhostGet project information"');
+      expect(document).not.toMatch(/<p>GhostGet(?: [\d.]+)? · MIT ·/u);
+      expect(contentFooter).toContain('aria-label="GhostGet" class="hraness-marketing-footer" data-hraness-marketing="footer"');
+      expect(contentFooter).toContain('<a class="hraness-marketing-footer__brand" data-foil="" href="/" aria-label="GhostGet home"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span><span class="hraness-marketing-footer__name">GhostGet</span></a>');
+      expect(contentFooter).not.toContain('src="/icon.png"');
+      expect(contentFooter).toContain('<nav aria-label="Footer navigation" class="hraness-marketing-footer__nav">');
+      expect(contentFooter).toContain('class="hraness-marketing-footer__link" href="/docs/"');
+      expect(contentFooter).toContain('class="hraness-marketing-footer__link" href="/docs/reference/provider-capabilities/"');
+      expect(contentFooter).toContain('class="hraness-marketing-footer__link" href="/about/"');
+      expect(contentFooter).toContain('class="hraness-marketing-footer__link" href="/blog/"');
+      expect(contentFooter).toContain('class="hraness-marketing-footer__link" href="/contact/"');
+      expect(contentFooter).toContain('class="hraness-marketing-footer__link" href="/privacy/"');
+      expect(contentFooter?.match(/href="\/llms\.txt"/gu)).toHaveLength(1);
+      expect(contentFooter).toContain('class="hraness-marketing-footer__link" href="https://github.com/hraness/ghostget"');
+      expect(document.indexOf('data-hraness-marketing="footer"'))
+        .toBeLessThan(document.indexOf('data-slot="hraness-site-footer"'));
+      // The two footers stay directly adjacent so the shared stylesheet can
+      // join them into one band; the Ask AI row belongs above the pair.
+      expect(document).toMatch(/<\/footer>\n<footer\b[^>]*data-slot="hraness-site-footer"/u);
+      expect(footer).toBeDefined();
+      expect(footer).toBe(productionFooter);
+      expect(footer).toContain('data-slot="hraness-site-footer"');
+      expect(footer).not.toContain("hraness-site-footer__wordmark");
+      expect(footer).toContain("by Hraness");
+      expect(footer).toContain('data-mailing-list="signup"');
+      expect(footer).toContain('data-slot="hraness-support-link"');
+      // Shared network attribution folds into the package footer's canonical
+      // home lockup; it is the only organization credit on the page.
+      expect(document.match(/aria-label="Hraness home"/gu)).toHaveLength(1);
+      expect(document.match(/>by Hraness</gu)).toHaveLength(1);
+      expect(footer).toContain('aria-label="Hraness home"');
+      expect(footer).toContain('>by Hraness</span>');
+      expect(footer).not.toContain('data-slot="hraness-attribution"');
+      expect(footer).not.toMatch(/Ben Guo|Built by Ben/u);
+      expect(footer).not.toContain('data-experiment="arming"');
+      const footerOrder = [
+        'aria-label="Hraness home"',
+        'data-slot="hraness-support-link"',
+        'aria-label="Hraness links"',
+        'data-slot="hraness-cookie-consent"',
+      ].map((marker) => footer!.indexOf(marker));
+      expect(footerOrder.every((offset) => offset >= 0)).toBe(true);
+      expect(footerOrder).toEqual([...footerOrder].sort((left, right) => left - right));
+      expect(footer).toContain('data-consent-placement="flow"');
+      expect(footer).toContain(`action="${HRANESS_MAILING_SUBSCRIBE_URL}"`);
+      expect(footer).toContain('name="audience" type="hidden" value="wrench"');
+      expect(footer).toContain('name="website"');
+      expect(footer).not.toContain("challenges.cloudflare.com");
+      expect(footer).not.toContain("turnstile");
+      expect(footer?.match(/data-slot="hraness-mark"/gu)).toHaveLength(1);
+      expect(footer?.match(/data-slot="social-icon"/gu)).toHaveLength(
+        hranessSocialLinks.length,
+      );
+      expect(
+        [...(footer?.matchAll(/<a\b[^>]*\shref="([^"]+)"/gu) ?? [])]
+          .map((match) => match[1]),
+      ).toEqual(expectedFooterHrefs);
+    }
+    for (const demo of demoFiles) expect(demo.output).toEqual(demo.source);
+    const demoPng = demoFiles.find(({ file }) => file.endsWith(".png"))?.output;
+    const demoGif = demoFiles.find(({ file }) => file.endsWith(".gif"))?.output;
+    const demoMp4 = demoFiles.find(({ file }) => file.endsWith(".mp4"))?.output;
+    const demoWebm = demoFiles.find(({ file }) => file.endsWith(".webm"))?.output;
+    const demoVtt = demoFiles.find(({ file }) => file.endsWith(".vtt"))?.output;
+    expect(Array.from(demoPng?.slice(1, 4) ?? [])).toEqual([80, 78, 71]);
+    const demoPngView = new DataView(demoPng!.buffer, demoPng!.byteOffset, demoPng!.byteLength);
+    expect(demoPngView.getUint32(16)).toBe(1280);
+    expect(demoPngView.getUint32(20)).toBe(720);
+    expect(new TextDecoder().decode(demoGif?.slice(0, 6))).toBe("GIF89a");
+    const demoGifView = new DataView(demoGif!.buffer, demoGif!.byteOffset, demoGif!.byteLength);
+    expect(demoGifView.getUint16(6, true)).toBe(960);
+    expect(demoGifView.getUint16(8, true)).toBe(540);
+    expect(new TextDecoder().decode(demoMp4?.slice(4, 8))).toBe("ftyp");
+    expect(Array.from(demoWebm?.slice(0, 4) ?? [])).toEqual([0x1a, 0x45, 0xdf, 0xa3]);
+    expect(new TextDecoder().decode(demoVtt?.slice(0, 6))).toBe("WEBVTT");
+    expect(vercel).toMatchObject({
+      buildCommand: "WRENCH_VERCEL_BUILD=release-bound-v1 bunx bun@1.3.14 run website:vercel-build",
+      framework: null,
+      outputDirectory: "website/dist",
+    });
+    expect(vercel.rewrites).toEqual(expect.arrayContaining([
+      {
+        destination: "/index.md",
+        has: [{ key: "accept", type: "header", value: "text/markdown" }],
+        source: "/",
+      },
+      {
+        destination: "/:path.md",
+        has: [{ key: "accept", type: "header", value: "text/markdown" }],
+        source: "/:path((?!preview/).*)/",
+      },
+    ]));
+    const markdownRewrite = vercel.rewrites.find((rule: { source: string }) =>
+      rule.source === "/:path((?!preview/).*)/");
+    expect(markdownRewrite?.destination).toBe("/:path.md");
+    const markdownRewritePattern = /^\/((?!preview\/).*)\/$/u;
+    expect(markdownRewritePattern.test("/preview/")).toBe(false);
+    for (const path of ["/docs/tutorials/getting-started/", "/docs/how-to/connect-beeper/", "/missing/"]) {
+      expect(markdownRewritePattern.test(path)).toBe(true);
+    }
+    const commonHeaders = vercel.headers.find((rule: { source: string }) =>
+      rule.source === "/(.*)");
+    expect(commonHeaders?.headers).toEqual([
+      {
+        key: "Permissions-Policy",
+        value: "camera=(), geolocation=(), microphone=(), payment=(), usb=()",
+      },
+      { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+      { key: "X-Content-Type-Options", value: "nosniff" },
+      { key: "Vary", value: "Accept" },
+    ]);
+    const frameDenyHeaders = vercel.headers.find((rule: { source: string }) =>
+      rule.source === "/((?!preview/$).*)");
+    expect(frameDenyHeaders?.headers).toEqual([
+      {
+        key: "Content-Security-Policy",
+        value: "form-action 'self' https://account.hraness.com; frame-src 'self'; script-src 'self' 'unsafe-inline'",
+      },
+    ]);
+    const frameDenyPattern = /^\/((?!preview\/$).*)$/u;
+    expect(frameDenyPattern.test("/preview/")).toBe(false);
+    for (const deniedPath of [
+      "/",
+      "/preview",
+      "/preview/index.html",
+      "/preview/anything",
+      "/docs/explanation/security-model/",
+      "/assets/example.css",
+    ]) {
+      expect(frameDenyPattern.test(deniedPath)).toBe(true);
+    }
+
+    const previewHeaders = vercel.headers.find((rule: { source: string }) =>
+      rule.source === "/preview/");
+    expect(previewHeaders?.headers).toEqual([
+      {
+        key: "Content-Security-Policy",
+        value: "default-src 'none'; img-src 'self'; style-src 'self'; base-uri 'none'; form-action 'none'",
+      },
+      { key: "X-Robots-Tag", value: "noindex, nofollow" },
+    ]);
+    expect(vercel.headers.filter((rule: { headers: Array<{ key: string }> }) =>
+      rule.headers.some((header) => header.key === "X-Frame-Options"))).toEqual([]);
+    expect(vercel.headers.filter((rule: { headers: Array<{ key: string }> }) =>
+      rule.headers.some((header) => header.key === "Content-Security-Policy"))).toEqual([
+      frameDenyHeaders,
+      previewHeaders,
+    ]);
+
+    expect(vercel.headers).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        headers: expect.arrayContaining([
+          expect.objectContaining({
+            key: "Content-Type",
+            value: "text/markdown; charset=utf-8",
+          }),
+        ]),
+        source: "/(.*).md",
+      }),
+    ]));
+    const notFoundMarkdownHeaders = vercel.headers.find((rule: { source: string }) =>
+      rule.source === "/404.md");
+    expect(notFoundMarkdownHeaders?.headers).toEqual([
+      { key: "X-Robots-Tag", value: "noindex, nofollow" },
+    ]);
+    expect(vercel.redirects).toEqual(expect.arrayContaining([
+      { destination: "/icon.png", permanent: true, source: "/favicon.ico" },
+    ]));
+    expect(middleware).toContain("handleDocumentNegotiation");
+    expect(middleware).toContain("./edge/negotiation");
+    expect(middleware).not.toContain("website/");
+    expect(vercel.redirects).toEqual(expect.arrayContaining([
+      { destination: "/", permanent: true, source: "/index.html" },
+      { destination: "/preview/", permanent: true, source: "/preview" },
+      { destination: "/preview/", permanent: true, source: "/preview/index.html" },
+      ...PUBLIC_PAGES.slice(1).map((page) => ({
+        destination: page.canonicalPath,
+        permanent: true,
+        source: page.canonicalPath.slice(0, -1),
+      })),
+      ...PUBLIC_PAGES.slice(1).map((page) => ({
+        destination: page.canonicalPath,
+        permanent: true,
+        source: `/${page.outputFile}`,
+      })),
+    ]));
+
+    const structuredMatch = /<script type="application\/ld\+json">([^<]+)<\/script>/u.exec(html);
+    expect(structuredMatch?.[1]).toBeDefined();
+    const structured: unknown = JSON.parse(structuredMatch?.[1] ?? "null");
+    const graph = (structured as { "@graph"?: unknown })["@graph"];
+    expect(Array.isArray(graph)).toBe(true);
+    expect(graph).toEqual(expect.arrayContaining([
+      expect.objectContaining({ "@id": `${SITE_ORIGIN}/#website`, "@type": "WebSite" }),
+      expect.objectContaining({
+        "@id": HRANESS_ORGANIZATION_ID,
+        "@type": "Organization",
+        logo: HRANESS_LOGO_URL,
+        sameAs: [PUBLISHER_URL, HRANESS_LINKEDIN_URL],
+        url: HRANESS_URL,
+      }),
+      expect.objectContaining({
+        "@id": `${SITE_ORIGIN}/#webpage`,
+        isPartOf: { "@id": `${SITE_ORIGIN}/#website` },
+        mainEntity: { "@id": `${SITE_ORIGIN}/#software` },
+      }),
+      expect.objectContaining({
+        "@id": `${SITE_ORIGIN}/#software`,
+        sameAs: [
+          "https://github.com/hraness/ghostget",
+          NPM_PACKAGE_URL,
+          SKILLS_URL,
+        ],
+        softwareVersion: packageIdentity.version,
+      }),
+      expect.objectContaining({
+        "@id": `${SITE_ORIGIN}/#source`,
+        codeRepository: REPOSITORY_URL,
+        targetProduct: { "@id": `${SITE_ORIGIN}/#software` },
+        version: packageIdentity.version,
+      }),
+    ]));
+
+    const descriptions = new Set<string>();
+    for (const { definition, html: pageHtml } of pages) {
+      const canonicalUrl = `${SITE_ORIGIN}${definition.canonicalPath}`;
+      expect(pageHtml).toContain(`<title>${definition.title}</title>`);
+      expect(pageHtml).toContain(`<meta name="description" content="${definition.description}">`);
+      expect(pageHtml).toMatch(/aria-label="GhostGet home" class="(?:hraness-marketing-header__brand|wordmark hraness-foil-text)" data-foil="" href="\/"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="\/marks\/wrench\.svg" width="20" \/><span aria-hidden="true" class="hraness-foil-mark__paint"><\/span><\/span> GhostGet<\/a>/u);
+      expect(pageHtml).not.toContain('class="wordmark" href="/">GHOSTGET</a>');
+      expect(pageHtml).toContain(`<link rel="canonical" href="${canonicalUrl}">`);
+      expect(pageHtml).toContain(`<meta property="og:title" content="${definition.title}">`);
+      expect(pageHtml).toContain(`<meta property="og:description" content="${definition.description}">`);
+      expect(pageHtml).toContain(`<meta property="og:url" content="${canonicalUrl}">`);
+      expect(pageHtml).toContain(`<meta name="twitter:title" content="${definition.title}">`);
+      expect(pageHtml).toContain(`<meta name="twitter:description" content="${definition.description}">`);
+      expect(pageHtml).toContain(isNoindexDocumentPath(definition.canonicalPath)
+        ? `<meta name="robots" content="${NOINDEX_ROBOTS}">`
+        : '<meta name="robots" content="max-image-preview:large">');
+      expect(pageHtml).toContain(`<link rel="alternate" type="text/markdown" title="Markdown" href="${SITE_ORIGIN}${markdownSiblingPath(definition.canonicalPath)}">`);
+      expect(pageHtml).toContain('href="/about/"');
+      expect(pageHtml).toContain('href="/contact/"');
+      expect(pageHtml).toContain('href="/privacy/"');
+      expect(pageHtml).toContain('href="/llms.txt"');
+      expect(pageHtml).toContain(
+        '<meta name="theme-color" content="#fbf1c7" media="(prefers-color-scheme: light)">',
+      );
+      expect(pageHtml).toContain(
+        '<meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">',
+      );
+      expect(pageHtml.match(/<meta name="theme-color"/gu)).toHaveLength(2);
+      expect(pageHtml.match(/<h1\b/gu)).toHaveLength(1);
+      expect(pageHtml).not.toContain('<meta name="keywords"');
+      expect(pageHtml).not.toContain("{{");
+      expect(pageHtml).not.toContain("FAQPage");
+      descriptions.add(definition.description);
+
+      const markdown = await readFile(
+        join(websiteRoot, "dist", markdownSiblingPath(definition.canonicalPath).slice(1)),
+        "utf8",
+      );
+      expect(markdown.startsWith("# ")).toBe(true);
+      let renderedHeading = "";
+      new HTMLRewriter().on("h1", { text(chunk) { renderedHeading += chunk.text; } }).transform(pageHtml);
+      expect(markdown.split("\n")[0]).toBe(`# ${renderedHeading.replace(/\s+/gu, " ").trim()}`);
+      expect(markdown).not.toMatch(/<\/[a-z]+>/i);
+      expect(markdown.length).toBeGreaterThan(400);
+
+      const jsonMatch = /<script type="application\/ld\+json">([^<]+)<\/script>/u.exec(pageHtml);
+      expect(jsonMatch?.[1]).toBeDefined();
+      const pageStructured: unknown = JSON.parse(jsonMatch?.[1] ?? "null");
+      const pageGraph = (pageStructured as { "@graph"?: unknown })["@graph"];
+      expect(Array.isArray(pageGraph)).toBe(true);
+      expect(pageGraph).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          "@id": `${canonicalUrl}#webpage`,
+          "@type": "WebPage",
+          name: definition.title,
+          url: canonicalUrl,
+        }),
+        expect.objectContaining({ "@id": `${SITE_ORIGIN}/#software` }),
+        expect.objectContaining({ "@id": HRANESS_ORGANIZATION_ID }),
+      ]));
+
+      if (definition.canonicalPath !== "/") {
+        expect(pageHtml).toContain('class="answer-lede"');
+        expect(pageHtml).toContain(isNoindexDocumentPath(definition.canonicalPath) ? 'aria-label="More articles"' : 'aria-label="Breadcrumb"');
+        expect(pageHtml.match(/<h2\b/gu)?.length ?? 0).toBeGreaterThanOrEqual(2);
+        expect(pageGraph).toEqual(expect.arrayContaining([
+          expect.objectContaining({
+            "@id": `${canonicalUrl}#article`,
+            "@type": "TechArticle",
+            mainEntityOfPage: { "@id": `${canonicalUrl}#webpage` },
+          }),
+          expect.objectContaining({
+            "@id": `${canonicalUrl}#breadcrumb`,
+            "@type": "BreadcrumbList",
+          }),
+        ]));
+      }
+    }
+    expect(descriptions.size).toBe(PUBLIC_PAGES.length);
+    // Pages state their release; none claims a review that has no record.
+    for (const { html: pageHtml } of pages) {
+      expect(pageHtml).not.toMatch(/checked against (?:the public|each project|public sources|that immutable)/u);
+    }
+    // One alt text for the shared social card, describing the card itself.
+    expect(SOCIAL_IMAGE_ALT.length).toBeLessThanOrEqual(125);
+    expect(SOCIAL_IMAGE_ALT).toBe(socialImageAlt(socialSite));
+    expect(html).toContain(`<meta property="og:image:alt" content="${SOCIAL_IMAGE_ALT}">`);
+    expect(html).toContain(`<meta name="twitter:image:alt" content="${SOCIAL_IMAGE_ALT}">`);
+    for (const { html: pageHtml } of pages) {
+      expect(pageHtml).not.toContain('image:alt" content="GhostGet: precise web capabilities for AI agents"');
+    }
+
+    const homepageMarkdown = await readFile(
+      join(websiteRoot, "dist", markdownSiblingPath("/").slice(1)),
+      "utf8",
+    );
+    expect(homepageMarkdown).not.toContain("![](");
+    expect(homepageMarkdown).toContain("Measured September 22, 2026");
+    // Essays have their own pages; the home page no longer carries image cards.
+    expect(html).not.toContain('class="card editorial-card"');
+    for (const image of INDEXABLE_EDITORIAL_IMAGES) {
+      expect(homepageMarkdown).not.toContain(editorialImageUrl(image));
+
+      const page = pages.find(({ definition }) =>
+        definition.canonicalPath === image.canonicalPath);
+      expect(page).toBeDefined();
+      const imageUrl = editorialImageUrl(image);
+      expect(page?.html).toContain(`<meta property="og:image" content="${imageUrl}">`);
+      expect(page?.html).toContain(`<meta property="og:image:width" content="${image.width}">`);
+      expect(page?.html).toContain(`<meta property="og:image:height" content="${image.height}">`);
+      expect(page?.html).toContain(`<meta property="og:image:alt" content="${image.alt}">`);
+      expect(page?.html).toContain(`<meta name="twitter:image" content="${imageUrl}">`);
+      expect(page?.html).toContain(`<meta name="twitter:image:alt" content="${image.alt}">`);
+      expect(page?.html).toContain(`class="editorial-figure"`);
+      expect(page?.html).toContain(`src="${image.src}"`);
+      expect(page?.html).toContain(`srcset="${editorialImageSrcSet(image)}"`);
+      expect(page?.html).toContain(`sizes="${EDITORIAL_ARTICLE_IMAGE_SIZES}"`);
+      expect(page?.html).not.toContain('fetchpriority="high"');
+      expect(page?.html).toContain(`alt="${image.alt}"`);
+      expect(page?.html).toContain(image.caption);
+      expect(page?.html).toContain(`Generated with <a href="${image.creditUrl}">SlopCamera</a>.`);
+      expect(image.credit).toMatch(
+        /^Generated with SlopCamera\.$/u,
+      );
+      expect(page?.html).not.toContain("editorial-provenance/");
+      expect(page?.html).not.toContain("gateway_");
+      const answerLedeIndex = page?.html.indexOf('class="answer-lede"') ?? -1;
+      const figureIndex = page?.html.indexOf('class="editorial-figure"') ?? -1;
+      const reviewNoteIndex = page?.html.indexOf('class="review-note"') ?? -1;
+      expect(answerLedeIndex).toBeGreaterThan(-1);
+      expect(figureIndex).toBeGreaterThan(answerLedeIndex);
+      expect(reviewNoteIndex).toBe(-1);
+
+      const editorialMarkdown = await readFile(
+        join(websiteRoot, "dist", markdownSiblingPath(image.canonicalPath).slice(1)),
+        "utf8",
+      );
+      expect(editorialMarkdown).toContain(`![${image.alt}](${imageUrl})`);
+      expect(editorialMarkdown).toContain(`Generated with [SlopCamera](${new URL(image.creditUrl).href}).`);
+
+      const structuredMatch = /<script type="application\/ld\+json">([^<]+)<\/script>/u
+        .exec(page?.html ?? "");
+      const structured = JSON.parse(structuredMatch?.[1] ?? "null") as {
+        "@graph"?: Array<{ "@type"?: string; image?: unknown }>;
+      };
+      const article = structured["@graph"]?.find((entry) => entry["@type"] === "TechArticle");
+      expect(article?.image).toEqual({
+        "@type": "ImageObject",
+        caption: image.caption,
+        contentUrl: imageUrl,
+        creditText: image.credit,
+        height: image.height,
+        url: imageUrl,
+        width: image.width,
+      });
+
+      const fileBytes = new Uint8Array(await Bun.file(join(websiteRoot, "public", image.src)).arrayBuffer());
+      expect(createHash("sha256").update(fileBytes).digest("hex")).toBe(image.imageSha256);
+      expect(lossyWebpDimensions(fileBytes)).toEqual({ height: image.height, width: image.width });
+      const derivativeByteLengths: number[] = [];
+      for (const derivative of image.derivatives) {
+        const derivativeBytes = new Uint8Array(
+          await Bun.file(join(websiteRoot, "public", derivative.src)).arrayBuffer(),
+        );
+        expect(createHash("sha256").update(derivativeBytes).digest("hex"))
+          .toBe(derivative.sha256);
+        expect(lossyWebpDimensions(derivativeBytes)).toEqual({
+          height: derivative.height,
+          width: derivative.width,
+        });
+        derivativeByteLengths.push(derivativeBytes.byteLength);
+      }
+      expect(derivativeByteLengths[0]).toBeLessThan(derivativeByteLengths[1] ?? 0);
+      expect(derivativeByteLengths[1]).toBeLessThan(fileBytes.byteLength);
+      const receipt = await Bun.file(join(websiteRoot, image.provenance.receipt)).json() as {
+        localValidation?: { status?: string };
+        outputs?: Array<{ sha256?: string }>;
+        request?: { promptSha256?: string };
+      };
+      const job = await Bun.file(join(websiteRoot, image.provenance.job)).json() as {
+        clientMaxRetries?: number;
+        noAtetRetry?: boolean;
+        noSlopcameraRetry?: boolean;
+        request?: { promptSha256?: string };
+        state?: string;
+      };
+      const prompt = await Bun.file(join(websiteRoot, image.provenance.prompt)).text();
+      expect(receipt.outputs?.[0]?.sha256).toBe(image.imageSha256);
+      expect(receipt.localValidation?.status).toBe("decode-passed");
+      expect(job).toMatchObject({
+        clientMaxRetries: 0,
+        state: "completed",
+      });
+      expect(job.noAtetRetry === true || job.noSlopcameraRetry === true).toBe(true);
+      // Atet pinned the trimmed prompt text; Slopcamera pins the exact file
+      // bytes. Either derivation is valid as long as the generator's own
+      // receipt and job record the registered value.
+      const promptHashes = new Set([
+        createHash("sha256").update(prompt).digest("hex"),
+        createHash("sha256").update(prompt.trim()).digest("hex"),
+      ]);
+      expect(promptHashes.has(image.provenance.promptSha256)).toBe(true);
+      expect(job.request?.promptSha256).toBe(image.provenance.promptSha256);
+      expect(receipt.request?.promptSha256).toBe(image.provenance.promptSha256);
+    }
+    expect(editorialImages.some(({ canonicalPath }) =>
+      canonicalPath === ("/paypal-grapheneos-attestation/" as never))).toBe(false);
+    expect(editorialImages.some(({ canonicalPath }) =>
+      canonicalPath === ("/rumour-is-the-exploit/" as never))).toBe(false);
+    expect(editorialImages.some(({ canonicalPath }) =>
+      canonicalPath === ("/omarchy-root-escalation/" as never))).toBe(false);
+
+    expect(html).toContain(
+      '<h2 class="hraness-marketing-section__heading" id="comparison-title">How GhostGet compares with other ways agents reach the web.</h2>',
+    );
+    expect(html).toContain('scope="row">Your agent’s web fetch</th>');
+    expect(html).toContain('<a href="/compare/firecrawl/">Firecrawl</a> / <a href="/compare/jina-reader/">Jina Reader</a></th>');
+    // The home table keeps five rows; the full comparison lives at /compare/.
+    expect(html).toContain('<a href="/compare/browser-use/">browser-use</a></th>');
+    expect(html).toContain('<a href="/compare/playwright-mcp/">Playwright MCP</a></th>');
+    expect(html).toContain('<a href="/compare/">Read the detailed comparisons</a>');
+    expect(html).toContain(
+      "If a write went out and its result is unknown, GhostGet won’t send it again.",
+    );
+
+    const gettingStarted = pages.find((page) => page.definition.canonicalPath === "/docs/tutorials/getting-started/");
+    expect(gettingStarted?.html).toContain("GhostGet developer resources");
+    expect(gettingStarted?.html).toContain(
+      `<a href="${npmPackageUrl}">Install the <code>@hraness/ghostget</code> CLI and TypeScript SDK from GitHub Releases</a>`,
+    );
+    expect(gettingStarted?.html).toContain(
+      `<a href="${SKILLS_URL}">Install the GhostGet Agent Skill from skills.sh</a>`,
+    );
+    expect(gettingStarted?.html).toContain(`<code>${skillInstallCommands.npx}</code>`);
+    expect(gettingStarted?.html).toContain("does not publish a hosted API");
+    expect(gettingStarted?.html).toContain('id="demo"');
+    expect(gettingStarted?.html).toContain('poster="/wrench-first-capture.png"');
+    expect(gettingStarted?.html).toContain('src="/wrench-first-capture.webm"');
+    expect(gettingStarted?.html).toContain('src="/wrench-first-capture.mp4"');
+    expect(gettingStarted?.html).toContain('src="/wrench-first-capture.vtt"');
+    expect(gettingStarted?.html).toContain('href="/wrench-first-capture.gif"');
+    expect(gettingStarted?.html).not.toContain('class="editorial-figure"');
+    expect(gettingStarted?.html).toContain("successful Wrench 0.13.5 run on August 25, 2026");
+    expect(gettingStarted?.html).toContain("before the project became GhostGet");
+    expect(gettingStarted?.html).not.toContain("The terminal text is actual CLI output");
+
+    const privacy = pages.find((page) => page.definition.canonicalPath === "/privacy/");
+    expect(privacy?.html).toContain("The CLI stores state on the operator's machine");
+    expect(privacy?.html).toContain("Local custody does not mean that every stored byte is encrypted");
+    expect(privacy?.html).toContain("GhostGet-managed Gmail OAuth JSON file");
+    expect(privacy?.html).toContain("The CLI and SDK do not send ghostget.com analytics");
+    expect(privacy?.html).toContain("ghostget auth remove ID --yes");
+    expect(privacy?.html).toContain("it is not a hostile native-code sandbox");
+    expect(privacy?.html).toContain(
+      "transient full copies of the private Photos and Contacts SQLite databases",
+    );
+    expect(privacy?.html).toContain("Those copies can include unselected columns and raw blobs");
+    expect(privacy?.html).toContain("The privacy exclusions apply only to the returned JSON");
+    expect(privacy?.html).toContain(
+      "does not open, copy, or ask Photos to materialize referenced photo or video asset files",
+    );
+    const privacyMarkdown = await readFile(
+      join(websiteRoot, "dist", markdownSiblingPath("/privacy/").slice(1)),
+      "utf8",
+    );
+    const mailingHtml = /<section aria-labelledby="website-mailing-list">[\s\S]*?<\/section>/u
+      .exec(privacy?.html ?? "")?.[0];
+    const mailingMarkdown = /## GhostGet mailing-list subscriptions are separate[\s\S]*?(?=\n\n## )/u
+      .exec(privacyMarkdown)?.[0];
+    const normalizeMailingCopy = (value: string | undefined): string =>
+      (value ?? "")
+        .replaceAll(/<[^>]+>/gu, " ")
+        .replaceAll(/[`#]/gu, "")
+        .replaceAll(/\s+/gu, " ")
+        .replaceAll(/\s+([,.;:!?])/gu, "$1")
+        .trim();
+    const expectedMailingCopy = [
+      "GhostGet mailing-list subscriptions are separate",
+      "The optional footer form submits to Hraness Accounts, which processes the email address at https://account.hraness.com/api/mailing/subscribe. Each request uses the fixed wrench audience and source=hraness-site-footer. An eligible request records a pending GhostGet membership. Resend processes the email address to deliver a confirmation message from newsletter@news.hraness.com. The emailed link opens the Hraness Accounts confirmation page. Only the page's explicit Confirm subscription POST records consent and changes the membership to subscribed.",
+      "Subscribed members can receive later GhostGet mail through Resend from news.hraness.com. Unsubscribing retains the GhostGet membership and consent history, changes only that membership to unsubscribed, and leaves every other Hraness audience unchanged. The mailing list is optional: using the GhostGet CLI, SDK, or ghostget.com does not require a subscription, and a GhostGet subscription does not enroll the address in another Hraness audience.",
+    ].join(" ");
+    const normalizedMailingCopies = [mailingHtml, mailingMarkdown].map(normalizeMailingCopy);
+    expect(normalizedMailingCopies).toEqual([expectedMailingCopy, expectedMailingCopy]);
+    const lifecycleStages = [
+      "pending GhostGet membership",
+      "emailed link opens the Hraness Accounts confirmation page",
+      "explicit Confirm subscription POST records consent",
+      "membership to subscribed",
+      "retains the GhostGet membership and consent history",
+      "membership to unsubscribed",
+      "leaves every other Hraness audience unchanged",
+    ];
+    for (const copy of normalizedMailingCopies) {
+      const lifecycleOffsets = lifecycleStages.map((stage) => copy.indexOf(stage));
+      expect(lifecycleOffsets.every((offset) => offset >= 0)).toBe(true);
+      expect(lifecycleOffsets).toEqual([...lifecycleOffsets].sort((left, right) => left - right));
+    }
+
+    const providerCapabilities = pages.find((page) =>
+      page.definition.canonicalPath === "/docs/reference/provider-capabilities/");
+    const attestation = await loadProviderCapabilityAttestation(repositoryRoot);
+    const providerDirectory = createProviderDirectory(attestation);
+    const providerCards = renderProviderOverviewCards(providerDirectory);
+    const providerGroups = renderProviderAttestationGroups(providerDirectory, attestation);
+    const providerMarkdown = await readFile(
+      join(websiteRoot, "dist", markdownSiblingPath("/docs/reference/provider-capabilities/").slice(1)),
+      "utf8",
+    );
+    expect(providerCapabilities?.html).toContain(
+      "This directory lists the current release's generic actions and, separately, owner-only messaging permissions.",
+    );
+    // The home page shows the provider band; the cards live on the reference page.
+    expect(html).not.toContain(providerCards);
+    expect(providerCapabilities?.html).toContain(providerCards);
+    expect(providerCapabilities?.html.match(/class="provider-mark"/gu))
+      .toHaveLength(providerDirectory.providerCount);
+    expect(providerCapabilities?.html.match(/class="provider-feature-copy"/gu)).toHaveLength(1);
+    expect(providerCapabilities?.html).toContain(
+      `${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.cliBackedOperationCount)} actions run through a pinned version of Beeper's official CLI, and ${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.desktopLoopbackOperationCount)} are fixed reads from Beeper Desktop. Writes need a preview first, and GhostGet never resends a write whose outcome is unknown.`,
+    );
+    // The provider band is the Providers section object and counts the same directory as the cards.
+    const providerBand = renderProviderMarquee(providerDirectory);
+    expect(html).toContain(providerBand);
+    expect(html.indexOf(providerBand)).toBeGreaterThan(html.indexOf('id="providers"'));
+    expect(html.indexOf(providerBand)).toBeLessThan(html.indexOf('id="start"'));
+    expect(providerBand).toContain(`<strong class="hraness-marketing-marquee__count">${String(providerDirectory.providerCount)}</strong>`);
+    for (const page of pages.slice(1)) expect(page.html).not.toContain("hraness-marketing-marquee");
+    const homeMarkdown = await readFile(join(websiteRoot, "dist/index.md"), "utf8");
+    expect(homeMarkdown).toContain(`Works with **${String(providerDirectory.providerCount)}** services`);
+    expect(homeMarkdown).not.toContain("Pause scrolling");
+    const providerHeading = html.match(/<h2 id="providers-title">([^<]+)<\/h2>/u)?.[1];
+    expect(Number(providerHeading?.match(/\d+/u)?.[0])).toBe(providerDirectory.providerCount);
+    expect(html).not.toContain("Each card names the actions");
+    for (const entry of providerDirectory.entries) {
+      expect(providerBand).toContain(entry.name);
+      expect(providerCapabilities?.html).toContain(`data-provider-icon="${entry.icon}"`);
+    }
+    expect(providerCapabilities?.html).toContain(providerGroups);
+    expect(providerCapabilities?.html).toContain("Owner messaging permissions");
+    expect(providerCapabilities?.html).toContain("unavailable through generic invoke");
+    expect(providerMarkdown).toContain("owner host only");
+    expect(providerCapabilities?.html).toContain("Supported actions by service");
+    expect(providerCapabilities?.html).toContain("Official API");
+    expect(providerCapabilities?.html).toContain(`<code>contacts.list</code>`);
+    expect(providerCapabilities?.html).toContain(
+      "transient full copies of the current macOS account's private Photos and Contacts SQLite databases",
+    );
+    expect(providerCapabilities?.html).toContain("can include unselected columns and raw blobs");
+    expect(providerCapabilities?.html).toContain("The listed exclusions apply only to the returned JSON");
+    expect(providerCapabilities?.html).toContain(
+      "does not open, copy, or ask Photos to materialize referenced photo or video asset files",
+    );
+    expect(providerCapabilities?.html).toContain("distinct <code>ZASSET</code>-row counts");
+    expect(providerMarkdown).toContain("unselected columns and raw blobs");
+    expect(providerMarkdown).toContain("exclusions apply only to the returned JSON");
+    expect(providerMarkdown).toContain(
+      "does not open, copy, or ask Photos to materialize referenced photo or video asset files",
+    );
+    expect(providerCapabilities?.html).not.toMatch(/observed|capture-required|reservation|completeness|adapter/iu);
+    expect(providerCapabilities?.html).not.toContain("Telegram");
+    expect(providerCapabilities?.html).not.toContain("{{PROVIDER_CAPABILITY");
+    expect(providerMarkdown).toContain("### Beeper");
+    expect(providerMarkdown).toContain("32 supported actions");
+    expect(providerMarkdown).toContain("- **List accounts** (`accounts.list`) · Local app");
+    expect(providerMarkdown).toContain(
+      "- **Focus conversation** (`conversations.focus`) · Local app",
+    );
+    expect(providerMarkdown).toContain(
+      "- **Send Notify Anyway** (`conversations.notify`) · Local app",
+    );
+    expect(providerMarkdown).toContain("- **Send message** (`messaging.send`) · Local app");
+    expect(providerMarkdown).toContain("Public web, no sign-in");
+    const providerActionLines = providerMarkdown.split("\n").filter((line) =>
+      line.startsWith("- **"));
+    expect(providerActionLines.length).toBeGreaterThan(0);
+    expect(providerActionLines.every((line) =>
+      /^- \*\*[^*]+\*\* \(`[^`]+`\) · [^\s].+$/u.test(line))).toBe(true);
+    expect(providerMarkdown).not.toMatch(/observed|capture-required|reservation|completeness|adapter/iu);
+
+    const claimsPage = pages.find((page) => page.definition.canonicalPath === "/claims/");
+    const claimsRegisterSource = await readFile(
+      join(repositoryRoot, "verification/claims.json"),
+      "utf8",
+    );
+    const claimsRegister = parseClaimsRegister(JSON.parse(claimsRegisterSource) as unknown);
+    const claimsByStatus = (status: Status): number =>
+      claimsRegister.claims.filter((claim) => claim.status === status).length;
+    expect(claimsPage?.html).toContain("<h1>The GhostGet claims register</h1>");
+    expect(claimsPage?.html).toContain(
+      `The register holds ${claimsRegister.claims.length} claims: ${claimsByStatus("evidenced")} evidenced, ${claimsByStatus("planned")} planned, and ${claimsByStatus("not-verified")} not verified.`,
+    );
+    const exemptRuleCount = claimsRegister.rules.filter((rule) => rule.exempt !== null).length;
+    expect(claimsPage?.html).toContain(
+      `It maps ${claimsRegister.rules.length} guidelines from ${claimsRegister.guides.length} guides; ${claimsRegister.rules.length - exemptRuleCount} list claims and ${exemptRuleCount} are exempt.`,
+    );
+    for (const layer of LAYERS) {
+      const inLayer = claimsRegister.claims.filter((claim) => claim.layer === layer);
+      const row = `<tr><td>${LAYER_LABELS[layer]}</td><td align="right">${String(inLayer.filter((claim) => claim.status === "evidenced").length)}</td><td align="right">${String(inLayer.filter((claim) => claim.status === "planned").length)}</td><td align="right">${String(inLayer.filter((claim) => claim.status === "not-verified").length)}</td></tr>`;
+      if (inLayer.length === 0) {
+        expect(claimsPage?.html).not.toContain(row);
+        continue;
+      }
+      expect(claimsPage?.html).toContain(row);
+    }
+    for (const claim of claimsRegister.claims) {
+      expect(claimsPage?.html).toContain(`<h4><code>${claim.id}</code></h4>`);
+      const escapedStatement = claim.statement
+        .replaceAll("&", "&amp;").replaceAll('"', "&quot;")
+        .replaceAll("<", "&lt;").replaceAll(">", "&gt;")
+        .replaceAll(/`([^`]+)`/gu, "<code>$1</code>");
+      expect(claimsPage?.html).toContain(`<p>${escapedStatement}</p>`);
+    }
+    expect(claimsPage?.html).toContain('href="/claims.json"');
+    expect(claimsPage?.html).toContain('href="/blog/ghostget-claims-register/"');
+    expect(claimsPage?.html).not.toContain("{{CLAIMS_");
+    const claimsMarkdown = await readFile(
+      join(websiteRoot, "dist", markdownSiblingPath("/claims/").slice(1)),
+      "utf8",
+    );
+    expect(claimsMarkdown).toContain("# The GhostGet claims register");
+    expect(claimsMarkdown).toContain("not verified.");
+    const claimsJson = await readFile(join(websiteRoot, "dist/claims.json"), "utf8");
+    expect(claimsJson).toBe(claimsRegisterSource);
+    const claimsJsonHeaders = vercel.headers.find((rule: { source: string }) =>
+      rule.source === "/claims.json");
+    expect(claimsJsonHeaders?.headers).toEqual([
+      { key: "Cache-Control", value: "no-store, max-age=0" },
+      { key: "Content-Type", value: "application/json; charset=utf-8" },
+    ]);
+    expect(sitemap).toContain(`<loc>${SITE_ORIGIN}/claims/</loc>`);
+    expect(llms).toContain(`${SITE_ORIGIN}/claims/`);
+    expect(llms).toContain(`${SITE_ORIGIN}/claims.json`);
+
+    const beeper = pages.find((page) => page.definition.canonicalPath === "/docs/how-to/connect-beeper/");
+    const beeperFacts = createBeeperPresentationFacts(providerDirectory);
+    expect(beeper?.html).toContain(`<title>${beeperFacts.pageTitle}</title>`);
+    expect(beeper?.html).toContain(
+      `<meta name="description" content="${beeperFacts.pageDescription}">`,
+    );
+    expect(beeper?.html).toContain(
+      `<h1>Use Beeper through ${beeperFacts.observedOperationCount} supported actions</h1>`,
+    );
+    expect(beeper?.html).toContain(`adapter <code>beeper-local</code> ${beeperFacts.adapterVersion}`);
+    expect(beeper?.html).toContain(`official Beeper CLI ${beeperFacts.cliVersion}`);
+    expect(beeper?.html).toContain(
+      `The tagged source path is <code>${beeperFacts.cliSourcePackagePath}</code>, and its declared ${beeperFacts.cliSourceDeclaredVersion} is provenance only`,
+    );
+    expect(beeper?.html).toContain(beeperFacts.cliSourceVersionDiscrepancy);
+    expect(beeper?.html).toContain(
+      `href="${beeperFacts.cliReleaseUrl}">official ${beeperFacts.cliVersion} release</a>`,
+    );
+    expect(beeper?.html).toContain(
+      `${beeperFacts.semanticContractVersionLabel} across the current ${beeperFacts.observedOperationCount} operations`,
+    );
+    expect(beeper?.html).toContain(beeperFacts.artifactTable);
+    expect(beeper?.html).toContain(
+      `&lt;GHOSTGET_STATE_HOME&gt;/tools/beeper/${beeperFacts.cliVersion}/beeper`,
+    );
+    expect(beeper?.html).toContain('aria-current="location" href="/docs/reference/provider-capabilities/"');
+    expect(beeper?.html).toContain("one fixed POST");
+    expect(beeper?.html).toContain("pendingMessageID");
+    expect(beeper?.html).toContain("proves submission to Desktop only, not network delivery");
+    expect(beeper?.html).toContain("does not call the CLI or SDK and never retries");
+    expect(beeper?.html).toContain("A separately obtained exact read may be inspected");
+    expect(beeper?.html).toContain(
+      "Without an already accepted exact provider message identity, the run remains indeterminate and unretriable",
+    );
+    expect(beeper?.html).toContain("only that identity could make reconciliation categorical");
+    expect(beeper?.html).not.toContain(
+      "reconcile the same run from a separately obtained exact read",
+    );
+    expect(beeper?.html).not.toContain("--wait");
+    expect(beeper?.html).not.toContain("terminal returned message ID");
+    expect(beeper?.html).toContain("Use Beeper directly when you want its first-party breadth");
+    expect(beeper?.html).not.toContain("lowest-friction");
+    expect(beeper?.html).toContain(
+      'href="https://developers.beeper.com/desktop-api/mcp/">built-in Beeper Desktop MCP</a>',
+    );
+    expect(beeper?.html).toContain('href="https://github.com/beeper/cli">official Beeper CLI</a>');
+    expect(beeper?.html).toContain("exact executable and adapter-version pinning");
+    expect(beeper?.html).toContain(
+      "write previews, durable receipts, contract-specific reconciliation for generic CLI mutations, and no blind retry",
+    );
+    expect(beeper?.html).toContain("encrypted snapshots");
+    expect(beeper?.html).toContain("versioned TextButler and contact-interaction exports");
+    expect(beeper?.html).toContain("It wraps only the actions listed for this release");
+    expect(beeper?.html).toContain(`all ${beeperFacts.cliCommandCount} public manual command paths`);
+    expect(beeper?.html.match(/Beeper's supported action names and access methods/gu))
+      .toHaveLength(2);
+    expect(beeper?.html).not.toContain("operation-level contracts, risks, and limits");
+    expect(beeper?.html).not.toContain("all Beeper contracts");
+    expect(beeper?.html).toContain("<code>targets status</code>, <code>version</code>, and top-level <code>export</code> are internal");
+    expect(beeper?.html).toContain("plain <code>status</code> is among the 53 unsupported paths");
+    expect(beeper?.html).toContain("<code>messages delete</code> are R4 and unavailable to provider dispatch");
+    expect(beeper?.html).toContain("None of those three R4 paths appears in the selected 32-operation provider adapter");
+    expect(beeper?.html).not.toContain("R4/capture-required");
+    expect(beeper?.html).toContain("messages.delete");
+    expect(beeper?.html).toContain("fall back to deletion for only the authenticated user");
+    expect(beeper?.html).toContain("returns a void success response");
+    expect(beeper?.html).toContain("never dispatches this action");
+    expect(beeper?.html).toContain("media.download");
+    expect(beeper?.html).toContain("buffers the complete media body to stdout");
+    expect(beeper?.html).toContain("no reviewed finite supervisor and proven termination contract");
+    expect(beeper?.html).toContain("top-level CLI export is internal-only");
+    expect(beeper?.html).toContain("--no-attachments");
+    expect(beeper?.html).toContain('href="https://developers.beeper.com/desktop-api/"');
+    expect(beeper?.html).toContain("sending too many messages may result in suspension");
+    expect(beeper?.html).toContain("network's throttling, automation, or suspension rules");
+    expect(beeper?.html).toContain("These workflows are not part of the 32 supported actions");
+    expect(beeper?.html).not.toMatch(/all Beeper (?:CLI )?features/iu);
+    expect(beeper?.html).not.toMatch(/all (?:your )?chats/iu);
+    expect(beeper?.html).not.toContain("exactly once");
+    expect(beeper?.html).not.toContain("seamless");
+    expect(beeper?.html).not.toContain("Provider capabilities attestation");
+    expect(beeper?.html).toContain("wrench.messaging-route-resolve-request");
+    const beeperJsonMatch = /<script type="application\/ld\+json">([^<]+)<\/script>/u.exec(
+      beeper?.html ?? "",
+    );
+    const beeperStructured = JSON.parse(beeperJsonMatch?.[1] ?? "null") as {
+      "@graph"?: ReadonlyArray<Readonly<Record<string, unknown>>>;
+    };
+    const beeperBreadcrumb = beeperStructured["@graph"]?.find((node) =>
+      node["@id"] === `${SITE_ORIGIN}/docs/how-to/connect-beeper/#breadcrumb`);
+    expect(beeperBreadcrumb).toMatchObject({
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { name: "GhostGet", position: 1, item: `${SITE_ORIGIN}/` },
+        { name: "Documentation", position: 2, item: `${SITE_ORIGIN}/docs/` },
+        { name: beeperFacts.pageTitle, position: 3, item: `${SITE_ORIGIN}/docs/how-to/connect-beeper/` },
+      ],
+    });
+    const agentFacingMessagingDocs = [
+      beeper?.html ?? "",
+      readme,
+      await readFile(
+        join(repositoryRoot, "skills/ghostget/references/messaging.md"),
+        "utf8",
+      ),
+    ];
+    for (const document of agentFacingMessagingDocs) {
+      expect(document).not.toContain("ghostget beeper-local messaging.send");
+      expect(document).toContain(
+        '{"schemaVersion":2,"format":"wrench.messaging-route-resolve-request"',
+      );
+      expect(document).not.toContain(
+        '{"schemaVersion":1,"format":"wrench.messaging-route-resolve-request"',
+      );
+      for (const command of [
+        "ghostget messaging routes",
+        "ghostget messaging resolve",
+        "ghostget messaging context",
+        "ghostget messaging preview",
+      ]) expect(document).toContain(command);
+    }
+
+    const whatsapp = pages.find((page) =>
+      page.definition.canonicalPath === "/docs/how-to/export-whatsapp/");
+    const whatsappFacts = createWhatsAppPresentationFacts(providerDirectory, attestation);
+    expect(whatsapp?.html).toContain(`<title>${whatsappFacts.pageTitle}</title>`);
+    expect(whatsapp?.html).toContain(
+      `<meta name="description" content="${whatsappFacts.pageDescription}">`,
+    );
+    expect(whatsapp?.html).toContain(
+      "<h1>Export WhatsApp history for TextButler</h1>",
+    );
+    expect(whatsapp?.html).toContain(
+      "one private bundle for TextButler in the TextButler local message bundle format, schema 2",
+    );
+    expect(whatsapp?.html).toContain("six NDJSON files plus <code>manifest.json</code>");
+    expect(whatsapp?.html).toContain("local-message schema <code>2</code>");
+    expect(whatsapp?.html).toContain("<code>wacli-local@1.0.0</code>");
+    expect(whatsapp?.html).toContain("<code>whatsapp@0.15.0</code>");
+    expect(whatsapp?.html).toContain("TextButler v0.7.0");
+    expect(whatsapp?.html).not.toMatch(/message like me|hraness\/message-like-me/iu);
+    expect(whatsapp?.html).toContain("phone-number (PN) and linked-identity (LID)");
+    expect(whatsapp?.html).toContain("Reaction rows are excluded");
+    expect(whatsapp?.html).toContain("<code>reaction-state-unproven</code>");
+    expect(whatsapp?.html).toContain("<code>remote-history-incomplete</code>");
+    expect(whatsapp?.html).toContain(whatsappFacts.wacliCommit);
+    expect(whatsapp?.html).toContain(whatsappFacts.archiveSha256);
+    expect(whatsapp?.html).toContain(whatsappFacts.binarySha256);
+    expect(whatsapp?.html).toContain("Runtime reads do not claim to repeat online notarization");
+    expect(whatsapp?.html).not.toMatch(/retains? reaction/iu);
+    expect(whatsapp?.html).not.toContain("runtime notarization");
+    expect(whatsapp?.html).not.toContain("ghostget auth pair");
+    expect(whatsapp?.html).not.toContain("ghostget auth sync");
+    const whatsappJsonMatch = /<script type="application\/ld\+json">([^<]+)<\/script>/u.exec(
+      whatsapp?.html ?? "",
+    );
+    const whatsappStructured = JSON.parse(whatsappJsonMatch?.[1] ?? "null") as {
+      "@graph"?: ReadonlyArray<Readonly<Record<string, unknown>>>;
+    };
+    const whatsappBreadcrumb = whatsappStructured["@graph"]?.find((node) =>
+      node["@id"] === `${SITE_ORIGIN}/docs/how-to/export-whatsapp/#breadcrumb`);
+    expect(whatsappBreadcrumb).toMatchObject({
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { name: "GhostGet", position: 1, item: `${SITE_ORIGIN}/` },
+        { name: "Documentation", position: 2, item: `${SITE_ORIGIN}/docs/` },
+        { name: whatsappFacts.pageTitle, position: 3, item: `${SITE_ORIGIN}/docs/how-to/export-whatsapp/` },
+      ],
+    });
+
+    // The Gmail guide promises three read-only actions and names the exact
+    // scopes the sign-in requests; both come from the release's own sources.
+    const gmail = pages.find((page) => page.definition.canonicalPath === "/docs/how-to/connect-gmail/");
+    const gmailRows = attestation.rows.filter((row) =>
+      row.surfaceId === "gmail" && row.completeness === "observed");
+    expect(new Set(gmailRows.map((row) => row.operation))).toEqual(
+      new Set(["contacts.list", "messaging.list", "messaging.read"]),
+    );
+    expect(gmailRows.every((row) => row.risk === "R1")).toBe(true);
+    expect(gmail?.definition.description).toContain("three read-only GhostGet actions");
+    for (const operation of ["contacts.list", "messaging.list", "messaging.read"]) {
+      expect(gmail?.html).toContain(`<code>${operation}</code>`);
+    }
+    expect(GOOGLE_GMAIL_READ_SCOPES).toHaveLength(3);
+    for (const scope of GOOGLE_GMAIL_READ_SCOPES) {
+      expect(gmail?.html).toContain(`<code>${scope.replace("https://www.googleapis.com/auth/", "")}</code>`);
+    }
+    for (const command of [
+      "ghostget auth login gmail-main --client-file /absolute/path/client_secret.json",
+      "ghostget auth login gmail-main --client-file /absolute/path/client_secret.json --force",
+      "ghostget auth remove gmail-main --yes",
+    ]) expect(gmail?.html).toContain(command);
+    expect(gmail?.html).toContain("<code>--no-open</code>");
+    expect(gmail?.html).toContain("<code>invalid_grant</code>");
+    expect(sitemap).toContain(`<loc>${SITE_ORIGIN}/docs/how-to/connect-gmail/</loc>`);
+    expect(llms).toContain(`${SITE_ORIGIN}/docs/how-to/connect-gmail/`);
+    expect(providerDirectory.entries.find((entry) => entry.surfaceId === "gmail")?.href)
+      .toBe("/docs/how-to/connect-gmail/");
+    const docsIndexHtml = pages.find((page) => page.definition.canonicalPath === "/docs/")?.html;
+    expect(docsIndexHtml).toContain('href="/docs/how-to/connect-gmail/"');
+
+    // The agent setup section names each host's real settings and the read
+    // error a sandbox without network access produces.
+    const gettingStartedHtml = pages.find((page) =>
+      page.definition.canonicalPath === "/docs/tutorials/getting-started/")?.html;
+    expect(gettingStartedHtml).toContain('<h2 id="agents">');
+    for (const setting of [
+      "codex -c 'sandbox_workspace_write.network_access=true'",
+      "[permissions.ghostget.network]",
+      "<code>features.network_proxy</code>",
+      'prefix_rule(pattern = ["ghostget", "read"], decision = "allow")',
+      '"allow": ["Bash(ghostget read *)"]',
+      '"excludedCommands": ["ghostget *"]',
+      "<code>http: could not resolve example.com</code>",
+      "<code>127.0.0.1</code>",
+    ]) expect(gettingStartedHtml).toContain(setting);
+    expect(llms).toContain(`${SITE_ORIGIN}/docs/tutorials/getting-started/#agents`);
+
+    // The written explanations have independent editorial review. These checks
+    // cover their publishing contract without pinning retired news prose or counts.
+    for (const [sourceFile, record] of Object.entries(essayReviews)) {
+      const essay = pages.find((page) => page.definition.sourceFile === sourceFile);
+      expect(essay, sourceFile).toBeDefined();
+      expect(essay?.html, sourceFile).toContain('class="plain-publication__provenance"');
+      expect(essay?.html, sourceFile).toContain(`data-reviewer-type="${record.review.reviewerType}"`);
+      expect(essay?.html, sourceFile).toContain((record.review.reviewerType as string) === "human-editor"
+        ? `Drafted with AI and reviewed by ${record.review.reviewer}, a human editor.`
+        : `Drafted with AI and reviewed by ${record.review.reviewer}.`);
+      if (record.humanReview !== null) expect(record.humanReview.reviewerType).not.toBe("ai");
+      expect(essay?.html, sourceFile).not.toContain('<time');
+      expect(essay?.html, sourceFile).not.toContain('{{PROVIDER_CAPABILITY');
+      expect(essay?.html, sourceFile).not.toContain('{{ESSAY_PROVENANCE}}');
+      if (essay !== undefined) {
+        expect(essay.html.includes(`<meta name="robots" content="${NOINDEX_ROBOTS}">`), sourceFile)
+          .toBe(isNoindexDocumentPath(essay.definition.canonicalPath));
+      }
+    }
+
+    const docsIndex = pages.find((page) =>
+      page.definition.canonicalPath === "/docs/");
+    expect(docsIndex?.html).toContain(
+      "<h1>GhostGet documentation</h1>",
+    );
+    for (const quadrant of ["Tutorials", "How-to guides", "Explanation", "Reference"]) {
+      expect(docsIndex?.html).toContain(`<h2 id="${quadrant === "How-to guides" ? "how-to" : quadrant.toLowerCase()}">${quadrant}</h2>`);
+    }
+    for (const movedPath of [
+      "/docs/tutorials/getting-started/",
+      "/docs/how-to/capture-and-archive/",
+      "/docs/how-to/connect-beeper/",
+      "/docs/how-to/export-whatsapp/",
+      "/docs/how-to/author-provider-plugin/",
+      "/docs/explanation/security-model/",
+      "/docs/reference/provider-capabilities/",
+    ]) {
+      const moved = pages.find((page) => page.definition.canonicalPath === movedPath);
+      expect(moved).toBeDefined();
+      expect(moved?.html).toContain('aria-label="Breadcrumb"');
+      expect(moved?.html).toContain('href="/docs/"');
+      expect(moved?.html).toContain(`<link rel="canonical" href="${SITE_ORIGIN}${movedPath}">`);
+      const movedJson = /<script type="application\/ld\+json">([^<]+)<\/script>/u
+        .exec(moved?.html ?? "");
+      const movedGraph = JSON.parse(movedJson?.[1] ?? "null") as {
+        "@graph"?: ReadonlyArray<Readonly<Record<string, unknown>>>;
+      };
+      const movedBreadcrumb = movedGraph["@graph"]?.find((node) =>
+        node["@id"] === `${SITE_ORIGIN}${movedPath}#breadcrumb`) as
+        { itemListElement?: ReadonlyArray<Readonly<Record<string, unknown>>> } | undefined;
+      expect(movedBreadcrumb?.itemListElement).toHaveLength(3);
+      expect(movedBreadcrumb?.itemListElement?.slice(0, 2)).toEqual([
+        { "@type": "ListItem", item: `${SITE_ORIGIN}/`, name: "GhostGet", position: 1 },
+        { "@type": "ListItem", item: `${SITE_ORIGIN}/docs/`, name: "Documentation", position: 2 },
+      ]);
+      expect(movedBreadcrumb?.itemListElement?.[2]).toMatchObject({
+        item: `${SITE_ORIGIN}${movedPath}`,
+        position: 3,
+      });
+      const movedMarkdown = await readFile(
+        join(websiteRoot, "dist", markdownSiblingPath(movedPath).slice(1)),
+        "utf8",
+      );
+      expect(movedMarkdown.length).toBeGreaterThan(400);
+    }
+    for (const [source, destination] of [
+      ["/getting-started", "/docs/tutorials/getting-started/"],
+      ["/getting-started/", "/docs/tutorials/getting-started/"],
+      ["/getting-started/index.html", "/docs/tutorials/getting-started/"],
+      ["/getting-started/:path*", "/docs/tutorials/getting-started/:path*"],
+      ["/capture-and-archives", "/docs/how-to/capture-and-archive/"],
+      ["/capture-and-archives/", "/docs/how-to/capture-and-archive/"],
+      ["/capture-and-archives/:path*", "/docs/how-to/capture-and-archive/:path*"],
+      ["/provider-capabilities", "/docs/reference/provider-capabilities/"],
+      ["/provider-capabilities/", "/docs/reference/provider-capabilities/"],
+      ["/provider-capabilities/:path*", "/docs/reference/provider-capabilities/:path*"],
+      ["/providers/beeper", "/docs/how-to/connect-beeper/"],
+      ["/providers/beeper/", "/docs/how-to/connect-beeper/"],
+      ["/providers/beeper/:path*", "/docs/how-to/connect-beeper/:path*"],
+      ["/providers/whatsapp", "/docs/how-to/export-whatsapp/"],
+      ["/providers/whatsapp/", "/docs/how-to/export-whatsapp/"],
+      ["/providers/whatsapp/:path*", "/docs/how-to/export-whatsapp/:path*"],
+      ["/security", "/docs/explanation/security-model/"],
+      ["/security/", "/docs/explanation/security-model/"],
+      ["/security/:path*", "/docs/explanation/security-model/:path*"],
+      ["/plugins", "/docs/how-to/author-provider-plugin/"],
+      ["/plugins/", "/docs/how-to/author-provider-plugin/"],
+      ["/plugins/:path*", "/docs/how-to/author-provider-plugin/:path*"],
+      ["/getting-started.md", "/docs/tutorials/getting-started.md"],
+      ["/security.md", "/docs/explanation/security-model.md"],
+    ] as const) {
+      expect(vercel.redirects).toEqual(expect.arrayContaining([
+        { destination, permanent: true, source },
+      ]));
+    }
+
+    const compareIndex = pages.find((page) =>
+      page.definition.canonicalPath === "/compare/");
+    expect(compareIndex?.html).toContain(
+      "<h1>How agents reach the web</h1>",
+    );
+    expect(compareIndex?.html).toContain('<h2 id="lane-integrations">Integration platforms act in your apps</h2>');
+    expect(compareIndex?.html).not.toMatch(/checked on \d|<time/iu);
+    expect(compareIndex?.html).not.toMatch(/five ways/iu);
+    for (const comparePath of [
+      "/compare/browser-use/",
+      "/compare/browserbase/",
+      "/compare/playwright-mcp/",
+      "/compare/agent-browser/",
+      "/compare/firecrawl/",
+      "/compare/jina-reader/",
+    ]) {
+      const comparison = pages.find((page) =>
+        page.definition.canonicalPath === comparePath);
+      expect(comparison).toBeDefined();
+      expect(compareIndex?.html).toContain(`href="${comparePath}"`);
+      expect(comparison?.html).toContain(
+        `<link rel="canonical" href="${SITE_ORIGIN}${comparePath}">`,
+      );
+      expect(comparison?.html).toContain('href="/compare/"');
+      expect(comparison?.html).toContain("six approaches");
+      expect(comparison?.html).not.toMatch(/\b(?:four|five) (?:ways|approaches)\b/iu);
+      expect(comparison?.html).toContain(
+        '<meta property="og:image" content="https://ghostget.com/og.png">',
+      );
+      expect(comparison?.html.match(/<meta name="twitter:image"/gu)).toHaveLength(1);
+      const compareJson = /<script type="application\/ld\+json">([^<]+)<\/script>/u
+        .exec(comparison?.html ?? "");
+      const compareGraph = JSON.parse(compareJson?.[1] ?? "null") as {
+        "@graph"?: ReadonlyArray<Readonly<Record<string, unknown>>>;
+      };
+      const compareBreadcrumb = compareGraph["@graph"]?.find((node) =>
+        node["@id"] === `${SITE_ORIGIN}${comparePath}#breadcrumb`) as
+        { itemListElement?: ReadonlyArray<Readonly<Record<string, unknown>>> } | undefined;
+      expect(compareBreadcrumb?.itemListElement).toHaveLength(3);
+      expect(compareBreadcrumb?.itemListElement?.slice(0, 2)).toEqual([
+        { "@type": "ListItem", item: `${SITE_ORIGIN}/`, name: "GhostGet", position: 1 },
+        { "@type": "ListItem", item: `${SITE_ORIGIN}/compare/`, name: "Comparisons", position: 2 },
+      ]);
+      expect(compareBreadcrumb?.itemListElement?.[2]).toMatchObject({
+        item: `${SITE_ORIGIN}${comparePath}`,
+        position: 3,
+      });
+      const comparisonMarkdown = await readFile(
+        join(websiteRoot, "dist", markdownSiblingPath(comparePath).slice(1)),
+        "utf8",
+      );
+      expect(comparisonMarkdown.length).toBeGreaterThan(400);
+    }
+    const agentBrowser = pages.find((page) =>
+      page.definition.canonicalPath === "/compare/agent-browser/");
+    expect(agentBrowser?.html).toContain("agent-browser");
+    expect(agentBrowser?.html).toContain("0.32.3");
+    expect(agentBrowser?.html).toContain("the agent can never steer");
+    const browserUsePage = pages.find((page) =>
+      page.definition.canonicalPath === "/compare/browser-use/");
+    expect(browserUsePage?.html).toContain("model-driven");
+    const playwrightMcpPage = pages.find((page) =>
+      page.definition.canonicalPath === "/compare/playwright-mcp/");
+    expect(playwrightMcpPage?.html).toContain("accessibility tree");
+    const browserbasePage = pages.find((page) =>
+      page.definition.canonicalPath === "/compare/browserbase/");
+    expect(browserbasePage?.html).toContain("Stagehand");
+    const firecrawlPage = pages.find((page) =>
+      page.definition.canonicalPath === "/compare/firecrawl/");
+    expect(firecrawlPage?.html).toContain("credit");
+    expect(firecrawlPage?.html).toContain("1,000");
+    const jinaReaderPage = pages.find((page) =>
+      page.definition.canonicalPath === "/compare/jina-reader/");
+    expect(jinaReaderPage?.html).toContain("r.jina.ai");
+    expect(jinaReaderPage?.html).toContain("20 requests");
+
+    expect(html).toContain('id="measured"');
+    expect(html).toContain("145,617 bytes");
+    expect(html).toContain("9.7×");
+    expect(html).toContain('href="/compare/"');
+
+    const software = (graph as ReadonlyArray<Readonly<Record<string, unknown>>>).find((node) =>
+      node["@id"] === `${SITE_ORIGIN}/#software`);
+    expect(software).toMatchObject({
+      "@type": "SoftwareApplication",
+      featureList: [
+        "Save web pages as Markdown",
+        "Archive one media item with SHA-256 verification",
+        "Encrypted local copies of account reads",
+        "Named actions in connected services",
+        "Beeper actions through a pinned official CLI",
+        "Actions stop when a service changes",
+      ],
+      softwareVersion: packageIdentity.version,
+    });
+
+    const files = new Map<string, string>();
+    for (const page of PUBLIC_PAGES) {
+      files.set(
+        markdownSiblingPath(page.canonicalPath),
+        await readFile(join(websiteRoot, "dist", markdownSiblingPath(page.canonicalPath).slice(1)), "utf8"),
+      );
+    }
+    files.set("/404.md", notFoundMarkdown);
+    const retrieve = async (url: URL): Promise<Response> => {
+      const body = files.get(url.pathname);
+      return body === undefined
+        ? new Response("missing", { status: 404 })
+        : new Response(body, { status: 200 });
+    };
+    const negotiated = await handleDocumentNegotiation(
+      new Request(`${SITE_ORIGIN}/docs/tutorials/getting-started/`, { headers: { Accept: "text/markdown" } }),
+      retrieve,
+    );
+    expect(negotiated?.status).toBe(200);
+    expect(negotiated?.headers.get("content-type")).toBe("text/markdown; charset=utf-8");
+    expect(negotiated?.headers.get("vary")).toBe("Accept");
+    expect(negotiated?.headers.get("link")).toBe(
+      '<https://ghostget.com/docs/tutorials/getting-started/>; rel="canonical", </docs/tutorials/getting-started.md>; rel="alternate"; type="text/markdown"',
+    );
+    expect(await negotiated?.text()).toContain("# Install GhostGet and read your first page");
+
+    const direct = await handleDocumentNegotiation(
+      new Request(`${SITE_ORIGIN}/docs/tutorials/getting-started.md`),
+      retrieve,
+    );
+    expect(direct?.status).toBe(200);
+    expect(direct?.headers.get("link")).toBe(negotiated?.headers.get("link"));
+    expect(await direct?.text()).toContain("# Install GhostGet and read your first page");
+  }, 15000);
+
+  test("keeps every README release reference aligned with package identity", async () => {
+    const [manifest, readme, attestation] = await Promise.all([
+      Bun.file(join(repositoryRoot, "package.json")).json(),
+      readFile(join(repositoryRoot, "README.md"), "utf8"),
+      loadProviderCapabilityAttestation(repositoryRoot),
+    ]);
+    const identity = parsePackageIdentity(manifest);
+    const catalogServiceCount = new Set(attestation.rows.map((row) => row.surfaceId)).size;
+    const executableServiceCount = createProviderDirectory(attestation).providerCount;
+    const referencedReleases = [...readme.matchAll(/\bv[0-9]+\.[0-9]+\.[0-9]+\b/gu)]
+      .map((match) => match[0]);
+    expect(referencedReleases.length).toBeGreaterThan(0);
+    expect(new Set(referencedReleases)).toEqual(new Set([identity.release]));
+    expect(catalogServiceCount).toBe(21);
+    expect(executableServiceCount).toBe(19);
+    expect(readme).toContain(
+      `This ${identity.release} source tree supports executable actions for ${String(executableServiceCount)} services:`,
+    );
+    expect(readme).not.toContain(
+      `This ${identity.release} source tree defines actions for ${String(executableServiceCount)} services:`,
+    );
+    expect(readme).toContain(
+      "[built-in Beeper Desktop MCP server](https://developers.beeper.com/desktop-api/mcp/)",
+    );
+    expect(readme).not.toContain("https://github.com/beeper/desktop-api-mcp");
+  });
+
+  test("ships a correctly sized original social card", async () => {
+    const image = new Uint8Array(await Bun.file(join(websiteRoot, "public/og.png")).arrayBuffer());
+    expect(Array.from(image.slice(1, 4))).toEqual([80, 78, 71]);
+    const view = new DataView(image.buffer, image.byteOffset, image.byteLength);
+    expect(view.getUint32(16)).toBe(1200);
+    expect(view.getUint32(20)).toBe(630);
+  });
+
+  test("declares one social-image site for the shared template", async () => {
+    expect(socialSite.name).toBe("GhostGet");
+    expect(socialSite.domain).toBe(new URL(SITE_ORIGIN).host);
+    expect(socialSite.description).toBe(SOCIAL_IMAGE_DESCRIPTION);
+    expect(product("wrench").oneLiner).toBe(
+      SOCIAL_IMAGE_DESCRIPTION.replace("use accounts.", "use connected accounts"),
+    );
+    // The card copies the sticky header: the foil mark and name over the
+    // site's Design Kit palette, with no tile icon or wash.
+    expect(socialSite.icon).toBeUndefined();
+    expect(socialSite.theme).toBeUndefined();
+    expect(socialSite.palette).toBe("gruvbox");
+    const homeHtml = await readFile(join(websiteRoot, "source/index.html"), "utf8");
+    expect(homeHtml).toContain('data-palette="gruvbox"');
+    expect(socialSite.brand).toBe("GhostGet");
+    const markSvg = await readFile(join(websiteRoot, "public/marks/wrench.svg"), "utf8");
+    expect(SOCIAL_IMAGE_BRAND_MARK).toBe(markSvg);
+    expect(socialSite.brandMark).toBe(markSvg);
+    const generator = await readFile(join(websiteRoot, "../scripts/generate-og.tsx"), "utf8");
+    expect(generator).toContain("createSocialImageCard(socialImageSiteDetails(socialSite, SOCIAL_IMAGE_HOME_PAGE))");
+    expect(generator).not.toMatch(/<svg|<div|theme:/u);
+  });
+
+  test("fits the home social card's copy as written", () => {
+    expect(SOCIAL_IMAGE_HOME_PAGE).toEqual({ headline: marketing.hero.heading, layout: "product" });
+    const details = socialImageSiteDetails(socialSite, SOCIAL_IMAGE_HOME_PAGE);
+    const fit = socialImageFit(details);
+    expect(fit.layout).toBe("product");
+    // The registry heading wraps to two lines on the card without reduction.
+    expect(fit.headline.lines).toHaveLength(2);
+    expect(fit.headline.lines.join(" ")).toBe(marketing.hero.heading);
+    expect(fit.headline.reduced).toBe(false);
+    expect(fit.description?.lines.join(" ")).toBe(SOCIAL_IMAGE_DESCRIPTION);
+    expect(fit.description?.cut).toBe("none");
+    expect(fit.removed).toEqual([]);
+    // The product layout shows the tagline beneath the hero headline by
+    // design; v0.13.0 still reports that as a repeated tagline, and nothing else.
+    expect(fit.findings.map(({ code }) => code)).toEqual(["description-repeats-tagline"]);
+    expect(fit.issues.filter((issue) => !issue.includes("repeats the site tagline"))).toEqual([]);
+    expect(() => createSocialImageCard({ ...details, strict: true })).not.toThrow();
+    // The tagline alone would need three lines as the headline.
+    expect(socialImageFit(socialImageSiteDetails(socialSite)).findings.map(({ code }) => code)).toEqual([
+      "home-headline-three-lines",
+    ]);
+  });
+});

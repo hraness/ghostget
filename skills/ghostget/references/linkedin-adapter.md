@@ -1,0 +1,704 @@
+# LinkedIn authenticated web API adapter
+
+The current `linkedin-web` schema-v4 adapter has six observed operations:
+`profiles.read@1`, `organizations.read@1`, `contacts.read@1`, `feeds.read@3`,
+`articles.draft.save@7`, and `posts.publish@3`. The two profile-stat operations
+bind the current member, then read one exact self profile or requested
+organization Page without DOM automation. `contacts.read@1` reads Contact info
+for one exact 1st-degree connection profile through the same contained Chrome
+session. `feeds.read@3` has two live variants through the same contained Chrome
+session. `feed=profile-activity` pages one member's recent-activity posts: it
+binds the signed-in viewer, resolves the live `voyagerFeedDashProfileUpdates`
+query on `/in/{vanity}/recent-activity/all/`, and projects authored text,
+engagement counts when present, original-versus-reshare kind, and an opaque
+next cursor. `feed=search` navigates `/search/results/content/?keywords=…`,
+projects the rendered result cards — activity URN, permalink, author vanity and
+name, text, relative time, reaction and comment counts — and advances the
+page's own pager; its opaque cursor binds the exact keywords and emitted count.
+`feed=home` remains capture-required and is refused before any browser starts.
+The draft operation creates or replaces one private native Article
+draft for the bound current member, supports paragraphs, H1/H2 headings, native blockquotes,
+native HTTPS links, one distinct banner cover, and ordered inline images with
+required alt text and optional captions, and independently verifies the exact unpublished result
+from the authenticated editor-page server payload. The post operation publishes
+one confirmed text post with an optional single plan-bound PNG, stages real-size
+image bytes in bounded ordered contained-browser commands, binds the exact
+member and returned share, durably retains that accepted share target, and
+verifies an independent exact-share readback.
+Every other consumer-web capability remains `capture-required` and inert.
+
+A browser may record a managed HAR, bootstrap the private session, or resolve
+current session material. Runtime draft saving executes only GhostGet's fixed
+reviewed first-party API/write and editor-response readback contract inside a contained headed Chrome session;
+LinkedIn rejects the same editor exchange from a standalone HTTP client after
+its initial authenticated probe. It never types into or reads the Article
+editor DOM. Callers cannot choose a URL, header, script, or selector. GhostGet
+never lists an inbox, opens a conversation, sends a message, or performs
+another semantic action through LinkedIn's DOM.
+
+First-party traffic is not the same as a documented public API. Use this local client only with the user's account authority, comply with applicable provider rules, and keep bulk outreach and engagement outside ghostget.
+
+## Contents
+
+- [Install and inspect](#install-and-inspect)
+- [Configure the signed-in realm](#configure-the-signed-in-realm)
+- [Recapture inbox listing](#recapture-inbox-listing)
+- [1st-degree Contact info](#1st-degree-contact-info)
+- [Native Article draft saving](#native-article-draft-saving)
+- [Resolve current LinkedIn material](#resolve-current-linkedin-material)
+- [Preserve capture-required operations](#preserve-capture-required-operations)
+- [Risk and confirmation](#risk-and-confirmation)
+- [Recapture on drift](#recapture-on-drift)
+
+## Install and inspect
+
+Validate the reviewed manifest before installation:
+
+```sh
+ghostget adapter validate src/assets/adapters/linkedin/wrench-web-adapter.json
+ghostget adapter install src/assets/adapters/linkedin/wrench-web-adapter.json
+ghostget capabilities linkedin-web --json
+```
+
+Treat capability state as authoritative. `observed` means the exact contract version is eligible to execute after its account and current-session preflight passes. `capture-required` means the operation is reserved but unavailable; it performs no request and has no browser fallback.
+
+The separate `linkedin` adapter uses LinkedIn's documented OAuth API for approved post, comment, reply, repost, and reaction scopes. It does not supply the consumer Home feed or consumer inbox. Keep its OAuth token and preview separate from the `linkedin-web` cookie realm, and never switch transports silently.
+
+## Configure the signed-in realm
+
+LinkedIn currently rejects exported session cookies outside their browser
+context. Configure profile statistics with a path-backed, dormant Chrome
+profile and the exact Chrome executable. A filtered cookie source may overlay
+fresh origin-scoped cookies when the source browser is running:
+
+```sh
+ghostget auth add linkedin-main \
+  --browser-profile /absolute/private/chrome-snapshot/Default \
+  --browser-executable "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+  --trust-profile-egress \
+  --cookie-source chrome \
+  --cookie-profile "Profile 2"
+ghostget auth bind linkedin-main --site linkedin
+ghostget auth list --json
+```
+
+The profile path grants its contained page scripts unfiltered public-host
+egress and may contain every signed-in session in that browser profile. Keep it
+private, outside the repository, and use it only with the user's informed
+authority. GhostGet refuses to clone an active Chromium user-data root. For a
+scheduled realm, first load LinkedIn normally in the selected source profile
+and confirm that its first-party session is current. Fully quit Chrome, take
+one private snapshot, then point the auth locator at that dormant snapshot and
+use the filtered cookie overlay for current session values. The overlay can
+refresh valid cookies, but it cannot revive a source session that LinkedIn
+already rejects with 401. Never attach the runtime operation to a live inbox
+tab or copy LinkedIn session material into an OAuth token document.
+
+Bind `linkedin-main` to one stable current member/person identity before private
+reads or mutations. The observed organization Page read remains a
+member-authenticated view and does not select an organization actor. A future
+organization mutation must bind that actor separately and prove that the
+current member can act for it. Reject account ambiguity, login changes,
+request-actor mismatch, and response-actor mismatch before dispatch.
+
+The retained candidate parser derives a mailbox only when the current-account
+response directly names one bounded `miniProfile` reference and exactly one
+included entity binds that reference to the same numeric member subject. It
+does not scan other included profile entities as a fallback. Missing,
+unbound, conflicting, or ambiguous direct bindings fail.
+
+The standalone client can strictly review a short-lived `__cf_bm` edge-cookie
+rotation: it accepts only that name, validates origin, attributes, expiry, and
+deletion semantics, and binds the encrypted cache to the auth-locator hash.
+Removing the auth locator removes that cache. Profile-backed statistics do not
+export their session into that standalone client. Only the six observed
+operations may cross the execution boundary; every capture-required operation
+still refuses before its provider client is created.
+
+Verification on July 23, 2026 produced a durable projection-drift failure and
+every available LinkedIn realm returned `401` at current-account preflight.
+That remains negative evidence for the independently capture-required inbox
+contracts, not a demotion of the separately observed profile and Page reads.
+Reauthentication alone does not promote an inbox contract; a fresh low-stakes
+capture must also prove its current identity, mailbox, query, response
+projection, and completeness semantics.
+
+## Recapture inbox listing
+
+`messaging.list` is a capture-required reservation. Version 1.1.0 remains
+archived as historical evidence of the formerly observed bundle; version
+1.2.0 first demoted it, and version 1.7.0 preserves that unavailable contract
+history. The current bundle remains capture-required and cannot execute. The
+intended folder input still reserves:
+
+- `focused` for the main inbox;
+- `other` for the additional inbox;
+- `requests` for pending message requests;
+- `archive`;
+- `spam`;
+- `all` for conversations in the returned inbox page.
+
+The prior candidate projected bounded conversation identity, participants,
+latest-message preview, read metadata, and an opaque sync token. Those shapes
+are retained for comparison, not claimed as current. A new capture must prove
+folder classification, whether continuation is executable, when a page is
+complete, and the exclusion of presence, delivery acknowledgements,
+seen/read receipts, and notification-badge requests. An inbox preview must not
+be described as full conversation history.
+
+Inspect the reservations without executing them:
+
+```sh
+ghostget capabilities linkedin-web --json
+```
+
+Captured evidence identifies article, feed, mailbox-count, secondary-inbox,
+conversation-list, and message endpoint families. Every family remains
+capture-required until its current variables, bounded target-bound projection,
+completeness, and incidental effects are proved. Reading a conversation must
+use only a reviewed message query and must not mark it read.
+
+## Profile activity posts
+
+`feeds.read@3` is an observed R1 read for one page of a member's
+`/in/{vanity}/recent-activity/all/` posts. It does not require official OAuth
+`posts.read` or `w_member_social`. Use a path-backed Chrome profile or a
+cookie-source overlay that is already signed into LinkedIn. The operation
+always uses contained headed Chrome; a standalone exported-cookie HTTP client
+is not a fallback.
+
+Pass `feed=profile-activity` plus one `profile_url` or `vanity`. The URL may
+be the public profile or the recent-activity path. An opaque `cursor` from the
+previous page continues the same vanity. `limit` is 1–100 and defaults to 20.
+`feed=home` stays reserved and refuses before the browser starts.
+
+The page binds the signed-in viewer to the auth subject, then observes exactly
+one live `voyagerFeedDashProfileUpdates.<32-hex>` query and one target profile
+URN. Zero or several hashes fail closed. Each item projects the activity URN,
+canonical feed URL, author vanity or URN when present, full commentary text,
+created or relative time when present, reaction/comment/repost counts when
+LinkedIn supplies them, media presence, and original-versus-reshare kind.
+Missing counts stay `null`; the runtime never invents zero. A next cursor is
+returned only when paging includes a strictly advancing `rel=next` link, or
+when `paging.total` is a positive count still above `start + count`. LinkedIn's
+current profile-activity page sends `{count, start, total: 0}` with no next
+link; that page is complete and does not invent an offset from a full page.
+When LinkedIn omits paging, `complete` stays false and `nextCursor` is `null`.
+Contradictory paging or a provider page larger than `limit` fails closed.
+
+```sh
+printf '%s' '{"feed":"profile-activity","profile_url":"https://www.linkedin.com/in/j-hawkins/","limit":20}' \
+  | ghostget invoke linkedin-web feeds.read --input - --auth linkedin-main --json
+printf '%s' '{"feed":"profile-activity","vanity":"varunr96","cursor":"<opaque>","limit":20}' \
+  | ghostget invoke linkedin-web feeds.read --input - --auth linkedin-main --json
+```
+
+Do not treat this page as a complete profile history, a home feed, or
+permission to like, comment, or message.
+
+## Content search
+
+`feed=search` on the same `feeds.read@3` operation is an observed R1 read for
+one page of LinkedIn's content-search results. Pass `query` (1–200 characters;
+required for this variant) instead of `profile_url`/`vanity`, which are
+rejected. `limit` is 1–25 and defaults to 10. The opaque `cursor` binds the
+exact query and the number of results already emitted; a cursor minted for one
+query is refused on another.
+
+The contained browser navigates the exact
+`/search/results/content/?keywords=<query>` URL and projects the rendered
+`Feed post` result cards: activity URN, canonical `/feed/update/` permalink,
+author vanity, display name, headline, expandable text, relative time, and
+reaction/comment counts when shown. Pulse-article cards and other non-activity
+result types are excluded, not projected. Pagination uses the page's own
+load-more surface in bounded advances — the runtime never replays an
+undocumented search API. Results dedupe by activity URN, a card with no
+activity permalink fails closed, and the page's own `nextPageRequest` flag
+plus fresh-card growth decide whether a next cursor is issued. LinkedIn may
+serve the session a compact results variant with no embedded pager; that page
+honestly completes with its rendered set and no cursor.
+
+```sh
+printf '%s' '{"feed":"search","query":"release engineering notes","limit":10}' \
+  | ghostget invoke linkedin-web feeds.read --input - --auth linkedin-main --json
+printf '%s' '{"feed":"search","query":"release engineering notes","cursor":"<opaque>","limit":10}' \
+  | ghostget invoke linkedin-web feeds.read --input - --auth linkedin-main --json
+```
+
+Search output is a bounded relevance page, not a complete index of LinkedIn,
+and grants no permission to react, comment, or message.
+
+## Profiles, organization Pages, and connections
+
+`profiles.read@1` is an observed R1 read for one exact signed-in self profile
+URL. It binds the current member to the requested public slug and projects the
+exact follower count. When `include_connections` is true, it also reads the
+exact private My Network connection total in the same ordered browser
+transport. `organizations.read@1` is an observed R1 read for one exact company
+Page URL. It binds the requested company record and its matching following
+state before projecting the exact follower count. Viewing a Page does not
+confer Page-actor authority.
+
+For a path-backed auth realm, GhostGet starts a task-private contained clone and
+uses the browser path before any standalone cookie preflight. One code-owned
+evaluation derives the reviewed CSRF header from the unique `JSESSIONID` and
+performs exact `GET /voyager/api/me`. After binding that response to the auth
+subject and requested self slug, it reads the exact profile response and, when
+requested, the private connections response in order. The organization branch
+instead reads only the exact requested Page after the same member binding.
+Every response is bounded, same-origin, exact-route, status- and media-type
+checked before projection. Login, checkpoint, redirect, network, cookie,
+identity, target, or response drift fails closed. GhostGet does not click or
+inspect LinkedIn DOM, expose a caller-selected selector or script, follow a
+redirect, or retry after an arbitrary browser failure. It closes the contained
+browser and verifies cleanup after success or failure.
+
+Live evidence on August 23, 2026 showed that LinkedIn returned deletion
+cookies for a valid `li_at` when the same Chrome session was replayed through a
+standalone client, even with Chrome's normal request headers. A cookie-only
+realm is therefore not the scheduled profile-stat transport. The path-backed
+browser branch preserves the browser/device context while still keeping the
+operation fixed and target-bound.
+
+## 1st-degree Contact info
+
+`contacts.read@1` is an observed R1 read for one exact 1st-degree connection
+profile URL. It binds the signed-in viewer, then requires a 1st-degree
+relationship on that vanity from the profile page. Current LinkedIn pages are
+SDUI/RSC and often omit classic `bpr-guid-*` Profile embeds. The binder
+therefore walks both those Voyager code payloads and `window.__como_rehydration__`.
+Current pages assign that global as either a JSON object (`= { … }`) or an RSC
+flight array (`= [ "1:I[…]\\n2:{…}" ]`). Some current arrays also carry a
+non-flight SDUI string slot (not `1:…` rows) that still contains
+`networkDistance` and `vieweeMemberUrn`. The binder accepts both assignment
+shapes, decodes flight rows that carry JSON objects, arrays, or JSON strings,
+feeds non-flight string slots through the same bootstrap decoder, and treats
+`memberDistance`, `networkDistance`, or `distance` of `DISTANCE_1`,
+`1`, or `"1"` as first-degree when that value is joined to the requested vanity
+or its profile URN (`entityUrn`, `objectUrn`, `profileUrn`, `vieweeMemberUrn`,
+or `vieweeProfileId` plus vanity). Current Como trees can nest around depth 60,
+so the walk keeps a node ceiling and a depth ceiling of 128 instead of aborting
+at depth 32. Distance may appear on PROFILE_VIEW breadcrumb or RSC string rows,
+including multi-escaped Como fragments such as `networkDistance\":1` beside a
+`vieweeMemberUrn` or member id that is not the same `fsd_profile` URN bound
+from `vieweeProfileId`. A unique first-degree distance on that viewee join is
+accepted. Incidental viewer or other `fsd_profile` URNs
+in the same breadcrumb do not steal identity. Empty, missing, ambiguous, or
+contradictory distances stay fail-closed.
+
+When the same page already embeds Contact-info fields, including a labeled
+Email row, the operation projects those fields and does not issue a second
+fetch. Long SDUI strings used as field labels are skipped instead of aborting
+the profile-stage walk. Otherwise it first inspects the page's exact
+Contact-info NavigateToScreen action. A reviewed action still admits only
+the ProfileContactDetailsOverlay URL (`sduiid` equal to that overlay
+`screenId`). Adapter 1.36.3 then clicks the unique accessible name
+`Contact info` on the already-loaded 1st-degree profile and projects Email
+from that modal DOM, including when that control's `href` matches
+`/overlay/contact-info/` and contained Chrome follows that reviewed vanity
+overlay pathname after click. When the NavigateToScreen extract is
+`absent`, the same click still uses that reviewed overlay `sduiid` plus a
+headed clientArguments payload from the bound vanity, optional
+givenName/familyName parsed from profile HTML when unique,
+`isVanityNameResolved`, nested requestMetadata
+states/screenId/knownTemplates, and `isModal` true. Malformed or
+unsupported action fields stop the operation. Zero or two-plus matching
+controls, a path other than the bound profile or
+`/in/:publicIdentifier/overlay/contact-info/`, or a missing or ambiguous
+dialog, fail closed. The contained path does not mint a synthetic
+navigation POST or track headers, and it does not fetch that overlay href
+as a navigation GET. GraphQL `voyagerIdentityDashProfileContactInfo` and
+the vanity overlay RSC GET stay unused once that click is selected.
+ScreenId-only and `profileUrn`-bound
+`/flagship-web/rsc-action/actions/navigation` overlay GET URLs stay rejected
+because live dormant sessions return HTTP 500 `application/octet-stream`.
+Classic `/voyager/api/identity/profiles/{vanity}/profileContactInfo` now
+returns HTTP 410 and is rejected. The executable contract is the reviewed
+Contact info click and modal snapshot, or the page-embedded fields. It
+accepts no caller-selected RSC body, selector, or script. This contact
+read does not message, connect, or InMail.
+
+The projection returns `email` when LinkedIn shows it, plus any of the vanity
+profile link, connected-since date, phone numbers, websites, and birthday.
+Completeness is `complete` when at least one of those optional fields is
+present and `partial` when the payload bound but LinkedIn omitted every
+optional field.
+
+A 2026-09-08 signed-in capture of a 1st-degree profile showed the Contact info
+control on the intro card and a modal with the vanity link, Email, and
+Connected since. The same capture had Como rehydration with numeric
+`networkDistance: 1`, a `ProfileContactDetailsOverlay` screen, and no
+`bpr-guid-*` Profile records. Voyager `profileContactInfo`, `networkinfo`, and
+`profileView` returned 410. That drift is why the binder and fetch path
+changed.
+
+A 2026-09-09 signed-in capture of the same 1st-degree path still omitted
+`bpr-guid-*` and `voyagerIdentityDashProfileContactInfo` query IDs. Como
+rehydration had moved from an object assignment to an RSC flight array, so
+object-only parsing treated the page as missing bootstrap. The live flight
+string still carried vanity-joined `networkDistance: 1` next to
+`vieweeMemberUrn` / PROFILE_VIEW breadcrumbs. Adapter 1.23.0 accepts that
+array form and still uses `queryName` when the page embeds no decorated
+queryId.
+
+A 2026-09-10 signed-in capture of another 1st-degree profile still bound
+`profiles.read` and still omitted classic `entityUrn` / `objectUrn` /
+`profileUrn` keys on vanity records. Those records carried `vanityName`,
+`vieweeProfileId`, and `isSelfView` instead, and the live Como tree reached
+about depth 59 with far fewer than the node ceiling. The depth-32 abort treated
+that page as contract-drift. After a deeper walk, identity still failed because
+the binder required a classic URN on the vanity record and required
+`networkDistance` on a decoded object. Adapter 1.24.0 joins `vieweeProfileId`
+plus vanity and reads breadcrumb or RSC string-row distance.
+
+A 2026-09-11 signed-in capture of another 1st-degree profile still bound
+`profiles.read` and still reached a unique `vieweeProfileId` profile URN after
+the 1.24.0 walk. `contacts.read` then failed closed because relationship
+distance sat on a PROFILE_VIEW breadcrumb next to `vieweeMemberUrn` / member
+ids, not on a vanity or `fsd_profile` record the binder treated as the same
+target. Adapter 1.25.0 joins that unique viewee distance, including when the
+breadcrumb also carries an incidental viewer URN, and still fails closed for
+self, non-first-degree, and contradictory distances.
+
+A later 2026-09-11 signed-in capture of another 1st-degree profile still bound
+`profiles.read` and still joined `vieweeProfileId` identity after the 1.25.0
+walk. `contacts.read` then failed closed because PROFILE_VIEW breadcrumbs kept
+`networkDistance` and `vieweeMemberUrn` in multi-escaped Como string rows
+(`networkDistance\":1`), so the walk produced no distance records for the
+viewee join. Adapter 1.26.0 peels those JSON string escapes and reads the
+escaped key/value form. Self, non-first-degree, and contradictory distances
+still fail closed.
+
+A later 2026-09-11 signed-in capture of another 1st-degree profile still bound
+`profiles.read` and still joined `vieweeProfileId` identity after the 1.26.0
+walk. `contacts.read` then failed closed because distance lived in Como
+rehydration array slot `[6]`, a ~25KB SDUI string with `networkDistance` and
+`vieweeMemberUrn`. That slot was not an RSC flight, so
+`decodeComoRehydrationValue` discarded it (`[]`) before the 1.26.0 peel.
+`decodeStringBootstrap` already recovered the distance record from the same
+string. Adapter 1.27.0 feeds non-flight Como string slots through that
+decoder and still routes true RSC flights through `decodeRscFlightRecords`.
+Self, non-first-degree, and contradictory distances still fail closed.
+
+A later signed-in capture of a known 1st-degree profile still bound
+identity, profile HTML, and distance, but Contact-info GraphQL returned
+HTTP 403 `text/html` and the page still omitted
+`voyagerIdentityDashProfileContactInfo.<32hex>`. The signed-in UI opens
+Contact info through `ProfileContactDetailsOverlay`, not GraphQL.
+Adapter 1.28.0 GETs that overlay with the bound `profileUrn` when queryId
+is absent or after that reviewed GraphQL rejection, and projects Email
+from the RSC or SDUI overlay payload. ScreenId-only overlay URLs stay
+rejected. Self, non-first-degree, and contradictory distances still fail
+closed.
+
+A later signed-in capture of the same 1st-degree path still bound
+identity and distance, but the 1.28.0 navigation GET returned HTTP 500
+`application/octet-stream` for screenId-only, `profileUrn`-bound, and
+html variants. `/in/:publicIdentifier/overlay/contact-info/` returned
+HTML 200 for the signed-in Contact-info modal. Long SDUI strings in
+profile HTML also aborted the best-effort embedded walk at profile
+stage and misreported as relationship-binding contract-drift. Adapter
+1.29.0 skips non-bounded field labels during that walk and GETs the
+exact vanity overlay path with RSC headers instead of the 500
+navigation route. GraphQL Contact-info remains a 403 `text/html` path
+when a unique queryId is present. Self, non-first-degree, and
+contradictory distances still fail closed.
+
+A later 2026-09-11 smoke of the same 1st-degree path after adapter 1.29.0
+still bound identity and distance, and the vanity overlay GET returned
+HTML 200. That body was the signed-in profile HTML shell (~500KB+): no
+projectable Email, no mailto, and no Contact-info JSON or RSC flight.
+GraphQL Contact-info stayed HTTP 403 `text/html` with `queryId=null`.
+The live Contact-info Email still appears only after the headed UI opens
+the modal. Dormant contained Chrome stays GET-only and cannot mint that
+client-filled payload. Adapter 1.30.0 treats an HTML-200 shell as
+omitted Contact-info fields after 1st-degree binding, still projects
+overlay HTML that carries Como Email, a unique mailto, or an RSC/SDUI
+flight, and keeps `/flagship-web/rsc-action/actions/navigation` overlay
+GETs rejected.
+
+A later headed signed-in capture of the same 1st-degree Contact-info
+click showed Email in the modal. The first network response that
+contained the Email label was POST
+`/flagship-web/rsc-action/actions/navigation?screenId=com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay&sduiid=com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay`
+with `Accept: */*`, `Content-Type: application/json`, no RSC or Next
+router headers, and JSON body keys `clientArguments` and `isModal`. The
+response was HTTP 200 `application/octet-stream` RSC flight. Headed
+capture bound `sduiid` to that same overlay `screenId` constant. Dormant
+profile HTML NavigateToScreen for Contact info carries `pageKey`
+`profile_view_base_contact_details` and `requestedArguments.payload`
+(`vanityName`, `givenName`, `familyName`, `isVanityNameResolved`) but
+omits `sduiid`. Adapter 1.31.0 POSTs the exact allowlisted URL after
+1st-degree bind, peels reviewed payload keys, and copies `$type` /
+`requestedStateKeys` / `requestMetadata` only when those reviewed fields
+are already on the action. It does not invent a stolen `sduiid`, `$type`,
+or `requestMetadata`. A different `sduiid` fails closed. GraphQL
+Contact-info stays a 403 `text/html` fallback. Navigation overlay GETs
+stay rejected. The vanity overlay GET remains HTML-shell honesty when
+the profile page omits that NavigateToScreen action. Soft-labels stay.
+Keep cookies, `li_at`, CSRF, `JSESSIONID`, live emails, and raw HARs out
+of Git.
+
+A later signed-in smoke after adapter 1.31.0 still bound 1st-degree
+distance and selected the navigation POST family, but live
+NavigateToScreen `requestedArguments` keeps `requestMetadata` a sibling
+of `payload` and uses `$type` values `proto.sdui.actions.requests.RequestedArguments`
+and `proto.sdui.common.RequestMetadata`. Treating `requestMetadata` as an
+unreviewed extra key, or rejecting `proto.sdui.*` in favor of
+`com.linkedin.*` only, aborted before POST. A payload-only body then
+returned HTTP 500. Adapter 1.32.0 copies that reviewed sibling shape,
+lifts headed nested `payload.requestMetadata` to the sibling placement
+when the two agree, and admits `proto.sdui.*` types only on this overlay
+POST body. Extra keys and unrelated proto prefixes still fail closed.
+
+A later signed-in smoke after adapter 1.32.0 peeled that sibling
+`proto.sdui` shape as `kind=action`, then the POST still returned HTTP
+500 `text/html`. The body sent empty sibling `RequestMetadata{$type}`
+only. Headed 200 Email capture `POST-navigation-body-shape-20260912.md`
+nests `requestMetadata` under `payload` with `$type`, `states: []`,
+overlay `screenId`, and `knownTemplates: []`, and keeps
+`clientArguments.$type` plus `requestedStateKeys: []`. Adapter 1.33.0
+emits that exact headed shape, including when dormant HTML omits
+metadata, copies reviewed string lists when the page already has them,
+and does not invent opaque state objects. Contained Chrome already
+sends `Accept: */*`, `Content-Type: application/json`, and session
+`csrf-token`; it does not mint `X-Li-*` track values. The query string
+stays `sduiid=` matching overlay `screenId`. If a later 500 persists
+after this exact body, the remaining gap is headed-only non-empty
+`states` / `knownTemplates`, not sibling placement.
+
+A later signed-in smoke after adapter 1.33.0 kept that exact headed
+body and still returned HTTP 500 `text/html` from contained Chrome.
+The POST ran from the signed-in origin fetch context, not the loaded
+profile document, so it omitted page-instance headers the SPA sets.
+Adapter 1.34.0 opens the exact reviewed profile URL, copies a unique
+`d_flagship3_profile*` `x-li-page-instance` from observed same-origin
+rsc-action or voyager requests or that document, and forwards optional
+`x-li-track` (`mpName` `web` or `voyager-web`),
+`x-li-application-version`, `x-li-application-instance`,
+`x-li-anchor-page-key`, and `x-li-rsc-stream=true` only when the same
+observation already has those values.
+
+A later signed-in smoke after adapter 1.34.0 kept that exact headed
+body and forwarded page-instance, track (`mpName=web`), application
+version/instance, anchor page key, and `rscStream=true`, then still
+returned HTTP 500 `text/html`. The same contained-browser
+`/flagship-web/rsc-action/` observations on the bound profile already
+carried `x-li-page-instance-tracking-id`, `x-li-pageforestid`,
+`x-li-traceparent`, and `x-li-tracestate`; 1.34.0 left those names off.
+Adapter 1.35.0 copies those original strings from the same selected
+rsc-action observation under a reviewed allowlist, copies
+`x-li-layout-tree` only when that observation has it, and does not mint
+any of those values when they are absent. Missing or malformed observed
+values fail closed before POST. Live query key stays `sduiid=` (headed
+200 Email POST and public SDUI `server-request` / `pagination` routes);
+`sduid=` notes are transcription typos. Missing or ambiguous
+page-instance fails closed before POST. Headed successful body
+Content-Length was 400; compact emit at 398 stays.
+
+A later signed-in headed proof on 2026-09-12 opened tessbloch, clicked
+Contact info, and showed Email in the modal DOM. The same contained
+synthetic navigation POST still returned HTTP 500 `text/html` after the
+exact headed body and the full observed X-Li set. Adapter 1.36.0 kept
+the page-instance bind, then clicked only the unique reviewed Contact
+info control and projected that modal. Operator smoke the same day
+found that unique control and fail-closed before click because its
+href matched `/overlay/contact-info/`. The raw eval error was exactly
+`Contact-info control targeted the vanity overlay GET`. Adapter 1.36.1
+clicks that unique control even when the href is the vanity overlay
+GET. Operator smoke after that click fail-closed because contained
+Chrome left `/in/tessbloch/` for
+`/in/tessbloch/overlay/contact-info/`. Adapter 1.36.2 treats that
+reviewed vanity overlay pathname as still bound after click, then
+snapshots the unique dialog. Operator smoke after that bind was green
+for Email on tessbloch when the extract was `absent` and the operator
+clicked with the reviewed overlay `sduiid` plus headed clientArguments.
+Official `contacts.read` still used GraphQL or the vanity overlay GET
+on that absent extract. Adapter 1.36.3 uses the same click and modal
+snapshot when extract is `absent`. Authwall and any other path still
+fail closed. It does not mint a navigation POST or track headers.
+Cloud has no signed-in LinkedIn session; do not treat this landing as
+live green.
+
+```sh
+printf '%s' '{"profile_url":"https://www.linkedin.com/in/tessbloch/"}' \
+  | ghostget invoke linkedin-web contacts.read --input - --auth linkedin-dormant-20260911 --json
+```
+
+Self profiles fail closed with guidance to use `profiles.read`. Second-degree,
+third-degree, and out-of-network profiles fail closed because LinkedIn hid
+Contact info from that viewer. The operation never invents a hidden email.
+
+```sh
+printf '%s' '{"profile_url":"https://www.linkedin.com/in/example/"}' \
+  | ghostget invoke linkedin-web contacts.read --input - --auth linkedin-main --json
+```
+
+`relationships.recommendations.read` and `relationships.connect` remain
+`capture-required`. The former reserves one bounded R1 page from the `all`
+recommended-connections surface. The latter reserves one R3 invitation to an
+exact profile URN, with an optional note of at most 300 characters and a
+24-hour local-at-most-once window. Neither performs a request before a managed
+HAR proves its exact request, viewer scope, target, response, paging,
+completeness, and duplicate-state behavior.
+
+Do not treat `organizations.read` as organization-actor authority. A future
+Page-authored post or comment must separately bind the current member, selected
+organization actor, administered-role entitlement, request actor, and returned
+actor. `comments.create` targets an exact post URN; LinkedIn does not have a
+separate ghostget operation for “commenting on a profile” or “commenting on a
+Page.” A member- or organization-authored post remains the comment target.
+
+## Native Article draft saving
+
+`articles.draft.save` is an observed R2 operation for one private native
+LinkedIn Article draft. Its input uses the canonical provider-neutral
+`ArticleDraftDocument` described in [native article drafts](article-drafts.md),
+with an optional exact existing `draft_id`. The current contract accepts
+paragraph, `heading1`, `heading2`, and `blockquote` blocks, native HTTPS link ranges, and
+one separate plan-bound JPEG, PNG, or WebP cover on create, or preserves the
+independently read existing banner on an exact replacement when `cover_image`
+is omitted, plus 1–20 ordered inline images up to 5 MiB each. Every inline image requires descriptive alt text and
+may have a caption. The cover is outer input rendered only in the banner slot;
+it is never a document body block. Styles, list items, proprietary embeds,
+HTML, Markdown, and editor payloads are rejected. The caller owns editorial
+translation, image placement, captions, and alt text.
+
+For a reviewed source-post quotation, author native blockquotes followed by
+an attributed HTTPS link. Omit source-post chrome, metrics, and card screenshots
+by default.
+
+On August 18, 2026, an authorized private draft create and editor reload
+independently returned the same text block as provider type `QUOTE`; this
+reviewed shape is the evidence for `blockquote` write and readback support.
+
+Create first binds a private title shell and its exact current-author
+unpublished readback, registers, transfers, binds, and verifies the cover,
+then registers and transfers each inline image before saving and reading back
+the complete document. Replacement reads the exact private draft, performs
+the same distinct cover and inline-image steps, then performs one conservative
+title/document replacement. Neither schedule contains a publication or
+feed-share request.
+
+The contained browser is an authenticated transport, not a browser-operation
+fallback. Chrome supplies the bound device session, cookies, user agent, and
+TLS context; code-owned evaluation sends only the fixed current-member,
+create, distinct cover/inline image registrations, signed byte transfers,
+exact editor-page readback, cover-autosave, title-autosave, and
+content-autosave requests.
+The headed window may be visible during the save. Cleanup is tracked as part
+of the durable operation and an unverified close preserves private artifacts
+for explicit recovery instead of silently deleting evidence.
+
+Authorized August 15–16, 2026 captures proved the current first-party Article
+route family, exact create and partial-update bodies, the returned Rest.li
+draft identity, normalized current-member-to-Article-author binding, private
+`DRAFT` lifecycle, null publication/share fields, exact title/content/link
+projection, and persistence after reopening. The August 16 live recapture also
+proved that exact draft reads now come from one bounded hidden JSON payload in
+the authenticated editor HTML response rather than the retired Rest.li finder.
+The August 16 inline-image capture additionally proved bounded still-image
+registration, a signed transfer returning `201`, stable asset-URN projection,
+ordered image blocks, required accessibility text, optional captions,
+provider-restored CDN sources, and persistence after reopening. The editor
+proceeded directly from transfer to Article autosave and made no processing
+status poll, so GhostGet follows that exact sequence and gates success on the
+later private Article response and independent readback.
+
+An August 18 recapture after registration drift proved the current
+`PUBLISHING_INLINE_IMAGE` response uses LinkedIn's bounded single-upload
+variant. GhostGet accepts that exact known-field family and the prior vector
+variant, but still rejects multipart mechanisms, unknown response fields,
+unreviewed headers, and upload targets outside the fixed LinkedIn origin and
+path. File selection in the editor's preview dialog was not upload completion:
+the reviewed flow selected the staged image, advanced the dialog once, waited
+for the signed transfer, and only then observed the Article autosave.
+
+An August 19 capture proved that the Article banner is not a body image. The
+editor registers it with `PUBLISHING_COVER_IMAGE`, transfers the bytes once,
+and autosaves the returned asset through
+`coverMediaV2Union.coverImage` with the exact reviewed CoverImage type and an
+empty caption. Independent editor-response readback exposes matching legacy
+and V2 cover projections bound to the same stable asset URN. The current draft
+contract therefore requires one outer `cover_image` on create and plans a
+supplied replacement cover as `articles.cover` before body images. When an
+exact replacement omits it, GhostGet preserves and verifies the current banner
+asset without registering or transferring another cover. In either case, the
+banner stays out of the document and `inline_images`.
+
+An August 19 recovery exercise also proved why this distinction matters: a
+cover dispatch can become indeterminate after LinkedIn has retained the banner
+but before GhostGet verifies that dispatch. Never retry that cover upload. After
+separate inspection establishes that an exact replacement draft already has
+the intended banner, a new confirmed replacement may omit `cover_image` and
+preserve that independently read asset while repairing only its body. That is
+a distinct intent, not reconciliation or retry of the uncertain upload.
+
+The active image contract has no automated reconciliation path because an
+uncertain upload may have created a provider asset absent from the confirmed
+input. Preserve partial or indeterminate runs and do not retry or repeat
+uploads. Exact read-only replacement reconciliation remains only for
+already-durable historical text-only contract evidence.
+
+The presence of a LinkedIn editor or saved UI state alone is not a contract.
+Do not type into the editor as a runtime fallback. `articles.publish` remains a
+separate capture-required R3 operation with its own publication evidence.
+
+## Resolve current LinkedIn material
+
+Derive the `csrf-token` header from exactly one bounded `JSESSIONID` cookie. Strip only the reviewed wrapper quotes and require the expected `ajax:` token form. Never log or return the cookie or derived token.
+
+Resolve a registered query such as `voyagerFeedDashMainFeed` or `messengerMessages` from bounded current candidates by exact operation prefix. Require exactly one `<prefix>.<32-hex>` match. Zero matches mean drift; several matches mean ambiguity. Both fail before the API request.
+
+Keep query IDs, CSRF material, cookies, variables, feature sets, and private identifiers out of manifests and receipts.
+
+## Preserve capture-required operations
+
+The current registry keeps these unavailable until their exact first-party exchanges are captured and reviewed:
+
+- `feeds.read` `feed=home`, `relationships.recommendations.read`, `messaging.list`, `messaging.read`, `posts.read`, and `articles.read` (`R1`);
+- `messaging.send` (`R3`);
+- `posts.repost` and `posts.quote` (`R3`);
+- `relationships.connect` (`R3`);
+- `reactions.set` (`R2`);
+- `articles.publish` (`R3`);
+
+Do not guess a Voyager/GraphQL mutation from a bundle, replay a captured payload, or use the composer as a fallback. To graduate one operation:
+
+1. capture one exact low-stakes fixture;
+2. bind the current member/organization actor;
+3. bind conversation/profile/organization/post/root/parent target IDs;
+4. bind returned message/comment/post/article identity and successful state;
+5. exclude unrelated background mutations;
+6. test revision drift, account mismatch, response drift, and uncertainty;
+7. bump the contract and adapter versions.
+
+For `messaging.send`, use an already-read, user-approved, low-stakes conversation. Keep recruiting and employment threads out of fixtures. A successful pressure test requires the internal `createMessage` response contract and an independent R1 read of the exact returned message; a visibly cleared textbox is irrelevant. Text-only and each attachment family are separate fixtures: the current manifest accepts one reviewed image, GIF, MP4 video, PDF, presentation, or word-processing document, but that input schema remains inert until upload initialization, byte transfer, asset ownership, message association, and independent readback are all captured and response-bound.
+
+`posts.publish@3` is the separate observed R3 post contract. It accepts exact
+text and at most one plan-bound PNG with descriptive alt text, admits the
+image transfer and post create once, stages the PNG as at most 569 ordered
+48-KiB base64 chunks in batches of at most 32 commands, clears that page state
+before transfer, durably retains the response-bound share URN, and verifies it
+through an independent current-member readback. It does not authorize an
+Article publication, repost, quote, comment, message, or additional media.
+
+For `relationships.connect`, use a user-approved profile that is not already
+connected or invitation-pending. Prove the preflight relationship state, exact
+target profile URN, optional note, returned invitation identity/state, and
+independent relationship readback. A disabled Connect button is not evidence.
+
+## Risk and confirmation
+
+R1 reads run only after they graduate and pass account binding.
+`reactions.set` is R2 only as an exact desired-state create/delete pair. A
+private `articles.draft.save` is R2 because its exact autosave and unpublished
+readback contract has graduated. Messages, comments, replies, posts, reposts,
+quotes, connection requests, and article publication are R3; only the exact
+observed `posts.publish@3` post shape is executable among those R3 families.
+
+Every R2/R3 operation must preview the exact account realm, actor, target, text/media hashes, side effect, contract hash, and dispatch schedule. Confirm once. Require local duplicate refusal. Treat an uncertain response after request start as `indeterminate`; never retry by clicking LinkedIn or by changing message whitespace.
+
+## Recapture on drift
+
+Fail before the semantic request when the registered query, path, allowed query fields, Rest.li shape, feature contract, CSRF source, response status/content type, projection, or target/account binding changes. Restore the affected operation to `capture-required`, record a new managed HAR, update owned code, and rerun deterministic plus authorized live tests. Never update the client directly from arbitrary live traffic.
