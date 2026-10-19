@@ -176,7 +176,7 @@ function sourceCiFixture(attempt = 1, prNumber = 50) {
   responses[`${prefix}/git/commits/${input.source}`].parents = [{ sha: parent }];
   const ciNames = ["static", "package", "test 1/8", "test 2/8", "test 3/8", "test 4/8", "test 5/8", "test 6/8", "test 7/8", "test 8/8", "test-omni", "standalone", "macOS", "verification", "quint 1/4", "quint 2/4", "quint 3/4", "quint 4/4", "Required"];
   for (const [workflowId, path, event, runId, names] of [
-    [323493607, ".github/workflows/ci.yml", "push", 100, ciNames],
+    [389265578, ".github/workflows/ci.yml", "push", 100, ciNames],
     [351099999, "dynamic/github-code-scanning/codeql", "dynamic", 200, ["Analyze (javascript-typescript)", "Analyze (actions)", "Analyze (python)", "Analyze (rust)"]],
   ] as const) {
     responses[`${prefix}/actions/workflows/${workflowId}`] = { id: workflowId, path, state: "active" };
@@ -548,8 +548,8 @@ describe("exact source CI admission", () => {
     const mutations: ((fixture: Fixture) => void)[] = [
       f => { f.responses[`${f.prefix}/git/ref/heads/main`].object.sha = f.head; },
       f => { f.responses[`${f.prefix}/git/commits/${f.input.source}`].tree.sha = f.head; },
-      f => { f.responses[`${f.prefix}/actions/workflows/323493607`].state = "disabled_manually"; },
-      f => { f.responses[`${f.prefix}/actions/workflows/323493607`].path = ".github/workflows/other.yml"; },
+      f => { f.responses[`${f.prefix}/actions/workflows/389265578`].state = "disabled_manually"; },
+      f => { f.responses[`${f.prefix}/actions/workflows/389265578`].path = ".github/workflows/other.yml"; },
       f => { f.responses[`${f.prefix}/actions/runs/100`].workflow_id = 1; },
       f => { f.responses[`${f.prefix}/actions/runs/100`].head_sha = f.head; },
       f => { f.responses[`${f.prefix}/actions/runs/100`].event = "pull_request"; },
@@ -585,8 +585,8 @@ describe("exact source CI admission", () => {
       f => { f.analyses[0]!.ref = "refs/heads/other"; },
       f => { f.analyses[0]!.analysis_key = "other:analyze"; },
       f => { f.analyses.push({ ...f.analyses[0]!, id: 810 }); },
-      f => { const key = Object.keys(f.responses).find(path => path.includes("/323493607/runs?"))!; f.responses[key].workflow_runs = []; },
-      f => { const key = Object.keys(f.responses).find(path => path.includes("/323493607/runs?"))!;
+      f => { const key = Object.keys(f.responses).find(path => path.includes("/389265578/runs?"))!; f.responses[key].workflow_runs = []; },
+      f => { const key = Object.keys(f.responses).find(path => path.includes("/389265578/runs?"))!;
         f.responses[key].workflow_runs.push({ ...f.responses[key].workflow_runs[0], id: 101 }); f.responses[key].total_count = 2; },
     ];
     for (const mutate of mutations) { const fixture = sourceCiFixture(); mutate(fixture); expect(() => admitSourceCi(fixture.input, fixture.read, fixture.clock)).toThrow(); }

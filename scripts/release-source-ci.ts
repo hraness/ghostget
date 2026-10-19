@@ -5,14 +5,13 @@ import { isDeepStrictEqual } from "node:util";
 
 // No package imports: both entry points run before the frozen dependency install.
 const REPOSITORY = "hraness/ghostget";
-// GitHub renamed the repository from wrench to ghostget while retaining the
-// same immutable repository identity. Source admission binds the current name
-// together with that exact numeric identity.
+// The clean public source split has a fresh immutable repository identity.
+// Source admission binds the final name and that exact numeric identity.
 const REPOSITORY_NAMES = new Set([REPOSITORY]);
 const REPOSITORY_ID = 1425391521;
 const PREFIX = `repos/${REPOSITORY}`;
 const MAIN_REF = "refs/heads/main";
-const CI_WORKFLOW = 323493607;
+const CI_WORKFLOW = 389265578;
 const CI_PATH = ".github/workflows/ci.yml";
 const CODEQL_WORKFLOW = 351099999;
 const CODEQL_PATH = "dynamic/github-code-scanning/codeql";
