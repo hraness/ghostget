@@ -13,7 +13,7 @@ const PREFIX = `repos/${REPOSITORY}`;
 const MAIN_REF = "refs/heads/main";
 const CI_WORKFLOW = 389265578;
 const CI_PATH = ".github/workflows/ci.yml";
-const CODEQL_WORKFLOW = 351099999;
+const CODEQL_WORKFLOW = 389334774;
 const CODEQL_PATH = "dynamic/github-code-scanning/codeql";
 const MARKER = "WRENCH_SOURCE_CI_IDENTITY=";
 const SHA = /^[a-f0-9]{40}$/u;

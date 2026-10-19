@@ -177,7 +177,7 @@ function sourceCiFixture(attempt = 1, prNumber = 50) {
   const ciNames = ["static", "package", "test 1/8", "test 2/8", "test 3/8", "test 4/8", "test 5/8", "test 6/8", "test 7/8", "test 8/8", "test-omni", "standalone", "macOS", "verification", "quint 1/4", "quint 2/4", "quint 3/4", "quint 4/4", "Required"];
   for (const [workflowId, path, event, runId, names] of [
     [389265578, ".github/workflows/ci.yml", "push", 100, ciNames],
-    [351099999, "dynamic/github-code-scanning/codeql", "dynamic", 200, ["Analyze (javascript-typescript)", "Analyze (actions)", "Analyze (python)", "Analyze (rust)"]],
+    [389334774, "dynamic/github-code-scanning/codeql", "dynamic", 200, ["Analyze (javascript-typescript)", "Analyze (actions)", "Analyze (python)", "Analyze (rust)"]],
   ] as const) {
     responses[`${prefix}/actions/workflows/${workflowId}`] = { id: workflowId, path, state: "active" };
     const run = { id: runId, workflow_id: workflowId, path, event, head_sha: input.source, head_branch: "main", run_attempt: attempt,
@@ -389,7 +389,7 @@ describe("exact source CI admission", () => {
   });
   test("refuses two exact-source CodeQL runs even when the later run has both source languages", () => {
     const fixture = sourceCiFixture();
-    const path = `${fixture.prefix}/actions/workflows/351099999/runs?head_sha=${fixture.input.source}&branch=main&event=dynamic&per_page=100`;
+    const path = `${fixture.prefix}/actions/workflows/389334774/runs?head_sha=${fixture.input.source}&branch=main&event=dynamic&per_page=100`;
     const inventory = fixture.responses[path];
     const earlier = { ...inventory.workflow_runs[0], id: 199 };
     inventory.workflow_runs.push(earlier); inventory.total_count = 2;
