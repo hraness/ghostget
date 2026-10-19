@@ -40,7 +40,6 @@ function contract(
 
 describe("authenticated web-session contract identity", () => {
   test("binds executable implementation sources as reviewed hash fixtures", () => {
-    const xLike = contract({ site: "x", action: "likes.set", contractVersion: 2 });
     const linkedinFeed = contract({ site: "linkedin", action: "feeds.read", contractVersion: 1 });
     const facebookFeed = contract({ site: "facebook", action: "feeds.read", contractVersion: 2 });
     const facebookGroupFeed = contract({
@@ -61,11 +60,6 @@ describe("authenticated web-session contract identity", () => {
 
     // Writers use reviewed durable distribution identities. Runtime source
     // closure is verified independently.
-    expect(webSessionContractHash(xLike)).toBe(
-      "b24acec9f9ee391745bcc008efe94f221b866f98162a5cb66523cbe78bfdec73",
-    );
-    expect(isCompatibleWebSessionContractHash(xLike,
-      "c3000958b2d3e11c990c7fc06f701c723bd1d2a98714bf4ffca34a16dd1b63c6")).toBeTrue();
     expect(webSessionContractHash(linkedinFeed)).toBe(
       "58e0f01fdb4dc6345bbdbf9586f5d61db457c8b0825dbbee0c8eb699f6c87f1f",
     );
@@ -83,7 +77,6 @@ describe("authenticated web-session contract identity", () => {
     );
 
     for (const value of [
-      xLike,
       linkedinFeed,
       facebookFeed,
       facebookGroupFeed,
@@ -95,7 +88,6 @@ describe("authenticated web-session contract identity", () => {
   });
 
   test("accepts exact bounded predecessor hashes only as read aliases", () => {
-    const xLike = contract({ site: "x", action: "likes.set", contractVersion: 2 });
     const linkedinFeed = contract({ site: "linkedin", action: "feeds.read", contractVersion: 1 });
     const facebookFeed = contract({ site: "facebook", action: "feeds.read", contractVersion: 2 });
     const facebookGroupFeed = contract({
@@ -118,30 +110,6 @@ describe("authenticated web-session contract identity", () => {
       action: "feeds.read",
       contractVersion: 1,
     });
-    expect(isCompatibleWebSessionContractHash(
-      xLike,
-      "c8599c08c177ee3576d2e0d2e105c095f73d75541fc6673ff7b1abcd4075f9bf",
-    )).toBeTrue();
-    expect(isCompatibleWebSessionContractHash(
-      xLike,
-      "49dabf253b5a3c19b59a623645e541a859874e643a94a082096ec3b82d88394e",
-    )).toBeTrue();
-    expect(isCompatibleWebSessionContractHash(
-      xLike,
-      "4a74bc82a3c2e6631d6a62ae4568feb0feda5a08fc1db984ce715d906da0a8cd",
-    )).toBeTrue();
-    expect(isCompatibleWebSessionContractHash(
-      xLike,
-      "f0c3c5cfba7f66fa145511b85ae903f6c747cffc06953ad66cc016b345c90db9",
-    )).toBeTrue();
-    expect(isCompatibleWebSessionContractHash(
-      xLike,
-      "4aa23fd3b4d686053414317565323aa02378350fd2a394db8a32d603db95cc80",
-    )).toBeTrue();
-    expect(isCompatibleWebSessionContractHash(
-      xLike,
-      "18ad1c307b5aeb1caaa6e057048ba53e0bf7dfca8f35dd7ee9613942c3d23afa",
-    )).toBeTrue();
     expect(isCompatibleWebSessionContractHash(
       linkedinFeed,
       "ac7a2f9e6c50b84cf51152b57d7d277b80c1a8fb2a87cd74ac5c4742098ea13c",
@@ -171,20 +139,28 @@ describe("authenticated web-session contract identity", () => {
       "2200d78efc2489cf7d00105e91f05691aaa75528d3f2ff49607b905eaf32df65",
     )).toBeTrue();
     expect(isCompatibleWebSessionContractHash(
-      xLike,
+      linkedinFeed,
       "f".repeat(64),
     )).toBeFalse();
   });
 
   test("keeps distinct contracts distinct even when they share one implementation bundle", () => {
-    const xLike = contract({ site: "x", action: "likes.set", contractVersion: 2 });
-    const xBookmark = contract({ site: "x", action: "content.save", contractVersion: 1 });
-    expect(webSessionContractHash(xLike)).not.toBe(webSessionContractHash(xBookmark));
+    const feed = contract({ site: "linkedin", action: "feeds.read", contractVersion: 1 });
+    const profile = contract({ site: "linkedin", action: "profiles.read", contractVersion: 1 });
+    expect(webSessionContractHash(feed)).not.toBe(webSessionContractHash(profile));
   });
 
   test("preserves the exact durable identity of installed historical routes", () => {
-    const historical = contract({ site: "x", action: "likes.set", contractVersion: 1 });
-    const active = contract({ site: "x", action: "likes.set", contractVersion: 2 });
+    const historical = contract({
+      site: "facebook-marketplace",
+      action: "feeds.read",
+      contractVersion: 1,
+    });
+    const active = contract({
+      site: "facebook-marketplace",
+      action: "feeds.read",
+      contractVersion: 2,
+    });
     expect(historical.contractVersion).toBe(1);
     expect(active.contractVersion).toBe(2);
     expect(webSessionContractHash(historical)).not.toBe(webSessionContractHash(active));
@@ -202,36 +178,6 @@ describe("authenticated web-session contract identity", () => {
       action: "feeds.read",
       contractVersion: 3,
     })).toThrow("is not installed");
-
-    expect(contract({
-      site: "x",
-      action: "articles.publish",
-      contractVersion: 4,
-    })).toMatchObject({ contractVersion: 4, state: "capture-required" });
-    for (const contractVersion of [1, 2, 3, 5]) {
-      expect(() => contract({
-        site: "x",
-        action: "articles.publish",
-        contractVersion,
-      })).toThrow("is not installed");
-    }
-
-    const historicalXArticleDraft = contract({
-      site: "x",
-      action: "articles.draft.save",
-      contractVersion: 1,
-    });
-    const activeXArticleDraft = contract({
-      site: "x",
-      action: "articles.draft.save",
-      contractVersion: 2,
-    });
-    expect(historicalXArticleDraft.input.required).toEqual(["title", "document"]);
-    expect(historicalXArticleDraft.input.properties.inline_images).toBeUndefined();
-    expect(activeXArticleDraft.input.required).toEqual(["title", "document", "inline_images"]);
-    expect(webSessionContractHash(historicalXArticleDraft)).not.toBe(
-      webSessionContractHash(activeXArticleDraft),
-    );
 
     const historicalLinkedInArticleDraft = contract({
       site: "linkedin",
@@ -264,24 +210,24 @@ describe("authenticated web-session contract identity", () => {
     })).toThrow("is not installed");
   });
 
-  test("keeps retired X Article manifests diagnostic-only instead of projecting v4 semantics", () => {
-    for (const adapterVersion of ["1.1.0", "1.2.0", "1.3.0"]) {
-      const archived = JSON.parse(readFileSync(join(
-        import.meta.dir,
-        "assets",
-        "adapters",
-        "x",
-        `wrench-web-adapter.v${adapterVersion}.json`,
-      ), "utf8")) as unknown;
-      expect(parseDiagnosticManifest(archived, providerPluginRegistry).ok).toBeTrue();
-      const runtime = parseRuntimeManifest(archived, providerPluginRegistry);
-      expect(runtime.ok).toBeFalse();
-      if (runtime.ok) continue;
-      expect(runtime.issues.some((issue) => issue.includes("posts.publish@1")))
-        .toBeTrue();
-      expect(runtime.issues.some((issue) => issue.includes("articles.publish")))
-        .toBeTrue();
-    }
+  test("keeps uninstalled contracts diagnostic-only instead of projecting current semantics", () => {
+    const archived = JSON.parse(readFileSync(join(
+      import.meta.dir,
+      "assets",
+      "adapters",
+      "linkedin",
+      "wrench-web-adapter.json",
+    ), "utf8")) as {
+      version: string;
+      operations: Record<string, { webSession: { contractVersion: number } }>;
+    };
+    archived.version = "0.9.0";
+    archived.operations["feeds.read"]!.webSession.contractVersion = 999;
+    expect(parseDiagnosticManifest(archived, providerPluginRegistry).ok).toBeTrue();
+    expect(parseRuntimeManifest(archived, providerPluginRegistry)).toEqual({
+      ok: false,
+      issues: ["authenticated web contract linkedin/feeds.read@999 is not installed"],
+    });
   });
 
   test("observes bounded LinkedIn profile reads while keeping unrelated discovery inert", () => {

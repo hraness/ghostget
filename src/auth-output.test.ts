@@ -31,17 +31,17 @@ function capture() {
 
 describe("auth output copy", () => {
   test("names the browser and profile, never the locator kind or a path", () => {
-    expect(describeAuthSource({ kind: "cookie-source", id: "x-main", source: "chrome", profile: "Profile 1" })).toBe("Chrome · Profile 1");
-    expect(describeAuthSource({ kind: "cookie-source", id: "x-main", source: "edge" })).toBe("Microsoft Edge");
+    expect(describeAuthSource({ kind: "cookie-source", id: "main-1", source: "chrome", profile: "Profile 1" })).toBe("Chrome · Profile 1");
+    expect(describeAuthSource({ kind: "cookie-source", id: "main-1", source: "edge" })).toBe("Microsoft Edge");
     expect(describeAuthSource({ kind: "cookies-file", id: "file" })).toBe("Cookies file");
     expect(describeAuthSource({ kind: "browser-profile", id: "li", cookieSource: "arc" })).toBe("Dedicated browser profile · Arc cookies");
     expect(describeAuthSource({ kind: "oauth-token-file", id: "g", provider: "google" })).toBe("google (OAuth token)");
   });
 
   test("auth add for a Chromium browser warns about the keychain prompt", () => {
-    expect(authSavedLines({ kind: "cookie-source", id: "x-main", source: "chrome", profile: "Profile 1" }, plain, undefined, "darwin")).toEqual({
-      result: "✓ Saved x-main (Chrome · Profile 1).",
-      next: "ghostget auth bind x-main --site <site>",
+    expect(authSavedLines({ kind: "cookie-source", id: "main-1", source: "chrome", profile: "Profile 1" }, plain, undefined, "darwin")).toEqual({
+      result: "✓ Saved main-1 (Chrome · Profile 1).",
+      next: "ghostget auth bind main-1 --site <site>",
       note: "macOS will ask to let security use \"Chrome Safe Storage\" from your keychain.",
     });
     expect(authSavedLines({ kind: "cookie-source", id: "s", source: "safari" }, ascii, undefined, "darwin")).toEqual({
@@ -50,9 +50,9 @@ describe("auth output copy", () => {
       note: "Safari cookies need Full Disk Access for this terminal app.",
     });
     expect(authSavedLines({ kind: "cookie-source", id: "ff", source: "firefox" }, plain, undefined, "darwin").note).toBeNull();
-    expect(authSavedLines({ kind: "cookie-source", id: "x-main", source: "chrome" }, plain, undefined, "linux")).toEqual({
-      result: "✓ Saved x-main (Chrome).",
-      next: "ghostget auth bind x-main --site <site>",
+    expect(authSavedLines({ kind: "cookie-source", id: "main-1", source: "chrome" }, plain, undefined, "linux")).toEqual({
+      result: "✓ Saved main-1 (Chrome).",
+      next: "ghostget auth bind main-1 --site <site>",
       note: null,
     });
   });
@@ -66,8 +66,8 @@ describe("auth output copy", () => {
   });
 
   test("auth bind says which account it found", () => {
-    expect(authBoundLines({ id: "x-main", site: "x", subject: "2244994945" }, plain)).toEqual({
-      result: "✓ x-main is signed in to x as 2244994945.",
+    expect(authBoundLines({ id: "main-1", site: "linkedin", subject: "urn:li:fsd_profile:7001" }, plain)).toEqual({
+      result: "✓ main-1 is signed in to linkedin as urn:li:fsd_profile:7001.",
       next: "ghostget capabilities",
       note: null,
     });
@@ -75,12 +75,12 @@ describe("auth output copy", () => {
 
   test("auth list is aligned rows and a count", () => {
     const auths: AuthSummary[] = [
-      { kind: "cookie-source", id: "x-main", source: "chrome", profile: "Profile 1", subject: "2244994945" },
+      { kind: "cookie-source", id: "main-1", source: "chrome", profile: "Profile 1", subject: "urn:li:fsd_profile:7001" },
       { kind: "cookie-source", id: "bsky", source: "arc" },
     ];
     expect(authListText(auths, plain)).toEqual({
       result: [
-        "x-main  Chrome · Profile 1  as 2244994945",
+        "main-1  Chrome · Profile 1  as urn:li:fsd_profile:7001",
         "bsky    Arc                 ○ no account yet",
         "",
         "2 saved sign-ins, 1 with no account yet.",
@@ -94,21 +94,21 @@ describe("auth output copy", () => {
       note: null,
     });
     expect(authListText([], ascii).result).toBe("No saved sign-ins.\n-> ghostget auth add <id> --cookie-source chrome");
-    expect(authListText([auths[0]!], ascii).result).toBe("x-main  Chrome · Profile 1  as 2244994945\n\n1 saved sign-in.");
+    expect(authListText([auths[0]!], ascii).result).toBe("main-1  Chrome · Profile 1  as urn:li:fsd_profile:7001\n\n1 saved sign-in.");
   });
 
   test("auth list calls out OAuth tokens that can't be used", () => {
     const auths: AuthSummary[] = [
       { kind: "oauth-token-file", id: "gmail", provider: "google", subject: "me@example.com", token: "expired", managed: true },
-      { kind: "oauth-token-file", id: "x-api", provider: "x", token: "unreadable" },
-      { kind: "oauth-token-file", id: "x-ok", provider: "x", subject: "42", token: "ok" },
+      { kind: "oauth-token-file", id: "api-1", provider: "google", token: "unreadable" },
+      { kind: "oauth-token-file", id: "api2", provider: "google", subject: "42", token: "ok" },
       { kind: "cookie-source", id: "bsky", source: "arc" },
     ];
     expect(authListText(auths, plain)).toEqual({
       result: [
         "gmail  google (OAuth token)  ✗ token expired",
-        "x-api  x (OAuth token)       ✗ token missing or unreadable",
-        "x-ok   x (OAuth token)       as 42",
+        "api-1  google (OAuth token)  ✗ token missing or unreadable",
+        "api2   google (OAuth token)  as 42",
         "bsky   Arc                   ○ no account yet",
         "",
         "4 saved sign-ins, 2 with a token to replace, 1 with no account yet.",
@@ -117,8 +117,8 @@ describe("auth output copy", () => {
       note: null,
     });
     expect(authListText([auths[1]!], ascii)).toEqual({
-      result: "x-api  x (OAuth token)  FAIL token missing or unreadable\n\n1 saved sign-in, 1 with a token to replace.",
-      next: "ghostget auth add x-api --oauth-provider x --token-file <path> --scopes <list> --force",
+      result: "api-1  google (OAuth token)  FAIL token missing or unreadable\n\n1 saved sign-in, 1 with a token to replace.",
+      next: "ghostget auth add api-1 --oauth-provider google --token-file <path> --scopes <list> --force",
       note: null,
     });
   });
@@ -128,15 +128,15 @@ describe("auth output copy", () => {
   });
 
   test("hints go to stderr for people only", () => {
-    const lines = authSavedLines({ kind: "cookie-source", id: "x-main", source: "chrome" }, plain, undefined, "darwin");
+    const lines = authSavedLines({ kind: "cookie-source", id: "main-1", source: "chrome" }, plain, undefined, "darwin");
     const human = capture();
     writeAuthLines(lines, "human", human.output);
-    expect(human.stdout()).toBe("✓ Saved x-main (Chrome).\n");
-    expect(human.stderr()).toBe("macOS will ask to let security use \"Chrome Safe Storage\" from your keychain.\nNext: ghostget auth bind x-main --site <site>\n");
+    expect(human.stdout()).toBe("✓ Saved main-1 (Chrome).\n");
+    expect(human.stderr()).toBe("macOS will ask to let security use \"Chrome Safe Storage\" from your keychain.\nNext: ghostget auth bind main-1 --site <site>\n");
     for (const audience of ["quiet", "agent"] as const) {
       const other = capture();
       writeAuthLines(lines, audience, other.output);
-      expect(other.stdout()).toBe("✓ Saved x-main (Chrome).\n");
+      expect(other.stdout()).toBe("✓ Saved main-1 (Chrome).\n");
       expect(other.stderr()).toBe("");
     }
   });
@@ -152,8 +152,8 @@ describe("auth commands through main", () => {
   test("auth add prints the saved line without the state path", async () => {
     await withState(async (environment) => {
       const result = capture();
-      expect(await main(["auth", "add", "x-main", "--cookie-source", "chrome", "--cookie-profile", "Profile 1"], environment, result.output)).toBe(0);
-      expect(result.stdout()).toBe("✓ Saved x-main (Chrome · Profile 1).\n");
+      expect(await main(["auth", "add", "main-1", "--cookie-source", "chrome", "--cookie-profile", "Profile 1"], environment, result.output)).toBe(0);
+      expect(result.stdout()).toBe("✓ Saved main-1 (Chrome · Profile 1).\n");
       expect(result.stdout()).not.toContain(environment.HOME);
       expect(result.stderr()).toBe("");
       const human = capture();
@@ -164,16 +164,16 @@ describe("auth commands through main", () => {
 
   test("auth list is text by default, JSON for --json or an agent", async () => {
     await withState(async (environment) => {
-      saveAuth(createAuth("x-main", { source: "chrome", profile: "Profile 1" }), environment);
+      saveAuth(createAuth("main-1", { source: "chrome", profile: "Profile 1" }), environment);
       const text = capture();
       expect(await main(["auth", "list"], environment, text.output)).toBe(0);
-      expect(text.stdout()).toBe("x-main  Chrome · Profile 1  ○ no account yet\n\n1 saved sign-in, 1 with no account yet.\n");
+      expect(text.stdout()).toBe("main-1  Chrome · Profile 1  ○ no account yet\n\n1 saved sign-in, 1 with no account yet.\n");
       const json = capture();
       expect(await main(["auth", "list", "--json"], environment, json.output)).toBe(0);
-      expect(JSON.parse(json.stdout())).toMatchObject({ ok: true, auth: [{ id: "x-main", kind: "cookie-source" }] });
+      expect(JSON.parse(json.stdout())).toMatchObject({ ok: true, auth: [{ id: "main-1", kind: "cookie-source" }] });
       const agent = capture();
       expect(await main(["auth", "list"], { ...environment, CLAUDECODE: "1" }, agent.output)).toBe(0);
-      expect(JSON.parse(agent.stdout())).toMatchObject([{ id: "x-main" }]);
+      expect(JSON.parse(agent.stdout())).toMatchObject([{ id: "main-1" }]);
     });
   });
 
@@ -181,15 +181,15 @@ describe("auth commands through main", () => {
     await withState(async (environment) => {
       saveAuth(createAuth("arc-main", { source: "arc" }), environment);
       const text = capture();
-      expect(await main(["auth", "bind", "arc-main", "--site", "x"], environment, text.output, {
-        probePluginSubject: () => Promise.resolve("2244994945"),
+      expect(await main(["auth", "bind", "arc-main", "--site", "linkedin"], environment, text.output, {
+        probePluginSubject: () => Promise.resolve("urn:li:fsd_profile:7001"),
       })).toBe(0);
-      expect(text.stdout()).toBe("✓ arc-main is signed in to x as 2244994945.\n");
+      expect(text.stdout()).toBe("✓ arc-main is signed in to linkedin as urn:li:fsd_profile:7001.\n");
       const agent = capture();
-      expect(await main(["auth", "bind", "arc-main", "--site", "x"], { ...environment, AI_AGENT: "1" }, agent.output, {
-        probePluginSubject: () => Promise.resolve("2244994945"),
+      expect(await main(["auth", "bind", "arc-main", "--site", "linkedin"], { ...environment, AI_AGENT: "1" }, agent.output, {
+        probePluginSubject: () => Promise.resolve("urn:li:fsd_profile:7001"),
       })).toBe(0);
-      expect(JSON.parse(agent.stdout())).toMatchObject({ ok: true, id: "arc-main", site: "x", subject: "2244994945" });
+      expect(JSON.parse(agent.stdout())).toMatchObject({ ok: true, id: "arc-main", site: "linkedin", subject: "urn:li:fsd_profile:7001" });
     });
   });
 });

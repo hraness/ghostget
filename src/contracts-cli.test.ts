@@ -107,9 +107,6 @@ describe("ghostget contracts catalog", () => {
         "clasificados-web/listings.search",
         "github-web/organizations.read",
         "github-web/profiles.read",
-        "webmcp/sites.get",
-        "webmcp/sites.search",
-        "webmcp/tools.call",
       ]);
       for (const adapter of catalog.adapters) {
         if ("invalid" in adapter) throw new Error(`bundled adapter ${adapter.id} is invalid`);
@@ -210,12 +207,12 @@ describe("ghostget contracts check", () => {
       const check = parseContractCheck(JSON.parse(result.stdout));
       expect(schemaViolations(contractSchema("check"), JSON.parse(result.stdout))).toEqual([]);
       expect(check.ok).toBeTrue();
-      expect(check.plan).toEqual({ collectionKey: "hraness-social-profile-statistics", reads: 15 });
-      expect(check.reads.map((read) => read.verdict)).toEqual(Array.from({ length: 15 }, () => "ok"));
+      expect(check.plan).toEqual({ collectionKey: "hraness-social-profile-statistics", reads: 13 });
+      expect(check.reads.map((read) => read.verdict)).toEqual(Array.from({ length: 13 }, () => "ok"));
       expect(check.reads.map((read) => read.verdict === "ok" ? read.binding.authority : "gap")).toEqual([
-        "auth", "auth", "auth", "auth", "auth", "auth", "public", "auth", "auth", "auth", "auth", "public", "public", "auth", "auth",
+        "auth", "auth", "auth", "auth", "public", "auth", "auth", "auth", "auth", "public", "public", "auth", "auth",
       ]);
-      expect(result.stdout).not.toContain("x-chrome");
+      expect(result.stdout).not.toContain("linkedin-chrome");
       const pure = checkCollectionPlan(
         parseCollectionPlan(JSON.parse(readFileSync(hranessPlanPath, "utf8"))),
         parseContractCatalog(JSON.parse(state.catalog().stdout)),
@@ -243,14 +240,14 @@ describe("ghostget contracts check", () => {
       expect(authState.exitCode).toBe(4);
       const missingAuth = parseContractCheck(JSON.parse(authState.stdout));
       expect(missingAuth.reads.map((read) => read.verdict === "gap" ? read.gap.reason : "ok")).toEqual([
-        "auth-missing", "auth-missing", "auth-missing", "auth-missing", "auth-missing", "auth-missing", "ok",
+        "auth-missing", "auth-missing", "auth-missing", "auth-missing", "ok",
         "auth-missing", "auth-missing", "auth-missing", "auth-missing", "ok", "ok", "auth-missing", "auth-missing",
       ]);
-      expect(authState.stdout).not.toContain("x-chrome");
+      expect(authState.stdout).not.toContain("linkedin-chrome");
 
       saveAuth({
         schemaVersion: 1,
-        id: "x-chrome",
+        id: "linkedin-chrome",
         kind: "cookie-source",
         source: "chrome",
       }, state.environment);
@@ -260,8 +257,8 @@ describe("ghostget contracts check", () => {
 
       const text = await state.check({ json: false });
       expect(text.exitCode).toBe(0);
-      expect(text.stdout).toContain("Plan hraness-social-profile-statistics: 15 of 15 reads bind to installed contracts");
-      expect(text.stdout).toContain("[6] bluesky-hraness bluesky-web profiles.read: ok (web-session-api; public; contract v2)");
+      expect(text.stdout).toContain("Plan hraness-social-profile-statistics: 13 of 13 reads bind to installed contracts");
+      expect(text.stdout).toContain("[4] bluesky-hraness bluesky-web profiles.read: ok (web-session-api; public; contract v2)");
     } finally {
       state.dispose();
     }

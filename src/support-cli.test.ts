@@ -34,7 +34,7 @@ function isolatedEnvironment(root: string): Record<string, string> {
 }
 
 const cli = [process.execPath, "--no-env-file", "--no-install", join(import.meta.dir, "cli.ts")];
-const usefulArguments = ["thread", "split", "x", "--text", "Synthetic support fixture", "--json"];
+const usefulArguments = ["thread", "split", "bluesky", "--text", "Synthetic support fixture", "--json"];
 
 async function runIsolatedCli(root: string, args: readonly string[], extraEnv: Record<string, string> = {}) {
   const env = { ...isolatedEnvironment(root), ...extraEnv };

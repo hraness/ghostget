@@ -51,7 +51,7 @@ class FakeMonotonicClock implements OperationDeadlineClock {
 }
 
 const recipe = {
-  site: "x",
+  site: "linkedin",
   action: "posts.read",
   contractVersion: 1,
   timeoutMs: 1_000,

@@ -1047,9 +1047,9 @@ describe("ghostget CLI grammar", () => {
       ok: true,
       value: { command: "auth-remove", id: "linkedin", yes: true },
     });
-    expect(parseGhostgetArguments(["auth", "bind", "arc-main", "--site", "x", "--json"])).toEqual({
+    expect(parseGhostgetArguments(["auth", "bind", "arc-main", "--site", "linkedin", "--json"])).toEqual({
       ok: true,
-      value: { command: "auth-bind", id: "arc-main", site: "x", force: false, json: true },
+      value: { command: "auth-bind", id: "arc-main", site: "linkedin", force: false, json: true },
     });
     expect(parseGhostgetArguments(["auth", "bind", "arc-main", "--site", "linkedin", "--force"])).toEqual({
       ok: true,

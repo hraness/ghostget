@@ -78,7 +78,7 @@ function fixture(): {
   };
 }
 
-function currentManifest(surface: "linkedin" | "x"): GhostgetManifest {
+function currentManifest(surface: "linkedin" | "gmail"): GhostgetManifest {
   const parsed = parseRuntimeManifest(
     JSON.parse(
       readFileSync(
@@ -112,10 +112,10 @@ describe("content-addressed adapter generations", () => {
   test("publishes a complete generation and retains the flat layout as a mirror", () => {
     const state = fixture();
     const linkedin = currentManifest("linkedin");
-    const x = currentManifest("x");
+    const gmail = currentManifest("gmail");
 
     const result = installBundledAdapterGeneration(
-      [selection(linkedin), selection(x)],
+      [selection(gmail), selection(linkedin)],
       state.environment,
     );
 
@@ -126,18 +126,18 @@ describe("content-addressed adapter generations", () => {
       providerPluginRegistry,
     )).toEqual({ ok: true, value: linkedin });
     expect(loadInstalledManifest(
-      "x",
+      "gmail",
       state.environment,
       providerPluginRegistry,
-    )).toEqual({ ok: true, value: x });
+    )).toEqual({ ok: true, value: gmail });
     expect(listInstalledManifests(
       state.environment,
       providerPluginRegistry,
-    ).map((entry) => entry.id)).toEqual(["linkedin", "x"]);
+    ).map((entry) => entry.id)).toEqual(["gmail", "linkedin"]);
     expect(readFileSync(
-      adapterManifestPath("x", state.environment),
+      adapterManifestPath("gmail", state.environment),
       "utf8",
-    )).toBe(`${canonicalJson(x)}\n`);
+    )).toBe(`${canonicalJson(gmail)}\n`);
 
     const index = JSON.parse(readFileSync(
       join(state.environment.GHOSTGET_STATE_HOME!, "adapter-generations", "current.json"),
@@ -165,7 +165,7 @@ describe("content-addressed adapter generations", () => {
 
   test("an interruption before the pointer keeps the old generation visible", () => {
     const state = fixture();
-    const original = versioned(currentManifest("x"), "7.0.0");
+    const original = versioned(currentManifest("gmail"), "7.0.0");
     const successor = versioned(original, "7.1.0");
     installBundledAdapterGeneration([selection(original)], state.environment);
 
@@ -180,7 +180,7 @@ describe("content-addressed adapter generations", () => {
     )).toThrow("synthetic pre-commit interruption");
 
     const loaded = loadInstalledManifest(
-      "x",
+      "gmail",
       state.environment,
       providerPluginRegistry,
     );
@@ -189,17 +189,17 @@ describe("content-addressed adapter generations", () => {
 
   test("an interruption after the pointer exposes the complete new generation", () => {
     const state = fixture();
-    const originalX = versioned(currentManifest("x"), "8.0.0");
+    const originalGmail = versioned(currentManifest("gmail"), "8.0.0");
     const originalLinkedIn = versioned(currentManifest("linkedin"), "8.0.0");
     installBundledAdapterGeneration(
-      [selection(originalLinkedIn), selection(originalX)],
+      [selection(originalGmail), selection(originalLinkedIn)],
       state.environment,
     );
-    const successorX = versioned(originalX, "8.1.0");
+    const successorGmail = versioned(originalGmail, "8.1.0");
     const successorLinkedIn = versioned(originalLinkedIn, "8.1.0");
 
     expect(() => installBundledAdapterGeneration(
-      [selection(successorLinkedIn), selection(successorX)],
+      [selection(successorGmail), selection(successorLinkedIn)],
       state.environment,
       {
         afterCommitForTest: () => {
@@ -208,7 +208,7 @@ describe("content-addressed adapter generations", () => {
       },
     )).toThrow("synthetic post-commit interruption");
 
-    for (const id of ["linkedin", "x"] as const) {
+    for (const id of ["linkedin", "gmail"] as const) {
       const loaded = loadInstalledManifest(
         id,
         state.environment,
@@ -220,7 +220,7 @@ describe("content-addressed adapter generations", () => {
 
   test("recovers a dead post-commit writer without rolling back its pointer", async () => {
     const state = fixture();
-    const original = versioned(currentManifest("x"), "9.0.0");
+    const original = versioned(currentManifest("gmail"), "9.0.0");
     installBundledAdapterGeneration([selection(original)], state.environment);
     const storageUrl = pathToFileURL(join(import.meta.dir, "storage.ts")).href;
     const modelUrl = pathToFileURL(join(import.meta.dir, "model.ts")).href;
@@ -265,7 +265,7 @@ describe("content-addressed adapter generations", () => {
     expect(status).toBe(91);
     expect(stderr).toBe("");
     const committed = loadInstalledManifest(
-      "x",
+      "gmail",
       state.environment,
       providerPluginRegistry,
     );
@@ -274,7 +274,7 @@ describe("content-addressed adapter generations", () => {
     const final = versioned(successor, "9.2.0");
     installBundledAdapterGeneration([selection(final)], state.environment);
     const loaded = loadInstalledManifest(
-      "x",
+      "gmail",
       state.environment,
       providerPluginRegistry,
     );
@@ -283,7 +283,7 @@ describe("content-addressed adapter generations", () => {
 
   test("indexed lifecycle updates and tombstones switch one atomic pointer", () => {
     const state = fixture();
-    const original = versioned(currentManifest("x"), "10.0.0");
+    const original = versioned(currentManifest("gmail"), "10.0.0");
     installBundledAdapterGeneration([selection(original)], state.environment);
     const replacement = versioned(original, "10.1.0");
 
@@ -293,15 +293,15 @@ describe("content-addressed adapter generations", () => {
       registry: providerPluginRegistry,
     });
     let loaded = loadInstalledManifest(
-      "x",
+      "gmail",
       state.environment,
       providerPluginRegistry,
     );
     expect(loaded.ok && loaded.value.version).toBe("10.1.0");
 
-    expect(removeInstalledManifest("x", state.environment)).toBeTrue();
+    expect(removeInstalledManifest("gmail", state.environment)).toBeTrue();
     loaded = loadInstalledManifest(
-      "x",
+      "gmail",
       state.environment,
       providerPluginRegistry,
     );
@@ -314,7 +314,7 @@ describe("content-addressed adapter generations", () => {
 
   test("preserves a nested edit that races an indexed replacement", () => {
     const state = fixture();
-    const original = versioned(currentManifest("x"), "11.0.0");
+    const original = versioned(currentManifest("gmail"), "11.0.0");
     const concurrentEdit = versioned(original, "11.1.0");
     const attemptedReplacement = versioned(original, "12.0.0");
     installBundledAdapterGeneration([selection(original)], state.environment);
@@ -331,7 +331,7 @@ describe("content-addressed adapter generations", () => {
     })).toThrow("adapter generation changed before manifest replacement");
 
     const loaded = loadInstalledManifest(
-      "x",
+      "gmail",
       state.environment,
       providerPluginRegistry,
     );
@@ -340,7 +340,7 @@ describe("content-addressed adapter generations", () => {
 
   test("fails closed when an immutable object no longer matches its address", () => {
     const state = fixture();
-    const manifest = currentManifest("x");
+    const manifest = currentManifest("gmail");
     installBundledAdapterGeneration([selection(manifest)], state.environment);
     const index = JSON.parse(readFileSync(
       join(state.environment.GHOSTGET_STATE_HOME!, "adapter-generations", "current.json"),
@@ -359,7 +359,7 @@ describe("content-addressed adapter generations", () => {
     writeFileSync(objectPath, '{"tampered":true}\n', { mode: 0o600 });
 
     const loaded = loadInstalledManifest(
-      "x",
+      "gmail",
       state.environment,
       providerPluginRegistry,
     );

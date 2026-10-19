@@ -25,7 +25,7 @@ function isolatedEnvironment(): NodeJS.ProcessEnv {
 }
 
 test("the executable keeps static help and version outside the updater", async () => {
-  for (const args of [[], ["help"], ["--help"], ["--version"], ["-V", "--json"], ["help", "update"], ["update", "--help"], ["control", "--help"], ["web", "--help"], ["url-metadata", "--help"], ["media", "--help"], ["vault"], ["web"], ["interface"], ["vault", "import-x", "help"], ["menubar", "status", "--help"], ["support", "protocol"], ["support", "protocol", "--json"]]) {
+  for (const args of [[], ["help"], ["--help"], ["--version"], ["-V", "--json"], ["help", "update"], ["update", "--help"], ["control", "--help"], ["web", "--help"], ["url-metadata", "--help"], ["media", "--help"], ["web"], ["interface"], ["menubar", "status", "--help"], ["support", "protocol"], ["support", "protocol", "--json"]]) {
     let ran = false;
     await runGhostgetExecutable(args, async () => { throw new Error("Static output must not load the updater"); }, async forwarded => {
       expect(forwarded).toEqual(args); ran = true;

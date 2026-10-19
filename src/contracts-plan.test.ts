@@ -44,8 +44,9 @@ describe("ghostget.collection-plan.v1", () => {
     const hraness = JSON.parse(readFileSync(hranessPlanPath, "utf8")) as unknown;
     const parsed = parseCollectionPlan(hraness);
     expect(parsed.collectionKey).toBe("hraness-social-profile-statistics");
-    expect(collectionPlanReads(parsed)).toHaveLength(15);
-    expect(collectionPlanReads(parsed).map((entry) => entry.index)).toEqual([...Array(15).keys()]);
+    expect(collectionPlanReads(parsed)).toHaveLength(13);
+    expect(collectionPlanReads(parsed).map((entry) => entry.index)).toEqual([...Array(13).keys()]);
+    expect(JSON.stringify(parsed)).not.toMatch(/https?:\/\/(?:www\.)?(?:x|twitter)\.com/i);
     expect(schemaViolations(schema, hraness)).toEqual([]);
   });
 

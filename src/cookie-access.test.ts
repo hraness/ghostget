@@ -316,7 +316,7 @@ describe("permission failures reach every caller", () => {
     })).toEqual({ category: "permission-denied", retryDisposition: "grant-permission" });
   });
 
-  const arguments_ = { command: "auth-bind", id: "work", site: "x", force: false, json: false } as const;
+  const arguments_ = { command: "auth-bind", id: "work", site: "linkedin", force: false, json: false } as const;
 
   function render(error: unknown, environment: Record<string, string> = {}, json = false) {
     let stdout = "";
@@ -334,7 +334,7 @@ describe("permission failures reach every caller", () => {
       stdout: "",
       stderr: "✗ Ghostget can't use \"Chrome Safe Storage\" from your keychain: the keychain request was denied.\n"
         + "  Run it again and choose Always Allow when macOS asks.\n"
-        + "→ ghostget auth bind work --site x\n",
+        + "→ ghostget auth bind work --site linkedin\n",
     });
   });
 
@@ -347,14 +347,14 @@ describe("permission failures reach every caller", () => {
   test("ASCII fallback on a dumb terminal", () => {
     const result = render(denied, { TERM: "dumb" });
     expect(result.stderr.startsWith("FAIL Ghostget can't")).toBeTrue();
-    expect(result.stderr).toContain("\n-> ghostget auth bind work --site x\n");
+    expect(result.stderr).toContain("\n-> ghostget auth bind work --site linkedin\n");
   });
 
   test("--json and agents get a typed error", () => {
     const fda = new CookieAccessError("FDA_DENIED", "Safari", "Terminal");
     for (const [result, next] of [
-      [render(fda, {}, true), "ghostget auth bind work --site x --json"],
-      [render(fda, { CLAUDECODE: "1" }), "ghostget auth bind work --site x"],
+      [render(fda, {}, true), "ghostget auth bind work --site linkedin --json"],
+      [render(fda, { CLAUDECODE: "1" }), "ghostget auth bind work --site linkedin"],
     ] as const) {
       expect(result.code).toBe(3);
       expect(result.stderr).toBe("");
@@ -374,7 +374,7 @@ describe("permission failures reach every caller", () => {
 
   test("a skipped notice is reported as skipped", () => {
     expect(render(new CookieAccessSkippedError("Arc")).stderr).toBe(
-      "✗ Stopped before reading your Arc sign-in. Nothing was read.\n→ ghostget auth bind work --site x\n",
+      "✗ Stopped before reading your Arc sign-in. Nothing was read.\n→ ghostget auth bind work --site linkedin\n",
     );
   });
 
@@ -497,9 +497,9 @@ describe("keychain notice follow-ups", () => {
   });
 
   test("retry hints keep --force and --json", () => {
-    const bind = { command: "auth-bind", id: "work", site: "x", force: false, json: false } as const;
-    expect(cookieAccessNext(bind as never)).toBe("ghostget auth bind work --site x");
-    expect(cookieAccessNext({ ...bind, force: true, json: true } as never)).toBe("ghostget auth bind work --site x --force --json");
+    const bind = { command: "auth-bind", id: "work", site: "linkedin", force: false, json: false } as const;
+    expect(cookieAccessNext(bind as never)).toBe("ghostget auth bind work --site linkedin");
+    expect(cookieAccessNext({ ...bind, force: true, json: true } as never)).toBe("ghostget auth bind work --site linkedin --force --json");
   });
 
   test("raw key input is read by its first character", () => {
