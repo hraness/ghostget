@@ -322,7 +322,7 @@ const plugin = candidate satisfies ProviderPluginDefinitionV1
 void plugin
 ```
 
-The package exposes nine public TypeScript entrypoints. Its root exposes
+The package exposes eleven public TypeScript entrypoints. Its root exposes
 programmatic plugin types and strict validators.
 `@hraness/ghostget/client` exposes persistent-read and strict live-invocation
 helpers, `@hraness/ghostget/beeper` exposes the body-free Beeper contact
@@ -330,7 +330,11 @@ interaction export, `@hraness/ghostget/apple-photos` exposes exact local Photos
 contact evidence, `@hraness/ghostget/whatsapp` exposes the private
 TextButler export, `@hraness/ghostget/omni` exposes normalized
 cross-provider reads, and `@hraness/ghostget/messaging` exposes agentic messaging
-route discovery and resolution, `@hraness/ghostget/messaging-automation` exposes the trusted owner messaging host, and `@hraness/ghostget/contracts` exposes the machine-checkable contract parsers and schemas. Importing any SDK entrypoint does not start the CLI.
+route discovery and resolution, `@hraness/ghostget/messaging-automation` exposes the trusted owner messaging host, and `@hraness/ghostget/contracts` exposes the machine-checkable contract parsers and schemas.
+`@hraness/ghostget/media-acquisition` provides temporary media acquisition and
+cleanup, and `@hraness/ghostget/pdf-acquisition` provides signed-in PDF capture
+with optional typed native process supervision. Both acquisition helpers require
+Bun. Importing any SDK entrypoint does not start the CLI.
 Importing the package root also does not inspect local state or load provider
 runtimes.
 
