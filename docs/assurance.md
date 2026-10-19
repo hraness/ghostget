@@ -8,13 +8,13 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 209 claims: 196 evidenced, 0 planned, and 13 not verified. It maps 87 guidelines from 5 guides; 64 list claims and 23 are exempt.
+The register holds 210 claims: 197 evidenced, 0 planned, and 13 not verified. It maps 87 guidelines from 5 guides; 64 list claims and 23 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
 | example test | 124 | 0 | 0 |
 | property test | 22 | 0 | 0 |
-| stateful model | 24 | 0 | 0 |
+| stateful model | 25 | 0 | 0 |
 | Quint model with production trace replay | 14 | 0 | 0 |
 | Lean proof with differential test | 8 | 0 | 0 |
 | differential oracle | 4 | 0 | 0 |
@@ -117,8 +117,8 @@ Each claim holds only while its listed assumptions hold.
 | `media-tools` | yt-dlp, ffmpeg, and whisper.cpp report metadata faithfully and honor the arguments they are given. | 11 |
 | `provider-behaviour` | Third-party providers behave as their observed contracts describe. | 31 |
 | `plugin-trusted` | Source plugins are trusted in-process code; portable execution contains ordinary failures, not hostile code. | 13 |
-| `github-api` | GitHub's REST, GraphQL, and Actions APIs report repository, run, and Release state truthfully. | 48 |
-| `github-enforcement` | GitHub enforces rulesets, environments, concurrency groups, immutable Releases, and token permissions as configured. | 42 |
+| `github-api` | GitHub's REST, GraphQL, and Actions APIs report repository, run, and Release state truthfully. | 49 |
+| `github-enforcement` | GitHub enforces rulesets, environments, concurrency groups, immutable Releases, and token permissions as configured. | 43 |
 | `sigstore` | Sigstore and `gh attestation verify` verify attestation bundles correctly. | 2 |
 | `npm-registry` | The npm registry enforces version immutability, trusted publishing, and provenance as documented. | 16 |
 | `vercel` | Vercel builds and serves deployments as its project settings and APIs report. | 7 |
@@ -1623,7 +1623,7 @@ No semantic provider operation or gateway call accepts caller-selected provider 
 - Assumptions: `provider-behaviour`
 - Not verified: No property test covers this law yet; only the enumerated example cases are checked.
 
-### `release` (32 claims)
+### `release` (33 claims)
 
 #### `release-trigger-exact-tag-push-only`
 
@@ -1917,7 +1917,7 @@ A completed Release is accepted only with its original signed identity and exact
 
 #### `release-latest-convergence-bounded`
 
-When creating a missing Release, the workflow pins one older immutable Latest predecessor; Latest may only remain that predecessor or advance to the exact target within at most twelve 5-second absolute slots in a 60-second monotonic deadline; any third identity, regression, drift, clock regression or exhaustion fails closed.
+When creating a missing Release with an existing published predecessor, the workflow pins one older immutable Latest predecessor; Latest may only remain that predecessor or advance to the exact target within at most twelve 5-second absolute slots in a 60-second monotonic deadline; any third identity, regression, drift, clock regression or exhaustion fails closed.
 
 - Evidenced by property test.
 - Source: `docs/publishing.md`: “GitHub's Latest projection may remain only that exact predecessor or advance to the exact created target while the workflow makes at most twelve observations at absolute five-second slots inside one 60-second monotonic deadline.”
@@ -1929,6 +1929,21 @@ When creating a missing Release, the workflow pins one older immutable Latest pr
   - The publisher model checks that a fresh publication reads Latest as the target after its terminal authority proof, and one example test in it drives a lagging Latest projection through the production wait on a fake clock; the stateful schedules themselves project Latest immediately.
   - The publisher model checks that no draft is created while Latest is a completed Release under a non-stable tag, which the completed-Release census skips; the other refusals of `exactLatestPredecessor` (a mutable, malformed, or not strictly older Latest) rest on its example tests in the same file.
   - How quickly GitHub's Latest projection converges is not verified; the window is a fail-closed ceiling.
+
+#### `release-first-publication-empty-history`
+
+The first stable Release requires an authenticated exact Latest 404 agreeing with a complete bounded inventory containing no published non-prerelease Release, repeats the absence census before publication, and requires the exact immutable target as Latest after publication. Malformed, denied, ambiguous, or contradictory prepublication Latest responses permit no mutation.
+
+- Evidenced by stateful model.
+- Source: `docs/publishing.md`: “For the first stable Release, an authenticated exact 404 for Latest must agree with a complete bounded inventory containing no published non-prerelease Release.”
+- Evidence: `scripts/github-release-publish-model.test.ts`, `scripts/release-provider-outcome.test.ts`
+- Property tests: `scripts/github-release-publish-model.test.ts`: “stateful model: every schedule of attempts, faults, and foreign releases keeps the publisher's write laws”
+- Assumptions: `github-api`, `github-enforcement`
+- Not verified:
+  - The publisher model drives production against an in-memory GitHub fake; actual provider response formats and immutability remain the github-api and github-enforcement assumptions.
+  - CI samples up to 1,000 schedules of at most 12 commands from both empty and predecessor-present initial histories; it does not enumerate every interleaving.
+  - First publication requires immediate exact Latest readback. A lagging or absent projection fails closed after immutable publication and must recover through the original attested attempt.
+  - GitHub has no conditional publish; terminal readback detects covered drift after publication but cannot undo an immutable Release.
 
 #### `release-never-delete-published`
 
@@ -1942,7 +1957,7 @@ A published immutable Release is never deleted or rewritten, even if terminal re
 - Not verified:
   - The publisher model drives the production `publishCanonicalRelease` and its bounded asset downloader against an in-memory fake of GitHub; that GitHub behaves like the fake (drafts invisible to the by-tag endpoint, one published Release per tag, `gh release upload` resolving a tag to its published Release or else the newest draft) is the `github-api` assumption.
   - CI samples up to 1,000 schedules of at most 12 commands; it does not enumerate every interleaving.
-  - The model's history is one assetless predecessor Release; larger histories and tag deletion outside the publisher are not modelled, and the tag rulesets that forbid tag deletion are `github-enforcement` configuration.
+  - The model starts with either empty release history or one assetless predecessor Release; larger histories and tag deletion outside the publisher are not modelled, and the tag rulesets that forbid tag deletion are `github-enforcement` configuration.
 
 #### `stable-release-concurrency-no-cancel-pending`
 

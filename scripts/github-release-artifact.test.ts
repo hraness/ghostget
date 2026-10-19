@@ -890,6 +890,9 @@ describe("canonical release publication and safe local input", () => {
           }
           if (args[1] !== "api") throw new Error(`Unexpected command ${args.join(" ")}`);
           if (args[2] === "--include") {
+            if (args[3] === "/repos/hraness/ghostget/releases/latest") {
+              return { status: 0, stdout: `HTTP/2 200\n\n${JSON.stringify(release?.draft === false ? release : predecessor)}` };
+            }
             const visible = release?.draft === false;
             return { status: visible ? 0 : 1,
               stdout: `HTTP/2 ${visible ? 200 : 404}\n\n${JSON.stringify(visible ? release : { message: "Not Found" })}` };

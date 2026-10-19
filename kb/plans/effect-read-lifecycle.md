@@ -75,8 +75,7 @@ PR179 advanced main to `154e33e` and changed GitHub cancellation handling.
 Independent review reproduced an undefined-cause edge in that change. The
 combined, still-unpublished 0.16.9 candidate fixes that edge and adds the
 independently reviewed LinkedIn company program. It retains upstream strict
-natural-exit browser cleanup, the X UserTweets descriptor refresh and both
-subsequent response-identity fixes.
+natural-exit browser cleanup.
 
 The combined source at `112b573` includes all three new production modules in
 the explicit package inventory. Two npm 11.19.0 packs after a normal Bun 1.3.14
@@ -110,8 +109,7 @@ derives both identities and preserves mutation sensitivity; no production
 identity constant changed. That stopped run is not a successful full gate.
 
 The aggregate on `291643a` passed its static, release-fixture and installed-
-package stages before being stopped to integrate the newer X changes. It is
-partial evidence, not a full pass. The joined payload receives fresh package
+package stages before it was stopped. It is partial evidence, not a full pass. The joined payload receives fresh package
 measurements and a complete repository gate; earlier limits are not carried
 forward as measurements of changed source.
 

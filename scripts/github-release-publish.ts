@@ -165,8 +165,14 @@ export async function publishCanonicalRelease(directory: string, manifest: Relea
     return;
   }
   await assertReleaseTagNewerThanPublished({ api, repository, verifiedTag: manifest.tag });
-  const predecessor = await get(`${prefix}/releases/latest`);
-  exactLatestPredecessor(predecessor, manifest.tag);
+  const latestLookup = run(["gh", "api", "--include", `${prefix}/releases/latest`]);
+  const latestResponse = parseOptionalIncludedGitHubResponse(latestLookup.stdout, "pre-publication Latest Release lookup");
+  if (latestLookup.status !== (latestResponse.found ? 0 : 1)) throw new Error("Latest Release lookup status is not exact");
+  const predecessor = latestResponse.found ? latestResponse.value : undefined;
+  if (latestResponse.found) exactLatestPredecessor(predecessor, manifest.tag);
+  else await assertReleaseTagNewerThanPublished({
+    api, repository, verifiedTag: manifest.tag, requireNoPublishedRelease: true,
+  });
   const mutate = (method: "POST" | "PATCH", path: string, value: unknown): Record<string, unknown> => object(JSON.parse(successful(run,
     ["gh", "api", "--method", method, path, "--input", "-"], JSON.stringify(value))));
   const validateDraft = (value: Record<string, unknown>): void => {
@@ -199,7 +205,9 @@ export async function publishCanonicalRelease(directory: string, manifest: Relea
   release = await readDraft();
   if (validateReleaseAssets(release, manifest, directory).missing.length !== 0) throw new Error("Draft is incomplete");
   verifyRemoteBytes(release);
-  await assertReleaseTagNewerThanPublished({ api, repository, verifiedTag: manifest.tag });
+  await assertReleaseTagNewerThanPublished({
+    api, repository, verifiedTag: manifest.tag, requireNoPublishedRelease: !latestResponse.found,
+  });
   await authority("prewrite");
   const published = mutate("PATCH", `${prefix}/releases/${draftId}`, { draft: false, make_latest: "true" });
   exactWorkflowPublishedRelease({ ...coordinates, value: published });
@@ -209,7 +217,13 @@ export async function publishCanonicalRelease(directory: string, manifest: Relea
   if (readback.id !== draftId || readback.body !== body || readback.published_at !== published.published_at
     || validateReleaseAssets(readback, manifest, directory).missing.length !== 0) throw new Error("Immutable publication readback differs");
   verifyRemoteBytes(readback);
-  await waitForLatestRelease({ api, predecessorRelease: predecessor, repository, targetRelease: readback, verifiedTag: manifest.tag });
+  if (latestResponse.found) {
+    await waitForLatestRelease({ api, predecessorRelease: predecessor, repository, targetRelease: readback, verifiedTag: manifest.tag });
+  } else {
+    // With no pinned predecessor, only the exact target may be observed. A
+    // lagging/missing projection fails closed and the same attempt can resume.
+    await requireLatestRelease({ api, repository, targetRelease: readback, verifiedTag: manifest.tag });
+  }
   await authority("postwrite");
   // GitHub has no conditional publish: a stable Release completed out of band
   // after the pre-publication census would otherwise leave this older target Latest.
