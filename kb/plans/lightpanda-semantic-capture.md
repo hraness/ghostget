@@ -231,7 +231,7 @@ Lightpanda reads is not supported by the evidence.
 
 ## The "auto" default (v0.18.84)
 
-After the live X and LinkedIn proofs, the contained-session engine
+After the live LinkedIn proofs, the contained-session engine
 default became `"auto"`: every headless session whose realm yields
 explicit cookies resolves to a provisioned Lightpanda, and Chromium
 remains the resolution for everything else. Eligibility adds the
@@ -248,7 +248,7 @@ the same unpublished-preflight protection as an explicit `"auto"`.
   requests` commands (live revision discovery) on a `headed: false`
   session, the only headed:false transport with an unqualified command
   stream.
-- Headed transports — X transaction bootstrap, Instagram profile,
+- Headed transports — Instagram profile,
   LinkedIn article/comment/post/feed/search — resolve to Chromium
   through the headed gate alone, keeping the anti-bot property they
   declared `headed: true` for.
@@ -297,9 +297,7 @@ the same unpublished-preflight protection as an explicit `"auto"`.
   LinkedIn transports (article, comment, post, feed, search), the
   headed mutation/anti-bot lanes, and every headed request — the
   headless-only eligibility gate keeps those on Chromium without
-  per-call-site pins. X's edge currently rejects the contained
-  headless Chrome entirely, so no Chrome-vs-Lightpanda X benchmark
-  exists; Lightpanda is the only contained engine that reaches it.
+  per-call-site pins.
 
 ## Durable memory
 

@@ -226,6 +226,7 @@ function compareStableVersions(left, right) {
 export async function assertReleaseTagNewerThanPublished({
   allowExistingTarget = false,
   api,
+  requireNoPublishedRelease = false,
   repository,
   verifiedTag,
 }) {
@@ -275,6 +276,9 @@ export async function assertReleaseTagNewerThanPublished({
         release.tag_name,
         `published releases page ${String(page)} item ${String(index)} tag_name`,
       );
+      if (requireNoPublishedRelease && !draft && !prerelease) {
+        fail("Missing Latest Release conflicts with published release history");
+      }
       const current = stableVersion(currentTag, "published release tag");
       if (!draft && !prerelease && current !== undefined) {
         const immutable = expectBoolean(

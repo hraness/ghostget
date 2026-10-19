@@ -5109,7 +5109,7 @@
     },
     {
       "id": "release-latest-convergence-bounded",
-      "statement": "When creating a missing Release, the workflow pins one older immutable Latest predecessor; Latest may only remain that predecessor or advance to the exact target within at most twelve 5-second absolute slots in a 60-second monotonic deadline; any third identity, regression, drift, clock regression or exhaustion fails closed.",
+      "statement": "When creating a missing Release with an existing published predecessor, the workflow pins one older immutable Latest predecessor; Latest may only remain that predecessor or advance to the exact target within at most twelve 5-second absolute slots in a 60-second monotonic deadline; any third identity, regression, drift, clock regression or exhaustion fails closed.",
       "area": "release",
       "source": {
         "path": "docs/publishing.md",
@@ -5140,6 +5140,37 @@
       ]
     },
     {
+      "id": "release-first-publication-empty-history",
+      "statement": "The first stable Release requires an authenticated exact Latest 404 agreeing with a complete bounded inventory containing no published non-prerelease Release, repeats the absence census before publication, and requires the exact immutable target as Latest after publication. Malformed, denied, ambiguous, or contradictory prepublication Latest responses permit no mutation.",
+      "area": "release",
+      "source": {
+        "path": "docs/publishing.md",
+        "quote": "For the first stable Release, an authenticated exact 404 for Latest must agree with a complete bounded inventory containing no published non-prerelease Release."
+      },
+      "layer": "stateful-model",
+      "status": "evidenced",
+      "evidence": [
+        "scripts/github-release-publish-model.test.ts",
+        "scripts/release-provider-outcome.test.ts"
+      ],
+      "assumptions": [
+        "github-api",
+        "github-enforcement"
+      ],
+      "notVerified": [
+        "The publisher model drives production against an in-memory GitHub fake; actual provider response formats and immutability remain the github-api and github-enforcement assumptions.",
+        "CI samples up to 1,000 schedules of at most 12 commands from both empty and predecessor-present initial histories; it does not enumerate every interleaving.",
+        "First publication requires immediate exact Latest readback. A lagging or absent projection fails closed after immutable publication and must recover through the original attested attempt.",
+        "GitHub has no conditional publish; terminal readback detects covered drift after publication but cannot undo an immutable Release."
+      ],
+      "properties": [
+        {
+          "path": "scripts/github-release-publish-model.test.ts",
+          "test": "stateful model: every schedule of attempts, faults, and foreign releases keeps the publisher's write laws"
+        }
+      ]
+    },
+    {
       "id": "release-never-delete-published",
       "statement": "A published immutable Release is never deleted or rewritten, even if terminal readback fails after publication; historical versions, tags and assetless Releases are preserved.",
       "area": "release",
@@ -5160,7 +5191,7 @@
       "notVerified": [
         "The publisher model drives the production `publishCanonicalRelease` and its bounded asset downloader against an in-memory fake of GitHub; that GitHub behaves like the fake (drafts invisible to the by-tag endpoint, one published Release per tag, `gh release upload` resolving a tag to its published Release or else the newest draft) is the `github-api` assumption.",
         "CI samples up to 1,000 schedules of at most 12 commands; it does not enumerate every interleaving.",
-        "The model's history is one assetless predecessor Release; larger histories and tag deletion outside the publisher are not modelled, and the tag rulesets that forbid tag deletion are `github-enforcement` configuration."
+        "The model starts with either empty release history or one assetless predecessor Release; larger histories and tag deletion outside the publisher are not modelled, and the tag rulesets that forbid tag deletion are `github-enforcement` configuration."
       ],
       "properties": [
         {

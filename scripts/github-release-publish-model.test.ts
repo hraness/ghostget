@@ -61,9 +61,11 @@ type World = {
 
 type LookupFault = "lookup-500" | "lookup-403" | "lookup-status-mismatch" | "lookup-malformed"
   | "lookup-wrong-404-body" | "inventory-error";
+type LatestFault = "latest-404" | "latest-500" | "latest-status-mismatch" | "latest-wrong-404-body";
 type Fault =
   | { kind: "none" }
   | { kind: LookupFault }
+  | { kind: LatestFault }
   | { kind: "crash-before" | "lost-after" | "starter"; at: number }
   | { kind: "authority-drift" | "main-advances" | "concurrent-higher"; at: number };
 
@@ -95,11 +97,12 @@ function releaseJson(release: StoredRelease): Record<string, unknown> {
 const snapshot = (release: StoredRelease): string => JSON.stringify({ ...releaseJson(release),
   stored: release.assets.map(asset => [asset.id, sha256(asset.bytes), asset.corrupt, asset.state]) });
 
-function initialWorld(): World {
+function initialWorld(firstRelease = false): World {
   const predecessor: StoredRelease = { id: PREDECESSOR_ID, tag: "v0.16.11", draft: false, immutable: true, body: "historical",
     target: "c".repeat(40), name: "Ghostget v0.16.11", author: BOT, assets: [], publishedAt: "2026-09-08T01:00:00Z",
     untagged: "0".repeat(20) };
-  return { releases: [predecessor], latestId: PREDECESSOR_ID, mainSha: workflowSha, nextId: 100, nextAssetId: 1000, clock: 0, latestLag: 0 };
+  return { releases: firstRelease ? [] : [predecessor], latestId: firstRelease ? 0 : PREDECESSOR_ID,
+    mainSha: workflowSha, nextId: 100, nextAssetId: 1000, clock: 0, latestLag: 0 };
 }
 
 type Write = { kind: "create" | "upload" | "publish"; releaseId: number };
@@ -195,6 +198,17 @@ async function invoke(world: World, attempt: Attempt, fault: Fault): Promise<Out
     }
     if (args[1] !== "api") { violations.push(`unexpected gh command ${args.join(" ")}`); return { status: 1, stdout: "" }; }
     if (args[2] === "--include") {
+      if (args.length === 4 && args[3] === `${prefix}/releases/latest`) {
+        const latest = world.releases.find(release => release.id === world.latestId);
+        events.push({ kind: "latest", id: world.latestId });
+        if (fault.kind === "latest-500") return { status: 1, stdout: 'HTTP/2 500\n\n{"message":"Server Error"}' };
+        if (fault.kind === "latest-wrong-404-body") return { status: 1, stdout: 'HTTP/2 404\n\n{"message":"Forbidden"}' };
+        const missing = latest === undefined || fault.kind === "latest-404";
+        return {
+          status: fault.kind === "latest-status-mismatch" ? (missing ? 0 : 1) : (missing ? 1 : 0),
+          stdout: `HTTP/2 ${missing ? "404" : "200"}\n\n${JSON.stringify(missing ? { message: "Not Found" } : releaseJson(latest!))}`,
+        };
+      }
       if (args.length !== 4 || args[3] !== `${prefix}/releases/tags/${tag}`) {
         violations.push(`unexpected included read ${args.join(" ")}`);
         return { status: 1, stdout: "" };
@@ -236,7 +250,8 @@ async function invoke(world: World, attempt: Attempt, fault: Fault): Promise<Out
           else { world.latestId = world.pendingLatestId; world.pendingLatestId = undefined; }
         }
         events.push({ kind: "latest", id: world.latestId });
-        return ok(releaseJson(world.releases.find(release => release.id === world.latestId)!));
+        const latest = world.releases.find(release => release.id === world.latestId);
+        return latest === undefined ? notFound : ok(releaseJson(latest));
       }
       if (endpoint === `${prefix}/releases/tags/${tag}`) { const found = byTagPublished(); return found === undefined ? notFound : ok(releaseJson(found)); }
       const byId = /^\/repos\/hraness\/ghostget\/releases\/([1-9][0-9]*)$/u.exec(endpoint);
@@ -366,7 +381,7 @@ class Publish implements fc.AsyncCommand<Model, Real> {
       names: release.assets.map(asset => asset.name) }));
     const live = this.fault.kind === "none" && resumable(world, attempt);
     const publishedBefore = world.releases.some(release => release.tag === tag && !release.draft);
-    const latestBefore = world.releases.find(release => release.id === world.latestId)!;
+    const latestBefore = world.releases.find(release => release.id === world.latestId);
     const outcome = await invoke(world, attempt, this.fault);
     expect(outcome.violations).toEqual([]);
     // Nothing is ever deleted, and a published release, a foreign release, or a
@@ -391,8 +406,8 @@ class Publish implements fc.AsyncCommand<Model, Real> {
       expect(outcome.error).toBeDefined();
       expect(outcome.writes).toEqual([]);
     }
-    // A missing Release is created only after pinning one older stable Latest predecessor.
-    if (!publishedBefore && latestBefore.tag === NON_STABLE_TAG) {
+    // An existing non-stable Latest cannot be treated as an absent predecessor.
+    if (!publishedBefore && latestBefore?.tag === NON_STABLE_TAG) {
       expect(outcome.error).toBeDefined();
       expect(outcome.writes).toEqual([]);
     }
@@ -552,9 +567,40 @@ afterAll(async () => { if (root !== "") await rm(root, { recursive: true, force:
 const PUBLISHER_MODEL_PROPERTY = Object.freeze({ numRuns: 1000, interruptAfterTimeLimit: 30_000 });
 
 describe("canonical GitHub publisher stateful model", () => {
+  test("publishes the first immutable release only after proving no published predecessor exists", async () => {
+    const world = initialWorld(true);
+    const outcome = await invoke(world, attempts.get("R1")!, { kind: "none" });
+    expect(outcome.violations).toEqual([]);
+    expect(outcome.error).toBeUndefined();
+    expect(outcome.writes.map(write => write.kind)).toEqual([
+      "create", "upload", "upload", "upload", "upload", "upload", "publish",
+    ]);
+    expect(world.releases).toHaveLength(1);
+    const target = world.releases[0]!;
+    expect(target.tag).toBe(tag);
+    expect(target.immutable).toBe(true);
+    expect(target.assets.map(asset => asset.name).sort()).toEqual([...names].sort());
+    expectTerminalLatestAndAuthority(outcome, target.id);
+    const rerun = await invoke(world, attempts.get("R1")!, { kind: "none" });
+    expect(rerun.error).toBeUndefined();
+    expect(rerun.writes).toEqual([]);
+    expect(rerun.violations).toEqual([]);
+  });
+
+  test("refuses a missing Latest projection over published history and unproven missing responses", async () => {
+    for (const fault of ["latest-404", "latest-500", "latest-status-mismatch", "latest-wrong-404-body"] as const) {
+      const world = initialWorld();
+      const outcome = await invoke(world, attempts.get("R1")!, { kind: fault });
+      expect(outcome.error).toBeDefined();
+      expect(outcome.writes).toEqual([]);
+      expect(outcome.violations).toEqual([]);
+      expect(world.releases).toHaveLength(1);
+    }
+  });
+
   test("stateful model: every schedule of attempts, faults, and foreign releases keeps the publisher's write laws", async () => {
-    await assertAsyncProperty(fc.asyncProperty(commandArbitrary, async (commands) => {
-      await fc.asyncModelRun(() => ({ model: {}, real: { world: initialWorld(), attempts } }), commands);
+    await assertAsyncProperty(fc.asyncProperty(commandArbitrary, fc.boolean(), async (commands, firstRelease) => {
+      await fc.asyncModelRun(() => ({ model: {}, real: { world: initialWorld(firstRelease), attempts } }), commands);
     }), PUBLISHER_MODEL_PROPERTY);
   });
 

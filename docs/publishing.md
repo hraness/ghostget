@@ -1,14 +1,13 @@
 # Publish Ghostget
 
-Ghostget starts at `@hraness/ghostget@0.17.5`, with command `ghostget` and the
-existing seven SDK subpaths. GitHub Releases became canonical under the former
-`@hraness/wrench` name at v0.16.13. Historical manifests, archive filenames, and
-signed provenance keep that original identity. npm carries the identical
-canonical archive: the same tag Release workflow publishes it through OIDC
-trusted publishing immediately after the immutable GitHub Release, with no
-dispatch, staged approval, or two-factor prompt. An npm failure never unpublishes
-or blocks the GitHub Release, and it is rerun from the same run. Historical versions and assetless Releases through v0.16.12 remain
-unchanged.
+The fresh public repository starts with `@hraness/ghostget@0.19.0`, command
+`ghostget`, and eleven SDK entry points. The preceding repository and its complete
+history are preserved in the owner's private archive.
+
+Verified immutable GitHub Releases are the canonical distribution. The same tag
+Release workflow publishes the identical archive to npm through OIDC trusted
+publishing after the GitHub Release. An npm failure never unpublishes or blocks
+the canonical Release; recover it from the same run.
 
 ## Admit the canonical GitHub artifact
 
@@ -73,7 +72,7 @@ selected as a substitute for the unique-run gate.
 
 After admission, Release still performs a fresh frozen install and deterministic
 build, checks generated `dist` and `bun.lock` cleanliness, dry packing and all
-twelve Node imports. Its new exact npm archive passes the strict artifact parser
+eleven Node imports. Its new exact npm archive passes the strict artifact parser
 and isolated consumer smoke before attestation or publication capability is
 available. CI also packs with the same Node/npm versions and canonical npm
 command, then checks the archive parser and calls the actual canonical
@@ -245,7 +244,7 @@ delivery proceeds through a new source-qualified version.
 
 Checked-in `CODEOWNERS` assigns source ownership and notification for the
 workflow, Release helper, and publishing policy paths. It does not claim live or
-independent review enforcement. Live Protect-main ruleset `20921911` has no
+independent review enforcement. Live Protect-main ruleset `25394567` has no
 bypass actors, retains the pull-request path and exact Required integration
 check, requires no approving review, and does not require code-owner review.
 Ghostget currently has one eligible maintainer, so
@@ -310,8 +309,9 @@ record as the whole body. The notes are presentation, not release authority, and
 so are the Release display title and bot login. An owner rerun of the same
 workflow run can therefore recover an already-created exact immutable Release.
 
-Only when creating a missing immutable Release, the Release workflow first
-pins one exact older immutable Latest Release by tag, ID, and publication time.
+When creating a missing immutable Release in a repository with prior releases,
+the Release workflow first pins one exact older immutable Latest Release by tag,
+ID, and publication time.
 After the POST, GitHub's Latest projection may remain only that exact predecessor
 or advance to the exact created target while the workflow makes at most twelve
 observations at absolute five-second slots inside one 60-second monotonic
@@ -326,6 +326,15 @@ Release and Latest once more. That final Latest read is the last external
 observation and must bind the same tag, ID, and publication time. This is a
 bounded authority sandwich, not an atomic provider snapshot, and it never
 changes the immutable Release or its tag.
+
+For the first stable Release, an authenticated exact 404 for Latest must agree
+with a complete bounded inventory containing no published non-prerelease Release.
+The workflow repeats that absence check before publication. It still requires
+all five verified files, immutable publication, and the exact target as Latest.
+With no pinned predecessor, an absent or lagging Latest response after publication
+fails closed; the original attempt may resume without rebuilding or rewriting
+that immutable Release. Existing-release recovery and terminal authority,
+ordering, and exact Latest readbacks remain the same.
 
 ## Install the canonical release
 
