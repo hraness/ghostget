@@ -169,6 +169,12 @@
   "rules": [
     {
       "guide": "AGENTS.md",
+      "anchor": "Honor this project's retired status.",
+      "digest": "524bb04933ef2280184676274458c7a1a7c5c402c022b91fb622518ba65fd2cf",
+      "exempt": "Lifecycle is an owner instruction, not a software-behavior claim. Automated source checks do not prove provider shutdown or registry deprecation."
+    },
+    {
+      "guide": "AGENTS.md",
       "anchor": "Use Bun 1.3.14. Complete",
       "digest": "04a03c959fcac1804562b47803d63c414cf2507f1161d47b16b55486882d43c3",
       "claims": [

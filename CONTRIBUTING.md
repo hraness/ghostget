@@ -1,5 +1,7 @@
 # Contributing to Ghostget
 
+> This project is retired. The contribution guide below is preserved for historical reference.
+
 Issues and focused pull requests are welcome. Open an issue before changing a
 durable wire format, trust boundary, confirmation rule, or compatibility
 contract so the required migration and evidence can be agreed first.
