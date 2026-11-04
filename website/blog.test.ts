@@ -162,6 +162,16 @@ describe("GhostGet blog discovery", () => {
 });
 
 describe("Built on GhostGet hub", () => {
+  test("classifies retired TextButler without sending readers to its former site", async () => {
+    expect(BUILT_ON_RELATIONS["runtime:message-like-me:wrench:reads-and-sends-messages-through"]).toBeNull();
+    const hub = BLOG_POSTS.find((post) => post.slug === "built-on-ghostget");
+    expect(hub).toBeDefined();
+    const body = await readFile(join(websiteRoot, "source/blog", hub!.bodyFile), "utf8");
+    const main = renderBlogPostMain(hub!, body);
+    expect(main).not.toContain('href="https://textbutler.app"');
+    expect(main).not.toContain("TextButler messaging assistant");
+  });
+
   test("renders every registered relation from the portfolio registry", () => {
     const relations = ghostgetRelations();
     expect(relations.length).toBeGreaterThan(0);

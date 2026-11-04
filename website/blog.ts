@@ -741,10 +741,7 @@ export const BUILT_ON_RELATIONS: Readonly<Record<string, Readonly<{ href: string
     label: "How PeopleBlade uses GhostGet to read contacts from your accounts",
   },
   "contract:wrench:message-like-me:exports-private-bundles": null,
-  "runtime:message-like-me:wrench:reads-and-sends-messages-through": {
-    href: "https://textbutler.app",
-    label: "TextButler messaging assistant",
-  },
+  "runtime:message-like-me:wrench:reads-and-sends-messages-through": null,
   // Registered in design-kit v0.18.2. The hub lists it once a GhostGet release
   // emits the text-only capture bundle Sponge imports; no release does yet.
   "contract:sponge:wrench:imports-captures-from": null,
