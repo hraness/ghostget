@@ -639,7 +639,7 @@ export function renderEditorialFigure(image: EditorialImage): string {
 }
 
 /** The homepage keeps its curated siblings; the registry owns their categories. */
-export const RELATED_PRODUCT_IDS = ["gobstopper", "xcb", "aicharts", "peopleblade", "soulscrape", "message-like-me", "kb"] as const satisfies readonly PortfolioProductId[];
+export const RELATED_PRODUCT_IDS = ["gobstopper", "aicharts", "peopleblade", "kb"] as const satisfies readonly PortfolioProductId[];
 
 /** Static equivalent of the shared MarketingRelated category and card markup. */
 export function renderRelatedGroups(ids: readonly PortfolioProductId[]): string {

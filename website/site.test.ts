@@ -648,7 +648,10 @@ describe("ghostget.com static site", () => {
     const relatedSection = /<section\b[^>]*data-hraness-marketing="related"[\s\S]*?<\/section>/u.exec(html)?.[0];
     expect(relatedSection).toBeDefined();
     expect(relatedSection).toContain('hraness-marketing-related__group-heading');
-    const groups = portfolioRelatedGroups(["gobstopper", "xcb", "aicharts", "peopleblade", "soulscrape", "message-like-me", "kb"]);
+    const groups = portfolioRelatedGroups(["gobstopper", "aicharts", "peopleblade", "kb"]);
+    for (const id of ["xcb", "soulscrape", "message-like-me"] as const) {
+      expect(relatedSection).not.toContain(`href="${product(id).canonicalUrl}"`);
+    }
     expect(relatedSection).toContain("Other tools from our studio");
     for (const group of groups) {
       expect(relatedSection).toContain(`data-tone="${group.tone}"`);
