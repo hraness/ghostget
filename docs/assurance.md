@@ -8,7 +8,7 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 210 claims: 197 evidenced, 0 planned, and 13 not verified. It maps 87 guidelines from 5 guides; 64 list claims and 23 are exempt.
+The register holds 210 claims: 197 evidenced, 0 planned, and 13 not verified. It maps 88 guidelines from 5 guides; 64 list claims and 24 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
@@ -55,6 +55,7 @@ These guidelines have no claim in the register, and no automated check covers th
 
 | Guide | Guideline | Reason |
 | --- | --- | --- |
+| `AGENTS.md` | Honor this project's retired status.… | Lifecycle is an owner instruction, not a software-behavior claim. Automated source checks do not prove provider shutdown or registry deprecation. |
 | `AGENTS.md` | Follow `WRITING.md` for… | Prose style rule; it states no property of the package, CLI, website, or release. |
 | `AGENTS.md` | Apply unreasonably robust… | Engineering method; the laws it asks for are claimed under the example-and-property and lifecycle-model rules. |
 | `AGENTS.md` | Extract a shared… | Package-extraction process rule; it states no property of shipped behaviour. |

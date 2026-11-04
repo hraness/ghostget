@@ -1,5 +1,7 @@
 # GhostGet
 
+> **Retired.** GhostGet is no longer maintained, and ghostget.com is discontinued. The source and existing releases are preserved. The documentation below describes the archived project.
+
 > 👻 GhostGet is an agent tool for driving websites fast. Instead of screenshots
 > and clicks, your agent calls named actions for the sites you use: read the
 > page, list the inbox, send the reply, publish the post. One measured article
